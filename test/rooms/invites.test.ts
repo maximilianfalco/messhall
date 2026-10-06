@@ -169,6 +169,15 @@ describe('the first call of an invited seat', () => {
     expect(store().seatsOf(made.seatKey)).toStrictEqual([]);
   });
 
+  it('keeps the invite token as the key when no other key comes with it', () => {
+    const made = invite({ launch: { agent: 'codex', cwd: '/tmp/web' }, name: 'web' });
+    if (!made.ok) throw new Error(made.reason);
+
+    store().joinRoom({ as: 'web', invite: made.seatKey, kind: 'codex', room: 'demo' });
+
+    expect(store().seatsOf(made.seatKey)).toStrictEqual([{ kind: 'codex', name: 'web', room: 'demo' }]);
+  });
+
   it('refuses an invite token for a name with no invite', () => {
     expect(store().joinRoom({ as: 'web', invite: 'made-up', kind: 'codex', room: 'demo' })).toStrictEqual({
       ok: false,
@@ -194,6 +203,40 @@ describe('invited seats and the clock', () => {
     expect(events.map(({ event }) => event)).toContainEqual(
       expect.objectContaining({ change: 'removed', type: 'member' }),
     );
+  });
+
+  it('closes an agent made room once the dropped invite was the last agent not done', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'solo' });
+    store().invite({ by: 'human', launch: LAUNCH, name: 'web', role: 'worker', room: 'solo' });
+    store().postMessage({ done: true, from: 'api', room: 'solo', text: 'shipped' });
+    expect(
+      store()
+        .listRooms()
+        .find(room => room.name === 'solo')?.closed_at,
+    ).toBeNull();
+
+    scratch.clock.advance(INVITE_TTL_MS);
+    store().expireInvites();
+
+    expect(
+      store()
+        .listRooms()
+        .find(room => room.name === 'solo')?.closed_at,
+    ).not.toBeNull();
+  });
+
+  it('leaves a room open when the dropped invite leaves agents who are not done', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'solo' });
+    store().invite({ by: 'human', launch: LAUNCH, name: 'web', role: 'worker', room: 'solo' });
+
+    scratch.clock.advance(INVITE_TTL_MS);
+    store().expireInvites();
+
+    expect(
+      store()
+        .listRooms()
+        .find(room => room.name === 'solo')?.closed_at,
+    ).toBeNull();
   });
 
   it('keeps a seat whose agent came', () => {

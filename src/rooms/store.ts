@@ -85,9 +85,6 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
 
   const sql = {
     allMembers: db.prepare('SELECT * FROM members WHERE room_id = ? ORDER BY name'),
-    agentsNotDone: db.prepare(
-      "SELECT count(*) AS n FROM members WHERE room_id = ? AND left_at IS NULL AND kind != 'human' AND done = 0",
-    ),
     closeRoom: db.prepare('UPDATE rooms SET closed_at = ? WHERE id = ?'),
     countPosts: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST}`),
     countPostsUpTo: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST} AND id <= ?`),
@@ -230,6 +227,16 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     sql.closeRoom.run(stamp(), room.id);
     systemLine(room, text, emit);
     emit({ change: 'closed', room: roomById(room.id), type: 'room' });
+  }
+
+  // A room an agent made closes once every agent still in it is done.
+  function closeIfAllDone(room: Room, emit: Emit) {
+    if (room.standing || room.closed_at !== null) return;
+    const agents = sql.liveMembers
+      .all(room.id)
+      .map(toMember)
+      .filter(member => member.kind !== 'human');
+    if (agents.length && agents.every(member => member.done)) close(room, 'all done, room closed', emit);
   }
 
   function reopen(room: Room, emit: Emit) {
@@ -378,7 +385,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const cursor = startCursor(room);
         const [name, version] = [client?.name ?? null, client?.version ?? null];
         const role = as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
-        const seatKeyOrNull = seatKey ?? null;
+        const seatKeyOrNull = seatKey ?? invite ?? null;
         if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), room.id, as);
         else {
           const at = stamp();
@@ -463,6 +470,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
           const room = roomById(member.room_id);
           drop(room, member, emit);
           systemLine(room, `${member.name} never came, invite dropped`, emit);
+          closeIfAllDone(roomById(room.id), emit);
           return { name: member.name, room: room.name };
         });
       });
@@ -633,9 +641,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         setPresence(room, member, 'active', emit, true);
         if (human) sql.unpauseAll.run(room.id);
         else guardLoop(room, emit);
-        if (!room.standing && kind === 'done' && Number(sql.agentsNotDone.get(room.id)?.n) === 0) {
-          close(room, 'all done, room closed', emit);
-        }
+        if (kind === 'done') closeIfAllDone(room, emit);
         return { message, ok: true } as const;
       });
     },
