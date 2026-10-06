@@ -68,7 +68,7 @@ struct RoomList: View {
     if !rooms.isEmpty {
       Section(title) {
         ForEach(rooms) { room in
-          RoomRow(room: room).tag(Optional(room.name))
+          RoomRow(room: room).tag(room.name)
         }
       }
     }

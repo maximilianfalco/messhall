@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ShotHooks.renderStatus(into: URL(fileURLWithPath: dir))
         exit(0)
       }
+      ShotHooks.forceAppearance(UserDefaults.standard.string(forKey: "shotAppearance"))
     #endif
   }
 

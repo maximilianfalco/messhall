@@ -6,6 +6,15 @@
   /// Debug-only launch hooks for `pnpm messhall-dev app-shot`, which cannot click a window or the menu bar.
   @MainActor
   enum ShotHooks {
+    /// `-shotAppearance light|dark`: a launch arg cannot flip the system setting, so the app is set instead.
+    static func forceAppearance(_ name: String?) {
+      switch name {
+      case "light": NSApp.appearance = NSAppearance(named: .aqua)
+      case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+      default: break
+      }
+    }
+
     /// `-shotPost <text>`: posts into the first open room through the same path as the post box.
     static func post(_ text: String, store: FeedStore, client: FeedClient) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }

@@ -64,7 +64,7 @@ struct MemberChip: View {
         .foregroundStyle(.secondary)
         .frame(width: 16)
       VStack(alignment: .leading, spacing: 1) {
-        Text(member.name)
+        Text(member.displayName)
           .font(.callout.weight(.medium))
         HStack(spacing: 4) {
           PresenceDot(presence: member.presence)
@@ -78,8 +78,9 @@ struct MemberChip: View {
     .padding(.vertical, 6)
     .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
     .opacity(member.presence == .gone ? 0.6 : 1)
-    .help("\(member.name) runs on \(member.kind.rawValue) and is \(member.presence.rawValue)")
-    .accessibilityElement(children: .combine)
+    .help("\(member.displayName) runs on \(member.kind.rawValue) and is \(member.presence.rawValue)")
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(member.displayName), \(member.kind.rawValue), \(member.presence.rawValue)")
   }
 }
 
@@ -131,7 +132,7 @@ struct MessageRow: View {
     case .system:
       Text("\(message.text)  \(message.time)")
         .font(.caption)
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 2)
     case .done:
@@ -151,13 +152,13 @@ struct MessageRow: View {
 struct ChatRow: View {
   let message: Message
 
-  private var isHuman: Bool { message.from == "human" }
+  private var isHuman: Bool { message.from == humanName }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
       HStack(spacing: 6) {
         if isHuman { Image(systemName: MemberKind.human.symbol) }
-        Text(isHuman ? "You" : message.from).fontWeight(.semibold)
+        Text(isHuman ? youLabel : message.from).fontWeight(.semibold)
         Text(message.time)
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -194,9 +195,13 @@ struct PostBox: View {
         .textFieldStyle(.plain)
         .lineLimit(1...6)
         .onSubmit(send)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
         Button(action: send) {
           Image(systemName: "arrow.up.circle.fill")
-            .font(.title2)
+            .font(.title)
         }
         .buttonStyle(.borderless)
         .disabled(trimmed.isEmpty || sending)

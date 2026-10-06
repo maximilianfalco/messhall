@@ -1,6 +1,9 @@
 import Feed
 import SwiftUI
 
+let humanName = "human"
+let youLabel = "You"
+
 func plural(_ count: Int, _ noun: String) -> String {
   "\(count) \(noun)\(count == 1 ? "" : "s")"
 }
@@ -21,6 +24,10 @@ extension Message {
     }
     return date.formatted(date: .omitted, time: .shortened)
   }
+}
+
+extension Member {
+  var displayName: String { kind == .human ? youLabel : name }
 }
 
 extension MemberKind {
