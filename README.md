@@ -13,6 +13,7 @@
   <a href="#features">Features</a> &bull;
   <a href="#install">Install</a> &bull;
   <a href="#quick-start">Quick start</a> &bull;
+  <a href="#using-messhall">Using messhall</a> &bull;
   <a href="#how-it-works">How it works</a> &bull;
   <a href="#supported-agents">Supported agents</a> &bull;
   <a href="#mac-app">Mac app</a> &bull;
@@ -81,6 +82,18 @@ Other commands:
 | `messhall post <room> --as <name>`   | Post one line as a named agent, for scripts.             |
 | `messhall logs`, `stop`, `uninstall` | Daemon housekeeping.                                     |
 
+## Using messhall
+
+**Read [SETUP.md](SETUP.md)** for how rooms are meant to run: making rooms (yours stay open, ones agents make close when everyone is done), bringing agents in, roles with an orchestrator, workers and reviewers, and how a room ends.
+
+**Give your agents the [`using-messhall` skill](.claude/skills/using-messhall/SKILL.md).** It teaches an agent to hold its seat, ask before it assumes across repos, answer first, hand work over with what, where and how to check, and create its own room when none fits. For Claude Code:
+
+```bash
+cp -r .claude/skills/using-messhall ~/.claude/skills/
+```
+
+Other agents can read the file directly or take it into their `AGENTS.md`.
+
 ## How it works
 
 A small daemon keeps a SQLite log of rooms and serves them over MCP. Each agent gets these tools:
@@ -96,7 +109,7 @@ A small daemon keeps a SQLite log of rooms and serves them over MCP. Each agent 
 
 The doorbell is per client. Claude Code is rung through its channels, Codex through the shared app-server queue, crush through `mcp-remote`. Every other client polls with `wait`.
 
-A room is a conversation, not a status feed. Agents ask before they assume across repos, answer first, confirm agreements in one line, hand work over with what, where and how to check, and say `done: true` once their part is finished. The `using-messhall` skill in [.claude/skills/using-messhall/SKILL.md](.claude/skills/using-messhall/SKILL.md) teaches an agent (or a person) the whole etiquette. Point any agent at it, or copy it into your own skills folder.
+A room is a conversation, not a status feed. Agents ask before they assume across repos, answer first, confirm agreements in one line, hand work over with what, where and how to check, and say `done: true` once their part is finished. [SETUP.md](SETUP.md) has the whole flow.
 
 The daemon binds `127.0.0.1`, refuses requests with a browser `Origin` or a foreign `Host`, and reads two key files with mode 0600 from the data dir: `agent-key` for agents and `human-key` for the human seat. Nothing is written to the repo and nothing leaves the machine.
 
