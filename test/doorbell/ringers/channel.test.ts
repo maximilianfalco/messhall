@@ -1,9 +1,9 @@
-import type { ChannelEntry } from '../../../src/doorbell/ringers/claude.js';
+import type { ChannelEntry } from '../../../src/doorbell/ringers/channel.js';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { CHANNEL_METHOD, createClaudeRinger } from '../../../src/doorbell/ringers/claude.js';
+import { CHANNEL_METHOD, createChannelRinger } from '../../../src/doorbell/ringers/channel.js';
 import { createMesshallServer } from '../../../src/mcp/server.js';
 import { createSession, createSessionRegistry } from '../../../src/mcp/session.js';
 import { connectInMemory } from '../../../src/mcp/testing.js';
@@ -16,15 +16,15 @@ const RING = {
   text: 'messhall: 2 new in #checkout. Call read_since.',
 };
 
-function fakeEntry({ id, kind = 'claude', fails = false }: { fails?: boolean; id: string; kind?: 'claude' | 'codex' }) {
+function fakeEntry({ channel = true, fails = false, id }: { channel?: boolean; fails?: boolean; id: string }) {
   const notification = vi.fn<() => Promise<void>>(() =>
     fails ? Promise.reject(new Error('not connected')) : Promise.resolve(),
   );
-  const entry: ChannelEntry = { server: { server: { notification } }, session: { id, kind } };
+  const entry: ChannelEntry = { server: { server: { notification } }, session: { channel, id } };
   return { entry, notification };
 }
 
-describe('createClaudeRinger', () => {
+describe('createChannelRinger', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -32,7 +32,7 @@ describe('createClaudeRinger', () => {
   it('sends the channel notification with the text and meta on every session of the member', async () => {
     const one = fakeEntry({ id: 's1' });
     const two = fakeEntry({ id: 's2' });
-    const ringer = createClaudeRinger({ sessionsFor: () => [one.entry, two.entry] });
+    const ringer = createChannelRinger({ sessionsFor: () => [one.entry, two.entry] });
     await expect(ringer.ring(RING)).resolves.toBe(2);
     const sent = {
       method: 'notifications/claude/channel',
@@ -44,32 +44,36 @@ describe('createClaudeRinger', () => {
 
   it('rings a session once when it holds the member in two rooms', async () => {
     const one = fakeEntry({ id: 's1' });
-    const ringer = createClaudeRinger({ sessionsFor: () => [one.entry] });
+    const ringer = createChannelRinger({ sessionsFor: () => [one.entry] });
     await ringer.ring({ ...RING, member: { name: 'web', rooms: ['checkout', 'auth'] } });
     expect(one.notification).toHaveBeenCalledTimes(1);
   });
 
-  it('skips sessions that are not claude', async () => {
-    const codex = fakeEntry({ id: 's1', kind: 'codex' });
-    const ringer = createClaudeRinger({ sessionsFor: () => [codex.entry] });
+  it('skips sessions that cannot take the channel', async () => {
+    const plain = fakeEntry({ channel: false, id: 's1' });
+    const ringer = createChannelRinger({ sessionsFor: () => [plain.entry] });
     await expect(ringer.ring(RING)).resolves.toBe(0);
-    expect(codex.notification).not.toHaveBeenCalled();
+    expect(plain.notification).not.toHaveBeenCalled();
+  });
+
+  it('serves the claude and other kinds', () => {
+    expect(createChannelRinger({ sessionsFor: () => [] }).kinds).toStrictEqual(['claude', 'other']);
   });
 
   it('drops a dead session and still rings the live one', async () => {
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const dead = fakeEntry({ fails: true, id: 's1' });
     const live = fakeEntry({ id: 's2' });
-    const ringer = createClaudeRinger({ sessionsFor: () => [dead.entry, live.entry] });
+    const ringer = createChannelRinger({ sessionsFor: () => [dead.entry, live.entry] });
     await expect(ringer.ring(RING)).resolves.toBe(1);
     expect(live.notification).toHaveBeenCalledTimes(1);
   });
 
-  it('reaches a real client through the messhall server', async () => {
+  it('reaches a real other-kind channel client through the messhall server', async () => {
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const scratch = scratchStore();
     const session = createSession({ id: 's1', now: scratch.clock.now });
-    session.bind({ kind: 'claude', name: 'web', room: 'checkout' });
+    session.bind({ channel: true, kind: 'other', name: 'web', room: 'checkout' });
     const sessions = createSessionRegistry<{ session: typeof session }>();
     const server = createMesshallServer({
       codex: fakeCodexRpc(),
@@ -87,7 +91,7 @@ describe('createClaudeRinger', () => {
         received.push(params);
       },
     );
-    const ringer = createClaudeRinger({ sessionsFor: () => [{ server, session }] });
+    const ringer = createChannelRinger({ sessionsFor: () => [{ server, session }] });
     await ringer.ring(RING);
     await vi.waitFor(() =>
       expect(received).toStrictEqual([{ content: '2 new in #checkout. Call read_since.', meta: RING.meta }]),

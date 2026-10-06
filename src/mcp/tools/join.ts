@@ -33,6 +33,14 @@ export function kindFromClient(name: string | undefined): AgentKind {
   return 'other';
 }
 
+// Clients past Claude Code that take Claude Channels. A bridge like mcp-remote adds a suffix to the name.
+const CHANNEL_CLIENTS = ['crush'];
+
+/** True when the doorbell can ring this session over the Claude channel. */
+export function ringsByChannel({ client, kind }: { client: string | undefined; kind: AgentKind }) {
+  return kind === 'claude' || CHANNEL_CLIENTS.includes(client?.toLowerCase().split(' ')[0] ?? '');
+}
+
 // Asks the client for its roots on the call's own stream. Any failure means no default name.
 async function nameFromRoots(server: McpServer, ctx: ServerContext) {
   if (!server.server.getClientCapabilities()?.roots) return;
@@ -59,7 +67,8 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
     if (held && held !== as) {
       return refuse(`you are already in #${input.room} as ${held}. call leave first to join under another name.`);
     }
-    const kind = input.kind ?? kindFromClient(server.server.getClientVersion()?.name);
+    const client = server.server.getClientVersion()?.name;
+    const kind = input.kind ?? kindFromClient(client);
     // A thread codex has not loaded is a closed TUI, so it cannot be rung.
     const read = input.thread_id ? await codex.request('thread/read', { threadId: input.thread_id }) : undefined;
     const threadId = read?.ok && read.result.thread.status.type !== 'notLoaded' ? input.thread_id : undefined;
@@ -76,7 +85,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       // A takeover leaves the old session bound, so drop it there before it can post as this name.
       sessions.sessionsFor({ name: as, room: input.room }).forEach(entry => entry.session.unbind(input.room));
     }
-    session.bind({ kind, name: as, room: input.room, threadId });
+    session.bind({ channel: ringsByChannel({ client, kind }), kind, name: as, room: input.room, threadId });
 
     const members = store.listMembers(input.room);
     const me = members.find(member => member.name === as)!;

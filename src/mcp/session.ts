@@ -6,6 +6,7 @@ import type { AgentKind } from '../../contracts/room.ts';
  */
 export function createSession({ id, now }: { id: string; now: () => Date }) {
   const rooms = new Map<string, string>();
+  let channel = false;
   let kind: AgentKind = 'other';
   let lastSeen = now().getTime();
   let open = 0;
@@ -13,9 +14,10 @@ export function createSession({ id, now }: { id: string; now: () => Date }) {
 
   return {
     /** Holds `name` in `room` for this session. */
-    bind(binding: { kind: AgentKind; name: string; room: string; threadId?: string }) {
+    bind(binding: { channel?: boolean; kind: AgentKind; name: string; room: string; threadId?: string }) {
       rooms.set(binding.room, binding.name);
       ({ kind } = binding);
+      channel = binding.channel ?? false;
       // A codex thread id is only passed once thread/read has checked it.
       if (binding.threadId) ({ threadId } = binding);
     },
@@ -36,6 +38,10 @@ export function createSession({ id, now }: { id: string; now: () => Date }) {
     /** True when no request is open and none ended after `cutoff`. A held GET stream keeps it live. */
     idleSince(cutoff: number) {
       return open === 0 && lastSeen <= cutoff;
+    },
+    /** True when the client takes `notifications/claude/channel`, so the channel ringer can reach it. */
+    get channel() {
+      return channel;
     },
     get kind() {
       return kind;

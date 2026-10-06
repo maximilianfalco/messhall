@@ -11,7 +11,7 @@ type Scratch = ReturnType<typeof scratchStore>;
 function setup(scratch: Scratch) {
   const rung: RingInput[] = [];
   const ringer: Ringer = {
-    kind: 'claude',
+    kinds: ['claude'],
     ring: input => {
       rung.push(input);
       return Promise.resolve(1);
@@ -41,6 +41,19 @@ function setup(scratch: Scratch) {
   });
   return { advance, rung, stop };
 }
+
+describe('createRingers', () => {
+  it('finds a ringer under each kind it serves', () => {
+    const ring = () => Promise.resolve(0);
+    const channel: Ringer = { kinds: ['claude', 'other'], ring };
+    const codex: Ringer = { kinds: ['codex'], ring };
+    const ringers = createRingers([channel, codex]);
+    expect(ringers.for('claude')).toBe(channel);
+    expect(ringers.for('other')).toBe(channel);
+    expect(ringers.for('codex')).toBe(codex);
+    expect(ringers.for('human')).toBeUndefined();
+  });
+});
 
 describe('startDoorbell', () => {
   let scratch: Scratch;
