@@ -81,6 +81,23 @@ struct FoldTests {
     #expect(grown.folded().map(\.id) == [1, 7])
   }
 
+  @Test("folding never drops a chat line, even next to a presence run")
+  func keepsChat() {
+    let messages = [
+      line(1, "a left"), line(2, "how we doing", kind: .chat), line(3, "b reconnected"), line(4, "c joined"),
+      line(5, "on it", kind: .chat), line(6, "c left"), line(7, "ok", kind: .chat), line(8, "d joined"),
+    ]
+    let shown = messages.folded().flatMap { item -> [Message] in
+      switch item {
+      case .message(let message): [message]
+      case .fold(let fold): fold.messages
+      }
+    }
+
+    #expect(shown == messages)
+    #expect(shape(messages.folded()) == ["m1", "m2", "f3,4", "m5", "m6", "m7", "m8"])
+  }
+
   @Test("an empty transcript has no items")
   func empty() {
     #expect([Message]().folded().isEmpty)

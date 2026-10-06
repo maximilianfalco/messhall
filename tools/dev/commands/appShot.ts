@@ -48,6 +48,10 @@ const SHOTS = [
   { agentPost: true, appearance: 'dark', name: 'pill-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', muted: true, name: 'muted-light' },
   { appearance: 'dark', muted: true, name: 'muted-dark' },
+  { appearance: 'light', name: 'human-row-light', room: 'docs-sync', scrollTop: true },
+  { appearance: 'dark', name: 'human-row-dark', room: 'docs-sync', scrollTop: true },
+  { appearance: 'light', name: 'empty-room-light', room: 'kickoff' },
+  { appearance: 'dark', name: 'empty-room-dark', room: 'kickoff' },
   { appearance: 'light', name: 'folded-light', room: 'handoff' },
   { appearance: 'dark', name: 'folded-dark', room: 'handoff' },
   { appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' },
@@ -127,6 +131,9 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
   presence([
     ['web', 'leave', 'back after lunch'],
     ['qa', 'leave'],
+  ]);
+  store.postMessage({ from: 'human', room, text: 'how we doing, whats in progress' });
+  presence([
     ['web', 'join'],
     ['qa', 'join'],
   ]);
@@ -150,7 +157,7 @@ function seedHistory({ step, store }: { step: (ms: number) => void; store: RoomS
   });
 }
 
-/** Seeds six rooms on a fresh db so every screen has something to show. Presence follows `now`. */
+/** Seeds seven rooms on a fresh db so every screen has something to show. Presence follows `now`. */
 export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) {
   let at = now.getTime() - 20 * 60_000;
   const db = openDb({ dataDir });
@@ -164,9 +171,10 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     at = now.getTime() - 20 * 60_000;
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'docs-sync' });
     store.postMessage({ from: 'writer', room: 'docs-sync', text: 'drafting the changelog for the currency change' });
-    CHANGELOG_PAGES.forEach(page => {
+    CHANGELOG_PAGES.forEach((page, i) => {
       step(10_000);
       store.postMessage({ from: 'writer', room: 'docs-sync', text: `updated the ${page} page for minor units` });
+      if (i === 4) store.postMessage({ from: 'human', room: 'docs-sync', text: 'looks good so far, keep going' });
     });
     step(5 * 60_000);
     store.joinRoom({ as: 'ledger', client: CLAUDE, kind: 'claude', room: 'billing' });
@@ -213,6 +221,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
       text: 'first pass of the notes is up, @human take a look',
     });
     store.postMessage({ done: true, from: 'writer', room: 'release-notes', text: 'notes drafted' });
+    store.createRoom({ created_by: 'human', name: 'kickoff' });
     store.sweepPresence();
   } finally {
     db.close();

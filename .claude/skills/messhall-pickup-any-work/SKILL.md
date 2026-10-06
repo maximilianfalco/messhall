@@ -34,6 +34,23 @@ The note has three job tables (Research, Decisions, Builds). The scripts read al
 8. **Merge** when CI is green. First `gh pr view <n> --json labels --jq '.labels[].name'`: if `human veto` is present, STOP, the PR waits for the owner (the `Critical paths` workflow adds it when the diff touches a `CRITICAL.md` tree). Otherwise `gh pr merge <n> --squash --admin` (the `main` ruleset wants a code owner review, and the owner's admin bypass is how a green PR merges), and ONLY if that command succeeded, `git push origin --delete <branch>`. Never chain the delete with `;` or `&&` on one line before checking: a failed merge plus a delete closes the PR for good. `--delete-branch` aborts inside a worktree, so delete by hand. If `main` moved while you built, `git fetch origin && git merge origin/main` into your branch and resolve the conflicts there (never rebase or force-push a pushed branch), because a conflicting PR never gets a CI run.
 9. **Close.** `queue.py done <id> <pr-url> "<one line: what shipped and how it was verified>"`. Remove the worktree after the merge with `git worktree remove .worktrees/<name>` from the main checkout. Leave it in place while a PR waits for the owner.
 
+## Spawning seated agents
+
+A subagent with no messhall tools works out of sight. `pnpm messhall-dev spawn <id>` instead runs the job as a real Claude Code session that sits in the room the whole time, so the human sees it, reads its progress and can ring it mid-job.
+
+```bash
+pnpm messhall-dev spawn <id> --dry-run                 # print the claim, worktree, claude line and prompt
+pnpm messhall-dev spawn <id> --brief <file>            # claim, worktree, claude in tmux session messhall-<id>
+pnpm messhall-dev flock                                # sessions, panes, rows, branches, pids, seated or not
+pnpm messhall-dev flock stop <id>                      # kill one, then queue.py release <id> if it is unfinished
+```
+
+- `spawn` refuses a row that is not `open` or still waits on a need, so it follows the same rules as `claim`. It claims the row and makes the worktree before claude starts, so the agent skips those steps.
+- Flags: `--room dev` (where the agent sits), `--model opus`, `--brief <file>` (read first, else the agent runs this skill for the row), `--dry-run`.
+- The agent joins as the branch slug (`f8/spawn` sits as `f8-spawn`) with the messhall tools, never leaves until the row is closed, posts at claim, tests green, PR open, CI and merge, answers any ring, human line or mention right away, and posts `done: true` with the PR url at the end.
+- It targets the real daemon and room on purpose. Watch one with `tmux attach -t messhall-<id>`. Mention it from the room (`messhall say dev "@<slug> ..."`) to steer it.
+- If claude never comes up (login screen, timeout), `spawn` kills the session and releases the row.
+
 ## Queue ids stay in the queue
 
 Row ids never appear in commits, PR titles or bodies, `CRITICAL.md`, the feature map or any tracked file. Write "the room store" or "the doorbell decision" instead. The queue note and the vault tickets are the only places ids belong.

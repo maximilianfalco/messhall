@@ -6,7 +6,14 @@ import path from 'node:path';
 
 import { daemonUrl, dataDir } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
-import { callTool, joinPostLeave, withAgentSession, type ToolReply } from '../../../src/mcp/oneshot.js';
+import {
+  callTool,
+  joinPostLeave,
+  openAgentSession,
+  withAgentSession,
+  type AgentSession,
+  type ToolReply,
+} from '../../../src/mcp/oneshot.js';
 import { follow } from '../lib/follow.js';
 import { bad, dim, ok } from '../lib/print.js';
 
@@ -17,6 +24,7 @@ interface AgentOptions {
   client?: string;
   follow?: boolean;
   keyFile: string;
+  pause?: (ms: number, signal: AbortSignal) => Promise<void>;
   postFifo?: string;
   role: string;
   room: string;
@@ -62,22 +70,45 @@ async function joinAndRead(
   return replies;
 }
 
-/** Joins once, follows until `signal` aborts, then leaves. */
+/** Joins once, follows until `signal` aborts, then leaves. A lost session is reopened and joined
+ * again under the same name, so the seat outlives a daemon restart. */
 async function joinAndFollow(
   client: Client,
   {
+    open,
+    pause,
     postFifo,
     role,
     room,
     signal,
     write,
-  }: Required<Pick<AgentOptions, 'role' | 'room' | 'signal' | 'write'>> & Pick<AgentOptions, 'postFifo'>,
+  }: Required<Pick<AgentOptions, 'role' | 'room' | 'signal' | 'write'>> &
+    Pick<AgentOptions, 'pause' | 'postFifo'> & { open: () => Promise<AgentSession> },
 ) {
   const joined = await callTool(client, 'join', { as: role, room });
   if (joined.isError) return [joined];
-  const refused = await follow({ client, postFifo, room, signal, write });
-  const left = await callTool(client, 'leave', { room });
-  return refused ? [joined, { isError: true, name: 'follow', seconds: 0, text: refused }, left] : [joined, left];
+  let current: AgentSession | undefined;
+  const rejoin = async () => {
+    await current?.close();
+    current = await open();
+    const again = await callTool(current.client, 'join', { as: role, room });
+    if (again.isError) throw new Error(again.text);
+    return current.client;
+  };
+  try {
+    const followed = await follow({ client, pause, postFifo, rejoin, room, signal, write });
+    const left = await callTool(followed.client, 'leave', { room }).catch((error: unknown): ToolReply => ({
+      isError: true,
+      name: 'leave',
+      seconds: 0,
+      text: errorText(error),
+    }));
+    return followed.refused
+      ? [joined, { isError: true, name: 'follow', seconds: 0, text: followed.refused }, left]
+      : [joined, left];
+  } finally {
+    await current?.close();
+  }
 }
 
 /**
@@ -89,6 +120,7 @@ export async function agentRun({
   client,
   follow: following,
   keyFile,
+  pause,
   postFifo,
   role,
   room,
@@ -102,9 +134,10 @@ export async function agentRun({
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
-  const session = await withAgentSession({ key, name: client ?? 'messhall-dev', url }, mcp =>
+  const target = { key, name: client ?? 'messhall-dev', url };
+  const session = await withAgentSession(target, mcp =>
     following
-      ? joinAndFollow(mcp, { postFifo, role, room, signal, write })
+      ? joinAndFollow(mcp, { open: () => openAgentSession(target), pause, postFifo, role, room, signal, write })
       : wait || catchUp
         ? joinAndRead(mcp, { catchUp, role, room, say, timeout })
         : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
@@ -138,7 +171,10 @@ export function registerAgent(program: Command) {
     .option('--say <text>', 'post this after joining')
     .option('--wait', 'block until something concerns this agent, then read')
     .option('--catch-up', 'read the backlog and leave without waiting')
-    .option('--follow', 'hold the seat: print each new message line, leave on SIGINT or SIGTERM')
+    .option(
+      '--follow',
+      'hold the seat: print each new message line, rejoin after a daemon restart, leave on SIGINT or SIGTERM',
+    )
     .option('--post-fifo <path>', 'with --follow, post each line written to this named pipe (made if missing)')
     .option('--timeout <s>', 'wait timeout in seconds', value => Number(value))
     .option('--client <name>', 'clientInfo name to send at initialize, to act as another agent')

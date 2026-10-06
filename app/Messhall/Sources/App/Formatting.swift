@@ -1,8 +1,6 @@
 import Feed
 import SwiftUI
 
-let humanName = "human"
-let youLabel = "You"
 
 func plural(_ count: Int, _ noun: String) -> String {
   "\(count) \(noun)\(count == 1 ? "" : "s")"
