@@ -26,9 +26,17 @@ describe('roomReport', () => {
 
     const text = stripVTControlCharacters(result.report);
     expect(result.code).toBe(0);
-    expect(text).toContain('#demo open, 1/200 posts');
+    expect(text).toContain('#demo open, 1/200 posts, made by api, not standing');
     expect(text).toMatch(/web\s+codex\s+active\s+3/);
     expect(text).toMatch(/3\s+api\s+chat\s+@web schema changed/);
+  });
+
+  it('says who made a standing room', () => {
+    scratch.store.createRoom({ created_by: 'human', name: 'planning' });
+
+    const text = stripVTControlCharacters(roomReport({ dataDir: scratch.dataDir, name: 'planning' }).report);
+
+    expect(text).toContain('#planning open, 0/200 posts, made by human, standing');
   });
 
   it('keeps only the last messages when asked for fewer', () => {

@@ -17,8 +17,9 @@ export function registerListRooms(server: McpServer, deps: ToolDeps, description
       // Every call stamps last seen, so the latest stamp is the room's last activity.
       const last = members.map(member => member.last_seen_at).reduce((a, b) => (a > b ? a : b), room.created_at);
       const as = session.rooms.get(room.name);
+      const made = room.standing ? `standing (made by ${room.created_by})` : `made by ${room.created_by}`;
       return [
-        `#${room.name} ${room.closed_at ? 'closed' : 'open'}, topic ${room.topic ?? 'none'}, ${room.message_count}/${room.message_cap} posts, last activity ${last}`,
+        `#${room.name} ${room.closed_at ? 'closed' : 'open'}, ${made}, topic ${room.topic ?? 'none'}, ${room.message_count}/${room.message_cap} posts, last activity ${last}`,
         `  members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
       ];
     });
