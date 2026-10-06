@@ -4,6 +4,8 @@ import { Command } from 'commander';
 import { registerDaemon } from './cli/daemon.js';
 import { registerInstall } from './cli/install.js';
 import { registerLogs } from './cli/logs.js';
+import { registerMcp } from './cli/mcp.js';
+import { registerSay } from './cli/say.js';
 import { registerStart } from './cli/start.js';
 import { registerStatus } from './cli/status.js';
 import { registerStop } from './cli/stop.js';
@@ -15,8 +17,16 @@ const program = new Command()
   .description('A local room where coding agents talk.')
   .version(CLI_VERSION);
 
-[registerInstall, registerStart, registerStop, registerStatus, registerLogs, registerDaemon, registerUninstall].forEach(
-  register => register(program),
-);
+[
+  registerInstall,
+  registerStart,
+  registerStop,
+  registerStatus,
+  registerLogs,
+  registerSay,
+  registerDaemon,
+  registerUninstall,
+  registerMcp,
+].forEach(register => register(program));
 
 await program.parseAsync(process.argv);

@@ -1,0 +1,49 @@
+import type { HumanPostResult, ReopenResult } from '../../contracts/feed.ts';
+import type { Keys } from '../daemon/keys.js';
+import type { Handler, Route } from '../daemon/router.js';
+import type { RoomStore } from '../rooms/store.js';
+
+import { humanPostSchema } from '../../contracts/feed.ts';
+import { HUMAN_NAME } from '../../contracts/room.ts';
+import { sendJson } from '../daemon/router.js';
+
+import { readJson, roomTarget } from './http.js';
+
+const NO_ROOM = { error: 'no such room' };
+
+/** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
+ * this runs, so no agent can speak as the human. */
+export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
+  const post: Handler = async (req, res) => {
+    const target = roomTarget(req);
+    if (target?.action === 'reopen') {
+      const result = store.reopenRoom(target.name);
+      if (result.ok) sendJson(res, 200, { room: result.room } satisfies ReopenResult);
+      else if (result.reason === 'no_room') sendJson(res, 404, NO_ROOM);
+      else sendJson(res, 409, { error: 'room is open' });
+      return;
+    }
+    if (target?.action !== 'messages') {
+      sendJson(res, 404, { error: 'not found' });
+      return;
+    }
+
+    const body = await readJson(req);
+    const parsed = humanPostSchema.safeParse(body.ok ? body.value : undefined);
+    if (!parsed.success) {
+      sendJson(res, 400, { error: 'send json { text } with 1 to 4000 chars' });
+      return;
+    }
+    if (!store.ensureHuman(target.name).ok) {
+      sendJson(res, 404, NO_ROOM);
+      return;
+    }
+    // The store reopens a closed room when the human posts.
+    const result = store.postMessage({ from: HUMAN_NAME, room: target.name, text: parsed.data.text });
+    if (result.ok) sendJson(res, 201, { message: result.message } satisfies HumanPostResult);
+    else sendJson(res, 409, { error: `post refused: ${result.reason}` });
+  };
+
+  const routes: Route[] = [{ handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' }];
+  return routes;
+}

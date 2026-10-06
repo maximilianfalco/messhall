@@ -57,3 +57,24 @@ describe('the event bus', () => {
     expect(summary(scratch.store.events.since(0))).toStrictEqual(['message later']);
   });
 });
+
+describe('the event bus bounds', () => {
+  it('starts at zero with nothing kept', () => {
+    expect(scratch.store.events.bounds()).toStrictEqual({ first: undefined, last: 0 });
+  });
+
+  it('gives the oldest kept and newest sequence', () => {
+    scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect(scratch.store.events.bounds()).toStrictEqual({ first: 1, last: 4 });
+  });
+
+  it('keeps counting after old events are dropped', () => {
+    scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    scratch.clock.advance(8 * DAY);
+
+    scratch.store.postMessage({ from: 'api', room: 'demo', text: 'later' });
+
+    expect(scratch.store.events.bounds()).toStrictEqual({ first: 5, last: 5 });
+  });
+});

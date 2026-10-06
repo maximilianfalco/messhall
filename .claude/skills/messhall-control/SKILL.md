@@ -25,7 +25,7 @@ Two parts, used together:
 |---|---|
 | `pnpm messhall-dev check` | format, lint, types, tests and the feature map check, as one pass/fail table with the tail of each failed step. Exit 1 on any failure |
 | `pnpm messhall-dev featuremap [--check]` | row counts by status, and every `built` or `building` row whose code paths are missing. `--check` exits 1 on drift |
-| `pnpm messhall-dev env` | node, pnpm, `claude --version` and whether it has Channels (2.1.80+), `codex --version`, the data dir, and the daemon's `/health` on `MESSHALL_PORT` or 7707 |
+| `pnpm messhall-dev env` | node, pnpm, `claude --version` and whether it has Channels (2.1.80+), `codex --version`, the data dir, the daemon's `/health` on `MESSHALL_PORT` or 7707, and whether the Claude Code and Codex messhall entries are present |
 | `pnpm messhall-dev qa-upload <pr> <files...>` | commits gifs or screenshots to the `qa-assets` branch under `pr-<n>/` without touching your branch, prints one markdown image per file |
 | `pnpm messhall-dev db "<sql>" [--data-dir <d>]` | a read-only query against a `messhall.db`, rows as a table. A write fails |
 | `pnpm messhall-dev daemon [--keep]` | `messhall daemon` from source on `MESSHALL_HOME` (else a temp dir) and `MESSHALL_PORT` (else a free port): its url, pid, data dir and `/health` body. Stops it unless `--keep` |
@@ -33,8 +33,10 @@ Two parts, used together:
 | `pnpm messhall-dev store [--data-dir <d>]` | a scripted join, post, read, done, leave and presence sweep on a scratch room store with a fake clock, then its rooms, members, messages and event counts |
 | `pnpm messhall-dev mcp [--tool <name> --input '<json>' --as <role> --room <room>]` | the MCP server over an in-memory client: instructions, each tool's title, annotations, fields and description length against the budget. With `--tool`, one call's text and `isError` |
 | `pnpm messhall-dev agent <role> --room <r> [--say <text>] [--wait] [--url <u>] [--key-file <f>]` | a scripted agent over real HTTP MCP on a running daemon: join, post, wait, read, each reply and how long `wait` blocked |
+| `pnpm messhall-dev feed [--room <r>] [--url <u>] [--since <seq>] [--count <n>]` | the live SSE feed of the running daemon, read with the human key: a `snapshot` line, then one line per `message`, `member`, `presence` or `room` event with its sequence. `--since` replays from the event log instead. Exits after `--count` lines or on ctrl-c |
+| `pnpm messhall-dev schema` | writes `contracts/schema.json` from the zod contracts (also `pnpm schema` and `pnpm build`). A test fails when the committed file is stale |
 
-The rest (`feed`, `channel`, `codex`, `demo`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
+The rest (`channel`, `codex`, `demo`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
 
 `scripts/messhall-dev` is a shell wrapper for the same tool, for use from any directory.
 

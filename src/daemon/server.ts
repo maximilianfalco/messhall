@@ -9,6 +9,7 @@ import { createClaudeRinger } from '../channels/claude.js';
 import { CLI_VERSION, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringers.js';
+import { feedRoutes } from '../feed/routes.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
 import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
@@ -97,10 +98,11 @@ export async function startDaemon({
   const stopDoorbell = startDoorbell({ now, ringers, store });
   const startedAt = now().getTime();
 
-  // The feed mounts under /api here.
+  // MCP mounts at /mcp and the feed under /api here.
   const routes: Route[] = [
     { handle: (_req, res) => sendJson(res, 200, health({ now, startedAt, store })), method: 'GET', path: '/health' },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
+    ...feedRoutes({ keys, now, store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
