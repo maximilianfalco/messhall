@@ -5,6 +5,8 @@ struct RoomDetail: View {
   let room: SnapshotRoom
   let store: FeedStore
   let client: FeedClient
+  @State private var confirmingClose = false
+  @State private var refusal: String?
   @State private var query = ""
 
   private var subtitle: String {
@@ -16,17 +18,116 @@ struct RoomDetail: View {
   var body: some View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
+      RoomOrigin(room: room)
       MemberStrip(members: room.members)
       Divider()
       Transcript(messages: room.messages.matching(query), query: query)
+        .id(room.name)
       Divider()
-      PostBox(room: room, store: store, client: client)
+      if room.isOpen {
+        PostBox(room: room, store: store, client: client)
+      } else {
+        ClosedBar(reopen: { change(.reopen(room.name)) })
+      }
     }
     .navigationTitle("#\(room.name)")
     .navigationSubtitle(subtitle)
     .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
     .onChange(of: room.name) { query = "" }
-    .toolbar { MuteButton(room: room.name) }
+    .toolbar {
+      ToolbarItem { MuteButton(room: room.name) }
+      ToolbarItem {
+        if room.isOpen {
+          Button("Close Room", systemImage: "lock", action: toggle)
+            .help("Close #\(room.name)")
+        } else {
+          Button("Reopen Room", systemImage: "lock.open", action: toggle)
+            .help("Reopen #\(room.name)")
+        }
+      }
+    }
+    .focusedSceneValue(\.roomToggle, RoomToggle(isOpen: room.isOpen, run: toggle))
+    .confirmationDialog("Close #\(room.name)?", isPresented: $confirmingClose) {
+      Button("Close Room") { change(.close(room.name)) }
+    } message: {
+      Text("Agents can no longer post. You can still read it and reopen it later.")
+    }
+    .alert(
+      "Could Not Change #\(room.name)", isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } })
+    ) {
+      Button("OK") {}
+    } message: {
+      Text(refusal ?? "")
+    }
+  }
+
+  private func toggle() {
+    if room.isOpen { confirmingClose = true } else { change(.reopen(room.name)) }
+  }
+
+  private func change(_ action: RoomAction) {
+    Task { refusal = await store.change(action, via: client) }
+  }
+}
+
+/// The open room's Close or Reopen action, so the menu bar can offer it too.
+struct RoomToggle {
+  let isOpen: Bool
+  let run: () -> Void
+}
+
+extension FocusedValues {
+  @Entry var roomToggle: RoomToggle?
+}
+
+struct RoomToggleCommand: View {
+  @FocusedValue(\.roomToggle) private var toggle
+
+  var body: some View {
+    Button(toggle?.isOpen == false ? "Reopen Room" : "Close Room\u{2026}") { toggle?.run() }
+      .disabled(toggle == nil)
+  }
+}
+
+struct RoomOrigin: View {
+  let room: SnapshotRoom
+
+  private var maker: String { room.createdBy == humanName ? "Made by human" : "Made by \(room.createdBy)" }
+
+  var body: some View {
+    HStack(spacing: 8) {
+      if room.standing {
+        Label("Standing", systemImage: "pin.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(Color.accentColor)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 3)
+          .background(Color.accentColor.opacity(0.12), in: Capsule())
+          .help("Stays open when agents finish. Only you close it, or the post cap.")
+      }
+      Text(maker)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      Spacer()
+    }
+    .padding(.horizontal, 16)
+    .padding(.top, 10)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+struct ClosedBar: View {
+  let reopen: () -> Void
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Label("Room is closed. Reopen to post.", systemImage: "lock")
+        .foregroundStyle(.secondary)
+      Spacer()
+      Button("Reopen", action: reopen)
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
   }
 }
 
@@ -106,6 +207,13 @@ struct PresenceDot: View {
 struct Transcript: View {
   let messages: [Message]
   let query: String
+  @State private var contentBottom = 0.0
+  @State private var viewportHeight = 0.0
+  @State private var showPill = false
+
+  private static let space = "transcript"
+
+  private var nearBottom: Bool { Follow.isNearBottom(contentBottom: contentBottom, viewportHeight: viewportHeight) }
 
   var body: some View {
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -121,13 +229,79 @@ struct Transcript: View {
             ForEach(messages) { MessageRow(message: $0).id($0.id) }
           }
           .padding(16)
+          .onGeometryChange(for: Double.self) { $0.frame(in: .named(Self.space)).maxY } action: { bottom in
+            contentBottom = bottom
+            hidePillAtBottom()
+          }
         }
+        .coordinateSpace(name: Self.space)
         .defaultScrollAnchor(.bottom)
-        .onChange(of: messages.last?.id) { _, last in
-          withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+        .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
+          viewportHeight = height
+          hidePillAtBottom()
+        }
+        .overlay(alignment: .bottom) {
+          if showPill {
+            JumpToLatest { scroll(proxy, animated: true) }
+              .padding(.bottom, 12)
+              .transition(.move(edge: .bottom).combined(with: .opacity))
+          }
+        }
+        .onAppear { start(proxy) }
+        .onChange(of: messages.last?.id) { before, after in
+          let fromHuman = messages.last?.from == humanName
+          switch Follow.action(lastBefore: before, lastAfter: after, fromHuman: fromHuman, nearBottom: nearBottom) {
+          case .scroll(let animated): scroll(proxy, animated: animated)
+          case .showPill: withAnimation(.easeOut) { showPill = true }
+          case .none: break
+          }
         }
       }
     }
+  }
+
+  private func hidePillAtBottom() {
+    if nearBottom { showPill = false }
+  }
+
+  private func start(_ proxy: ScrollViewProxy) {
+    scroll(proxy, animated: false)
+    #if DEBUG
+      // The bottom anchor wins the first layout, so the shot scrolls up a beat later.
+      if ShotHooks.startAtTop {
+        Task {
+          try? await Task.sleep(for: .milliseconds(500))
+          proxy.scrollTo(messages.first?.id, anchor: .top)
+        }
+      }
+    #endif
+  }
+
+  private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
+    showPill = false
+    guard animated else {
+      proxy.scrollTo(messages.last?.id, anchor: .bottom)
+      return
+    }
+    withAnimation(.easeOut) { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
+  }
+}
+
+struct JumpToLatest: View {
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Label("Jump to Latest", systemImage: "arrow.down")
+        .font(.callout.weight(.medium))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+    .buttonStyle(.plain)
+    .background(.regularMaterial, in: Capsule())
+    .overlay(Capsule().strokeBorder(.separator))
+    .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+    .help("Scroll to the newest message")
   }
 }
 
@@ -210,10 +384,7 @@ struct PostBox: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .bottom, spacing: 8) {
-        TextField(
-          room.isOpen ? "Message #\(room.name) as human" : "Message #\(room.name) to reopen it",
-          text: $text, axis: .vertical
-        )
+        TextField("Message #\(room.name) as human", text: $text, axis: .vertical)
         .textFieldStyle(.plain)
         .lineLimit(1...6)
         .onSubmit(send)

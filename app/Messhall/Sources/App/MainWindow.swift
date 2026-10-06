@@ -13,19 +13,36 @@ struct MainWindow: View {
     )
   }
 
+  private var showingNewRoom: Binding<Bool> {
+    Binding(get: { navigation.newRoomDraft != nil }, set: { if !$0 { navigation.newRoomDraft = nil } })
+  }
+
   var body: some View {
     if store.loaded {
       NavigationSplitView {
         RoomList(rooms: store.rooms, selection: selection)
           .navigationSplitViewColumnWidth(min: 200, ideal: 230)
+          .toolbar {
+            ToolbarItem {
+              Button("New Room", systemImage: "plus") { navigation.newRoomDraft = "" }
+                .help("New Room (\u{2318}N)")
+            }
+          }
       } detail: {
         if let room = store.room(named: selection.wrappedValue) {
           RoomDetail(room: room, store: store, client: client)
         } else {
-          ContentUnavailableView(
-            "No Rooms Yet", systemImage: "bubble.left.and.bubble.right",
-            description: Text("A room appears here when the first agent joins it."))
+          ContentUnavailableView {
+            Label("No Rooms Yet", systemImage: "bubble.left.and.bubble.right")
+          } description: {
+            Text("Make a room or wait for the first agent to join.")
+          } actions: {
+            Button("New Room") { navigation.newRoomDraft = "" }
+          }
         }
+      }
+      .sheet(isPresented: showingNewRoom) {
+        NewRoomSheet(store: store, client: client, navigation: navigation)
       }
     } else if case .down = store.phase {
       DaemonDown()

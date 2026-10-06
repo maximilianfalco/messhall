@@ -6,6 +6,9 @@
   /// Debug-only launch hooks for `pnpm messhall-dev app-shot`, which cannot click a window or the menu bar.
   @MainActor
   enum ShotHooks {
+    /// True when app-shot launched this copy. It then runs with no Dock icon and never takes focus.
+    static let isShot = CommandLine.arguments.contains { $0.hasPrefix("-shot") || $0 == "-renderStatus" }
+
     /// `-shotAppearance light|dark`: a launch arg cannot flip the system setting, so the app is set instead.
     static func forceAppearance(_ name: String?) {
       switch name {
@@ -15,6 +18,9 @@
       }
     }
 
+    /// `-shotScrollTop YES`: the transcript opens at its first message, so an agent post shows the jump pill.
+    static let startAtTop = UserDefaults.standard.bool(forKey: "shotScrollTop")
+
     /// `-shotPost <text>`: posts into the first open room through the same path as the post box.
     static func post(_ text: String, store: FeedStore, client: FeedClient) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }
@@ -22,6 +28,26 @@
       if let refusal = await store.post(text, room: room.name, via: client) {
         FileHandle.standardError.write(Data("shotPost refused: \(refusal)\n".utf8))
       }
+    }
+
+    /// `-shotRoom <name>` opens that room. `-shotNewRoom <draft>` opens the New Room sheet with that name typed.
+    static func navigate(room: String?, newRoom: String?, navigation: Navigation) {
+      if let room { navigation.room = room }
+      if let newRoom { navigation.newRoomDraft = newRoom }
+    }
+
+    /// `-shotSheet <file>`: draws the open sheet into a png from inside the app.
+    /// screencapture cannot grab a window with a sheet on an accessory app, so app-shot reads this file instead.
+    static func saveSheet(to file: String) async {
+      while NSApp.windows.first(where: { $0.sheetParent != nil && $0.isVisible }) == nil {
+        try? await Task.sleep(for: .milliseconds(100))
+      }
+      try? await Task.sleep(for: .seconds(1))
+      guard let view = NSApp.windows.first(where: { $0.sheetParent != nil })?.contentView?.superview,
+        let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+      else { return }
+      view.cacheDisplay(in: view.bounds, to: rep)
+      try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
     }
 
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.

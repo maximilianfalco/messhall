@@ -33,7 +33,9 @@ public final class FeedStore {
     self.phase = phase
   }
 
+  /// Applies a snapshot or an event. Either one proves the daemon answers, so it also ends a down phase.
   public func apply(_ update: FeedUpdate) {
+    phase = .live
     switch update {
     case .snapshot(let snapshot):
       rooms = snapshot.rooms.sorted { $0.name < $1.name }
@@ -49,6 +51,11 @@ public final class FeedStore {
   /// Adds a message the human just posted, before its event comes back.
   func add(_ message: Message, to room: String) {
     apply(.message(MessageEvent(room: room, message: message)))
+  }
+
+  /// Shows a room the human just made, closed or reopened, before its event comes back.
+  func add(_ room: Room) {
+    apply(.room(RoomEvent(change: .topic, room: room)))
   }
 
   private func apply(_ event: BusEvent) {
@@ -79,6 +86,8 @@ public final class FeedStore {
       }
       update(e.room.name) { room in
         room.topic = e.room.topic
+        room.createdBy = e.room.createdBy
+        room.standing = e.room.standing
         room.closedAt = e.room.closedAt
         room.messageCap = e.room.messageCap
       }

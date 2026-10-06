@@ -7,6 +7,7 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
+import { runPost } from '../../../src/cli/post.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
@@ -23,12 +24,22 @@ const WINDOW_WITHIN_MS = 30_000;
 // Time for the snapshot to load and the transcript to scroll before the shot.
 const SETTLE_MS = 2500;
 const POST_TEXT = 'thanks both. ship it once the e2e run is green';
+// Lands below a transcript scrolled to the top, so the jump pill shows.
+const AGENT_POST = { as: 'editor', room: 'docs-sync', text: 'the glossary page is updated too' };
 
 const SHOTS = [
   { appearance: 'light', name: 'window-light' },
   { appearance: 'dark', name: 'window-dark' },
   { appearance: 'light', name: 'post-light', post: true },
   { appearance: 'dark', name: 'post-dark' },
+  { appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' },
+  { appearance: 'dark', name: 'new-room-dark', newRoom: 'launch-week' },
+  { appearance: 'light', name: 'standing-light', room: 'release-notes' },
+  { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
+  { appearance: 'light', name: 'closed-light', room: 'billing' },
+  { appearance: 'dark', name: 'closed-dark', room: 'billing' },
+  { agentPost: true, appearance: 'light', name: 'pill-light', room: 'docs-sync', scrollTop: true },
+  { agentPost: true, appearance: 'dark', name: 'pill-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', muted: true, name: 'muted-light' },
   { appearance: 'dark', muted: true, name: 'muted-dark' },
 ] as const;
@@ -43,6 +54,8 @@ const DOWN_SHOTS = [
 const QUIT_WITHIN_MS = 5000;
 
 const run = promisify(execFile);
+// Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
+const CHANGELOG_PAGES = Array.from({ length: 24 }, (_, i) => `api reference part ${i + 1}`);
 
 /** The id of the app's main window in a `windows.swift` listing: the largest layer 0 window. */
 export function pickWindow(listing: string) {
@@ -63,7 +76,7 @@ export function checkShotHome(home: string) {
   if (path.resolve(home) === real) return `refusing ${home}, it is the real data dir`;
 }
 
-/** Seeds three rooms on a fresh db so every screen has something to show. Presence follows `now`. */
+/** Seeds four rooms on a fresh db so every screen has something to show. Presence follows `now`. */
 export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) {
   let at = now.getTime() - 20 * 60_000;
   const db = openDb({ dataDir });
@@ -74,6 +87,10 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
   try {
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'docs-sync' });
     store.postMessage({ from: 'writer', room: 'docs-sync', text: 'drafting the changelog for the currency change' });
+    CHANGELOG_PAGES.forEach(page => {
+      step(10_000);
+      store.postMessage({ from: 'writer', room: 'docs-sync', text: `updated the ${page} page for minor units` });
+    });
     step(5 * 60_000);
     store.joinRoom({ as: 'ledger', kind: 'claude', room: 'billing' });
     store.postMessage({ done: true, from: 'ledger', room: 'billing', text: 'invoices backfilled' });
@@ -101,6 +118,14 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     store.touch({ as: 'web', room: 'checkout', state: 'waiting' });
     at = now.getTime();
     store.postMessage({ from: 'api', room: 'checkout', text: '@qa both sides are merged, over to you' });
+    store.createRoom({ created_by: 'human', name: 'release-notes', topic: 'notes for the v2 launch' });
+    store.joinRoom({ as: 'writer', kind: 'codex', room: 'release-notes' });
+    store.postMessage({
+      from: 'writer',
+      room: 'release-notes',
+      text: 'first pass of the notes is up, @human take a look',
+    });
+    store.postMessage({ done: true, from: 'writer', room: 'release-notes', text: 'notes drafted' });
     store.sweepPresence();
   } finally {
     db.close();
@@ -133,6 +158,47 @@ function processAlive(pid: number) {
 
 type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number];
 
+const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
+
+/** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
+async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<string | undefined> {
+  if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) > 0) return;
+  if (Date.now() > deadline) return `no sheet drawn within ${WINDOW_WITHIN_MS}ms`;
+  await sleep(250);
+  return waitFile(file, deadline);
+}
+
+/** The launch args for one shot. The real app shares the bundle id, so a window closed there would stay shut here. */
+export function shotArgs(shot: Shot) {
+  return [
+    '-ApplePersistenceIgnoreState',
+    'YES',
+    '-shotAppearance',
+    shot.appearance,
+    ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
+    ...('muted' in shot ? MUTED_ARGS : []),
+    ...('room' in shot ? ['-shotRoom', shot.room] : []),
+    ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
+    ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
+  ];
+}
+
+/** App pids from this checkout's build that started during the run. Ones already running, like the real app, stay out. */
+export function strayApps({ after, before }: { after: number[]; before: number[] }) {
+  return after.filter(pid => !before.includes(pid));
+}
+
+/** Whether an `lsappinfo info -only ApplicationType` line says the app runs as an accessory, with no Dock icon. */
+export function isAccessory(lsappinfo: string) {
+  return /"ApplicationType"\s*=\s*"UIElement"/.test(lsappinfo);
+}
+
+/** Pids running this build's app binary, matched by its full path. */
+function appPids(app: string) {
+  const result = spawnSync('pgrep', ['-f', path.join(app, 'Contents', 'MacOS', 'Messhall')], { encoding: 'utf8' });
+  return result.stdout.split('\n').filter(Boolean).map(Number);
+}
+
 async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<number | undefined> {
   const { stdout } = await run('swift', [WINDOWS_SCRIPT, String(pid)]);
   const id = pickWindow(stdout);
@@ -152,13 +218,8 @@ async function shoot({
   launched: number[];
   shot: Shot;
 }) {
-  const args = [
-    '-shotAppearance',
-    shot.appearance,
-    ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
-    ...('muted' in shot ? MUTED_ARGS : []),
-  ];
-  const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), args, { env, stdio: 'ignore' });
+  rmSync(shotFile(shot), { force: true });
+  const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
     child.once('exit', resolve);
@@ -166,8 +227,21 @@ async function shoot({
   try {
     const id = await waitWindow(child.pid ?? 0);
     if (id === undefined) return `no window within ${WINDOW_WITHIN_MS}ms`;
+    const { stdout: info } = await run('lsappinfo', ['info', '-only', 'ApplicationType', String(child.pid)]);
+    if (!isAccessory(info)) return `not an accessory app, it would show in the Dock: ${info.trim()}`;
+    if ('agentPost' in shot) {
+      await sleep(SETTLE_MS);
+      const posted = await runPost({
+        ...AGENT_POST,
+        dataDir: env.MESSHALL_HOME ?? '',
+        url: `http://127.0.0.1:${env.MESSHALL_PORT}`,
+      });
+      if (posted.code !== 0) return `agent post failed: ${posted.output}`;
+    }
+    const file = shotFile(shot);
+    // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
+    if ('newRoom' in shot) return (await waitFile(file)) ?? file;
     await sleep(SETTLE_MS);
-    const file = path.join(OUT_DIR, `${shot.name}.png`);
     await run('screencapture', ['-o', '-x', '-l', String(id), file]);
     return file;
   } finally {
@@ -200,7 +274,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room and the daemon-down state in light and dark. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, the jump pill, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. */
 async function appShot({ home, port }: { home: string; port: number }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -217,6 +291,7 @@ async function appShot({ home, port }: { home: string; port: number }) {
   const env = { ...process.env, MESSHALL_HOME: home, MESSHALL_PORT: String(port) };
   const rows: string[][] = [];
   const launched: number[] = [];
+  const before = appPids(app);
   try {
     spawnSync(path.join(app, 'Contents', 'MacOS', 'Messhall'), ['-renderStatus', OUT_DIR], { env });
     rows.push(['menu-light', path.join(OUT_DIR, 'menu-light.png')], ['menu-dark', path.join(OUT_DIR, 'menu-dark.png')]);
@@ -233,12 +308,17 @@ async function appShot({ home, port }: { home: string; port: number }) {
   });
   const failed = sized.filter(([, file, size]) => !file?.startsWith('/') || size === '0 kB');
   const left = leftoverApps({ isAlive: processAlive, kill: pid => process.kill(pid, 'SIGKILL'), launched });
+  const strays = strayApps({ after: appPids(app), before });
   const table = formatTable(['shot', 'file', 'size'], sized);
   const verdict = failed.length ? bad(`${failed.length} shots failed`) : ok(`${sized.length} shots in ${OUT_DIR}`);
   const quit = left.length
     ? bad(`${left.length} launched apps did not quit and were killed: ${left.join(', ')}`)
     : ok(`all ${launched.length} launched apps quit`);
-  return { code: failed.length || left.length ? 1 : 0, report: [table, '', verdict, quit].join('\n') };
+  const stray = strays.length
+    ? bad(`apps from ${app} still running after the run: ${strays.join(', ')}`)
+    : ok(`no app from ${app} left running`);
+  const code = failed.length || left.length || strays.length ? 1 : 0;
+  return { code, report: [table, '', verdict, quit, stray].join('\n') };
 }
 
 /** Registers `app-shot [--port <n>] [--home <dir>]`. */
@@ -246,7 +326,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, jump pill, New Room sheet, standing and closed rooms and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

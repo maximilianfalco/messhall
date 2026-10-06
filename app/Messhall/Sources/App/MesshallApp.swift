@@ -7,6 +7,8 @@ import UserNotifications
 @MainActor
 final class Navigation {
   var room: String?
+  /// The name the New Room sheet starts with. Nil while the sheet is shut.
+  var newRoomDraft: String?
   /// Bumped to ask the menu bar label, which always lives, to open the window.
   var windowRequests = 0
 }
@@ -21,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   func applicationWillFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
     #if DEBUG
+      if ShotHooks.isShot { NSApp.setActivationPolicy(.accessory) }
       if let dir = UserDefaults.standard.string(forKey: "renderStatus") {
         ShotHooks.renderStatus(into: URL(fileURLWithPath: dir))
         exit(0)
@@ -38,6 +41,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     #if DEBUG
       if let text = UserDefaults.standard.string(forKey: "shotPost") {
         Task { await ShotHooks.post(text, store: store, client: client) }
+      }
+      ShotHooks.navigate(
+        room: UserDefaults.standard.string(forKey: "shotRoom"),
+        newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"), navigation: navigation)
+      if let file = UserDefaults.standard.string(forKey: "shotSheet") {
+        Task { await ShotHooks.saveSheet(to: file) }
       }
     #endif
   }
@@ -75,7 +84,13 @@ struct MesshallApp: App {
         .environment(delegate.notifier)
     }
     .defaultSize(width: 980, height: 640)
-    .commands { SidebarCommands() }
+    .commands {
+      SidebarCommands()
+      CommandGroup(replacing: .newItem) {
+        NewRoomCommand(navigation: delegate.navigation)
+        RoomToggleCommand()
+      }
+    }
 
     MenuBarExtra {
       MenuBarMenu(store: delegate.store, navigation: delegate.navigation)
@@ -83,5 +98,18 @@ struct MesshallApp: App {
     } label: {
       MenuBarLabel(store: delegate.store, navigation: delegate.navigation)
     }
+  }
+}
+
+struct NewRoomCommand: View {
+  let navigation: Navigation
+  @Environment(\.openWindow) private var openWindow
+
+  var body: some View {
+    Button("New Room\u{2026}") {
+      openWindow(id: MesshallApp.windowID)
+      navigation.newRoomDraft = ""
+    }
+    .keyboardShortcut("n")
   }
 }

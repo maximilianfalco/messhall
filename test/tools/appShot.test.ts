@@ -6,7 +6,15 @@ import { describe, expect, it } from 'vitest';
 
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
-import { checkShotHome, leftoverApps, pickWindow, seedShotRooms } from '../../tools/dev/commands/appShot.js';
+import {
+  checkShotHome,
+  isAccessory,
+  leftoverApps,
+  pickWindow,
+  seedShotRooms,
+  shotArgs,
+  strayApps,
+} from '../../tools/dev/commands/appShot.js';
 
 describe('pickWindow', () => {
   it('picks the largest layer 0 window', () => {
@@ -31,7 +39,7 @@ describe('checkShotHome', () => {
 });
 
 describe('seedShotRooms', () => {
-  it('leaves an open room with agents and a done line, a quiet open room and a closed room', () => {
+  it('leaves an open room with agents and a done line, a quiet open room, a closed room and a standing room', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');
 
@@ -39,15 +47,17 @@ describe('seedShotRooms', () => {
 
     const db = openDb({ dataDir });
     const store = createRoomStore({ db, now: () => now });
-    const rooms = store.listRooms().map(room => [room.name, room.closed_at === null]);
+    const rooms = store.listRooms().map(room => [room.name, room.closed_at === null, room.created_by, room.standing]);
     const members = store.listMembers('checkout');
     const page = store.listMessages({ limit: 50, room: 'checkout' });
+    const docs = store.listMessages({ limit: 50, room: 'docs-sync' });
     db.close();
 
     expect(rooms).toStrictEqual([
-      ['billing', false],
-      ['checkout', true],
-      ['docs-sync', true],
+      ['billing', false, 'ledger', false],
+      ['checkout', true, 'qa', false],
+      ['docs-sync', true, 'writer', false],
+      ['release-notes', true, 'human', true],
     ]);
     expect(members.map(member => `${member.name} ${member.kind} ${member.presence}`)).toStrictEqual([
       'api claude active',
@@ -56,6 +66,7 @@ describe('seedShotRooms', () => {
       'web codex waiting',
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
+    expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
   });
 });
 
@@ -76,5 +87,55 @@ describe('leftoverApps', () => {
 
   it('returns nothing when every launched app quit', () => {
     expect(leftoverApps({ isAlive: () => false, kill: () => {}, launched: [11, 12] })).toStrictEqual([]);
+  });
+});
+
+describe('shotArgs', () => {
+  it('skips window restore so a window closed in the real app still opens', () => {
+    expect(shotArgs({ appearance: 'dark', name: 'window-dark' })).toStrictEqual([
+      '-ApplePersistenceIgnoreState',
+      'YES',
+      '-shotAppearance',
+      'dark',
+    ]);
+  });
+
+  it('opens the transcript at the top so a post shows the jump pill', () => {
+    expect(
+      shotArgs({ agentPost: true, appearance: 'light', name: 'pill-light', room: 'docs-sync', scrollTop: true }),
+    ).toStrictEqual(expect.arrayContaining(['-shotScrollTop', 'YES', '-shotRoom', 'docs-sync']));
+  });
+
+  it('passes the room to open and the New Room draft', () => {
+    expect(shotArgs({ appearance: 'light', name: 'closed-light', room: 'billing' }).slice(-2)).toStrictEqual([
+      '-shotRoom',
+      'billing',
+    ]);
+    expect(shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' })).toStrictEqual(
+      expect.arrayContaining(['-shotNewRoom', 'Release Notes', '-shotSheet']),
+    );
+  });
+
+  it('has the app draw the sheet into the shot file itself', () => {
+    const args = shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' });
+
+    expect(args[args.indexOf('-shotSheet') + 1]).toMatch(/demo\/out\/shots\/new-room-light\.png$/);
+  });
+});
+
+describe('strayApps', () => {
+  it('names app pids that showed up during the run and leaves ones running before it alone', () => {
+    expect(strayApps({ after: [61116, 700, 701], before: [61116] })).toStrictEqual([700, 701]);
+  });
+
+  it('gives none when every app from the run quit', () => {
+    expect(strayApps({ after: [61116], before: [61116] })).toStrictEqual([]);
+  });
+});
+
+describe('isAccessory', () => {
+  it('accepts an accessory app and refuses a Dock app', () => {
+    expect(isAccessory('"ApplicationType"="UIElement"')).toBe(true);
+    expect(isAccessory('"ApplicationType"="Foreground"')).toBe(false);
   });
 });
