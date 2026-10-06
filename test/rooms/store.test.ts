@@ -1180,6 +1180,20 @@ describe('muting', () => {
     expect(memberOf('demo', 'api')?.muted).toBe(false);
   });
 
+  it('refuses a muted orchestrator, so it cannot lift its own mute or mute others', () => {
+    joinBoth();
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    mute({ by: 'human', member: 'orchestrator' });
+
+    expect(mute({ by: 'orchestrator', member: 'orchestrator', muted: false })).toStrictEqual({
+      ok: false,
+      reason: 'muted',
+    });
+    expect(mute({ by: 'orchestrator', member: 'api' })).toStrictEqual({ ok: false, reason: 'muted' });
+    expect(memberOf('demo', 'orchestrator')?.muted).toBe(true);
+    expect(memberOf('demo', 'api')?.muted).toBe(false);
+  });
+
   it('refuses a room that does not exist', () => {
     expect(store().muteMember({ by: 'human', member: 'api', muted: true, room: 'nope' })).toStrictEqual({
       ok: false,

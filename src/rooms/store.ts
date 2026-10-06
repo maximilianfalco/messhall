@@ -371,7 +371,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     },
 
     /** Mutes or unmutes a member with a system line. A muted member reads but cannot post. Only the human seat or
-     * an orchestrator may, and never on the human. Setting the state it already has writes nothing. */
+     * an unmuted orchestrator may, so a muted one cannot lift its own mute. Never on the human. Setting the state it
+     * already has writes nothing. */
     muteMember({
       by,
       member: name,
@@ -387,6 +388,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const found = seat(roomName, by);
         if (!found.ok) return found;
         if (!canAssignRole({ by: found.member })) return { ok: false, reason: 'not_allowed' } as const;
+        if (found.member.muted) return { ok: false, reason: 'muted' } as const;
         const target = findMember(found.room, name);
         if (!target) return { ok: false, reason: 'no_member' } as const;
         if (target.kind === 'human') return { ok: false, reason: 'human' } as const;

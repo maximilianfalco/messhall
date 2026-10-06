@@ -56,6 +56,19 @@ describe('mute', () => {
     expect(mutedOf('web')).toBe(false);
   });
 
+  it('refuses a muted orchestrator that tries to unmute itself', async () => {
+    const orchestrator = await harness.joined('dev', 'orchestrator');
+    harness.store.muteMember({ by: 'human', member: 'orchestrator', muted: true, room: 'dev' });
+
+    const result = await orchestrator.call('mute', { member: 'orchestrator', room: 'dev', unmute: true });
+
+    expect(result).toStrictEqual({
+      isError: true,
+      text: 'you are muted in #dev, so you cannot mute or unmute. wait for the human to unmute you.',
+    });
+    expect(mutedOf('orchestrator')).toBe(true);
+  });
+
   it('refuses the human seat', async () => {
     const orchestrator = await harness.joined('dev', 'orchestrator');
 

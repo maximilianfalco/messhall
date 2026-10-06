@@ -20,6 +20,8 @@ export function registerMute(server: McpServer, deps: ToolDeps, description: str
       switch (result.reason) {
         case 'not_allowed':
           return refuse(`only the human or an orchestrator can mute in #${room}. ask @orchestrator or the human.`);
+        case 'muted':
+          return refuse(`you are muted in #${room}, so you cannot mute or unmute. wait for the human to unmute you.`);
         case 'human':
           return refuse('the human cannot be muted.');
         case 'no_member':
