@@ -22,13 +22,14 @@ import {
 } from '../../src/cli/mcp.js';
 import { codexConfigPath, geminiSettingsPath } from '../../src/config.js';
 import { KEY_HEADER } from '../../src/daemon/keys.js';
+import { SEAT_HEADER } from '../../src/mcp/constants.js';
 
 const KEY = 'a1'.repeat(32);
 const OLD_KEY = 'b2'.repeat(32);
 const URL_BASE = 'http://127.0.0.1:7797';
 const MCP_URL = `${URL_BASE}/mcp`;
 
-const getOutput = ({ key = KEY, status = '✔ Connected', url = MCP_URL } = {}) =>
+const getOutput = ({ key = KEY, seat = true, status = '✔ Connected', url = MCP_URL } = {}) =>
   [
     'messhall:',
     '  Scope: User config (available in all your projects)',
@@ -37,6 +38,7 @@ const getOutput = ({ key = KEY, status = '✔ Connected', url = MCP_URL } = {}) 
     `  URL: ${url}`,
     '  Headers:',
     `    X-Messhall-Key: ${key}`,
+    ...(seat ? [`    X-Messhall-Seat: \${MESSHALL_SEAT}`] : []),
     '',
     'To remove this server, run: claude mcp remove messhall -s user',
   ].join('\n');
@@ -174,16 +176,16 @@ describe('claudeLine', () => {
     expect(line.startsWith("claude mcp add-json -s user messhall '")).toBe(true);
     expect(configOf(line)).toStrictEqual({
       alwaysLoad: true,
-      headers: { 'X-Messhall-Key': KEY },
+      headers: { 'X-Messhall-Key': KEY, 'X-Messhall-Seat': `\${MESSHALL_SEAT:-}` },
       type: 'http',
       url: MCP_URL,
     });
   });
 
-  it('names the header the daemon checks', () => {
+  it('names the headers the daemon reads', () => {
     const config = configOf(claudeLine({ key: KEY, url: URL_BASE })) as { headers: Record<string, string> };
 
-    expect(Object.keys(config.headers).map(name => name.toLowerCase())).toStrictEqual([KEY_HEADER]);
+    expect(Object.keys(config.headers).map(name => name.toLowerCase())).toStrictEqual([KEY_HEADER, SEAT_HEADER]);
   });
 });
 
@@ -267,6 +269,14 @@ describe('runMcpInstall claude code', () => {
       'claude mcp add-json -s',
       'claude mcp get messhall',
     ]);
+  });
+
+  it('replaces an entry with no seat header', async () => {
+    const { calls, run } = fakeRun({ 'claude mcp get': [done(getOutput({ seat: false })), done(getOutput())] });
+
+    await runMcpInstall({ print: false, yes: true }, deps({ run }));
+
+    expect(calls.filter(line => line.startsWith('claude'))).toContain('claude mcp remove -s');
   });
 
   it('exits 1 with messhall start when the daemon is down, before touching anything', async () => {
@@ -506,6 +516,16 @@ describe('runMcpDoctor', () => {
     expect(output()).toContain('✖ claude entry: key does not match the agent key file');
     expect(output()).toContain('✖ codex entry');
     expect(output()).not.toContain(OLD_KEY);
+  });
+
+  it('goes red when the claude entry has no seat header', async () => {
+    writeCodex(`${codexBlock({ key: KEY, url: URL_BASE })}\n`);
+    const { run } = fakeRun({ ...versions, 'claude mcp get': [done(getOutput({ seat: false }))] });
+
+    const code = await runMcpDoctor(deps({ run }));
+
+    expect(code).toBe(1);
+    expect(output()).toContain('✖ claude entry: no seat header, so a seat is not kept over a reconnect');
   });
 
   it('goes red when the claude entry points at another port', async () => {

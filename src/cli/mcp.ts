@@ -14,7 +14,7 @@ import { codexConfigPath, codexControlSocket, daemonUrl, dataDir, geminiSettings
 import { readBlock, withBlock, withoutBlock } from '../lib/codexToml.js';
 import { runCommand } from '../lib/run.js';
 import { parseSettings, readServer, withoutServer, withServer } from '../lib/settingsJson.js';
-import { SERVER_NAME, TEXT_BUDGET } from '../mcp/constants.js';
+import { SEAT_ENV, SERVER_NAME, TEXT_BUDGET } from '../mcp/constants.js';
 import { createMesshallServer } from '../mcp/server.js';
 import { createSession, createSessionRegistry } from '../mcp/session.js';
 import { connectInMemory } from '../mcp/testing.js';
@@ -27,6 +27,9 @@ import { probeHealth } from './status.js';
 const CLAUDE = 'claude';
 // Codex fails the MCP handshake with the lowercase name, so this spelling is load-bearing.
 export const KEY_HEADER_NAME = 'X-Messhall-Key';
+const SEAT_HEADER_NAME = 'X-Messhall-Seat';
+// Claude Code fills this from its own env, empty when the session was not started by messhall claude.
+const SEAT_VALUE = `\${${SEAT_ENV}:-}`;
 const MASK = '<agent key>';
 const CODEX_HEADER = `[mcp_servers.${SERVER_NAME}]`;
 // Codex asks before every MCP tool call by default, which stalls a room.
@@ -74,7 +77,8 @@ const dim = (text: string) => pc.dim(text);
 const mcpUrl = (url: string) => `${url}/mcp`;
 
 function claudeConfig({ key, url }: Where) {
-  return JSON.stringify({ type: 'http', url: mcpUrl(url), headers: { [KEY_HEADER_NAME]: key }, alwaysLoad: true });
+  const headers = { [KEY_HEADER_NAME]: key, [SEAT_HEADER_NAME]: SEAT_VALUE };
+  return JSON.stringify({ type: 'http', url: mcpUrl(url), headers, alwaysLoad: true });
 }
 
 /** The `claude mcp add-json` line that adds messhall at user scope. */
@@ -118,6 +122,7 @@ export async function readClaudeEntry(run: McpDeps['run']) {
   return {
     connected: /Status: .*Connected/.test(result.stdout),
     key: field(result.stdout, KEY_HEADER_NAME),
+    seat: field(result.stdout, SEAT_HEADER_NAME) !== null,
     status: field(result.stdout, 'Status') ?? '',
     url: field(result.stdout, 'URL'),
   };
@@ -132,7 +137,7 @@ export const readCodexEntry = (file: string) => readBlock({ block: CODEX_HEADER,
 
 function claudeState(entry: ClaudeEntry, where: Where): EntryState {
   if (!entry) return 'absent';
-  return entry.url === mcpUrl(where.url) && entry.key === where.key ? 'same' : 'older';
+  return entry.url === mcpUrl(where.url) && entry.key === where.key && entry.seat ? 'same' : 'older';
 }
 
 function codexState(file: string, where: Where): EntryState {
@@ -293,7 +298,13 @@ function claudeEntryCheck(entry: ClaudeEntry, where: Where): Check {
   if (entry.key !== where.key) {
     return { good: false, line: 'claude entry: key does not match the agent key file. run messhall mcp install' };
   }
-  return { good: true, line: `claude entry: ${want} with the agent key` };
+  if (!entry.seat) {
+    return {
+      good: false,
+      line: 'claude entry: no seat header, so a seat is not kept over a reconnect. run messhall mcp install',
+    };
+  }
+  return { good: true, line: `claude entry: ${want} with the agent key and the seat header` };
 }
 
 function codexEntryCheck(file: string, where: Where): Check {

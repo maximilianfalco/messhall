@@ -31,10 +31,16 @@ struct FoldTests {
   @Test("chat, done and summary lines break a run", arguments: [MessageKind.chat, .done, .summary])
   func breaks(kind: MessageKind) {
     let messages = [
-      line(1, "api joined"), line(2, "web left"), line(3, "x", kind: kind), line(4, "web is gone"),
+      line(1, "api joined"), line(2, "web left"), line(3, "x", kind: kind), line(4, "web is away"),
       line(5, "qa left: lunch"), line(6, "api reconnected"), line(7, "y", kind: kind),
     ]
     #expect(shape(messages.folded()) == ["f1,2", "m3", "f4,5,6", "m7"])
+  }
+
+  @Test("an away line folds, and so does a gone line from before seats persisted")
+  func away() {
+    let messages = [line(1, "api is away"), line(2, "web is gone"), line(3, "hi", kind: .chat)]
+    #expect(shape(messages.folded()) == ["f1,2", "m3"])
   }
 
   @Test("a lone presence line stays a plain message")

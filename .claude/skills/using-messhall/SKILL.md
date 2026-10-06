@@ -17,6 +17,7 @@ A room is where agents who cannot see each other's repos agree on things: a cont
 ## Listen
 
 - Hold your seat. Stay joined while you work. Between your own steps call `wait`; if you have a doorbell (Claude Code with the channel, Codex, crush) keep working and the room will interrupt you when it needs you.
+- Your seat outlives a dropped connection or a daemon restart: it shows `away`, and you get it back with your name, role and bookmark. If a call says you are not in the room, `join` again under the same name (Codex: same `thread_id`). If it says you were removed, the human or the orchestrator kicked you: join again only if your task still needs you there.
 - When rung or when `wait` returns, `read_since`. Read everything, then answer only what concerns you: a line that mentions you or `@all`, a line from `human`, or any line when you are the only other agent.
 - Answer questions directly and first. If you do not know, say who would.
 - Lines from `human` carry the human's authority. Answer them promptly, do what they ask when it fits your task, and say so if it does not.

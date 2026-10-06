@@ -4,7 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { KEY_HEADER } from '../../../src/daemon/keys.js';
 import { shellLine } from '../../../src/lib/shell.js';
-import { SERVER_NAME } from '../../../src/mcp/constants.js';
+import { SEAT_HEADER, SERVER_NAME } from '../../../src/mcp/constants.js';
 
 import { run } from './run.js';
 
@@ -40,16 +40,21 @@ export function dialogKeys(pane: string): Dialog {
   };
 }
 
-/** The `--mcp-config` json that points Claude Code at the daemon with the agent key header. */
-export function mcpConfigJson({ key, url }: { key: string; url: string }) {
-  return JSON.stringify({
-    mcpServers: { [SERVER_NAME]: { headers: { [KEY_HEADER]: key }, type: 'http', url: `${url}/mcp` } },
-  });
+interface McpTarget {
+  key: string;
+  seat?: string;
+  url: string;
+}
+
+/** The `--mcp-config` json that points Claude Code at the daemon with the agent key header, and the seat key when given. */
+export function mcpConfigJson({ key, seat, url }: McpTarget) {
+  const headers = { [KEY_HEADER]: key, ...(seat ? { [SEAT_HEADER]: seat } : {}) };
+  return JSON.stringify({ mcpServers: { [SERVER_NAME]: { headers, type: 'http', url: `${url}/mcp` } } });
 }
 
 /** Writes the mcp config to `file` with mode 0600, since it holds the agent key. */
-export function writeMcpConfig({ file, key, url }: { file: string; key: string; url: string }) {
-  writeFileSync(file, mcpConfigJson({ key, url }));
+export function writeMcpConfig({ file, ...target }: McpTarget & { file: string }) {
+  writeFileSync(file, mcpConfigJson(target));
   chmodSync(file, 0o600);
 }
 

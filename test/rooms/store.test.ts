@@ -98,18 +98,82 @@ describe('joinRoom', () => {
     });
   });
 
-  it('takes over a gone name and keeps its cursor', () => {
+  it('takes over an away name with no seat key and keeps its cursor', () => {
     joinBoth();
     post('web', 'one');
     store().readUnseen({ as: 'api', room: 'demo' });
     const cursor = memberOf('demo', 'api')!.cursor;
-    store().touch({ as: 'api', room: 'demo', state: 'gone' });
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
 
     const result = store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
 
     expect(result).toMatchObject({ change: 'reconnected', ok: true });
     expect(memberOf('demo', 'api')).toMatchObject({ cursor, presence: 'active' });
     expect(texts('demo').at(-1)).toBe('messhall: api reconnected');
+  });
+
+  it('hands an away seat back to the same seat key with its cursor and role', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+    store().joinRoom({ as: 'web', kind: 'codex', room: 'demo' });
+    post('web', 'one');
+    store().readUnseen({ as: 'api', room: 'demo' });
+    store().assignRole({ by: 'human', member: 'api', role: 'worker', room: 'demo' });
+    const cursor = memberOf('demo', 'api')!.cursor;
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
+
+    const result = store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+
+    expect(result).toMatchObject({ change: 'reconnected', ok: true });
+    expect(memberOf('demo', 'api')).toMatchObject({ cursor, presence: 'active', role: 'worker' });
+  });
+
+  it('hands a live seat back to the same seat key, since the old session is the same agent', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+
+    expect(store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' })).toMatchObject({
+      change: 'reconnected',
+      ok: true,
+    });
+  });
+
+  it.each([
+    ['another seat key', 'seat-b'],
+    ['no seat key', undefined],
+  ])('never hands an away seat to a caller with %s', (_label, seat) => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
+
+    expect(
+      store().joinRoom({ as: 'api', holderDead: true, kind: 'claude', room: 'demo', seatKey: seat }),
+    ).toStrictEqual({
+      ok: false,
+      reason: 'name_taken',
+      suggestion: 'api-2',
+    });
+    expect(memberOf('demo', 'api')!.presence).toBe('away');
+  });
+
+  it('hands a keyless away seat to a caller with a seat key and keeps the key from then on', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
+
+    expect(store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' })).toMatchObject({
+      change: 'reconnected',
+      ok: true,
+    });
+    expect(store().seatsOf('seat-a')).toStrictEqual([{ kind: 'claude', name: 'api', room: 'demo' }]);
+  });
+
+  it('gives a new seat key to a name whose holder left', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    expect(store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-b' })).toMatchObject({
+      change: 'joined',
+      ok: true,
+    });
+    expect(store().seatsOf('seat-b')).toStrictEqual([{ kind: 'claude', name: 'api', room: 'demo' }]);
+    expect(store().seatsOf('seat-a')).toStrictEqual([]);
   });
 
   it('takes over a live name when the holder session is dead and keeps its cursor', () => {
@@ -131,6 +195,22 @@ describe('joinRoom', () => {
 
     expect(store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' })).toMatchObject({ change: 'joined', ok: true });
     expect(memberOf('demo', 'api')!.left_at).toBeNull();
+  });
+});
+
+describe('seatsOf', () => {
+  it('lists the seats a key holds in every room, away ones too, but not left ones', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'ops', seatKey: 'seat-a' });
+    store().joinRoom({ as: 'old', kind: 'claude', room: 'past', seatKey: 'seat-a' });
+    store().joinRoom({ as: 'web', kind: 'claude', room: 'demo', seatKey: 'seat-b' });
+    store().touch({ as: 'api', room: 'ops', state: 'away' });
+    store().leaveRoom({ as: 'old', room: 'past' });
+
+    expect(store().seatsOf('seat-a')).toStrictEqual([
+      { kind: 'claude', name: 'api', room: 'demo' },
+      { kind: 'claude', name: 'api', room: 'ops' },
+    ]);
   });
 });
 
@@ -300,7 +380,7 @@ describe('the store on disk', () => {
 describe('presence', () => {
   const minutes = (count: number) => count * 60_000;
 
-  it('moves active to idle to gone with the clock and posts a line on gone', () => {
+  it('moves active to idle to away with the clock and posts a line on away', () => {
     joinBoth();
 
     scratch.clock.advance(minutes(2));
@@ -312,11 +392,11 @@ describe('presence', () => {
     store().touch({ as: 'web', room: 'demo', state: 'active' });
     scratch.clock.advance(minutes(29));
     expect(store().sweepPresence()).toStrictEqual([
-      { from: 'idle', name: 'api', room: 'demo', to: 'gone' },
+      { from: 'idle', name: 'api', room: 'demo', to: 'away' },
       { from: 'active', name: 'web', room: 'demo', to: 'idle' },
     ]);
     expect(memberOf('demo', 'human')!.presence).toBe('idle');
-    expect(texts('demo').at(-1)).toBe('messhall: api is gone');
+    expect(texts('demo').at(-1)).toBe('messhall: api is away');
   });
 
   it('holds waiting until 30 minutes of silence', () => {
@@ -329,34 +409,34 @@ describe('presence', () => {
     expect(memberOf('demo', 'web')!.presence).toBe('waiting');
   });
 
-  it('marks every member still in a room gone after a restart, with one line per open room', () => {
+  it('marks every member still in a room away after a restart, with one line per open room', () => {
     joinBoth();
     store().joinRoom({ as: 'ios', kind: 'other', room: 'demo' });
     store().leaveRoom({ as: 'ios', room: 'demo' });
     joinBoth('old');
     store().closeRoom('old');
-    store().touch({ as: 'web', room: 'old', state: 'gone' });
+    store().touch({ as: 'web', room: 'old', state: 'away' });
     const before = texts('old').length;
 
-    const changes = store().markAllGone();
+    const changes = store().markAllAway();
 
     expect(changes).toStrictEqual([
-      { from: 'active', name: 'api', room: 'demo', to: 'gone' },
-      { from: 'active', name: 'web', room: 'demo', to: 'gone' },
-      { from: 'active', name: 'api', room: 'old', to: 'gone' },
+      { from: 'active', name: 'api', room: 'demo', to: 'away' },
+      { from: 'active', name: 'web', room: 'demo', to: 'away' },
+      { from: 'active', name: 'api', room: 'old', to: 'away' },
     ]);
     expect(
       store()
         .listMembers('demo')
         .map(member => [member.name, member.presence]),
     ).toStrictEqual([
-      ['api', 'gone'],
+      ['api', 'away'],
       ['human', 'idle'],
-      ['web', 'gone'],
+      ['web', 'away'],
     ]);
-    expect(texts('demo').at(-1)).toBe('messhall: messhall restarted, api and web are gone');
+    expect(texts('demo').at(-1)).toBe('messhall: messhall restarted, api and web are away');
     expect(texts('old')).toHaveLength(before);
-    expect(store().markAllGone()).toStrictEqual([]);
+    expect(store().markAllAway()).toStrictEqual([]);
   });
 
   it('emits a presence event for each change', () => {
@@ -643,7 +723,7 @@ describe('leaving', () => {
       )
       .get('demo', name)?.presence;
 
-  it('marks a member who left as left, not gone, in the row and the member event', () => {
+  it('marks a member who left as left, not away, in the row and the member event', () => {
     joinBoth();
     const seen: SequencedEvent[] = [];
     store().events.on(event => seen.push(event));
@@ -658,7 +738,7 @@ describe('leaving', () => {
         type: 'member',
       }),
     );
-    expect(texts('demo')).not.toContain('messhall: api is gone');
+    expect(texts('demo')).not.toContain('messhall: api is away');
   });
 
   it('leaves a left member alone in the sweep', () => {
@@ -885,33 +965,14 @@ describe('clearing stale members', () => {
     });
   });
 
-  it('drops a member gone for 5 minutes counted from when it went gone, not its last call', () => {
+  it('never drops an away member, however long it stays away', () => {
     joinBoth();
-    scratch.clock.advance(minutes(30));
-    store().touch({ as: 'web', room: 'demo', state: 'active' });
-    store().sweepPresence();
-    expect(memberOf('demo', 'api')!.presence).toBe('gone');
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
 
-    scratch.clock.advance(minutes(4));
-    store().touch({ as: 'web', room: 'demo', state: 'active' });
-    expect(store().clearStale()).toStrictEqual([]);
-    scratch.clock.advance(minutes(1));
-    store().touch({ as: 'web', room: 'demo', state: 'active' });
-
-    expect(store().clearStale()).toStrictEqual([{ name: 'api', room: 'demo' }]);
-    expect(names()).toStrictEqual(['human', 'web']);
-  });
-
-  it('restarts the count when a gone member comes back', () => {
-    joinBoth();
-    store().touch({ as: 'api', room: 'demo', state: 'gone' });
-    scratch.clock.advance(minutes(4));
-    store().touch({ as: 'api', room: 'demo', state: 'active' });
-    store().touch({ as: 'api', room: 'demo', state: 'gone' });
-
-    scratch.clock.advance(minutes(4));
+    scratch.clock.advance(minutes(24 * 60));
 
     expect(store().clearStale()).toStrictEqual([]);
+    expect(names()).toStrictEqual(['api', 'human', 'web']);
   });
 
   it('never drops the human seat or a live member', () => {
@@ -1002,9 +1063,9 @@ describe('removing a member by hand', () => {
     });
   });
 
-  it('drops a gone member and emits a removed member event', () => {
+  it('drops an away member and emits a removed member event', () => {
     joinBoth();
-    store().touch({ as: 'api', room: 'demo', state: 'gone' });
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
     const seen: SequencedEvent[] = [];
     store().events.on(event => seen.push(event));
 
@@ -1013,18 +1074,27 @@ describe('removing a member by hand', () => {
     expect(seen.map(item => item.event)).toStrictEqual([
       {
         change: 'removed',
-        member: expect.objectContaining({ name: 'api', presence: 'gone' }),
+        member: expect.objectContaining({ name: 'api', presence: 'away' }),
         room: 'demo',
         type: 'member',
       },
     ]);
   });
 
-  it('refuses a member that is still here, and the human seat', () => {
+  it('drops a member that is still here, since a kick ends any seat', () => {
     joinBoth();
 
-    expect(store().removeMember({ member: 'api', room: 'demo' })).toStrictEqual({ ok: false, reason: 'still_here' });
-    expect(store().removeMember({ member: 'human', room: 'demo' })).toStrictEqual({ ok: false, reason: 'still_here' });
+    expect(store().removeMember({ member: 'api', room: 'demo' })).toMatchObject({
+      member: { name: 'api', presence: 'active' },
+      ok: true,
+    });
+    expect(names()).toStrictEqual(['human', 'web']);
+  });
+
+  it('refuses the human seat', () => {
+    joinBoth();
+
+    expect(store().removeMember({ member: 'human', room: 'demo' })).toStrictEqual({ ok: false, reason: 'human' });
     expect(names()).toStrictEqual(['api', 'human', 'web']);
   });
 
@@ -1033,6 +1103,42 @@ describe('removing a member by hand', () => {
 
     expect(store().removeMember({ member: 'ghost', room: 'demo' })).toStrictEqual({ ok: false, reason: 'no_member' });
     expect(store().removeMember({ member: 'api', room: 'nope' })).toStrictEqual({ ok: false, reason: 'no_room' });
+  });
+});
+
+describe('kicking a member', () => {
+  it('lets an orchestrator drop any agent seat with a line naming who kicked it', () => {
+    joinBoth();
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    const result = store().kickMember({ by: 'orchestrator', member: 'api', room: 'demo' });
+
+    expect(result).toMatchObject({ member: { name: 'api' }, ok: true });
+    expect(memberOf('demo', 'api')).toBeUndefined();
+    expect(texts('demo').at(-1)).toBe('messhall: api was kicked by orchestrator');
+  });
+
+  it('refuses a caller who is not an orchestrator before anything changes', () => {
+    joinBoth();
+
+    expect(store().kickMember({ by: 'web', member: 'api', room: 'demo' })).toStrictEqual({
+      ok: false,
+      reason: 'not_allowed',
+    });
+    expect(memberOf('demo', 'api')).toBeDefined();
+  });
+
+  it('refuses the human seat and a missing member', () => {
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(store().kickMember({ by: 'orchestrator', member: 'human', room: 'demo' })).toStrictEqual({
+      ok: false,
+      reason: 'human',
+    });
+    expect(store().kickMember({ by: 'orchestrator', member: 'ghost', room: 'demo' })).toStrictEqual({
+      ok: false,
+      reason: 'no_member',
+    });
   });
 });
 

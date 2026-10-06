@@ -1,6 +1,7 @@
 import type { RunResult } from '../lib/run.js';
 import type { Command } from 'commander';
 
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -81,7 +82,7 @@ function withStore<T>({ dataDir }: { dataDir: string }, use: (store: ReturnType<
 // Members still seated in the room, by name, so flock can show each one's role.
 const seatedMembers = ({ dataDir, room }: { dataDir: string; room: string }) =>
   withStore({ dataDir }, store => {
-    const members = store.listMembers(room).filter(member => member.presence !== 'gone');
+    const members = store.listMembers(room).filter(member => member.presence !== 'away');
     return new Map(members.map(member => [member.name, member]));
   });
 
@@ -206,7 +207,7 @@ export async function spawnRun({
 
   mkdirSync(spawnDir, { recursive: true });
   rmSync(debugFile, { force: true });
-  writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), url });
+  writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), seat: randomUUID(), url });
   writeFileSync(roleFile, `${roleText(worktree)}\n`, { mode: 0o600 });
   const ready = await launch({ argv, cwd: worktree, debugFile, note, session });
   if (ready !== 'registered') {
@@ -288,7 +289,7 @@ export async function seatRun({
   if (!existsSync(keyFile)) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once`) };
   mkdirSync(path.dirname(debugFile), { recursive: true });
   rmSync(debugFile, { force: true });
-  writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), url });
+  writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), seat: randomUUID(), url });
   const ready = await launch({ argv, cwd, debugFile, note: line => console.error(dim(line)), session });
   if (ready !== 'registered') {
     await tmux(['kill-session', '-t', session]);

@@ -3,7 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 
 import { assignRoleInputSchema } from '../../../contracts/mcp.ts';
 
-import { notJoined, refuse, registerRoomTool, reply } from './registry.js';
+import { notJoined, refuse, registerRoomTool, removedFrom, reply } from './registry.js';
 
 /** Registers `assign_role`: the store checks that the caller is an orchestrator before anything changes. */
 export function registerAssignRole(server: McpServer, deps: ToolDeps, description: string) {
@@ -23,8 +23,7 @@ export function registerAssignRole(server: McpServer, deps: ToolDeps, descriptio
         case 'no_member':
           return refuse(`no member ${member} in #${room}. call list_members to see who is here.`);
         default:
-          session.unbind(room);
-          return notJoined(room);
+          return removedFrom(session, room);
       }
     },
   );

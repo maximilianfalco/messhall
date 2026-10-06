@@ -94,8 +94,8 @@ describe('ringsFor', () => {
     expect(rung({ members, message: message({ from: 'api', mentions: ['web'] }) })).toStrictEqual([]);
   });
 
-  it('still rings an idle or gone member', () => {
-    const members = [member({ name: 'api' }), member({ name: 'web', presence: 'gone' })];
+  it('still rings an idle or away member', () => {
+    const members = [member({ name: 'api' }), member({ name: 'web', presence: 'away' })];
     expect(rung({ members, message: message({ from: 'api', mentions: ['web'] }) })).toStrictEqual(['web']);
   });
 

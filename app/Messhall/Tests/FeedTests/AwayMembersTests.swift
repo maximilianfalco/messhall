@@ -16,35 +16,35 @@ struct AwayMembersTests {
       messageCount: 0, firstMessageId: nil, members: members, messages: [])
   }
 
-  @Test("live agents come first, then the human, and gone or left agents stay off")
+  @Test("live agents come first, then the human, and away or left agents stay off")
   func live() {
     let dev = room([
-      member("human", .active, kind: .human), member("api", .active), member("old", .gone),
+      member("human", .active, kind: .human), member("api", .active), member("old", .away),
       member("web", .idle), member("ci", .left), member("qa", .waiting),
     ])
     #expect(dev.liveMembers.map(\.name) == ["api", "web", "qa", "human"])
   }
 
-  @Test("gone and left agents fold together, in room order")
+  @Test("away and left agents fold together, in room order")
   func away() {
     let dev = room([
-      member("api", .active), member("old", .gone), member("ci", .left), member("human", .active, kind: .human),
-      member("bot", .gone),
+      member("api", .active), member("old", .away), member("ci", .left), member("human", .active, kind: .human),
+      member("bot", .away),
     ])
     #expect(dev.awayMembers.map(\.name) == ["old", "ci", "bot"])
   }
 
   @Test("the human seat is never folded away")
   func humanStays() {
-    let dev = room([member("api", .gone), member("human", .gone, kind: .human)])
+    let dev = room([member("api", .away), member("human", .away, kind: .human)])
     #expect(dev.liveMembers.map(\.name) == ["human"])
     #expect(dev.awayMembers.map(\.name) == ["api"])
   }
 
-  @Test("the agent count skips gone and left agents")
+  @Test("the agent count skips away and left agents")
   func liveAgents() {
     let dev = room([
-      member("api", .active), member("old", .gone), member("ci", .left), member("human", .active, kind: .human),
+      member("api", .active), member("old", .away), member("ci", .left), member("human", .active, kind: .human),
     ])
     #expect(dev.liveAgents.map(\.name) == ["api"])
   }

@@ -34,7 +34,7 @@ export async function callTool(
 }
 
 /** Joins, posts `text` if given, then leaves, even after a refused post. Leave keeps the cursor,
- * and the room reads "left", not "gone", when the session ends. */
+ * and the room reads "left", not "away", when the session ends. */
 export async function joinPostLeave({
   as,
   client,
@@ -69,9 +69,16 @@ export function lostSession(error: unknown): boolean {
   return STREAM_LOST.test(error.message) || lostSession(error.cause);
 }
 
-/** Opens an MCP session on the daemon with the agent key. `close` ends it with DELETE and never throws. */
-export async function openAgentSession({ key, name, url }: { key: string; name: string; url: string }) {
-  const { client, transport } = await connectHttp({ key, name, url });
+interface AgentTarget {
+  key: string;
+  name: string;
+  seat?: string;
+  url: string;
+}
+
+/** Opens an MCP session on the daemon with the agent key, and the seat key when given. `close` ends it with DELETE and never throws. */
+export async function openAgentSession(target: AgentTarget) {
+  const { client, transport } = await connectHttp(target);
   return {
     client,
     async close() {
@@ -84,10 +91,7 @@ export async function openAgentSession({ key, name, url }: { key: string; name: 
 export type AgentSession = Awaited<ReturnType<typeof openAgentSession>>;
 
 /** Opens an MCP session on the daemon with the agent key, runs `use`, then ends it with DELETE. */
-export async function withAgentSession<T>(
-  options: { key: string; name: string; url: string },
-  use: (client: Client) => Promise<T>,
-) {
+export async function withAgentSession<T>(options: AgentTarget, use: (client: Client) => Promise<T>) {
   let session: AgentSession;
   try {
     session = await openAgentSession(options);
