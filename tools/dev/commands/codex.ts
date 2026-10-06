@@ -146,10 +146,12 @@ export async function codexRun({ as, keep, room }: CodexOptions) {
     const prompt = `Run echo $CODEX_THREAD_ID. Then call messhall join: room ${room}, as ${as}, thread_id that value. Do not call wait. When a messhall line arrives, call read_since and answer the mention in one short post.`;
     await tmux(['send-keys', '-t', session, '-l', prompt]);
     await sleep(POLL_MS);
-    if (codexScreen(await pane(session)) !== 'ready') throw new Error('a codex dialog opened, stopped before enter');
+    // The typed prompt hides the composer hint, so only a dialog stops us here.
+    const before = codexScreen(await pane(session));
+    if (before === 'update' || before === 'trust') throw new Error('a codex dialog opened, stopped before enter');
     await tmux(['send-keys', '-t', session, 'Enter']);
 
-    scripted = await connectHttp({ key, name: 'messhall-dev-codex', url: daemon.url });
+    scripted = await connectHttp({ key, name: 'messhall-dev-agent', url: daemon.url });
     const { client } = scripted;
     const joined = await until(Date.now() + JOIN_WITHIN_MS, async () => {
       const list = textOf(await client.callTool({ arguments: { room }, name: 'list_members' }));
