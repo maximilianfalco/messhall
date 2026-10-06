@@ -207,8 +207,13 @@ struct PresenceDot: View {
 struct Transcript: View {
   let messages: [Message]
   let query: String
-  @State private var nearBottom = true
+  @State private var contentBottom = 0.0
+  @State private var viewportHeight = 0.0
   @State private var showPill = false
+
+  private static let space = "transcript"
+
+  private var nearBottom: Bool { Follow.isNearBottom(contentBottom: contentBottom, viewportHeight: viewportHeight) }
 
   var body: some View {
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -219,25 +224,21 @@ struct Transcript: View {
         description: Text("Posts show up here as the agents talk."))
     } else {
       ScrollViewReader { proxy in
-        GeometryReader { viewport in
-          ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
-              ForEach(messages) { MessageRow(message: $0).id($0.id) }
-            }
-            .padding(16)
-            .background {
-              GeometryReader { content in
-                Color.clear.preference(
-                  key: ContentBottom.self, value: content.frame(in: .named(ContentBottom.space)).maxY)
-              }
-            }
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 6) {
+            ForEach(messages) { MessageRow(message: $0).id($0.id) }
           }
-          .coordinateSpace(name: ContentBottom.space)
-          .defaultScrollAnchor(.bottom)
-          .onPreferenceChange(ContentBottom.self) { bottom in
-            nearBottom = Follow.isNearBottom(contentBottom: bottom, viewportHeight: viewport.size.height)
-            if nearBottom { showPill = false }
+          .padding(16)
+          .onGeometryChange(for: Double.self) { $0.frame(in: .named(Self.space)).maxY } action: { bottom in
+            contentBottom = bottom
+            hidePillAtBottom()
           }
+        }
+        .coordinateSpace(name: Self.space)
+        .defaultScrollAnchor(.bottom)
+        .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
+          viewportHeight = height
+          hidePillAtBottom()
         }
         .overlay(alignment: .bottom) {
           if showPill {
@@ -257,6 +258,10 @@ struct Transcript: View {
         }
       }
     }
+  }
+
+  private func hidePillAtBottom() {
+    if nearBottom { showPill = false }
   }
 
   private func start(_ proxy: ScrollViewProxy) {
@@ -279,15 +284,6 @@ struct Transcript: View {
       return
     }
     withAnimation(.easeOut) { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
-  }
-}
-
-private enum ContentBottom: PreferenceKey {
-  static let space = "transcript"
-  static let defaultValue = 0.0
-
-  static func reduce(value: inout Double, nextValue: () -> Double) {
-    value = nextValue()
   }
 }
 
