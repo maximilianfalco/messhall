@@ -10,10 +10,12 @@ const AT = '2026-01-01T10:04:00.000Z';
 const room = (overrides: Partial<RoomSummary> = {}): RoomSummary => ({
   closed_at: null,
   created_at: '2026-01-01T10:00:00.000Z',
+  created_by: 'api',
   id: 'room-1',
   message_cap: 200,
   message_count: 3,
   name: 'checkout',
+  standing: false,
   topic: 'agree the v2 checkout contract',
   ...overrides,
 });

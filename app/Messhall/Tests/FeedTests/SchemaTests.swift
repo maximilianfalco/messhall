@@ -42,7 +42,10 @@ private let enums: [String: [String]] = [
   "Presence": Presence.allCases.map(\.rawValue),
 ]
 
-private let unused: Set = ["BusEvent", "Health", "History", "ReopenResult", "RoomSummary", "SequencedEvent"]
+private let unused: Set = [
+  "BusEvent", "CloseResult", "Health", "History", "NewRoom", "NewRoomResult", "ReopenResult", "RoomSummary",
+  "SequencedEvent",
+]
 
 @Suite("contracts/schema.json")
 struct SchemaTests {

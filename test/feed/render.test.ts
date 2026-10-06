@@ -13,9 +13,11 @@ const AT = '2026-01-01T10:04:00.000Z';
 const room = (overrides: Partial<Room> = {}): Room => ({
   closed_at: null,
   created_at: AT,
+  created_by: 'api',
   id: 'room-1',
   message_cap: 200,
   name: 'checkout',
+  standing: false,
   topic: null,
   ...overrides,
 });
@@ -119,7 +121,12 @@ const snapshot: Snapshot = {
       message_count: 2,
       messages: [message(), message({ from: 'human', id: 2, text: 'nice' })],
     },
-    { ...room({ closed_at: AT, id: 'room-2', name: 'search' }), members: [], message_count: 0, messages: [] },
+    {
+      ...room({ closed_at: AT, created_by: 'human', id: 'room-2', name: 'search', standing: true }),
+      members: [],
+      message_count: 0,
+      messages: [],
+    },
   ],
   seq: 9,
 };
@@ -132,14 +139,14 @@ describe('renderSnapshot', () => {
       '10:04  api  hello',
       '10:04  human  nice',
       '',
-      '#search  closed, 0/200 posts',
+      '#search  closed, standing, 0/200 posts',
       '       nobody here',
     ]);
   });
 
   it('prints only the watched room', () => {
     expect(plain(renderSnapshot({ room: 'search', snapshot }))).toStrictEqual([
-      '#search  closed, 0/200 posts',
+      '#search  closed, standing, 0/200 posts',
       '       nobody here',
     ]);
   });
@@ -158,8 +165,8 @@ describe('renderSnapshot', () => {
 describe('renderRooms', () => {
   it('lists each room in one line', () => {
     expect(plain(renderRooms({ snapshot }))).toStrictEqual([
-      '#checkout  open, 3 members, 2/200 posts',
-      '#search  closed, 0 members, 0/200 posts',
+      '#checkout  open, 3 members, 2/200 posts, ship the cart',
+      '#search  closed, standing, 0 members, 0/200 posts',
     ]);
   });
 });

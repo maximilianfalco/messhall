@@ -70,6 +70,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       if (!joined.ok && joined.reason === 'name_reserved') {
         return refuse(`${RESERVED_NAMES.join(', ')} are reserved. pick another name.`);
       }
+      if (!joined.ok && joined.reason === 'room_closed') return refuse('room is closed, ask the human to reopen.');
       if (!joined.ok) return refuse(`name taken, try ${joined.suggestion}.`);
       reconnected = joined.change === 'reconnected';
       // A takeover leaves the old session bound, so drop it there before it can post as this name.

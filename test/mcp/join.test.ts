@@ -96,6 +96,17 @@ describe('join', () => {
     expect(second.session.rooms.size).toBe(0);
   });
 
+  it('refuses a closed standing room and says to ask the human', async () => {
+    harness.store.createRoom({ created_by: 'human', name: 'planning' });
+    harness.store.closeRoom('planning');
+    const agent = await harness.agent();
+
+    const result = await agent.call('join', { as: 'api', room: 'planning' });
+
+    expect(result).toStrictEqual({ isError: true, text: 'room is closed, ask the human to reopen.' });
+    expect(agent.session.rooms.size).toBe(0);
+  });
+
   it('refuses a reserved name', async () => {
     const agent = await harness.agent();
 
