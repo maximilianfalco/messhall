@@ -34,9 +34,10 @@ Two parts, used together:
 | `pnpm messhall-dev mcp [--tool <name> --input '<json>' --as <role> --room <room>]` | the MCP server over an in-memory client: instructions, each tool's title, annotations, fields and description length against the budget. With `--tool`, one call's text and `isError` |
 | `pnpm messhall-dev agent <role> --room <r> [--say <text>] [--wait] [--url <u>] [--key-file <f>]` | a scripted agent over real HTTP MCP on a running daemon: join, post, wait, read, each reply and how long `wait` blocked |
 | `pnpm messhall-dev feed [--room <r>] [--url <u>] [--since <seq>] [--count <n>]` | the live SSE feed of the running daemon, read with the human key: a `snapshot` line, then one line per `message`, `member`, `presence` or `room` event with its sequence. `--since` replays from the event log instead. Exits after `--count` lines or on ctrl-c |
+| `pnpm messhall-dev demo [--agents 2] [--keep] [--dry-run] [--timeout 240]` | two real Claude Code sessions in two temp repos agree a contract change through one room: a pass or fail row per step with its time, the room checks, both repo tests, the transcript, tokens per agent and the wall time. Exit 1 on any failed row |
 | `pnpm messhall-dev schema` | writes `contracts/schema.json` from the zod contracts (also `pnpm schema` and `pnpm build`). A test fails when the committed file is stale |
 
-The rest (`channel`, `codex`, `demo`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
+The rest (`channel`, `codex`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
 
 `scripts/messhall-dev` is a shell wrapper for the same tool, for use from any directory.
 
