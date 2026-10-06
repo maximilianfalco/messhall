@@ -54,6 +54,7 @@ const DOWN_SHOTS = [
 const QUIT_WITHIN_MS = 5000;
 
 const run = promisify(execFile);
+const CLAUDE = { name: 'claude-code', version: '2.1.289' };
 // Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
 const CHANGELOG_PAGES = Array.from({ length: 24 }, (_, i) => `api reference part ${i + 1}`);
 
@@ -92,18 +93,23 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
       store.postMessage({ from: 'writer', room: 'docs-sync', text: `updated the ${page} page for minor units` });
     });
     step(5 * 60_000);
-    store.joinRoom({ as: 'ledger', kind: 'claude', room: 'billing' });
+    store.joinRoom({ as: 'ledger', client: CLAUDE, kind: 'claude', room: 'billing' });
     store.postMessage({ done: true, from: 'ledger', room: 'billing', text: 'invoices backfilled' });
     step(5 * 60_000);
-    store.joinRoom({ as: 'qa', kind: 'other', room: 'checkout' });
+    store.joinRoom({ as: 'qa', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'checkout' });
     store.postMessage({
       from: 'qa',
       room: 'checkout',
       text: '@all i will rerun the checkout e2e once both sides land',
     });
     at = now.getTime() - 60_000;
-    store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
-    store.joinRoom({ as: 'web', kind: 'codex', room: 'checkout' });
+    store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room: 'checkout' });
+    store.joinRoom({
+      as: 'web',
+      client: { name: 'codex-mcp-client', version: '0.160.1' },
+      kind: 'codex',
+      room: 'checkout',
+    });
     step(10_000);
     store.postMessage({
       from: 'api',

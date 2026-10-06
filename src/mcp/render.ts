@@ -47,10 +47,15 @@ export function renderRead({
   ].join('\n');
 }
 
-/** `web (codex, waiting)`, with `you` on the caller's own line and `(no doorbell)` on an unrung kind. */
+/**
+ * `web (opencode 1.18.34, waiting)`: the client label and version, or the kind when the member sent no client.
+ * `you` marks the caller's own line and `(no doorbell)` an unrung codex.
+ */
 export function memberLabel({ as, member, noDoorbell }: { as?: string; member: Member; noDoorbell?: boolean }) {
   const you = member.name === as ? ', you' : '';
   const done = member.done ? ', done' : '';
-  const kind = noDoorbell ? `${member.kind} (no doorbell)` : member.kind;
-  return `${member.name} (${kind}, ${member.presence}${done}${you})`;
+  const type = member.client_label
+    ? [member.client_label, member.client_version].filter(Boolean).join(' ')
+    : member.kind;
+  return `${member.name} (${type}${noDoorbell ? ' (no doorbell)' : ''}, ${member.presence}${done}${you})`;
 }

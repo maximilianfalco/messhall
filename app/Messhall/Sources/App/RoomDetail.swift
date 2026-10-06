@@ -21,7 +21,7 @@ struct RoomDetail: View {
       RoomOrigin(room: room)
       MemberStrip(members: room.members)
       Divider()
-      Transcript(messages: room.messages.matching(query), query: query)
+      Transcript(messages: room.messages.matching(query), members: room.members, query: query)
         .id(room.name)
       Divider()
       if room.isOpen {
@@ -167,12 +167,17 @@ struct MemberChip: View {
     HStack(spacing: 8) {
       AvatarView(name: member.name, size: 26)
       VStack(alignment: .leading, spacing: 1) {
-        Text(member.displayName)
-          .font(.callout.weight(.medium))
+        HStack(spacing: 5) {
+          Text(member.displayName)
+            .font(.callout.weight(.medium))
+          if let label = member.clientLabel {
+            TypePill(label: label, name: member.name)
+          }
+        }
         HStack(spacing: 4) {
           PresenceDot(presence: member.presence)
           Text(member.presence.label)
-          if member.kind != .human {
+          if member.kind != .human, member.clientLabel == nil {
             Image(systemName: member.kind.symbol)
               .imageScale(.small)
           }
@@ -185,9 +190,26 @@ struct MemberChip: View {
     .padding(.vertical, 6)
     .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
     .opacity(member.presence.isAway ? 0.6 : 1)
-    .help("\(member.displayName) runs on \(member.kind.rawValue) and is \(member.presence.rawValue)")
+    .help(member.help(as: member.displayName))
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(member.displayName), \(member.kind.rawValue), \(member.presence.rawValue)")
+    .accessibilityLabel(member.spokenLabel(as: member.displayName))
+  }
+}
+
+/// The agent type next to a name, tinted with the member's avatar hue.
+struct TypePill: View {
+  let label: String
+  let name: String
+
+  var body: some View {
+    Text(label)
+      .font(.subheadline.weight(.medium))
+      .lineLimit(1)
+      .foregroundStyle(.primary)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .background(avatarColor(for: name).opacity(0.18), in: Capsule())
+      .overlay(Capsule().strokeBorder(avatarColor(for: name).opacity(0.35), lineWidth: 0.5))
   }
 }
 
@@ -208,6 +230,7 @@ struct PresenceDot: View {
 
 struct Transcript: View {
   let messages: [Message]
+  let members: [Member]
   let query: String
   @State private var contentBottom = 0.0
   @State private var viewportHeight = 0.0
@@ -228,7 +251,9 @@ struct Transcript: View {
       ScrollViewReader { proxy in
         ScrollView {
           LazyVStack(alignment: .leading, spacing: 6) {
-            ForEach(messages) { MessageRow(message: $0).id($0.id) }
+            ForEach(messages) { message in
+              MessageRow(message: message, sender: members.first { $0.name == message.from }).id(message.id)
+            }
           }
           .padding(16)
           .onGeometryChange(for: Double.self) { $0.frame(in: .named(Self.space)).maxY } action: { bottom in
@@ -309,6 +334,7 @@ struct JumpToLatest: View {
 
 struct MessageRow: View {
   let message: Message
+  let sender: Member?
 
   var body: some View {
     switch message.kind {
@@ -344,13 +370,14 @@ struct MessageRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     case .chat:
-      ChatRow(message: message)
+      ChatRow(message: message, sender: sender)
     }
   }
 }
 
 struct ChatRow: View {
   let message: Message
+  let sender: Member?
 
   private var isHuman: Bool { message.from == humanName }
 
@@ -360,6 +387,10 @@ struct ChatRow: View {
       VStack(alignment: .leading, spacing: 3) {
         HStack(spacing: 6) {
           Text(isHuman ? youLabel : message.from).fontWeight(.semibold)
+          if let sender, let label = sender.clientLabel {
+            TypePill(label: label, name: sender.name)
+              .help(sender.client ?? label)
+          }
           Text(message.time)
             .font(.caption)
             .foregroundStyle(.secondary)

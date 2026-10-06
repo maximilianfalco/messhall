@@ -1,3 +1,4 @@
+import type { AgentKind } from '../../contracts/room.ts';
 import type { ToolAnnotations } from '@modelcontextprotocol/server';
 
 export const SERVER_NAME = 'messhall';
@@ -17,6 +18,50 @@ export const SHORT_WAIT_CLIENTS: Record<string, number> = {
   'prime-agent': 50,
   'roo code': 50,
 };
+/** What a client is, by the name it sent at initialize. `channel` means the doorbell rings it over the Claude channel. */
+export interface KnownClient {
+  channel: boolean;
+  kind: AgentKind;
+  label: string;
+}
+
+const other = (label: string): KnownClient => ({ channel: false, kind: 'other', label });
+
+// Keyed by the first word of clientInfo.name in lower case. The client names itself, so this is a guess.
+export const KNOWN_CLIENTS: Record<string, KnownClient> = {
+  claude: { channel: true, kind: 'claude', label: 'claude' },
+  'claude-code': { channel: true, kind: 'claude', label: 'claude' },
+  cline: other('cline'),
+  codex: { channel: false, kind: 'codex', label: 'codex' },
+  crush: { channel: true, kind: 'other', label: 'crush' },
+  deepseek: other('deepseek'),
+  gemini: other('gemini'),
+  goose: other('goose'),
+  interpreter: other('open-interpreter'),
+  kilo: other('kilo'),
+  'oh-my-pi': other('oh-my-pi'),
+  omp: other('oh-my-pi'),
+  'open-interpreter': other('open-interpreter'),
+  opencode: other('opencode'),
+  openhands: other('openhands'),
+  pi: other('pi'),
+  prime: other('prime'),
+  qwen: other('qwen'),
+  reasonix: other('deepseek'),
+};
+
+/**
+ * Looks up a client by the first word of its name, then by shorter dash prefixes, so `gemini-cli` is gemini.
+ * An unknown client is kind other, labeled with its first word as sent.
+ */
+export function clientType(name: string): KnownClient {
+  const word = name.trim().split(/\s+/)[0] ?? '';
+  const parts = word.toLowerCase().split('-');
+  const key = parts
+    .map((_, index) => parts.slice(0, parts.length - index).join('-'))
+    .find(prefix => KNOWN_CLIENTS[prefix]);
+  return key ? KNOWN_CLIENTS[key]! : other(word);
+}
 export const PROGRESS_EVERY_MS = 30_000;
 export const ROOTS_TIMEOUT_MS = 5000;
 
