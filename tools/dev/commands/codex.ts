@@ -36,6 +36,7 @@ type Screen = 'error' | 'loading' | 'ready' | 'trust' | 'update';
 interface CodexOptions {
   as: string;
   keep: boolean;
+  quiet?: number;
   room: string;
 }
 
@@ -50,7 +51,7 @@ export function codexScreen(pane: string): Screen {
 
 /** One member's presence, last seen and doorbell from a list_members reply. */
 export function memberStatus({ list, name }: { list: string; name: string }) {
-  const pattern = String.raw`^- ${name} \((\w+)( \(no doorbell\))?, (\w+)[^)]*\), last seen (\S+)$`;
+  const pattern = String.raw`^- ${name} \((.+?)( \(no doorbell\))?, (\w+)[^)]*\), last seen (\S+)$`;
   const line = new RegExp(pattern, 'm').exec(list);
   if (!line) return;
   return { doorbell: !line[2], lastSeen: Date.parse(line[4]!), presence: line[3]! };
@@ -70,7 +71,7 @@ async function until<T>(deadline: number, check: () => Promise<T | undefined>): 
 
 /** Drives a real Codex TUI on the user's shared app-server daemon: it joins with its thread id,
  * a scripted agent mentions it, and the queued ring should make it read and reply. */
-export async function codexRun({ as, keep, room }: CodexOptions) {
+export async function codexRun({ as, keep, quiet, room }: CodexOptions) {
   const ownHome = !process.env.MESSHALL_HOME;
   const home = process.env.MESSHALL_HOME || mkdtempSync(path.join(tmpdir(), 'messhall-codex-'));
   const port = process.env.MESSHALL_PORT ? Number(process.env.MESSHALL_PORT) : DEFAULT_PORT;
@@ -153,7 +154,7 @@ export async function codexRun({ as, keep, room }: CodexOptions) {
     await tmux(['send-keys', '-t', session, 'Enter']);
 
     scripted = await connectHttp({ key, name: 'messhall-dev-agent', url: daemon.url });
-    const { client } = scripted;
+    let { client } = scripted;
     const joined = await until(Date.now() + JOIN_WITHIN_MS, async () => {
       const list = textOf(await client.callTool({ arguments: { room }, name: 'list_members' }));
       const state = memberStatus({ list, name: as });
@@ -163,6 +164,16 @@ export async function codexRun({ as, keep, room }: CodexOptions) {
     doorbell = joined.doorbell ? 'codex' : 'none';
     if (!joined.doorbell) throw new Error(`${as} joined #${room} without a working thread id, so it has no doorbell`);
     note(`${as} joined #${room} with the codex doorbell and is quiet`);
+    if (quiet) {
+      // This scripted session holds no stream either, so it ends before the quiet and opens again after.
+      await scripted.transport.terminateSession().catch(() => {});
+      await scripted.client.close();
+      await sleep(quiet * 1000);
+      scripted = await connectHttp({ key, name: 'messhall-dev-agent', url: daemon.url });
+      ({ client } = scripted);
+      const list = textOf(await client.callTool({ arguments: { room }, name: 'list_members' }));
+      note(`after ${quiet} s quiet, ${as} is ${memberStatus({ list, name: as })?.presence ?? 'not in the room'}`);
+    }
 
     await client.callTool({ arguments: { as: other, room }, name: 'join' });
     const postedAt = Date.now();
@@ -227,15 +238,16 @@ export async function codexRun({ as, keep, room }: CodexOptions) {
   return { code, report: report.join('\n') };
 }
 
-/** Registers `codex --room <r> [--as <role>] [--keep]`. */
+/** Registers `codex --room <r> [--as <role>] [--quiet <s>] [--keep]`. */
 export function registerCodex(program: Command) {
   program
     .command('codex')
     .description('A real Codex TUI on the shared app-server daemon: a mention queues a ring, it reads and replies.')
     .requiredOption('--room <room>', 'room to join')
     .option('--as <role>', 'the role codex joins as', 'api')
+    .option('--quiet <s>', 'sit idle this long after the join before the mention', value => Number(value))
     .option('--keep', 'leave tmux, the thread and the daemon running')
-    .action(async (options: { as: string; keep?: boolean; room: string }) => {
+    .action(async (options: { as: string; keep?: boolean; quiet?: number; room: string }) => {
       const result = await codexRun({ ...options, keep: Boolean(options.keep) });
       console.log(result.report);
       process.exitCode = result.code;

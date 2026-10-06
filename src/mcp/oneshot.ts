@@ -1,5 +1,7 @@
 import type { Client } from '@modelcontextprotocol/client';
 
+import { SdkHttpError } from '@modelcontextprotocol/client';
+
 import { connectHttp } from './testing.js';
 
 export interface ToolReply {
@@ -54,21 +56,47 @@ export async function joinPostLeave({
   return { id: id ? Number(id) : undefined, replies: posted ? [joined, posted, left] : [joined, left] };
 }
 
+const STREAM_LOST = /^Maximum reconnection attempts/;
+const DOWN_CODES = new Set(['ECONNREFUSED', 'ECONNRESET']);
+
+/** True when the daemon dropped the session or is down or failing: a 404 or 5xx, a refused
+ * connection, or a stream that could not come back. A fresh session may work then. */
+export function lostSession(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error instanceof SdkHttpError) return error.status === 404 || error.status >= 500;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === 'string' && DOWN_CODES.has(code)) return true;
+  return STREAM_LOST.test(error.message) || lostSession(error.cause);
+}
+
+/** Opens an MCP session on the daemon with the agent key. `close` ends it with DELETE and never throws. */
+export async function openAgentSession({ key, name, url }: { key: string; name: string; url: string }) {
+  const { client, transport } = await connectHttp({ key, name, url });
+  return {
+    client,
+    async close() {
+      await transport.terminateSession().catch(() => {});
+      await client.close().catch(() => {});
+    },
+  };
+}
+
+export type AgentSession = Awaited<ReturnType<typeof openAgentSession>>;
+
 /** Opens an MCP session on the daemon with the agent key, runs `use`, then ends it with DELETE. */
 export async function withAgentSession<T>(
-  { key, name, url }: { key: string; name: string; url: string },
+  options: { key: string; name: string; url: string },
   use: (client: Client) => Promise<T>,
 ) {
-  let connected: Awaited<ReturnType<typeof connectHttp>>;
+  let session: AgentSession;
   try {
-    connected = await connectHttp({ key, name, url });
+    session = await openAgentSession(options);
   } catch (error) {
     return { error, ok: false } as const;
   }
   try {
-    return { ok: true, value: await use(connected.client) } as const;
+    return { ok: true, value: await use(session.client) } as const;
   } finally {
-    await connected.transport.terminateSession().catch(() => {});
-    await connected.client.close();
+    await session.close();
   }
 }
