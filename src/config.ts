@@ -37,6 +37,11 @@ export function codexConfigPath() {
   return path.join(process.env.CODEX_HOME || path.join(homedir(), '.codex'), 'config.toml');
 }
 
+/** Gemini CLI's user settings. `GEMINI_CLI_HOME` stands in for the home dir, as it does for gemini itself. */
+export function geminiSettingsPath() {
+  return path.join(process.env.GEMINI_CLI_HOME || homedir(), '.gemini', 'settings.json');
+}
+
 /** Codex's shared app-server control socket. `MESSHALL_CODEX_SOCKET` wins, then `CODEX_HOME`, as for codex itself. */
 export function codexControlSocket() {
   const codexHome = process.env.CODEX_HOME || path.join(homedir(), '.codex');

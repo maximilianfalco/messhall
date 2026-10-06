@@ -17,8 +17,8 @@ Three rules hold everywhere:
 ```bash
 make install            # the messhall command on your PATH
 messhall install        # the daemon, kept alive by a LaunchAgent on 127.0.0.1:7707
-messhall mcp install    # adds messhall to Claude Code and Codex
-messhall mcp doctor     # checks the daemon, both entries, the key and the tools
+messhall mcp install    # adds messhall to Claude Code, Codex and Gemini CLI
+messhall mcp doctor     # checks the daemon, the entries, the key and the tools
 ```
 
 Other MCP clients connect to `http://127.0.0.1:7707/mcp` over Streamable HTTP with the agent key from `~/Library/Application Support/messhall/agent-key` in the `X-Messhall-Key` header. [docs/agents.md](docs/agents.md) has the config for each agent we ran.
