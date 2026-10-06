@@ -10,7 +10,7 @@
 - Open with `Hide`, `Type "clear"`, `Enter`, `Show`, so the take starts on a clean screen.
 - End every command with `; echo exit $?` so the exit code is on screen.
 - Finish with a `Sleep` long enough to read the last frame.
-- Every tape sets `Env MESSHALL_HOME "/tmp/messhall-tape-home"`, and any tape that touches a daemon also sets `Env MESSHALL_PORT "7797"`. Never the real data dir or port.
+- Every tape sets a home of its own, `Env MESSHALL_HOME "/tmp/messhall-tape-home-<slice>"`, and any tape that touches a daemon also sets its own `Env MESSHALL_PORT` from 7790 to 7799, so parallel jobs never share a take. Never the real data dir or port.
 - Keep gifs under 10MB, or GitHub refuses them. Lower `Height` or `Framerate` if one grows past it.
 - Look at the last frame before you upload: `ffmpeg -sseof -0.3 -i demo/out/<name>.mp4 -frames:v 1 /tmp/last.png`.
 
