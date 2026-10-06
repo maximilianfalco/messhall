@@ -58,6 +58,11 @@ function unseen({ as, room, store }: { as: string; room: string; store: RoomStor
   return read.ok ? read.messages : [];
 }
 
+/** Unread lines that concern `as`, oldest first. Leaves the bookmark alone. */
+export function unreadConcerning({ as, room, store }: { as: string; room: string; store: RoomStore }) {
+  return unseen({ as, room, store }).filter(message => concernsMember({ as, message, room, store }));
+}
+
 function summary({ as, hit, mark, store }: { as: string; hit: Hit; mark: number; store: RoomStore }) {
   const posts = unseen({ as, room: hit.room, store }).filter(
     message => message.kind === 'chat' || message.kind === 'done',
@@ -133,7 +138,7 @@ export function registerWait(server: McpServer, deps: ToolDeps, description: str
     if (kicked) return removedFrom(session, kicked[0]);
 
     for (const [room, as] of rooms) {
-      const message = unseen({ as, room, store }).find(item => concernsMember({ as, message: item, room, store }));
+      const [message] = unreadConcerning({ as, room, store });
       if (message) return reply(summary({ as, hit: { message, room }, mark: session.markOf(room), store }));
     }
 
