@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       ShotHooks.navigate(
         room: UserDefaults.standard.string(forKey: "shotRoom"),
         newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"), navigation: navigation)
+      let pause = UserDefaults.standard.double(forKey: "shotToggleSidebar")
+      if pause > 0 { Task { await ShotHooks.toggleSidebar(pause: pause) } }
       if let file = UserDefaults.standard.string(forKey: "shotSheet") {
         Task { await ShotHooks.saveSheet(to: file) }
       }

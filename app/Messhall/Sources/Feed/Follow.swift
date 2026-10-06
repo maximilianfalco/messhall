@@ -17,6 +17,15 @@ public enum Follow {
     contentBottom - viewportHeight <= slack
   }
 
+  /// How long the split view takes to slide a column in or out, in seconds.
+  public static let settle = 0.4
+
+  /// Seconds to hold a follow scroll so it does not fight a column slide. Zero once the slide is over.
+  public static func wait(columnsChangedAt: Date?, now: Date) -> Double {
+    guard let columnsChangedAt else { return 0 }
+    return max(0, settle - now.timeIntervalSince(columnsChangedAt))
+  }
+
   /// What to do when the last message id changes. A smaller or equal id is a filter change, not a new message.
   public static func action(lastBefore: Int?, lastAfter: Int?, fromHuman: Bool, nearBottom: Bool) -> Action {
     guard let lastAfter else { return .none }

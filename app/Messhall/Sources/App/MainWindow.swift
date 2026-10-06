@@ -5,6 +5,8 @@ struct MainWindow: View {
   let store: FeedStore
   let client: FeedClient
   @Bindable var navigation: Navigation
+  @State private var columns = NavigationSplitViewVisibility.automatic
+  @State private var columnsChangedAt: Date?
 
   private var selection: Binding<String?> {
     Binding(
@@ -19,9 +21,9 @@ struct MainWindow: View {
 
   var body: some View {
     if store.loaded {
-      NavigationSplitView {
+      NavigationSplitView(columnVisibility: $columns) {
         RoomList(rooms: store.rooms, selection: selection)
-          .navigationSplitViewColumnWidth(min: 200, ideal: 230)
+          .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
           .toolbar {
             ToolbarItem {
               Button("New Room", systemImage: "plus") { navigation.newRoomDraft = "" }
@@ -30,7 +32,7 @@ struct MainWindow: View {
           }
       } detail: {
         if let room = store.room(named: selection.wrappedValue) {
-          RoomDetail(room: room, store: store, client: client)
+          RoomDetail(room: room, store: store, client: client, columnsChangedAt: columnsChangedAt)
         } else {
           ContentUnavailableView {
             Label("No Rooms Yet", systemImage: "bubble.left.and.bubble.right")
@@ -41,6 +43,7 @@ struct MainWindow: View {
           }
         }
       }
+      .onChange(of: columns) { columnsChangedAt = .now }
       .sheet(isPresented: showingNewRoom) {
         NewRoomSheet(store: store, client: client, navigation: navigation)
       }

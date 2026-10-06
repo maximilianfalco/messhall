@@ -5,6 +5,7 @@ struct RoomDetail: View {
   let room: SnapshotRoom
   let store: FeedStore
   let client: FeedClient
+  let columnsChangedAt: Date?
   @State private var confirmingClose = false
   @State private var refusal: String?
   @State private var query = ""
@@ -21,7 +22,7 @@ struct RoomDetail: View {
       RoomOrigin(room: room)
       MemberStrip(members: room.members)
       Divider()
-      Transcript(messages: room.messages.matching(query), query: query)
+      Transcript(messages: room.messages.matching(query), query: query, columnsChangedAt: columnsChangedAt)
         .id(room.name)
       Divider()
       if room.isOpen {
@@ -209,13 +210,11 @@ struct PresenceDot: View {
 struct Transcript: View {
   let messages: [Message]
   let query: String
-  @State private var contentBottom = 0.0
-  @State private var viewportHeight = 0.0
+  let columnsChangedAt: Date?
+  @State private var nearBottom = true
   @State private var showPill = false
 
-  private static let space = "transcript"
-
-  private var nearBottom: Bool { Follow.isNearBottom(contentBottom: contentBottom, viewportHeight: viewportHeight) }
+  private static let end = "end"
 
   var body: some View {
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -227,21 +226,24 @@ struct Transcript: View {
     } else {
       ScrollViewReader { proxy in
         ScrollView {
-          LazyVStack(alignment: .leading, spacing: 6) {
-            ForEach(messages) { MessageRow(message: $0).id($0.id) }
+          VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+              ForEach(messages) { MessageRow(message: $0).id($0.id) }
+            }
+            .padding(16)
+            Color.clear.frame(height: 1).id(Self.end)
           }
-          .padding(16)
-          .onGeometryChange(for: Double.self) { $0.frame(in: .named(Self.space)).maxY } action: { bottom in
-            contentBottom = bottom
-            hidePillAtBottom()
+          // A Bool, so a column slide that keeps the view at the bottom writes no state each frame.
+          .onGeometryChange(for: Bool.self) { geometry in
+            let visible = geometry.bounds(of: .scrollView) ?? .zero
+            return Follow.isNearBottom(
+              contentBottom: geometry.size.height - visible.minY, viewportHeight: visible.height)
+          } action: { atBottom in
+            nearBottom = atBottom
+            if atBottom { showPill = false }
           }
         }
-        .coordinateSpace(name: Self.space)
         .defaultScrollAnchor(.bottom)
-        .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
-          viewportHeight = height
-          hidePillAtBottom()
-        }
         .overlay(alignment: .bottom) {
           if showPill {
             JumpToLatest { scroll(proxy, animated: true) }
@@ -252,18 +254,18 @@ struct Transcript: View {
         .onAppear { start(proxy) }
         .onChange(of: messages.last?.id) { before, after in
           let fromHuman = messages.last?.from == humanName
-          switch Follow.action(lastBefore: before, lastAfter: after, fromHuman: fromHuman, nearBottom: nearBottom) {
-          case .scroll(let animated): scroll(proxy, animated: animated)
-          case .showPill: withAnimation(.easeOut) { showPill = true }
-          case .none: break
+          let wait = Follow.wait(columnsChangedAt: columnsChangedAt, now: .now)
+          // The next turn, so the new row has its size before the scroll aims at the end.
+          DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+            switch Follow.action(lastBefore: before, lastAfter: after, fromHuman: fromHuman, nearBottom: nearBottom) {
+            case .scroll(let animated): scroll(proxy, animated: animated)
+            case .showPill: withAnimation(.easeOut) { showPill = true }
+            case .none: break
+            }
           }
         }
       }
     }
-  }
-
-  private func hidePillAtBottom() {
-    if nearBottom { showPill = false }
   }
 
   private func start(_ proxy: ScrollViewProxy) {
@@ -282,10 +284,10 @@ struct Transcript: View {
   private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
     showPill = false
     guard animated else {
-      proxy.scrollTo(messages.last?.id, anchor: .bottom)
+      proxy.scrollTo(Self.end, anchor: .bottom)
       return
     }
-    withAnimation(.easeOut) { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
+    withAnimation(.easeOut) { proxy.scrollTo(Self.end, anchor: .bottom) }
   }
 }
 
@@ -356,8 +358,8 @@ struct ChatRow: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      AvatarView(name: message.from)
-      VStack(alignment: .leading, spacing: 3) {
+      if !isHuman { AvatarView(name: message.from) }
+      VStack(alignment: isHuman ? .trailing : .leading, spacing: 3) {
         HStack(spacing: 6) {
           Text(isHuman ? youLabel : message.from).fontWeight(.semibold)
           Text(message.time)
@@ -366,14 +368,17 @@ struct ChatRow: View {
         }
         .foregroundStyle(isHuman ? Color.accentColor : .primary)
         Text(message.text)
+          .multilineTextAlignment(isHuman ? .trailing : .leading)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
       }
+      if isHuman { AvatarView(name: message.from) }
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
-    .frame(maxWidth: .infinity, alignment: .leading)
     .background(isHuman ? Color.accentColor.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
+    .padding(isHuman ? .leading : .trailing, isHuman ? 48 : 0)
+    .frame(maxWidth: .infinity, alignment: isHuman ? .trailing : .leading)
   }
 }
 

@@ -20,6 +20,12 @@ const SHOT_HOME = '/tmp/messhall-tape-home-app';
 const OUT_DIR = path.join(REPO_ROOT, 'demo', 'out', 'shots');
 const BUNDLE_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'bundle.sh');
 const WINDOWS_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'windows.swift');
+const RECORD_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'record.swift');
+const RECORDER = path.join(REPO_ROOT, 'demo', 'out', 'record');
+// The app waits this long before each sidebar toggle, so the take holds both slides.
+const TOGGLE_PAUSE_S = 2.5;
+const RECORD_S = 7;
+const GIF_LIMIT_BYTES = 10_000_000;
 const WINDOW_WITHIN_MS = 30_000;
 // Time for the snapshot to load and the transcript to scroll before the shot.
 const SETTLE_MS = 2500;
@@ -43,6 +49,8 @@ const SHOTS = [
   { appearance: 'light', muted: true, name: 'muted-light' },
   { appearance: 'dark', muted: true, name: 'muted-dark' },
 ] as const;
+// Posts as the human first, so the take also shows the right side row and the scroll landing flush.
+const RECORDING = { appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true } as const;
 // The room the window opens on, muted through the app's own defaults key.
 const MUTED_ARGS = ['-mutedRooms', '(checkout)'];
 // Shot after the daemon stops, so the window shows its empty state.
@@ -156,7 +164,7 @@ function processAlive(pid: number) {
   }
 }
 
-type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number];
+type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number] | typeof RECORDING;
 
 const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
 
@@ -180,6 +188,7 @@ export function shotArgs(shot: Shot) {
     ...('room' in shot ? ['-shotRoom', shot.room] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
+    ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
   ];
 }
 
@@ -238,6 +247,11 @@ async function shoot({
       });
       if (posted.code !== 0) return `agent post failed: ${posted.output}`;
     }
+    if ('toggleSidebar' in shot) {
+      const mov = path.join(OUT_DIR, `${shot.name}.mov`);
+      await run(RECORDER, [String(child.pid), String(RECORD_S), mov]);
+      return mov;
+    }
     const file = shotFile(shot);
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
     if ('newRoom' in shot) return (await waitFile(file)) ?? file;
@@ -268,14 +282,31 @@ const shootAll = ({
     Promise.resolve([]),
   );
 
+/** Builds the window recorder. Plain `swift` from the command line tools crashes on ScreenCaptureKit, so Xcode's is used when present. */
+function buildRecorder() {
+  const xcode = '/Applications/Xcode.app/Contents/Developer';
+  const env = { ...process.env, ...(statSync(xcode, { throwIfNoEntry: false }) ? { DEVELOPER_DIR: xcode } : {}) };
+  return spawnSync('swiftc', ['-O', RECORD_SCRIPT, '-o', RECORDER], { env, stdio: 'inherit' }).status === 0;
+}
+
+/** Turns the take into a gif for the PR. Gives an error text when it fails or is too big to upload. */
+async function toGif(mov: string) {
+  if (!mov.startsWith('/')) return mov;
+  const gif = mov.replace(/\.mov$/, '.gif');
+  const palette = 'fps=30,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse';
+  await run('ffmpeg', ['-v', 'error', '-y', '-i', mov, '-vf', palette, gif]);
+  const size = statSync(gif, { throwIfNoEntry: false })?.size ?? 0;
+  return size > GIF_LIMIT_BYTES ? `gif is ${Math.round(size / 1e6)} MB, over the 10 MB limit` : gif;
+}
+
 function buildApp() {
   const result = spawnSync('bash', [BUNDLE_SCRIPT], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
   if (result.status !== 0) return;
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, the jump pill, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. */
-async function appShot({ home, port }: { home: string; port: number }) {
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, the jump pill, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
   rmSync(home, { force: true, recursive: true });
@@ -285,6 +316,7 @@ async function appShot({ home, port }: { home: string; port: number }) {
 
   const app = buildApp();
   if (!app) return { code: 1, report: bad('make app failed') };
+  if (sidebar && !buildRecorder()) return { code: 1, report: bad('building the window recorder failed') };
   const daemon = await spawnDaemon({ detached: false, home, port });
   if (!daemon.ok) return { code: 1, report: daemon.report };
 
@@ -293,13 +325,21 @@ async function appShot({ home, port }: { home: string; port: number }) {
   const launched: number[] = [];
   const before = appPids(app);
   try {
-    spawnSync(path.join(app, 'Contents', 'MacOS', 'Messhall'), ['-renderStatus', OUT_DIR], { env });
-    rows.push(['menu-light', path.join(OUT_DIR, 'menu-light.png')], ['menu-dark', path.join(OUT_DIR, 'menu-dark.png')]);
-    rows.push(...(await shootAll({ app, env, launched, shots: SHOTS })));
+    if (sidebar) {
+      const [[name = '', mov = ''] = []] = await shootAll({ app, env, launched, shots: [RECORDING] });
+      rows.push([name, await toGif(mov)]);
+    } else {
+      spawnSync(path.join(app, 'Contents', 'MacOS', 'Messhall'), ['-renderStatus', OUT_DIR], { env });
+      rows.push(
+        ['menu-light', path.join(OUT_DIR, 'menu-light.png')],
+        ['menu-dark', path.join(OUT_DIR, 'menu-dark.png')],
+      );
+      rows.push(...(await shootAll({ app, env, launched, shots: SHOTS })));
+    }
   } finally {
     await daemon.stop();
   }
-  rows.push(...(await shootAll({ app, env, launched, shots: DOWN_SHOTS })));
+  if (!sidebar) rows.push(...(await shootAll({ app, env, launched, shots: DOWN_SHOTS })));
   const sized = rows.map(([name = '', file = '']) => {
     const size = file.startsWith('/')
       ? `${Math.round((statSync(file, { throwIfNoEntry: false })?.size ?? 0) / 1000)} kB`
@@ -321,7 +361,7 @@ async function appShot({ home, port }: { home: string; port: number }) {
   return { code, report: [table, '', verdict, quit, stray].join('\n') };
 }
 
-/** Registers `app-shot [--port <n>] [--home <dir>]`. */
+/** Registers `app-shot [--port <n>] [--home <dir>] [--sidebar]`. */
 export function registerAppShot(program: Command) {
   program
     .command('app-shot')
@@ -330,8 +370,13 @@ export function registerAppShot(program: Command) {
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)
-    .action(async (options: { home: string; port: string }) => {
-      const result = await appShot({ home: options.home, port: Number(options.port) });
+    .option('--sidebar', 'instead of the shots, record a human post and the sidebar hiding and showing, as a gif')
+    .action(async (options: { home: string; port: string; sidebar?: boolean }) => {
+      const result = await appShot({
+        home: options.home,
+        port: Number(options.port),
+        sidebar: options.sidebar ?? false,
+      });
       console.log(result.report);
       process.exitCode = result.code;
     });

@@ -106,6 +106,12 @@ describe('shotArgs', () => {
     ).toStrictEqual(expect.arrayContaining(['-shotScrollTop', 'YES', '-shotRoom', 'docs-sync']));
   });
 
+  it('posts as the human and then hides and shows the sidebar for the recording', () => {
+    expect(shotArgs({ appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true })).toStrictEqual(
+      expect.arrayContaining(['-shotPost', '-shotToggleSidebar', '2.5']),
+    );
+  });
+
   it('passes the room to open and the New Room draft', () => {
     expect(shotArgs({ appearance: 'light', name: 'closed-light', room: 'billing' }).slice(-2)).toStrictEqual([
       '-shotRoom',
