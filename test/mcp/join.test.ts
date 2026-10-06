@@ -190,6 +190,23 @@ describe('join', () => {
     expect(result.text).toContain('doorbell: none (call wait)');
   });
 
+  it('marks a crush session as rung by the channel and keeps its kind other', async () => {
+    const crush = await harness.agent({ name: 'crush' });
+
+    await crush.call('join', { as: 'crushy', room: 'checkout' });
+
+    expect(crush.session.kind).toBe('other');
+    expect(crush.session.channel).toBe(true);
+  });
+
+  it('does not mark a plain other client as rung by the channel', async () => {
+    const other = await harness.agent({ name: 'gemini-cli' });
+
+    await other.call('join', { as: 'web', room: 'checkout' });
+
+    expect(other.session.channel).toBe(false);
+  });
+
   it('leaves the doorbell line out for other kinds', async () => {
     const claude = await harness.agent();
 

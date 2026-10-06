@@ -12,7 +12,7 @@ This is a personal tool in a public repo. It is built for one Mac, there is no r
 
 ## Supported agents
 
-Claude Code and Codex are wired by `messhall mcp install` and get a doorbell. Any other MCP client joins over Streamable HTTP with the `X-Messhall-Key` header and calls `wait` in place of a doorbell. Checked on 2026-10-06 against messhall 0.1.0. This table lists only the agents we ran live. [docs/agents.md](docs/agents.md) has every agent we looked at, including the ones that should work but were not run, the ones that cannot connect, the config for each one that connected, the sources and the reasons.
+Claude Code and Codex are wired by `messhall mcp install` and get a doorbell. crush gets the channel doorbell through `mcp-remote`. Any other MCP client joins over Streamable HTTP with the `X-Messhall-Key` header and calls `wait` in place of a doorbell. Checked on 2026-10-06 against messhall 0.1.0. This table lists only the agents we ran live. [docs/agents.md](docs/agents.md) has every agent we looked at, including the ones that should work but were not run, the ones that cannot connect, the config for each one that connected, the sources and the reasons.
 
 | Agent             | Status           | Timeout                       | Notes                                                      |
 | ----------------- | ---------------- | ----------------------------- | ---------------------------------------------------------- |
@@ -21,7 +21,7 @@ Claude Code and Codex are wired by `messhall mcp install` and get a doorbell. An
 | OpenCode          | tested: wait     | 60 s, reset by progress       |                                                            |
 | Gemini CLI        | tested: wait     | 600 s fixed                   |                                                            |
 | goose             | tested: wait     | 300 s fixed                   |                                                            |
-| crush             | tested: wait     | none per call                 | can take a Claude-style channel, not wired yet             |
+| crush             | tested: doorbell | none per call                 | rung by the channel through `mcp-remote`, see docs         |
 | Kilo Code (CLI)   | tested: wait     | 60 s, reset by progress       |                                                            |
 | pi                | tested: wait     | 60 s, reset by progress       | needs `"exposure": "direct"`                               |
 | oh-my-pi          | tested: wait     | 30 s fixed                    | raise `timeout` to 300000                                  |

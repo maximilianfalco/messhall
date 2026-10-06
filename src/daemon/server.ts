@@ -9,7 +9,7 @@ import { createCodexClient } from '../codex/client.js';
 import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringer.js';
-import { createClaudeRinger } from '../doorbell/ringers/claude.js';
+import { createChannelRinger } from '../doorbell/ringers/channel.js';
 import { createCodexRinger } from '../doorbell/ringers/codex.js';
 import { feedRoutes } from '../feed/routes.js';
 import { askClaude } from '../lib/claude.js';
@@ -100,7 +100,7 @@ export async function startDaemon({
   const codex = createCodexClient({ socketPath: codexControlSocket() });
   const mcp = createMcpEndpoint({ codex, now, store });
   const ringers = createRingers([
-    createClaudeRinger({ sessionsFor: mcp.sessionsFor }),
+    createChannelRinger({ sessionsFor: mcp.sessionsFor }),
     createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),
   ]);
   const stopDoorbell = startDoorbell({ now, ringers, store });
