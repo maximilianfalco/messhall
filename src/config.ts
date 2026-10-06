@@ -31,6 +31,11 @@ export function launchAgentPath() {
   return path.join(homedir(), 'Library', 'LaunchAgents', `${LAUNCH_AGENT_LABEL}.plist`);
 }
 
+/** Codex's user config. `CODEX_HOME` wins, as it does for codex itself. */
+export function codexConfigPath() {
+  return path.join(process.env.CODEX_HOME || path.join(homedir(), '.codex'), 'config.toml');
+}
+
 /** Where rooms and keys live. `MESSHALL_HOME` wins so tests and tapes never touch the real data. */
 export function dataDir() {
   return process.env.MESSHALL_HOME || path.join(homedir(), 'Library', 'Application Support', 'messhall');
@@ -53,9 +58,13 @@ export const DB_FILE = 'messhall.db';
 export const DB_BUSY_TIMEOUT_MS = 5000;
 export const PRESENCE_SWEEP_MS = 30_000;
 export const HEALTH_TIMEOUT_MS = 1000;
+export const RING_BATCH_MS = 3000;
+export const RING_THROTTLE_MS = 20_000;
+export const RING_ACTIVE_SKIP_MS = 5000;
 export const FEED_SNAPSHOT_MESSAGES = 50;
 export const FEED_PAGE_DEFAULT = 50;
 export const FEED_PAGE_MAX = 200;
 export const FEED_PING_MS = 15_000;
 export const FEED_STALL_MS = 30_000;
 export const FEED_BODY_MAX_BYTES = 64 * 1024;
+export const WATCH_RECONNECT_MS = 1000;

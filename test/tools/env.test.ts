@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hasChannels } from '../../tools/dev/commands/env.js';
+import { hasChannels } from '../../src/cli/mcp.js';
 
 describe('hasChannels', () => {
   it.each([

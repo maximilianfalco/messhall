@@ -80,30 +80,33 @@ export async function spawnDaemon({ detached, home, port }: { detached: boolean;
     await stopped;
     return exited;
   };
-  return { child, ok: true, probe, stop, url } as const;
+  return { child, health: probe.health, ok: true, stop, url } as const;
 }
 
-/** Starts `messhall daemon` from source on a scratch home and port, waits for /health, and stops it unless `keep`. */
+/** A free port on 127.0.0.1, or `MESSHALL_PORT` when set. */
+export async function scratchPort() {
+  return process.env.MESSHALL_PORT ? Number(process.env.MESSHALL_PORT) : freePort();
+}
+
+/** Starts a scratch daemon on `MESSHALL_HOME` (else a temp dir) and prints it. Stops it unless `keep`. */
 async function scratchDaemon({ keep }: { keep: boolean }) {
   const ownHome = !process.env.MESSHALL_HOME;
   const home = process.env.MESSHALL_HOME || mkdtempSync(path.join(tmpdir(), 'messhall-daemon-'));
-  const port = process.env.MESSHALL_PORT ? Number(process.env.MESSHALL_PORT) : await freePort();
-  const daemon = await spawnDaemon({ detached: keep, home, port });
-  if (!daemon.ok) return { code: 1, report: daemon.report };
-  const { child, probe, url } = daemon;
+  const started = await spawnDaemon({ detached: keep, home, port: await scratchPort() });
+  if (!started.ok) return { code: 1, report: started.report };
 
   const rows = [
-    ['url', url],
-    ['pid', String(child.pid)],
+    ['url', started.url],
+    ['pid', String(started.child.pid)],
     ['data dir', home],
-    ['health', JSON.stringify(probe.health)],
+    ['health', JSON.stringify(started.health)],
   ];
   const table = formatTable(['daemon', ''], rows);
   if (keep) {
-    child.unref();
-    return { code: 0, report: [table, '', ok(`left running, stop it with kill ${child.pid}`)].join('\n') };
+    started.child.unref();
+    return { code: 0, report: [table, '', ok(`left running, stop it with kill ${started.child.pid}`)].join('\n') };
   }
-  const exited = await daemon.stop();
+  const exited = await started.stop();
   if (ownHome) rmSync(home, { force: true, recursive: true });
   return { code: 0, report: [table, '', ok(`stopped, exit ${exited}`)].join('\n') };
 }

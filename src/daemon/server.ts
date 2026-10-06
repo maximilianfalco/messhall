@@ -5,7 +5,10 @@ import type { Server } from 'node:http';
 
 import { createServer } from 'node:http';
 
+import { createClaudeRinger } from '../channels/claude.js';
 import { CLI_VERSION, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
+import { startDoorbell } from '../doorbell/doorbell.js';
+import { createRingers } from '../doorbell/ringers.js';
 import { feedRoutes } from '../feed/routes.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
@@ -91,6 +94,8 @@ export async function startDaemon({
   const db = openDb({ dataDir });
   const store = createRoomStore({ db, now });
   const mcp = createMcpEndpoint({ now, store });
+  const ringers = createRingers([createClaudeRinger({ sessionsFor: mcp.sessionsFor })]);
+  const stopDoorbell = startDoorbell({ now, ringers, store });
   const startedAt = now().getTime();
 
   // MCP mounts at /mcp and the feed under /api here.
@@ -114,9 +119,10 @@ export async function startDaemon({
   logger.info('daemon up', { data_dir: dataDir, pid: process.pid, port: bound.port, url, version: CLI_VERSION });
 
   const daemon = {
-    /** Stops the sweep, ends every MCP session, drops open connections and closes the db. */
+    /** Stops the sweep and the doorbell, ends every MCP session, drops open connections and closes the db. */
     async close() {
       clearInterval(sweep);
+      stopDoorbell();
       await mcp.close();
       await new Promise<void>(resolve => {
         server.close(() => resolve());

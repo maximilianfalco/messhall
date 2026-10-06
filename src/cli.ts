@@ -4,11 +4,13 @@ import { Command } from 'commander';
 import { registerDaemon } from './cli/daemon.js';
 import { registerInstall } from './cli/install.js';
 import { registerLogs } from './cli/logs.js';
+import { registerMcp } from './cli/mcp.js';
 import { registerSay } from './cli/say.js';
 import { registerStart } from './cli/start.js';
 import { registerStatus } from './cli/status.js';
 import { registerStop } from './cli/stop.js';
 import { registerUninstall } from './cli/uninstall.js';
+import { registerWatch } from './cli/watch.js';
 import { CLI_VERSION } from './config.js';
 
 const program = new Command()
@@ -23,8 +25,10 @@ const program = new Command()
   registerStatus,
   registerLogs,
   registerSay,
+  registerWatch,
   registerDaemon,
   registerUninstall,
+  registerMcp,
 ].forEach(register => register(program));
 
 await program.parseAsync(process.argv);

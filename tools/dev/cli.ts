@@ -2,6 +2,7 @@ import { Command } from 'commander';
 
 import { registerAgent } from './commands/agent.js';
 import { registerAppShot } from './commands/appShot.js';
+import { registerChannel } from './commands/channel.js';
 import { registerCheck } from './commands/check.js';
 import { registerDaemon } from './commands/daemon.js';
 import { registerDb } from './commands/db.js';
@@ -32,6 +33,7 @@ const program = new Command()
   registerMcp,
   registerAgent,
   registerAppShot,
+  registerChannel,
 ].forEach(register => register(program));
 
 await program.parseAsync(process.argv);

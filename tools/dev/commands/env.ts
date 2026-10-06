@@ -1,13 +1,12 @@
 import type { Command } from 'commander';
 
+import { hasChannels, readClaudeEntry, readCodexEntry } from '../../../src/cli/mcp.js';
 import { probeHealth } from '../../../src/cli/status.js';
-import { daemonUrl, dataDir } from '../../../src/config.js';
+import { codexConfigPath, daemonUrl, dataDir } from '../../../src/config.js';
+import { runCommand } from '../../../src/lib/run.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 import { run } from '../lib/run.js';
-
-// Claude Code shipped Channels in this release.
-const CHANNELS_SINCE = [2, 1, 80] as const;
 
 type EnvState = 'info' | 'missing' | 'ok';
 
@@ -18,15 +17,6 @@ interface EnvCheck {
 }
 
 const STATE_LABEL: Record<EnvState, string> = { info: dim('info'), missing: bad('missing'), ok: ok('ok') };
-
-/** True when a `claude --version` line is 2.1.80 or newer. */
-export function hasChannels(version: string) {
-  const match = /(\d+)\.(\d+)\.(\d+)/.exec(version);
-  if (!match) return false;
-  const parts = match.slice(1).map(Number);
-  const index = parts.findIndex((part, at) => part !== CHANNELS_SINCE[at]);
-  return index === -1 || parts[index]! > CHANNELS_SINCE[index]!;
-}
 
 async function toolCheck(name: string, command: string, args: string[]) {
   const result = await run(command, args, REPO_ROOT);
@@ -40,6 +30,18 @@ async function claudeCheck() {
   if (check.state === 'missing') return check;
   const channels = hasChannels(check.detail);
   return { ...check, detail: `${check.detail}, ${channels ? 'has channels' : 'no channels, needs 2.1.80+'}` };
+}
+
+// A missing entry is normal before messhall mcp install, so it never fails the command.
+async function entryChecks() {
+  const claude = await readClaudeEntry(runCommand);
+  const codexFile = codexConfigPath();
+  const codex = readCodexEntry(codexFile) !== null;
+  const checks: EnvCheck[] = [
+    { detail: claude ? `present, ${claude.url}` : 'missing', name: 'claude entry', state: claude ? 'ok' : 'info' },
+    { detail: `${codex ? 'present' : 'missing'} in ${codexFile}`, name: 'codex entry', state: codex ? 'ok' : 'info' },
+  ];
+  return checks;
 }
 
 // A down daemon is normal while nothing is installed, so it never fails the command.
@@ -64,9 +66,9 @@ async function daemonCheck() {
 export function registerEnv(program: Command) {
   program
     .command('env')
-    .description('Show node, pnpm, claude (and channels), codex, the data dir and whether the daemon answers.')
+    .description('Show node, pnpm, claude (and channels), codex, the data dir, the daemon and both messhall entries.')
     .action(async () => {
-      const checks: EnvCheck[] = await Promise.all([
+      const base: EnvCheck[] = await Promise.all([
         { detail: process.version, name: 'node', state: 'ok' },
         toolCheck('pnpm', 'pnpm', ['--version']),
         claudeCheck(),
@@ -74,6 +76,7 @@ export function registerEnv(program: Command) {
         { detail: dataDir(), name: 'data dir', state: 'info' },
         daemonCheck(),
       ]);
+      const checks = [...base, ...(await entryChecks())];
       console.log(
         formatTable(
           ['check', 'status', 'detail'],

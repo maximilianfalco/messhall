@@ -25,7 +25,7 @@ Two parts, used together:
 |---|---|
 | `pnpm messhall-dev check` | format, lint, types, tests and the feature map check, as one pass/fail table with the tail of each failed step. Exit 1 on any failure |
 | `pnpm messhall-dev featuremap [--check]` | row counts by status, and every `built` or `building` row whose code paths are missing. `--check` exits 1 on drift |
-| `pnpm messhall-dev env` | node, pnpm, `claude --version` and whether it has Channels (2.1.80+), `codex --version`, the data dir, and the daemon's `/health` on `MESSHALL_PORT` or 7707 |
+| `pnpm messhall-dev env` | node, pnpm, `claude --version` and whether it has Channels (2.1.80+), `codex --version`, the data dir, the daemon's `/health` on `MESSHALL_PORT` or 7707, and whether the Claude Code and Codex messhall entries are present |
 | `pnpm messhall-dev qa-upload <pr> <files...>` | commits gifs or screenshots to the `qa-assets` branch under `pr-<n>/` without touching your branch, prints one markdown image per file |
 | `pnpm messhall-dev db "<sql>" [--data-dir <d>]` | a read-only query against a `messhall.db`, rows as a table. A write fails |
 | `pnpm messhall-dev daemon [--keep]` | `messhall daemon` from source on `MESSHALL_HOME` (else a temp dir) and `MESSHALL_PORT` (else a free port): its url, pid, data dir and `/health` body. Stops it unless `--keep` |
