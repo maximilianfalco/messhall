@@ -3,9 +3,9 @@ import Foundation
 // Hand-written from contracts/schema.json. SchemaTests fail when a field or a value drifts.
 
 public enum Presence: String, Codable, CaseIterable, Sendable {
-  case active, waiting, idle, gone, left
+  case active, waiting, idle, away, left
 
-  public var isAway: Bool { self == .gone || self == .left }
+  public var isAway: Bool { self == .away || self == .left }
 }
 public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done, summary }
 public enum MemberKind: String, Codable, CaseIterable, Sendable { case claude, codex, other, human }
@@ -100,7 +100,7 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var present: [Member] { members.filter { $0.presence != .left } }
   /// Members who get their own chip: agents still here, then the human. The human seat never folds away.
   public var liveMembers: [Member] { liveAgents + members.filter { $0.kind == .human } }
-  /// Agents who are gone or left, folded into one chip at the end of the strip.
+  /// Agents who are away or left, folded into one chip at the end of the strip.
   public var awayMembers: [Member] { members.filter { $0.kind != .human && $0.presence.isAway } }
   /// The agents the sidebar counts.
   public var liveAgents: [Member] { members.filter { $0.kind != .human && !$0.presence.isAway } }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Acts as the human: posts messages, makes, closes and reopens rooms, sets roles and removes left or gone members.
+/// Acts as the human: posts messages, makes, closes and reopens rooms, sets roles and removes members.
 public struct HumanSeat: Sendable {
   public enum Outcome<Value: Equatable & Sendable>: Equatable, Sendable {
     case done(Value)
