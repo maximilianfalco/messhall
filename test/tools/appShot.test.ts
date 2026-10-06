@@ -73,6 +73,9 @@ describe('seedShotRooms', () => {
       'web codex waiting codex',
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
+    expect(
+      page.ok && page.messages.filter(message => message.from === 'ci').map(message => message.from_client_label),
+    ).toStrictEqual(['script']);
     expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
   });
 

@@ -158,6 +158,10 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
       room: 'checkout',
       text: '@all i will rerun the checkout e2e once both sides land',
     });
+    step(10_000);
+    store.joinRoom({ as: 'ci', client: { name: 'messhall-cli', version: '0.1.0' }, kind: 'other', room: 'checkout' });
+    store.postMessage({ from: 'ci', room: 'checkout', text: 'nightly e2e on main is green' });
+    store.leaveRoom({ as: 'ci', room: 'checkout' });
     at = now.getTime() - 60_000;
     store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room: 'checkout' });
     store.joinRoom({
