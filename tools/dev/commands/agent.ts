@@ -9,6 +9,7 @@ import { connectHttp } from '../../../src/mcp/testing.js';
 import { bad, dim, ok } from '../lib/print.js';
 
 interface AgentOptions {
+  done?: boolean;
   keyFile: string;
   role: string;
   room: string;
@@ -31,10 +32,10 @@ function readKey(file: string) {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * A scripted agent over real HTTP MCP: joins `room` as `role`, posts `say`, and with `wait` blocks
- * until something concerns it, then reads. Ends its session with DELETE, so the member turns gone.
+ * A scripted agent over real HTTP MCP: joins `room` as `role`, posts `say` (as done with `done`), and
+ * with `wait` blocks until something concerns it, then reads. Ends its session with DELETE, so the member turns gone.
  */
-export async function agentRun({ keyFile, role, room, say, timeout, url, wait }: AgentOptions) {
+export async function agentRun({ done, keyFile, role, room, say, timeout, url, wait }: AgentOptions) {
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
@@ -62,7 +63,7 @@ export async function agentRun({ keyFile, role, room, say, timeout, url, wait }:
 
   try {
     const joined = await call(`${role} join #${room}`, 'join', { as: role, room });
-    if (joined && say) await call(`${role} post`, 'post', { room, text: say });
+    if (joined && say) await call(`${role} post`, 'post', { done, room, text: say });
     if (joined && wait && (await call(`${role} wait`, 'wait', { room, timeout_s: timeout }))) {
       await call(`${role} read_since`, 'read_since', { room });
     }
@@ -74,13 +75,14 @@ export async function agentRun({ keyFile, role, room, say, timeout, url, wait }:
   return { code: failed ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--wait] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--done] [--wait] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
     .description('A scripted agent over real HTTP MCP: join, post, wait, read, with how long wait blocked.')
     .requiredOption('--room <room>', 'room to join')
     .option('--say <text>', 'post this after joining')
+    .option('--done', 'post --say as done')
     .option('--wait', 'block until something concerns this agent, then read')
     .option('--timeout <s>', 'wait timeout in seconds', value => Number(value))
     .option('--url <url>', 'daemon url', daemonUrl())

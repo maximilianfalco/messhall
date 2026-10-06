@@ -42,6 +42,17 @@ describe('agentRun', () => {
     expect(text).toMatch(/posted #\d+ in #checkout\./);
   });
 
+  it('posts done with --done, so a room it made alone closes', async () => {
+    const run = (say: string, done?: boolean) =>
+      agentRun({ done, keyFile: keyFile(), role: 'api', room: 'checkout', say, url: daemon.url });
+    await run('my part is in', true);
+
+    const result = await run('one more');
+
+    expect(result.code).toBe(1);
+    expect(stripVTControlCharacters(result.report)).toContain('#checkout is closed, every agent said done.');
+  });
+
   it('blocks in wait until another agent mentions it, then reads', async () => {
     const waiting = agentRun({ keyFile: keyFile(), role: 'web', room: 'checkout', url: daemon.url, wait: true });
     await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'web', room: 'checkout' })).toHaveLength(1));
