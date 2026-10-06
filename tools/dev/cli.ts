@@ -6,9 +6,11 @@ import { registerDaemon } from './commands/daemon.js';
 import { registerDb } from './commands/db.js';
 import { registerEnv } from './commands/env.js';
 import { registerFeatureMap } from './commands/featuremap.js';
+import { registerFeed } from './commands/feed.js';
 import { registerMcp } from './commands/mcp.js';
 import { registerQaUpload } from './commands/qaUpload.js';
 import { registerRoom } from './commands/room.js';
+import { registerSchema } from './commands/schema.js';
 import { registerStore } from './commands/store.js';
 
 const program = new Command()
@@ -24,6 +26,8 @@ const program = new Command()
   registerStore,
   registerDaemon,
   registerRoom,
+  registerSchema,
+  registerFeed,
   registerMcp,
   registerAgent,
 ].forEach(register => register(program));

@@ -1,4 +1,5 @@
 import type { SequencedEvent } from '../../contracts/events.ts';
+import type { RoomStore } from '../../src/rooms/store.js';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -332,5 +333,38 @@ describe('listing', () => {
     const result = store().reopenRoom('demo');
 
     expect(result.ok && result.room).toMatchObject({ closed_at: null, message_cap: 202 });
+  });
+});
+
+describe('listMessages', () => {
+  const ids = (result: ReturnType<RoomStore['listMessages']>) => (result.ok ? result.messages.map(m => m.text) : []);
+
+  function seed() {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    return ['one', 'two', 'three', 'four'].map(text => post('api', text).id);
+  }
+
+  it('returns the latest messages oldest first when no after is given', () => {
+    seed();
+
+    expect(ids(store().listMessages({ limit: 2, room: 'demo' }))).toStrictEqual(['three', 'four']);
+  });
+
+  it('returns the page after an id without moving any cursor', () => {
+    const [first] = seed();
+    const before = memberOf('demo', 'api')?.cursor;
+
+    expect(ids(store().listMessages({ after: first, limit: 2, room: 'demo' }))).toStrictEqual(['two', 'three']);
+    expect(memberOf('demo', 'api')?.cursor).toBe(before);
+  });
+
+  it('includes system lines', () => {
+    seed();
+
+    expect(ids(store().listMessages({ after: 0, limit: 1, room: 'demo' }))).toStrictEqual(['api joined']);
+  });
+
+  it('refuses a room that does not exist', () => {
+    expect(store().listMessages({ limit: 5, room: 'nope' })).toStrictEqual({ ok: false, reason: 'no_room' });
   });
 });

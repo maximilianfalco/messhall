@@ -1,3 +1,4 @@
+import type { KeyKind } from '../../src/daemon/keys.js';
 import type { Handler } from '../../src/daemon/router.js';
 import type { Server } from 'node:http';
 
@@ -34,12 +35,12 @@ const keyFile = (kind: keyof typeof KEY_FILES) => path.join(home, KEY_FILES[kind
 const readKey = (kind: keyof typeof KEY_FILES) => readFileSync(keyFile(kind), 'utf8');
 const mode = (file: string) => statSync(file).mode % 0o1000;
 
-async function agentRoute() {
+async function agentRoute(kinds: KeyKind | KeyKind[] = 'agent') {
   const handler = vi.fn<Handler>((_req, res) => {
     res.end('in');
   });
   const keys = loadKeys({ dataDir: home });
-  server = createServer(keys.requireKey('agent', handler));
+  server = createServer(keys.requireKey(kinds, handler));
   const listening = server;
   await new Promise<void>(resolve => {
     listening.listen(0, '127.0.0.1', resolve);
@@ -104,10 +105,37 @@ describe('requireKey', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('refuses the human key on an agent route', async () => {
+  it('refuses the human key on an agent route with 403', async () => {
     const { handler, port } = await agentRoute();
 
     const res = await get({ headers: { [KEY_HEADER]: readKey('human') }, path: '/', port });
+
+    expect(res.status).toBe(403);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('refuses the agent key on a human route with 403', async () => {
+    const { handler, port } = await agentRoute('human');
+
+    const res = await get({ headers: { [KEY_HEADER]: readKey('agent') }, path: '/', port });
+
+    expect(res.status).toBe(403);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it.each(['agent', 'human'] as const)('lets the %s key through a route that takes either', async kind => {
+    const { handler, port } = await agentRoute(['agent', 'human']);
+
+    const res = await get({ headers: { [KEY_HEADER]: readKey(kind) }, path: '/', port });
+
+    expect(res).toStrictEqual({ body: 'in', status: 200 });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses no key on a route that takes either with 401', async () => {
+    const { handler, port } = await agentRoute(['agent', 'human']);
+
+    const res = await get({ path: '/', port });
 
     expect(res.status).toBe(401);
     expect(handler).not.toHaveBeenCalled();

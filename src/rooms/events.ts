@@ -14,6 +14,9 @@ export function createEventBus({ db, now }: { db: DatabaseSync; now: () => Date 
   const insert = db.prepare('INSERT INTO events (kind, payload, created_at) VALUES (?, ?, ?) RETURNING seq');
   const prune = db.prepare('DELETE FROM events WHERE created_at < ?');
   const after = db.prepare('SELECT seq, payload, created_at FROM events WHERE seq > ? ORDER BY seq');
+  const first = db.prepare('SELECT min(seq) AS seq FROM events');
+  // AUTOINCREMENT keeps the top sequence here, even once every event is pruned.
+  const last = db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'events'");
 
   return {
     /** Stores the event, drops events older than 7 days, and calls every listener. */
@@ -41,6 +44,11 @@ export function createEventBus({ db, now }: { db: DatabaseSync; now: () => Date 
       return () => {
         listeners.delete(listener);
       };
+    },
+    /** The oldest kept sequence (undefined when none is kept) and the newest one ever handed out. */
+    bounds() {
+      const oldest = first.get()?.seq;
+      return { first: oldest == null ? undefined : Number(oldest), last: Number(last.get()?.seq ?? 0) };
     },
     /** Every kept event after `seq`, oldest first. */
     since(seq: number) {
