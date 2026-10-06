@@ -46,7 +46,9 @@ export function scriptedRun({ dataDir }: { dataDir: string }) {
     step('post done as web', outcome(store.postMessage({ done: true, from: 'web', room: ROOM, text: 'form updated' })));
     step('leave as api', outcome(store.leaveRoom({ as: 'api', note: 'shipping', room: ROOM })));
     tick(3 * 60_000);
-    const swept = store.sweepPresence().map(change => `${change.name} ${change.from} to ${change.to}`);
+    const swept = store
+      .sweepPresence({ ringable: () => false })
+      .map(change => `${change.name} ${change.from} to ${change.to}`);
     step('sweep presence after 3 min', swept.join(', ') || 'no change');
     const dropped = store.clearStale().map(({ name }) => `${name} dropped out`);
     step('clear stale members', dropped.join(', ') || 'none');

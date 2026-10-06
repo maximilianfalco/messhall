@@ -253,7 +253,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     });
     store.postMessage({ done: true, from: 'writer', room: 'release-notes', text: 'notes drafted' });
     store.createRoom({ created_by: 'human', name: 'kickoff' });
-    store.sweepPresence();
+    store.sweepPresence({ ringable: () => false });
   } finally {
     db.close();
   }

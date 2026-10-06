@@ -306,7 +306,20 @@ describe('nextPresence', () => {
     ['waiting', 30, 'away'],
     ['away', 1, 'away'],
   ] as const)('moves %s after %i minutes to %s', (presence, after, expected) => {
-    expect(nextPresence({ member: member({ name: 'api', presence }), now: minutes(after) })).toBe(expected);
+    expect(nextPresence({ member: member({ name: 'api', presence }), now: minutes(after), ringable: false })).toBe(
+      expected,
+    );
+  });
+
+  it.each([
+    ['active', 2, 'idle'],
+    ['idle', 30, 'idle'],
+    ['waiting', 30, 'idle'],
+    ['active', 600, 'idle'],
+  ] as const)('moves a seat its doorbell can reach from %s after %i minutes to %s', (presence, after, expected) => {
+    expect(nextPresence({ member: member({ name: 'api', presence }), now: minutes(after), ringable: true })).toBe(
+      expected,
+    );
   });
 });
 

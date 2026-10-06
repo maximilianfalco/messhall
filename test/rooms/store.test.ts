@@ -434,14 +434,14 @@ describe('presence', () => {
     joinBoth();
 
     scratch.clock.advance(minutes(2));
-    expect(store().sweepPresence()).toStrictEqual([
+    expect(store().sweepPresence({ ringable: () => false })).toStrictEqual([
       { from: 'active', name: 'api', room: 'demo', to: 'idle' },
       { from: 'active', name: 'web', room: 'demo', to: 'idle' },
     ]);
 
     store().touch({ as: 'web', room: 'demo', state: 'active' });
     scratch.clock.advance(minutes(29));
-    expect(store().sweepPresence()).toStrictEqual([
+    expect(store().sweepPresence({ ringable: () => false })).toStrictEqual([
       { from: 'idle', name: 'api', room: 'demo', to: 'away' },
       { from: 'active', name: 'web', room: 'demo', to: 'idle' },
     ]);
@@ -449,12 +449,27 @@ describe('presence', () => {
     expect(texts('demo').at(-1)).toBe('messhall: api is away');
   });
 
+  it('keeps a seat its doorbell can reach idle after 30 minutes, with no away line', () => {
+    joinBoth();
+    const ringable = ({ name, room }: { name: string; room: string }) => name === 'web' && room === 'demo';
+
+    scratch.clock.advance(minutes(2));
+    store().sweepPresence({ ringable });
+    scratch.clock.advance(minutes(30));
+
+    expect(store().sweepPresence({ ringable })).toStrictEqual([
+      { from: 'idle', name: 'api', room: 'demo', to: 'away' },
+    ]);
+    expect(memberOf('demo', 'web')!.presence).toBe('idle');
+    expect(texts('demo')).not.toContain('messhall: web is away');
+  });
+
   it('holds waiting until 30 minutes of silence', () => {
     joinBoth();
     store().touch({ as: 'web', room: 'demo', state: 'waiting' });
 
     scratch.clock.advance(minutes(10));
-    store().sweepPresence();
+    store().sweepPresence({ ringable: () => false });
 
     expect(memberOf('demo', 'web')!.presence).toBe('waiting');
   });
@@ -796,7 +811,7 @@ describe('leaving', () => {
     store().leaveRoom({ as: 'api', room: 'demo' });
 
     scratch.clock.advance(31 * 60_000);
-    const changes = store().sweepPresence();
+    const changes = store().sweepPresence({ ringable: () => false });
 
     expect(changes.map(change => change.name)).toStrictEqual(['web']);
     expect(presenceOf('api')).toBe('left');
