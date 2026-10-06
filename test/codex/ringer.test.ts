@@ -47,7 +47,13 @@ describe('createCodexRinger', () => {
         method: 'thread/queue/add',
         params: {
           clientUserMessageId: expect.any(String),
-          input: [{ text: RING.text, text_elements: [], type: 'text' }],
+          input: [
+            {
+              text: 'messhall: 1 new in #checkout, api mentioned you. Call read_since.',
+              text_elements: [],
+              type: 'text',
+            },
+          ],
           threadId: LIVE_THREAD,
         },
       },
