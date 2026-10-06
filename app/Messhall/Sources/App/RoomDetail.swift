@@ -23,6 +23,7 @@ struct RoomDetail: View {
     }
     .navigationTitle("#\(room.name)")
     .navigationSubtitle(subtitle)
+    .toolbar { MuteButton(room: room.name) }
   }
 }
 
