@@ -16,6 +16,7 @@ import { registerMute } from './tools/mute.js';
 import { registerMyRole } from './tools/myRole.js';
 import { registerPost } from './tools/post.js';
 import { registerReadSince } from './tools/readSince.js';
+import { registerSetTopic } from './tools/setTopic.js';
 import { registerWait } from './tools/wait.js';
 
 const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: string) => void> = {
@@ -29,6 +30,7 @@ const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: s
   my_role: registerMyRole,
   post: registerPost,
   read_since: registerReadSince,
+  set_topic: registerSetTopic,
   wait: registerWait,
 };
 

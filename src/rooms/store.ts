@@ -147,6 +147,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     ),
     setMuted: db.prepare('UPDATE members SET muted = ? WHERE room_id = ? AND name = ?'),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
+    setTopic: db.prepare('UPDATE rooms SET topic = ? WHERE id = ?'),
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
     stale: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE kind != 'human' AND left_at <= ? ORDER BY rooms.name, members.name",
@@ -351,6 +352,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
      * away or its session is dead (`holderDead`). Anyone else gets `name_taken` with a free name to try.
      * An `invite` token proves the seat in place of `seatKey`, which becomes the key from then on.
      * A closed standing room waits for the human to reopen it. A `reattach` keeps the done mark, a join clears it.
+     * `topic` counts only on the join that makes the room.
      */
     joinRoom({
       as,
@@ -361,6 +363,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       reattach = false,
       room: roomName,
       seatKey,
+      topic,
     }: {
       as: string;
       client?: { name: string; version: string };
@@ -370,12 +373,13 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       reattach?: boolean;
       room: string;
       seatKey?: string;
+      topic?: string;
     }) {
       if (isReserved(as)) return { ok: false, reason: 'name_reserved' } as const;
       return transaction(emit => {
         const found = findRoom(roomName);
         if (invite && !(found && findMember(found, as))) return { ok: false, reason: 'no_invite' } as const;
-        const room = found ?? makeRoom({ createdBy: as, name: roomName }, emit);
+        const room = found ?? makeRoom({ createdBy: as, name: roomName, topic }, emit);
         if (room.standing && room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
         const existing = findMember(room, as);
         const proof = invite ?? seatKey;
@@ -534,6 +538,26 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         emit({ change: muted ? 'muted' : 'unmuted', member, room: found.room.name, type: 'member' });
         systemLine(found.room, `${name} ${muted ? 'muted' : 'unmuted'} by ${by}`, emit);
         return { member, ok: true } as const;
+      });
+    },
+
+    /** Sets the topic with a system line. Only the room's maker, the human seat or an unmuted orchestrator may.
+     * Setting the topic it already has writes nothing. */
+    setTopic({ by, room: roomName, topic }: { by: string; room: string; topic: string }) {
+      return transaction(emit => {
+        const found = seat(roomName, by);
+        if (!found.ok) return found;
+        const { member, room } = found;
+        const allowed = canAssignRole({ by: member }) || room.created_by === by;
+        if (!allowed) return { ok: false, reason: 'not_allowed' } as const;
+        if (member.muted) return { ok: false, reason: 'muted' } as const;
+        if (room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
+        if (room.topic === topic) return { ok: true, room } as const;
+        sql.setTopic.run(topic, room.id);
+        const updated = roomById(room.id);
+        emit({ change: 'topic', room: updated, type: 'room' });
+        systemLine(updated, `topic set by ${by}: ${topic}`, emit);
+        return { ok: true, room: updated } as const;
       });
     },
 

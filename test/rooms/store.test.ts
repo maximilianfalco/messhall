@@ -1329,3 +1329,87 @@ describe('muting', () => {
     });
   });
 });
+
+describe('topics', () => {
+  const topicOf = (room: string) =>
+    store()
+      .listRooms()
+      .find(item => item.name === room)?.topic;
+  const setTopic = (input: { by: string; topic?: string }) =>
+    store().setTopic({ room: 'demo', topic: 'checkout totals in cents', ...input });
+
+  it('sets the topic on the join that makes the room', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', topic: 'checkout totals in cents' });
+
+    expect(topicOf('demo')).toBe('checkout totals in cents');
+  });
+
+  it('ignores the topic on a later join', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', topic: 'first' });
+    store().joinRoom({ as: 'web', kind: 'codex', room: 'demo', topic: 'second' });
+
+    expect(topicOf('demo')).toBe('first');
+  });
+
+  it('lets the maker set it, with a system line and a room topic event', () => {
+    joinBoth();
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    const result = setTopic({ by: 'api' });
+
+    expect(result).toMatchObject({ ok: true, room: { topic: 'checkout totals in cents' } });
+    expect(topicOf('demo')).toBe('checkout totals in cents');
+    expect(texts('demo').at(-1)).toBe('messhall: topic set by api: checkout totals in cents');
+    expect(seen.map(({ event }) => event)).toMatchObject([
+      { change: 'topic', room: { topic: 'checkout totals in cents' }, type: 'room' },
+      { message: { kind: 'system' }, type: 'message' },
+    ]);
+  });
+
+  it.each(['orchestrator', 'human'])('lets %s set it', by => {
+    joinBoth();
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(setTopic({ by })).toMatchObject({ ok: true });
+    expect(topicOf('demo')).toBe('checkout totals in cents');
+  });
+
+  it('writes nothing when the topic is already that', () => {
+    joinBoth();
+    setTopic({ by: 'api' });
+    const before = texts('demo');
+
+    expect(setTopic({ by: 'api' })).toMatchObject({ ok: true });
+    expect(texts('demo')).toStrictEqual(before);
+  });
+
+  it.each([
+    [{ by: 'web' }, 'not_allowed'],
+    [{ by: 'stranger' }, 'not_member'],
+  ])('refuses %o with %s', (input, reason) => {
+    joinBoth();
+
+    expect(setTopic(input)).toStrictEqual({ ok: false, reason });
+    expect(topicOf('demo')).toBeNull();
+  });
+
+  it('refuses a muted maker', () => {
+    joinBoth();
+    store().muteMember({ by: 'human', member: 'api', muted: true, room: 'demo' });
+
+    expect(setTopic({ by: 'api' })).toStrictEqual({ ok: false, reason: 'muted' });
+  });
+
+  it('refuses a closed room', () => {
+    joinBoth();
+    post('api', 'done', true);
+    post('web', 'done', true);
+
+    expect(setTopic({ by: 'api' })).toStrictEqual({ ok: false, reason: 'room_closed' });
+  });
+
+  it('refuses a room that does not exist', () => {
+    expect(store().setTopic({ by: 'api', room: 'nope', topic: 'x' })).toStrictEqual({ ok: false, reason: 'no_room' });
+  });
+});
