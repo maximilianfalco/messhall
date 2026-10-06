@@ -2,10 +2,10 @@
 export const STALE_AFTER_MS = 10 * 60_000;
 
 const PR_URL = String.raw`https://github\.com/[\w.-]+/[\w.-]+/pull/\d+(?!\d)`;
-// A request may follow a short status sentence, like `CI green. ready for review: ...`.
+// A request may sit on any line of a post, or follow a short sentence like `CI green. ready for review: ...`.
 const REQUEST = new RegExp(
   String.raw`(?:^|[.!?])\s*(?:ready for review|round (\d+)):\s*(${PR_URL})\b.*?@([a-z0-9-]{1,40})`,
-  'i',
+  'im',
 );
 
 const urlsIn = (text: string) => Array.from(text.matchAll(new RegExp(PR_URL, 'g')), ([url]) => url);

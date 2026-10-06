@@ -15,6 +15,7 @@ describe('reviewRequest', () => {
     [`round 3: ${URL}, fixed both blockers @reviewer-1`, { reviewer: 'reviewer-1', round: 3, url: URL }],
     [`CI green. ready for review: ${URL} @reviewer-1`, { reviewer: 'reviewer-1', round: 1, url: URL }],
     [`merged main in! round 2: ${URL} @reviewer-2`, { reviewer: 'reviewer-2', round: 2, url: URL }],
+    [`tests green\nready for review: ${URL} @reviewer-1`, { reviewer: 'reviewer-1', round: 1, url: URL }],
   ])('reads %s', (line, expected) => {
     expect(reviewRequest(line)).toStrictEqual(expected);
   });
