@@ -1,7 +1,7 @@
 import type { RunResult } from '../lib/run.js';
 import type { Command } from 'commander';
 
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
@@ -10,26 +10,32 @@ import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
-import { launchClaude, tmux as runTmux, typePrompt, writeMcpConfig } from '../lib/claudeTmux.js';
+import { launchClaude, tmux as runTmux, typePrompt, until, writeMcpConfig } from '../lib/claudeTmux.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 import { reviewQueue } from '../lib/review.js';
 import { run } from '../lib/run.js';
 import {
+  assignLine,
   branchSlug,
   parseFlock,
   parseQueueRow,
+  ROLE_WAIT_MIN,
+  rowInstructions,
   seatPrompt,
   seatSessionName,
   sessionName,
   spawnArgv,
   spawnPlan,
-  spawnPrompt,
 } from '../lib/spawn.js';
+
+import { agentRun } from './agent.js';
 
 const SKILL_SCRIPTS = path.join(REPO_ROOT, '.claude/skills/messhall-pickup-any-work/scripts');
 const DEFAULT_ROOM = 'dev';
 const DEFAULT_MODEL = 'opus';
+const DEFAULT_ROLE = 'worker';
+const JOIN_WAIT_MS = ROLE_WAIT_MIN * 60_000;
 const ROW_ID = /^[a-z]\d+$/i;
 const REVIEW_LOOKBACK = 500;
 const FLOCK_FORMAT = '#{session_name}\t#{pane_id}\t#{pane_pid}';
@@ -48,10 +54,12 @@ async function mainCheckout() {
 }
 
 interface SpawnOptions {
+  assign?: string;
   brief?: string;
   dataDir: string;
   dryRun: boolean;
   id: string;
+  instructions?: string;
   launch?: typeof launchClaude;
   model: string;
   now?: () => Date;
@@ -60,13 +68,76 @@ interface SpawnOptions {
   url: string;
 }
 
+function withStore<T>({ dataDir }: { dataDir: string }, use: (store: ReturnType<typeof createRoomStore>) => T) {
+  if (!existsSync(path.join(dataDir, DB_FILE))) return;
+  const db = openDb({ dataDir });
+  try {
+    return use(createRoomStore({ db, now: () => new Date() }));
+  } finally {
+    db.close();
+  }
+}
+
+// Members still seated in the room, by name, so flock can show each one's role.
+const seatedMembers = ({ dataDir, room }: { dataDir: string; room: string }) =>
+  withStore({ dataDir }, store => {
+    const members = store.listMembers(room).filter(member => member.presence !== 'gone');
+    return new Map(members.map(member => [member.name, member]));
+  });
+
+type Assign = (target: { file: string; member: string; role: string; room: string }) => Promise<{
+  code: number;
+  report: string;
+}>;
+
+/** Waits up to 2 minutes for `member` to join, then gives it `role` with the instructions in `file`.
+ * With no `role`, it prints the line that does it instead. */
+export async function seatThenAssign({
+  assign,
+  file,
+  joined,
+  member,
+  role,
+  room,
+  waitMs = JOIN_WAIT_MS,
+}: {
+  assign: Assign;
+  file: string;
+  joined: (member: string) => boolean;
+  member: string;
+  role?: string;
+  room: string;
+  waitMs?: number;
+}) {
+  const line = assignLine({ file, member, role: role ?? DEFAULT_ROLE, room });
+  const seated = await until(Date.now() + waitMs, () => joined(member) || undefined);
+  if (!seated) {
+    return {
+      code: 1,
+      lines: [
+        bad(`${member} has not joined #${room} after ${ROLE_WAIT_MIN} minutes`),
+        dim(`give it a role later: ${line}`),
+      ],
+    };
+  }
+  const lines = [ok(`${member} joined #${room}`)];
+  if (!role) return { code: 0, lines: [...lines, dim(`give it a role: ${line}`)] };
+  const assigned = await assign({ file, member, role, room });
+  return assigned.code === 0
+    ? { code: 0, lines: [...lines, ok(`${member} is ${role}, its instructions are ${file}`)] }
+    : { code: 1, lines: [...lines, bad(`assign failed`), assigned.report, dim(`try again: ${line}`)] };
+}
+
 /** Claims a ready row, makes its worktree and starts a seated claude in tmux session `messhall-<row>`.
+ * The prompt only seats it. The row reaches it in the role instructions, written to `<data dir>/spawn/<row>-role.md`.
  * If claude never comes up, the row goes back to open so nobody waits on it. */
 export async function spawnRun({
+  assign,
   brief,
   dataDir,
   dryRun,
   id,
+  instructions,
   launch = launchClaude,
   model,
   now = () => new Date(),
@@ -79,17 +150,27 @@ export async function spawnRun({
   const { row, session, slug } = plan;
   const briefFile = brief && path.resolve(brief);
   if (briefFile && !existsSync(briefFile)) return { code: 1, report: bad(`no brief at ${briefFile}`) };
+  const roleFileIn = instructions && path.resolve(instructions);
+  if (roleFileIn && !existsSync(roleFileIn)) return { code: 1, report: bad(`no instructions at ${roleFileIn}`) };
 
   const spawnDir = path.join(dataDir, 'spawn');
   const debugFile = path.join(spawnDir, `${row.id}-debug.log`);
   const mcpConfig = path.join(spawnDir, `${row.id}-mcp.json`);
+  const roleFile = path.join(spawnDir, `${row.id}-role.md`);
   const checkout = await mainCheckout();
   const argv = spawnArgv({ debugFile, mainCheckout: checkout, mcpConfig, model });
   const owner = `agent ${stamp(now())} ${row.branch}`;
   const worktreeRel = `.worktrees/${slug}`;
   const plannedWorktree = path.join(checkout, worktreeRel);
-  const prompt = (worktree: string) =>
-    spawnPrompt({ branch: row.branch, brief: briefFile, id: row.id, room, worktree });
+  const prompt = seatPrompt({ name: slug, room });
+  const roleText = (worktree: string) =>
+    rowInstructions({
+      branch: row.branch,
+      brief: briefFile,
+      id: row.id,
+      role: roleFileIn && readFileSync(roleFileIn, 'utf8').trim(),
+      worktree,
+    });
 
   if (dryRun) {
     return {
@@ -99,7 +180,9 @@ export async function spawnRun({
         dim(`claim ${row.id} as "${owner}" in ${worktreeRel}`),
         dim(`worktree ${plannedWorktree} on ${row.branch}`),
         dim(`tmux session ${session}: cd ${plannedWorktree} && ${shellLine(argv)}`),
-        dim(`prompt: ${prompt(plannedWorktree)}`),
+        dim(`prompt: ${prompt}`),
+        dim(`role instructions to ${roleFile}: ${roleText(plannedWorktree)}`),
+        dim(`after the join: ${assignLine({ file: roleFile, member: slug, role: assign ?? DEFAULT_ROLE, room })}`),
         ok(`${row.id} is ready to spawn as ${slug} in #${room}`),
       ].join('\n'),
     };
@@ -124,17 +207,35 @@ export async function spawnRun({
   mkdirSync(spawnDir, { recursive: true });
   rmSync(debugFile, { force: true });
   writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), url });
+  writeFileSync(roleFile, `${roleText(worktree)}\n`, { mode: 0o600 });
   const ready = await launch({ argv, cwd: worktree, debugFile, note, session });
   if (ready !== 'registered') {
     await runTmux(['kill-session', '-t', session]);
     return giveBack(`claude did not come up (${ready})`);
   }
-  await typePrompt(session, prompt(worktree));
+  await typePrompt(session, prompt);
   lines.push(
     ok(`claude on ${model} in tmux session ${session}, prompt typed`),
     dim(`it joins #${room} as ${slug}. watch: tmux attach -t ${session}, list: pnpm messhall-dev flock`),
   );
-  return { code: 0, report: lines.join('\n') };
+  const seated = await seatThenAssign({
+    assign: target =>
+      agentRun({
+        assign: `${target.member}=${target.role}`,
+        instructions: target.file,
+        keyFile,
+        role: 'orchestrator',
+        room: target.room,
+        say: `@${target.member} your role: ${target.role}`,
+        url,
+      }),
+    file: roleFile,
+    joined: member => Boolean(seatedMembers({ dataDir, room })?.has(member)),
+    member: slug,
+    role: assign,
+    room,
+  });
+  return { code: seated.code, report: [...lines, ...seated.lines].join('\n') };
 }
 
 /** Starts a seated claude with no queue row in tmux session `messhall-seat-<name>`, in the main checkout.
@@ -195,23 +296,6 @@ export async function seatRun({
     ].join('\n'),
   };
 }
-
-function withStore<T>({ dataDir }: { dataDir: string }, use: (store: ReturnType<typeof createRoomStore>) => T) {
-  if (!existsSync(path.join(dataDir, DB_FILE))) return;
-  const db = openDb({ dataDir });
-  try {
-    return use(createRoomStore({ db, now: () => new Date() }));
-  } finally {
-    db.close();
-  }
-}
-
-// Members still seated in the room, by name, so flock can show each one's role.
-const seatedMembers = ({ dataDir, room }: { dataDir: string; room: string }) =>
-  withStore({ dataDir }, store => {
-    const members = store.listMembers(room).filter(member => member.presence !== 'gone');
-    return new Map(members.map(member => [member.name, member]));
-  });
 
 /** Spawned rows and seats from tmux: row and branch from the queue, whether the agent sits in `room`, and its role. */
 export async function flockRun({
@@ -292,6 +376,8 @@ export function registerSpawn(program: Command) {
     .option('--room <room>', 'room the agent sits in', DEFAULT_ROOM)
     .option('--model <model>', 'claude model', DEFAULT_MODEL)
     .option('--brief <file>', 'brief a row agent reads first, else it runs the pickup skill')
+    .option('--assign <role>', 'with a row: give the agent this role once it joins, as orchestrator')
+    .option('--instructions <file>', 'with a row: role text put before the row in its instructions')
     .option('--as <name>', 'with `agent`: the member name to seat')
     .option('--dry-run', 'print the plan, claim and start nothing')
     .action(
@@ -299,8 +385,10 @@ export function registerSpawn(program: Command) {
         row: string,
         options: {
           as?: string;
+          assign?: string;
           brief?: string;
           dryRun?: boolean;
+          instructions?: string;
           model: string;
           room: string;
         },
