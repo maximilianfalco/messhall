@@ -187,7 +187,10 @@ export async function demoRun({
 
   const daemon = await spawnDaemon({ detached: keep, home, port });
   steps.push({ detail: daemon.ok ? daemon.url : 'no daemon', name: 'daemon up', pass: daemon.ok });
-  if (!daemon.ok) return { code: 1, report: [formatSteps(steps), daemon.report].join('\n\n') };
+  if (!daemon.ok) {
+    rmSync(work, { force: true, recursive: true });
+    return { code: 1, report: [formatSteps(steps), daemon.report].join('\n\n') };
+  }
   const key = readFileSync(path.join(home, KEY_FILES.agent), 'utf8').trim();
   writeMcpConfig({ file: mcpConfig, key, url: daemon.url });
 
@@ -197,11 +200,13 @@ export async function demoRun({
         timed(`${role} test fails first`, async () => {
           await writeDemoRepo({ dir: repo(role), role });
           const result = await repoTest(repo(role));
-          return { detail: result.code === 0 ? 'passed, is the fixture broken?' : repo(role), pass: result.code !== 0 };
+          return { detail: result.code === 0 ? 'passed, is the fixture broken?' : 'red', pass: result.code !== 0 };
         }),
       ),
     )),
   );
+
+  note(`repos in ${work}`);
 
   const plan = DEMO_ROLES.flatMap(role => [
     dim(`${role}: cd ${repo(role)} && ${shellLine(argv(role))}`),
