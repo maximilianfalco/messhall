@@ -15,6 +15,9 @@
       name.flatMap(AppearanceChoice.init(rawValue:))?.apply()
     }
 
+    /// `-shotNotify denied|notAsked|alertsOff`: the block macOS would put on banners. Left out, there is none.
+    static let notifyBlock = UserDefaults.standard.string(forKey: "shotNotify").flatMap(NotifyBlock.init(rawValue:))
+
     /// `-shotScrollTop YES`: the transcript opens at its first message, so an agent post shows the jump pill.
     static let startAtTop = UserDefaults.standard.bool(forKey: "shotScrollTop")
 
