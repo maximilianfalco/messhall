@@ -301,7 +301,7 @@ describe('postMessage', () => {
     expect(texts('demo').filter(line => line.startsWith('messhall:'))).toStrictEqual([
       'messhall: api joined',
       'messhall: web joined',
-      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
+      'messhall: @human api and web have traded 12 lines in 2 minutes with no one else, their doorbells are paused for 5 minutes or until one of them posts to @human',
     ]);
     expect(post('api', 'one more').kind).toBe('chat');
   });
@@ -1165,22 +1165,45 @@ describe('kicking a member', () => {
 });
 
 describe('the loop guard', () => {
-  const trade = (count: number) =>
-    Array.from({ length: count }, (_, index) => post(index % 2 ? 'web' : 'api', `line ${index + 1}`));
+  const trade = (count: number, gapMs = 0) =>
+    Array.from({ length: count }, (_, index) => {
+      scratch.clock.advance(gapMs);
+      return post(index % 2 ? 'web' : 'api', `line ${index + 1}`);
+    });
   const loopLines = () => texts('demo').filter(line => line.includes('traded'));
 
-  it('pauses two agents after 12 lines alone and asks the human in one line', () => {
+  it('pauses two agents after 12 lines alone in 2 minutes and asks the human in one line', () => {
     joinBoth();
 
-    trade(11);
+    trade(11, 5000);
     expect(store().pausedWith('demo')).toStrictEqual({});
 
-    trade(1);
+    trade(1, 5000);
     expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
     expect(loopLines()).toStrictEqual([
-      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
+      'messhall: @human api and web have traded 12 lines in 2 minutes with no one else, their doorbells are paused for 5 minutes or until one of them posts to @human',
     ]);
     expect(store().listMessages({ limit: 1, room: 'demo' }).messages?.[0]?.mentions).toStrictEqual(['human']);
+  });
+
+  it('leaves a discussion of 12 lines over 20 minutes alone', () => {
+    joinBoth();
+
+    trade(12, 100_000);
+
+    expect(store().pausedWith('demo')).toStrictEqual({});
+    expect(loopLines()).toStrictEqual([]);
+  });
+
+  it('pauses a slow pair after 40 lines alone', () => {
+    joinBoth();
+
+    trade(40, 100_000);
+
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toStrictEqual([
+      'messhall: @human api and web have traded 40 lines with no one else, their doorbells are paused for 5 minutes or until one of them posts to @human',
+    ]);
   });
 
   it('says it once while the pair stays paused', () => {
@@ -1211,6 +1234,34 @@ describe('the loop guard', () => {
     expect(store().pausedWith('demo')).toStrictEqual({});
 
     trade(12);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toHaveLength(2);
+  });
+
+  it('lifts the pause when one of the pair posts to the human, and counts afresh after it', () => {
+    joinBoth();
+    trade(12);
+
+    post('web', '@human we are settling the totals field, it needs a few more lines');
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(11);
+    expect(store().pausedWith('demo')).toStrictEqual({});
+    expect(loopLines()).toHaveLength(1);
+  });
+
+  it('ends the pause by itself after 5 minutes, and counts afresh after it', () => {
+    joinBoth();
+    trade(12);
+
+    scratch.clock.advance(5 * 60_000 - 1);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    scratch.clock.advance(1);
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(11);
+    expect(store().pausedWith('demo')).toStrictEqual({});
+    trade(1);
     expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
     expect(loopLines()).toHaveLength(2);
   });

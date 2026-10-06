@@ -142,6 +142,10 @@ export const MIGRATIONS = [
   `
   ALTER TABLE members ADD COLUMN launch TEXT;
   `,
+  // When a loop guard pause began, so it ends by itself and the next run counts from there. Older pauses lift.
+  `
+  ALTER TABLE members ADD COLUMN paused_at TEXT;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

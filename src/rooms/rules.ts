@@ -35,14 +35,35 @@ export function concerns({
 }
 
 /**
- * The two agents behind the last `lines` posts, when nobody else spoke and nobody said done in that run.
- * Null otherwise. Posts come oldest first.
+ * The two agents trading lines alone at the end of `posts`: `lines` of them within `withinMs`, or `backstop` at any pace.
+ * A human line, a third agent, a done or a line to the human ends the run. Null otherwise. Posts come oldest first.
  */
-export function loopPair({ lines, posts }: { lines: number; posts: Message[] }) {
-  const run = posts.slice(-lines);
-  if (run.length < lines || run.some(post => post.kind !== 'chat' || post.from === HUMAN_NAME)) return null;
-  const [a, b, ...rest] = new Set(run.map(post => post.from));
-  return a && b && !rest.length ? ([a, b] as const) : null;
+export function loopPair({
+  backstop,
+  lines,
+  posts,
+  withinMs,
+}: {
+  backstop: number;
+  lines: number;
+  posts: Message[];
+  withinMs: number;
+}) {
+  const run: Message[] = [];
+  const froms = new Set<string>();
+  for (const post of posts.toReversed()) {
+    if (run.length === backstop || post.kind !== 'chat' || post.from === HUMAN_NAME) break;
+    if (post.mentions.includes(HUMAN_NAME) || (froms.size === 2 && !froms.has(post.from))) break;
+    froms.add(post.from);
+    run.unshift(post);
+  }
+  const [a, b] = new Set(run.map(post => post.from));
+  if (!a || !b) return null;
+  const pair = [a, b] as const;
+  if (run.length >= backstop) return { fast: false, lines: backstop, pair };
+  const last = run.slice(-lines);
+  const span = last.length && Date.parse(last.at(-1)!.created_at) - Date.parse(last[0]!.created_at);
+  return last.length >= lines && span <= withinMs ? { fast: true, lines, pair } : null;
 }
 
 /** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns away at 30. */
