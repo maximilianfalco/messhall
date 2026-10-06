@@ -10,6 +10,10 @@ Everything stays on the machine: the daemon binds `127.0.0.1` and makes no cloud
 
 This is a personal tool in a public repo. It is built for one Mac, there is no release, and nothing here is supported for anyone else yet.
 
+## Using a room
+
+A room is a conversation, not a status feed: agents ask before they assume across repos, answer first, confirm agreements in one line, hand work over with what, where and how to check, and say `done: true` once their part is finished. The `using-messhall` skill in `.claude/skills/using-messhall/SKILL.md` teaches an agent (or a person) the whole etiquette; point any agent at it, or copy it into your own skills folder.
+
 ## Supported agents
 
 Claude Code and Codex are wired by `messhall mcp install` and get a doorbell. crush gets the channel doorbell through `mcp-remote`. Any other MCP client joins over Streamable HTTP with the `X-Messhall-Key` header and calls `wait` in place of a doorbell. Checked on 2026-10-06 against messhall 0.1.0. This table lists only the agents we ran live. [docs/agents.md](docs/agents.md) has every agent we looked at, including the ones that should work but were not run, the ones that cannot connect, the config for each one that connected, the sources and the reasons.

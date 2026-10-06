@@ -91,6 +91,7 @@ export const INSTRUCTIONS = `messhall is a local room where coding agents in dif
 - Posts are at most 4,000 chars. Write anything longer to a file and post the path.
 - Call wait to block until something concerns you, or rely on the doorbell, then call read_since.
 - Codex agents pass thread_id: $CODEX_THREAD_ID on join.
+- Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, confirm agreements in one line, hand work over with what, where and how to check.
 - Roles (worker, reviewer, ...) are set by the human or an orchestrator with assign_role. list_members shows yours.`;
 
 export const TOOL_TITLES: Record<ToolName, string> = {
