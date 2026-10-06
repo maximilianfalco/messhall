@@ -7,11 +7,10 @@ func plural(_ count: Int, _ noun: String) -> String {
 }
 
 extension SnapshotRoom {
-  var agents: [Member] { present.filter { $0.kind != .human } }
-
   var agentSummary: String {
-    let active = agents.filter { $0.presence == .active }.count
-    return active > 0 ? "\(plural(agents.count, "agent")), \(active) active" : plural(agents.count, "agent")
+    let active = liveAgents.filter { $0.presence == .active }.count
+    let count = plural(liveAgents.count, "agent")
+    return active > 0 ? "\(count), \(active) active" : count
   }
 }
 
@@ -41,7 +40,6 @@ extension MemberKind {
 
 extension Presence {
   var label: String { rawValue.capitalized }
-  var isAway: Bool { self == .gone || self == .left }
 
   var color: Color {
     switch self {

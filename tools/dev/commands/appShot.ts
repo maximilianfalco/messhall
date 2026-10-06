@@ -114,7 +114,7 @@ export function checkShotHome(home: string) {
   if (path.resolve(home) === real) return `refusing ${home}, it is the real data dir`;
 }
 
-/** A room with runs of joins and leaves between posts, so the transcript shows folded and open runs. */
+/** A room with runs of joins and leaves between posts, so the transcript shows folded and open runs. It ends with two agents left and two gone, for the gone chip. */
 function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'handoff';
   const presence = (lines: [string, 'join' | 'leave', string?][]) =>
@@ -125,6 +125,8 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
     });
   presence([
     ['api', 'join'],
+    ['design', 'join'],
+    ['docs', 'join'],
     ['web', 'join'],
     ['qa', 'join'],
   ]);
@@ -144,6 +146,7 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
     ['web', 'leave'],
     ['qa', 'leave'],
   ]);
+  ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'gone' }));
 }
 
 /** A room longer than the snapshot, two agents taking turns on numbered steps. */

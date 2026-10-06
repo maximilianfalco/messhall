@@ -109,8 +109,26 @@ describe('seedShotRooms', () => {
     db.close();
 
     expect(page.ok && page.messages.map(message => message.kind).join(' ')).toBe(
-      'system system system chat chat system system chat system system chat system system',
+      'system system system system system chat chat system system chat system system chat system system system system',
     );
+  });
+
+  it('leaves gone agents beside a live one in the handoff room, for the gone chip', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+
+    seedShotRooms({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const members = createRoomStore({ db, now: () => now }).listMembers('handoff');
+    db.close();
+
+    expect(members.map(member => `${member.name} ${member.presence}`)).toStrictEqual([
+      'api idle',
+      'design gone',
+      'docs gone',
+      'human active',
+    ]);
   });
 
   it('leaves a room with 120 posts, more than the snapshot holds, so its top pages in', () => {
