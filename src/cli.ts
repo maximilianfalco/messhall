@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 
 import { registerDaemon } from './cli/daemon.js';
+import { registerExport } from './cli/export.js';
 import { registerInstall } from './cli/install.js';
 import { registerLogs } from './cli/logs.js';
 import { registerMcp } from './cli/mcp.js';
@@ -26,6 +27,7 @@ const program = new Command()
   registerLogs,
   registerSay,
   registerWatch,
+  registerExport,
   registerDaemon,
   registerUninstall,
   registerMcp,
