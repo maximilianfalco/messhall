@@ -81,6 +81,10 @@ export const humanRoleResultSchema = z.object({
   message: messageSchema.describe('The line from human that mentions the member, so it reads its role.'),
 });
 
+export const removeMemberResultSchema = z.object({
+  member: memberSchema.describe('The member as it was when it dropped out, left or gone.'),
+});
+
 export const feedErrorSchema = z.object({
   error: z.string().describe('What went wrong, in plain words.'),
 });
@@ -94,3 +98,4 @@ export type NewRoomResult = z.infer<typeof newRoomResultSchema>;
 export type CloseResult = z.infer<typeof closeResultSchema>;
 export type HumanRole = z.infer<typeof humanRoleSchema>;
 export type HumanRoleResult = z.infer<typeof humanRoleResultSchema>;
+export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;

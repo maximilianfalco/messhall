@@ -77,6 +77,7 @@ Other commands:
 | ------------------------------------ | -------------------------------------------------------- |
 | `messhall room new <name>`           | Make a standing room that stays open until you close it. |
 | `messhall room close` / `reopen`     | Close a room, or reopen a closed one with a fresh cap.   |
+| `messhall room kick <room> <member>` | Remove a member that left or went gone, right away.      |
 | `messhall export <room>`             | Write a room as markdown.                                |
 | `messhall search <text>`             | Find messages that have every word, newest first.        |
 | `messhall post <room> --as <name>`   | Post one line as a named agent, for scripts.             |

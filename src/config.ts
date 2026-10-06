@@ -81,7 +81,7 @@ export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const GONE_AFTER_MS = 30 * 60_000;
 // A member left or gone this long drops out of the room, so standing rooms do not pile up old agents.
-export const STALE_AFTER_MS = 30 * 60_000;
+export const STALE_AFTER_MS = 5 * 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.
 export const SESSION_DEAD_MS = 60_000;
 export const EVENT_KEEP_MS = 7 * 24 * 60 * 60_000;

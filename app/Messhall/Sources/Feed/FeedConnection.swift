@@ -65,6 +65,18 @@ extension FeedStore {
     }
   }
 
+  /// Removes left or gone members as the human, one by one, and takes each out at once. Returns the first refusal, or nil.
+  public func remove(_ members: [String], room: String, via client: FeedClient) async -> String? {
+    let seat = HumanSeat(client: client)
+    for name in members {
+      switch await seat.remove(member: name, room: room) {
+      case .done(let member): drop(member, from: room)
+      case .refused(let reason): return reason
+      }
+    }
+    return nil
+  }
+
   /// Makes, closes or reopens a room as the human and shows it at once. Returns the refusal text, or nil.
   public func change(_ action: RoomAction, via client: FeedClient) async -> String? {
     let seat = HumanSeat(client: client)
