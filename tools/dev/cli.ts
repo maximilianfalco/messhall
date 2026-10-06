@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 
 import { registerAgent } from './commands/agent.js';
+import { registerAppShot } from './commands/appShot.js';
 import { registerChannel } from './commands/channel.js';
 import { registerCheck } from './commands/check.js';
 import { registerDaemon } from './commands/daemon.js';
@@ -32,6 +33,7 @@ const program = new Command()
   registerFeed,
   registerMcp,
   registerAgent,
+  registerAppShot,
   registerChannel,
   registerDemo,
 ].forEach(register => register(program));

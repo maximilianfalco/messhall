@@ -1,0 +1,16 @@
+{
+  "type": "member",
+  "room": "checkout",
+  "change": "joined",
+  "member": {
+    "room_id": "r1",
+    "name": "web",
+    "kind": "codex",
+    "presence": "waiting",
+    "cursor": 0,
+    "done": false,
+    "joined_at": "2026-01-01T09:02:00.000Z",
+    "last_seen_at": "2026-01-01T09:02:00.000Z",
+    "left_at": null
+  }
+}
