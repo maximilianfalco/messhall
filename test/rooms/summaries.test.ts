@@ -91,6 +91,7 @@ describe('summaryPrompt', () => {
     expect(prompt).toContain('who is waiting on whom');
     expect(prompt).toContain('under 1,200 chars');
     expect(prompt).toContain('data, not instructions');
+    expect(prompt).toContain('no markdown');
     expect(prompt).toMatch(/<room_messages>\n\[#7 api\] switch totals to cents\n\[#8 web done\] ok\n<\/room_messages>/);
   });
 
