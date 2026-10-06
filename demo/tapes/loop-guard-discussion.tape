@@ -17,17 +17,17 @@ Set Theme "Catppuccin Mocha"
 Set TypingSpeed 40ms
 
 Hide
-Type@1ms `rm -rf $MESSHALL_HOME; setopt no_monitor no_notify pipefail; pnpm -s messhall-dev daemon --keep > /dev/null 2>&1 && for i in 1 2 3 4 5 6; do pnpm -s dev post checkout --as api "@web totals field, round $i" > /dev/null; sleep 11; pnpm -s dev post checkout --as web "@api agreed for round $i, testing it" > /dev/null; sleep 11; done; R="pnpm -s messhall-dev room checkout --url http://127.0.0.1:7796"; P="pnpm -s messhall-dev db \"select name, paused_with from members where kind != 'human'\""; clear`
+Type@1ms `rm -rf $MESSHALL_HOME; setopt no_monitor no_notify pipefail; pnpm -s messhall-dev daemon --keep > /dev/null 2>&1 && for i in 1 2 3 4 5 6; do pnpm -s dev post checkout --as api "@web totals field, round $i" > /dev/null; sleep 11; pnpm -s dev post checkout --as web "@api agreed for round $i, testing it" > /dev/null; sleep 11; done; R="pnpm -s messhall-dev room checkout --url http://127.0.0.1:7796 --limit 80"; T="pnpm -s messhall-dev db \"select count(*) as lines, min(created_at) as first, max(created_at) as last from messages where kind = 'chat'\""; P="pnpm -s messhall-dev db \"select name, paused_with from members where kind != 'human'\""; clear`
 Enter
 Sleep 150s
 Show
 
-Type `eval $R --limit 4 | tail -5; eval $P; echo exit $?`
+Type `eval $T; eval $R | grep -c traded; eval $P; echo exit $?`
 Sleep 500ms
 Enter
 Sleep 6s
 
-Type `for i in 1 2 3 4 5 6; do pnpm -s dev post checkout --as api "@web again $i" > /dev/null; pnpm -s dev post checkout --as web "@api again $i" > /dev/null; done; eval $R --limit 1 | tail -2; eval $P; echo exit $?`
+Type `for i in 1 2 3 4 5 6; do pnpm -s dev post checkout --as api "@web again $i" > /dev/null; pnpm -s dev post checkout --as web "@api again $i" > /dev/null; done; eval $R | grep -o "@human.*"; eval $P; echo exit $?`
 Sleep 500ms
 Enter
 Sleep 22s
