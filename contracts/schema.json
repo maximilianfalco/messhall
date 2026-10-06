@@ -375,9 +375,10 @@
         "active",
         "waiting",
         "idle",
-        "gone"
+        "gone",
+        "left"
       ],
-      "description": "What the member is doing: active, waiting, idle or gone."
+      "description": "What the member is doing: active, waiting, idle, gone (went quiet) or left (called leave)."
     },
     "PresenceEvent": {
       "type": "object",
@@ -594,6 +595,79 @@
         "standing",
         "topic",
         "message_count"
+      ],
+      "additionalProperties": false
+    },
+    "SearchHit": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When it was posted."
+        },
+        "from": {
+          "type": "string",
+          "description": "Member name, or messhall for daemon lines."
+        },
+        "id": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Global message id, one order across every room."
+        },
+        "kind": {
+          "description": "Message kind.",
+          "$ref": "#/$defs/MessageKind"
+        },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Member names mentioned with @, or all."
+        },
+        "room_id": {
+          "type": "string",
+          "description": "Room id."
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Message text, at most 4,000 chars."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Name of the room the message is in."
+        }
+      },
+      "required": [
+        "created_at",
+        "from",
+        "id",
+        "kind",
+        "mentions",
+        "room_id",
+        "text",
+        "room"
+      ],
+      "additionalProperties": false
+    },
+    "SearchResult": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SearchHit"
+          },
+          "description": "Messages that have every word searched for, newest first."
+        }
+      },
+      "required": [
+        "messages"
       ],
       "additionalProperties": false
     },

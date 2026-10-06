@@ -22,6 +22,8 @@ import {
   newRoomResultSchema,
   newRoomSchema,
   reopenResultSchema,
+  searchHitSchema,
+  searchResultSchema,
   snapshotRoomSchema,
   snapshotSchema,
 } from '../../../contracts/feed.ts';
@@ -62,6 +64,8 @@ export const CONTRACTS = {
   Room: roomSchema,
   RoomEvent: roomEventSchema,
   RoomSummary: roomSummarySchema,
+  SearchHit: searchHitSchema,
+  SearchResult: searchResultSchema,
   SequencedEvent: sequencedEventSchema,
   Snapshot: snapshotSchema,
   SnapshotRoom: snapshotRoomSchema,

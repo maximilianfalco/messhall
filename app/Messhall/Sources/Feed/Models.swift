@@ -2,7 +2,7 @@ import Foundation
 
 // Hand-written from contracts/schema.json. SchemaTests fail when a field or a value drifts.
 
-public enum Presence: String, Codable, CaseIterable, Sendable { case active, waiting, idle, gone }
+public enum Presence: String, Codable, CaseIterable, Sendable { case active, waiting, idle, gone, left }
 public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done, summary }
 public enum MemberKind: String, Codable, CaseIterable, Sendable { case claude, codex, other, human }
 public enum MemberChange: String, Codable, Sendable { case joined, left, reconnected }

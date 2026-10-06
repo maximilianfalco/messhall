@@ -92,6 +92,7 @@ export const CODEX_RECONNECT_MAX_MS = 30_000;
 export const FEED_SNAPSHOT_MESSAGES = 50;
 export const FEED_PAGE_DEFAULT = 50;
 export const FEED_PAGE_MAX = 200;
+export const SEARCH_LIMIT = 50;
 export const FEED_PING_MS = 15_000;
 export const FEED_STALL_MS = 30_000;
 export const FEED_BODY_MAX_BYTES = 64 * 1024;

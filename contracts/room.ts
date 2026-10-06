@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PRESENCES = ['active', 'waiting', 'idle', 'gone'] as const;
+export const PRESENCES = ['active', 'waiting', 'idle', 'gone', 'left'] as const;
 export const MESSAGE_KINDS = ['chat', 'system', 'done', 'summary'] as const;
 export const MEMBER_KINDS = ['claude', 'codex', 'other', 'human'] as const;
 
@@ -22,7 +22,9 @@ export const nameSchema = z
   .regex(NAME_PATTERN)
   .describe('Lowercase letters, digits and dashes, 1 to 40 chars.');
 export const timestampSchema = z.iso.datetime().describe('ISO 8601 time in UTC.');
-export const presenceSchema = z.enum(PRESENCES).describe('What the member is doing: active, waiting, idle or gone.');
+export const presenceSchema = z
+  .enum(PRESENCES)
+  .describe('What the member is doing: active, waiting, idle, gone (went quiet) or left (called leave).');
 export const messageKindSchema = z
   .enum(MESSAGE_KINDS)
   .describe(
