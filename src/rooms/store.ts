@@ -589,8 +589,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (!room) return { ok: false, reason: 'no_room' } as const;
         const member = findMember(room, name);
         if (!member) return { ok: false, reason: 'no_member' } as const;
-        if (member.presence !== 'left' && member.presence !== 'gone')
+        if (member.presence !== 'left' && member.presence !== 'gone') {
           return { ok: false, reason: 'still_here' } as const;
+        }
         drop(room, member, emit);
         return { member, ok: true } as const;
       });
