@@ -126,7 +126,7 @@ describe('a codex member after a failed ring', () => {
     expect(listed.text).toContain('- web (codex 0.1.0 (no doorbell), active)');
     await expect(waiting).resolves.toStrictEqual({
       isError: false,
-      text: '1 new in #checkout (api mentioned you). Call read_since.',
+      text: '1 new since your last read in #checkout (api mentioned you). Call read_since.',
     });
   });
 });

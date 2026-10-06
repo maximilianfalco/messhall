@@ -9,6 +9,7 @@ import { DB_FILE } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 import { connectHttp } from '../../../src/mcp/testing.js';
+import { NOTHING_YET } from '../../../src/mcp/tools/wait.js';
 import {
   claudeArgv,
   launchClaude,
@@ -121,7 +122,7 @@ export async function channelRun({ as, keep, room }: ChannelOptions) {
       { resetTimeoutOnProgress: true, timeout: (REPLY_WITHIN_S + 10) * 1000 },
     );
     const waitText = waited.content.map(block => (block.type === 'text' ? block.text : '')).join('');
-    if (!waitText.includes('new in')) throw new Error(`no reply from ${as} within ${REPLY_WITHIN_S} s`);
+    if (waited.isError || waitText === NOTHING_YET) throw new Error(`no reply from ${as} within ${REPLY_WITHIN_S} s`);
     replyMs = Date.now() - postedAt;
     code = 0;
   } catch (error) {

@@ -136,7 +136,7 @@ describe('the /mcp endpoint', () => {
 
     await expect(waiting).resolves.toStrictEqual({
       isError: false,
-      text: '1 new in #checkout (api mentioned you). Call read_since.',
+      text: '1 new since your last read in #checkout (api mentioned you). Call read_since.',
     });
     expect((await web.call('read_since', { room: 'checkout' })).text).toContain('api → @web] @web total is cents now');
   });
