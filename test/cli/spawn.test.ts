@@ -37,7 +37,7 @@ describe('runSpawn', () => {
 
     expect(result.code).toBe(0);
     expect(plain(result)).toContain('api is seated in #demo as worker');
-    expect(plain(result)).toContain('tmux attach -t messhall-demo-api');
+    expect(plain(result)).toContain('tmux attach -t messhall_demo_api');
   });
 
   it('reads instructions from a file when the value is a path', async () => {
@@ -81,7 +81,7 @@ describe('runFlock', () => {
     const result = await runFlock({ ...shared(), room: 'demo' });
 
     expect(result.code).toBe(0);
-    expect(plain(result)).toMatch(/#demo\s+api\s+worker\s+invited\s+claude\s+gone\s+messhall-demo-api/);
+    expect(plain(result)).toMatch(/#demo\s+api\s+worker\s+invited\s+claude\s+gone\s+messhall_demo_api/);
   });
 
   it('says so when nothing was spawned', async () => {
@@ -99,7 +99,7 @@ describe('runFlockStop', () => {
 
     expect(result.code).toBe(0);
     expect(plain(result)).toBe('stopped api in #demo, its seat is removed');
-    expect(feed.tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-demo-api']);
+    expect(feed.tmux).toHaveBeenCalledWith(['kill-session', '-t', '=messhall_demo_api:']);
     expect(
       store()
         .listMembers('demo')

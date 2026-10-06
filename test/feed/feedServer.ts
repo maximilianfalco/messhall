@@ -67,7 +67,7 @@ export async function feedServer() {
   const seatOnStart = () =>
     tmux.mockImplementation(args => {
       if (args[0] === 'new-session') {
-        const file = path.join(scratch.dataDir, 'spawn', 'demo-api-mcp.json');
+        const file = path.join(scratch.dataDir, 'spawn', 'demo_api-mcp.json');
         const config = parseStoredJson(readFileSync(file, 'utf8')) as {
           mcpServers: { messhall: { headers: Record<string, string> } };
         };

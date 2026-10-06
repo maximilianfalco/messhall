@@ -38,7 +38,7 @@ const memberOf = (name: string) =>
   store()
     .listMembers('demo')
     .find(member => member.name === name);
-const configFile = () => path.join(scratch.dataDir, 'spawn', 'demo-api-mcp.json');
+const configFile = () => path.join(scratch.dataDir, 'spawn', 'demo_api-mcp.json');
 const seatKeyInConfig = () =>
   (
     parseStoredJson(readFileSync(configFile(), 'utf8')) as {
@@ -103,7 +103,7 @@ describe('agentArgv', () => {
       agentArgv({
         agent: 'claude',
         invite: 'key-1',
-        mcpConfig: '/d/spawn/demo-api-mcp.json',
+        mcpConfig: '/d/spawn/demo_api-mcp.json',
         model: 'opus',
         name: 'api',
         room: 'demo',
@@ -111,7 +111,7 @@ describe('agentArgv', () => {
     ).toStrictEqual([
       'claude',
       '--mcp-config',
-      '/d/spawn/demo-api-mcp.json',
+      '/d/spawn/demo_api-mcp.json',
       '--dangerously-load-development-channels',
       'server:messhall',
       '--allowedTools',
@@ -148,11 +148,11 @@ describe('tmuxStartArgs', () => {
   it('runs the argv in a login shell in a detached session in cwd', () => {
     const argv = ['claude', '--model', 'opus'];
 
-    expect(tmuxStartArgs({ argv, cwd: '/work/api', session: 'messhall-demo-api', shell: '/bin/zsh' })).toStrictEqual([
+    expect(tmuxStartArgs({ argv, cwd: '/work/api', session: 'messhall_demo_api', shell: '/bin/zsh' })).toStrictEqual([
       'new-session',
       '-d',
       '-s',
-      'messhall-demo-api',
+      'messhall_demo_api',
       '-x',
       '200',
       '-y',
@@ -166,7 +166,23 @@ describe('tmuxStartArgs', () => {
 
 describe('createSpawner', () => {
   it('names the session after the room and the seat', () => {
-    expect(sessionName({ name: 'api', room: 'demo' })).toBe('messhall-demo-api');
+    expect(sessionName({ name: 'api', room: 'demo' })).toBe('messhall_demo_api');
+  });
+
+  it('gives two rooms whose names run together their own sessions', () => {
+    expect(sessionName({ name: 'c', room: 'a-b' })).not.toBe(sessionName({ name: 'b-c', room: 'a' }));
+  });
+
+  it('targets its own session exactly in every tmux call after the start, never a prefix match', async () => {
+    const tmux = fakeTmux({ onAnswer: seatFromConfig, pane: CHANNELS });
+
+    await spawnApi(tmux);
+    await spawner(tmux).stop({ name: 'api', room: 'demo' });
+
+    const targets = calls(tmux)
+      .filter(args => args[0] !== 'new-session')
+      .map(args => args[args.indexOf('-t') + 1]);
+    expect(new Set(targets)).toStrictEqual(new Set(['=messhall_demo_api:']));
   });
 
   it('refuses a cwd that is not a folder before any invite or tmux call', async () => {
@@ -190,11 +206,11 @@ describe('createSpawner', () => {
 
     const outcome = await spawnApi(tmux);
 
-    expect(outcome).toMatchObject({ ok: true, session: 'messhall-demo-api' });
+    expect(outcome).toMatchObject({ ok: true, session: 'messhall_demo_api' });
     expect(memberOf('api')).toMatchObject({ presence: 'active', role: 'worker' });
     const sent = calls(tmux).filter(args => args[0] === 'send-keys');
-    expect(sent[0]).toStrictEqual(['send-keys', '-t', 'messhall-demo-api', 'Down', 'Enter']);
-    expect(sent[1]?.slice(0, 4)).toStrictEqual(['send-keys', '-t', 'messhall-demo-api', '-l']);
+    expect(sent[0]).toStrictEqual(['send-keys', '-t', '=messhall_demo_api:', 'Down', 'Enter']);
+    expect(sent[1]?.slice(0, 4)).toStrictEqual(['send-keys', '-t', '=messhall_demo_api:', '-l']);
     expect(sent[1]?.[4]).toContain('call my_role');
   });
 
@@ -238,7 +254,7 @@ describe('createSpawner', () => {
     const outcome = await spawnApi(tmux);
 
     expect(outcome).toStrictEqual({ ok: false, reason: 'timeout' });
-    expect(calls(tmux).at(-1)).toStrictEqual(['kill-session', '-t', 'messhall-demo-api']);
+    expect(calls(tmux).at(-1)).toStrictEqual(['kill-session', '-t', '=messhall_demo_api:']);
     expect(existsSync(configFile())).toBe(false);
     expect(memberOf('api')).toBeUndefined();
   });
@@ -272,14 +288,14 @@ describe('createSpawner', () => {
 
     await spawner(tmux).stop({ name: 'api', room: 'demo' });
 
-    expect(calls(tmux)).toStrictEqual([['kill-session', '-t', 'messhall-demo-api']]);
+    expect(calls(tmux)).toStrictEqual([['kill-session', '-t', '=messhall_demo_api:']]);
   });
 
   it('lists spawned seats with their session and whether it still runs', async () => {
     store().invite({ by: 'human', launch: { agent: 'claude', cwd }, name: 'api', role: 'worker', room: 'demo' });
     store().invite({ by: 'human', launch: { agent: 'codex', cwd }, name: 'web', role: 'reviewer', room: 'demo' });
     store().joinRoom({ as: 'loose', kind: 'claude', room: 'demo' });
-    const tmux = vi.fn<Tmux>(() => Promise.resolve(result('messhall-demo-api\t4242\nother\t1\n')));
+    const tmux = vi.fn<Tmux>(() => Promise.resolve(result('messhall_demo_api\t4242\nother\t1\n')));
 
     const seats = await spawner(tmux).list({});
 
@@ -293,7 +309,7 @@ describe('createSpawner', () => {
         process: 'running',
         role: 'worker',
         room: 'demo',
-        session: 'messhall-demo-api',
+        session: 'messhall_demo_api',
       },
       {
         agent: 'codex',
@@ -304,7 +320,7 @@ describe('createSpawner', () => {
         process: 'gone',
         role: 'reviewer',
         room: 'demo',
-        session: 'messhall-demo-web',
+        session: 'messhall_demo_web',
       },
     ]);
   });

@@ -15,7 +15,7 @@ import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
 import { dialogKeys, typePrompt, until, tmux as runTmux } from './tmux.js';
 
-export const SESSION_PREFIX = 'messhall-';
+export const SESSION_PREFIX = 'messhall_';
 export const SPAWN_DIR = 'spawn';
 const SETTLE_MS = 1000;
 const PANE_FORMAT = '#{session_name}\t#{pane_pid}';
@@ -27,8 +27,11 @@ interface Seat {
 
 type Ready = 'dropped' | 'login' | 'seated' | 'timeout';
 
-/** The tmux session a spawned seat runs in. */
-export const sessionName = ({ name, room }: Seat) => `${SESSION_PREFIX}${room}-${name}`;
+/** The tmux session a spawned seat runs in. Names never hold `_`, so room and name can never run together. */
+export const sessionName = ({ name, room }: Seat) => `${SESSION_PREFIX}${room}_${name}`;
+
+// A bare `-t name` falls back to a prefix match, which would hit another seat's session.
+const exactTarget = (seat: Seat) => `=${sessionName(seat)}:`;
 
 /** The first prompt typed into a spawned claude. Its seat is already taken, so it only reads its role. */
 export const seatedPrompt = ({ name, role, room }: Seat & { role: string }) =>
@@ -120,7 +123,7 @@ export function createSpawner({
   url: string;
 }) {
   const spawnDir = path.join(dataDir, SPAWN_DIR);
-  const configFile = ({ name, room }: Seat) => path.join(spawnDir, `${room}-${name}-mcp.json`);
+  const configFile = ({ name, room }: Seat) => path.join(spawnDir, `${room}_${name}-mcp.json`);
 
   // 0600, since it holds the agent key.
   const writeConfig = (seat: Seat, seatKey: string) => {
@@ -133,17 +136,17 @@ export function createSpawner({
 
   // Answers dialogs until the agent's first call takes the seat, or a login screen or the deadline stops it.
   const waitSeated = async (seat: Seat) => {
-    const session = sessionName(seat);
+    const target = exactTarget(seat);
     const ready = await until<Ready>(
       Date.now() + readyWithinMs,
       async () => {
         const presence = presenceOf(seat);
         if (!presence) return 'dropped';
         if (presence !== 'invited') return 'seated';
-        const dialog = dialogKeys((await tmux(['capture-pane', '-p', '-t', session])).stdout);
+        const dialog = dialogKeys((await tmux(['capture-pane', '-p', '-t', target])).stdout);
         if (dialog.kind === 'login') return 'login';
         if (dialog.kind === 'none') return;
-        await tmux(['send-keys', '-t', session, ...dialog.keys]);
+        await tmux(['send-keys', '-t', target, ...dialog.keys]);
         await sleep(settleMs);
       },
       pollMs,
@@ -152,7 +155,7 @@ export function createSpawner({
   };
 
   const stop = async (seat: Seat) => {
-    const killed = await tmux(['kill-session', '-t', sessionName(seat)]);
+    const killed = await tmux(['kill-session', '-t', exactTarget(seat)]);
     rmSync(configFile(seat), { force: true });
     return killed.code === 0;
   };
@@ -193,7 +196,7 @@ export function createSpawner({
         return { ok: false, reason: ready } as const;
       }
       if (agent === 'claude') {
-        const typed = await typePrompt(session, seatedPrompt({ ...seat, role }), { run: tmux, settleMs });
+        const typed = await typePrompt(exactTarget(seat), seatedPrompt({ ...seat, role }), { run: tmux, settleMs });
         if (typed === 'stuck') {
           await giveUp(seat);
           return { ok: false, reason: 'stuck' } as const;

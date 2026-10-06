@@ -47,6 +47,6 @@ Wait+Screen@30s /stopped api/
 Sleep 6s
 
 Hide
-Type "tmux kill-session -t messhall-demo-api; kill $(lsof -t -iTCP:7791 -sTCP:LISTEN)"
+Type "tmux kill-session -t =messhall_demo_api:; kill $(lsof -t -iTCP:7791 -sTCP:LISTEN)"
 Enter
 Sleep 1s

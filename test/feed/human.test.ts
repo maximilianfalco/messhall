@@ -473,7 +473,7 @@ describe('POST /api/rooms/:name/spawn', () => {
     expect(res.status).toBe(201);
     expect(spawnResultSchema.parse(await res.json())).toMatchObject({
       member: { name: 'api', presence: 'active', role: 'worker' },
-      session: 'messhall-demo-api',
+      session: 'messhall_demo_api',
     });
     expect(store().roleOf({ name: 'api', room: 'demo' })).toMatchObject({ by: 'human', instructions: 'build the api' });
   });
@@ -542,7 +542,7 @@ describe('GET /api/flock', () => {
 
     expect(res.status).toBe(200);
     expect(flockSchema.parse(await res.json()).seats).toMatchObject([
-      { name: 'api', process: 'gone', room: 'demo', session: 'messhall-demo-api' },
+      { name: 'api', process: 'gone', room: 'demo', session: 'messhall_demo_api' },
     ]);
   });
 
@@ -559,7 +559,7 @@ describe('DELETE /api/rooms/:name/members/:member on a spawned seat', () => {
     const res = await deleteAs('/api/rooms/demo/members/api', feed.headers('human'));
 
     expect(res.status).toBe(200);
-    expect(feed.tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-demo-api']);
+    expect(feed.tmux).toHaveBeenCalledWith(['kill-session', '-t', '=messhall_demo_api:']);
   });
 
   it('kills nothing when the member is not there', async () => {
