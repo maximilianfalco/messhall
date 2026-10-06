@@ -6,6 +6,7 @@ import {
   closeResultSchema,
   humanPostResultSchema,
   humanRoleResultSchema,
+  muteResultSchema,
   newRoomResultSchema,
   removeMemberResultSchema,
   reopenResultSchema,
@@ -309,6 +310,55 @@ describe('DELETE /api/rooms/:name/members/:member', () => {
   );
 });
 
+describe('POST /api/rooms/:name/members/:member/mute and unmute', () => {
+  const mutedOf = (name: string) =>
+    store()
+      .listMembers('demo')
+      .find(member => member.name === name)?.muted;
+
+  it('mutes a member by human and answers 200 with the member', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    const res = await human('/api/rooms/demo/members/api/mute');
+
+    expect(res.status).toBe(200);
+    expect(muteResultSchema.parse(await res.json()).member).toMatchObject({ muted: true, name: 'api' });
+    expect(store().listMessages({ limit: 1, room: 'demo' }).messages?.[0]).toMatchObject({
+      from: 'messhall',
+      text: 'api muted by human',
+    });
+  });
+
+  it('unmutes a muted member', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    await human('/api/rooms/demo/members/api/mute');
+
+    const res = await human('/api/rooms/demo/members/api/unmute');
+
+    expect(res.status).toBe(200);
+    expect(mutedOf('api')).toBe(false);
+  });
+
+  it('adds the human seat to a room that lacks it', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    feed.scratch.db.prepare("DELETE FROM members WHERE name = 'human'").run();
+
+    expect((await human('/api/rooms/demo/members/api/mute')).status).toBe(200);
+  });
+
+  it.each([
+    ['/api/rooms/demo/members/web/mute', 404],
+    ['/api/rooms/nope/members/api/mute', 404],
+    ['/api/rooms/demo/members/Not%20A%20Name/mute', 404],
+    ['/api/rooms/demo/members/human/mute', 409],
+  ])('refuses %s with %i and mutes nobody', async (path, status) => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect((await human(path)).status).toBe(status);
+    expect(mutedOf('api')).toBe(false);
+  });
+});
+
 describe('human route keys', () => {
   it('refuses the agent key on POST /api/rooms with 403 and makes no room', async () => {
     const res = await postAs('/api/rooms', feed.headers('agent'), { name: 'planning' });
@@ -326,6 +376,28 @@ describe('human route keys', () => {
     expect(res.status).toBe(403);
     expect(store().roleOf({ name: 'api', room: 'demo' })).toMatchObject({ by: null, role: 'unassigned' });
     expect(store().listMessages({ limit: 50, room: 'demo' })).toStrictEqual(before);
+  });
+
+  it.each(['mute', 'unmute'])('refuses the agent key on the %s route with 403 and changes nothing', async action => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().muteMember({ by: 'human', member: 'api', muted: action === 'unmute', room: 'demo' });
+    const before = store().listMessages({ limit: 50, room: 'demo' });
+
+    const res = await postAs(`/api/rooms/demo/members/api/${action}`, feed.headers('agent'));
+
+    expect(res.status).toBe(403);
+    expect(
+      store()
+        .listMembers('demo')
+        .find(member => member.name === 'api')?.muted,
+    ).toBe(action === 'unmute');
+    expect(store().listMessages({ limit: 50, room: 'demo' })).toStrictEqual(before);
+  });
+
+  it('refuses no key on the mute route with 401', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect((await postAs('/api/rooms/demo/members/api/mute', {})).status).toBe(401);
   });
 
   it('refuses no key on the role route with 401', async () => {

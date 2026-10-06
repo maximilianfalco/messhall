@@ -255,6 +255,12 @@ describe('shotArgs', () => {
     ).toStrictEqual(expect.arrayContaining(['-shotRemove', 'docs', '-shotRoom', 'handoff']));
   });
 
+  it('mutes a member through the app for the mute shot', () => {
+    expect(
+      shotArgs({ appearance: 'light', mute: 'qa', name: 'mute-light', openFolds: true, room: 'checkout' }),
+    ).toStrictEqual(expect.arrayContaining(['-shotMute', 'qa', '-shotRoom', 'checkout']));
+  });
+
   it('opens every fold for the expanded shot', () => {
     expect(shotArgs({ appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' })).toStrictEqual(
       expect.arrayContaining(['-shotOpenFolds', 'YES', '-shotRoom', 'handoff']),

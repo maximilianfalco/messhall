@@ -85,6 +85,10 @@ export const removeMemberResultSchema = z.object({
   member: memberSchema.describe('The member as it was when it was removed.'),
 });
 
+export const muteResultSchema = z.object({
+  member: memberSchema.describe('The member after the mute or unmute.'),
+});
+
 export const feedErrorSchema = z.object({
   error: z.string().describe('What went wrong, in plain words.'),
 });
@@ -99,3 +103,4 @@ export type CloseResult = z.infer<typeof closeResultSchema>;
 export type HumanRole = z.infer<typeof humanRoleSchema>;
 export type HumanRoleResult = z.infer<typeof humanRoleResultSchema>;
 export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
+export type MuteResult = z.infer<typeof muteResultSchema>;

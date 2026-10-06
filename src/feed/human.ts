@@ -2,6 +2,7 @@ import type {
   CloseResult,
   HumanPostResult,
   HumanRoleResult,
+  MuteResult,
   NewRoomResult,
   RemoveMemberResult,
   ReopenResult,
@@ -15,7 +16,7 @@ import { humanPostSchema, humanRoleSchema, newRoomSchema } from '../../contracts
 import { HUMAN_NAME } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
-import { memberRoleTarget, memberTarget, readJson, roomTarget } from './http.js';
+import { memberMuteTarget, memberRoleTarget, memberTarget, readJson, roomTarget } from './http.js';
 
 const NO_ROOM = { error: 'no such room' };
 
@@ -63,9 +64,22 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     else sendJson(res, 409, { error: `role set, but the line was refused: ${line.reason}` });
   };
 
+  const mute = (res: ServerResponse, { member, muted, room }: { member: string; muted: boolean; room: string }) => {
+    if (!store.ensureHuman(room).ok) {
+      sendJson(res, 404, NO_ROOM);
+      return;
+    }
+    const result = store.muteMember({ by: HUMAN_NAME, member, muted, room });
+    if (result.ok) sendJson(res, 200, { member: result.member } satisfies MuteResult);
+    else if (result.reason === 'human') sendJson(res, 409, { error: 'the human seat cannot be muted' });
+    else sendJson(res, 404, { error: `no member ${member} in #${room}` });
+  };
+
   const post: Handler = async (req, res) => {
     const role = memberRoleTarget(req);
     if (role) return setRole(req, res, role);
+    const muting = memberMuteTarget(req);
+    if (muting) return mute(res, muting);
     const target = roomTarget(req);
     if (target?.action === 'close') {
       const result = store.closeRoom(target.name);

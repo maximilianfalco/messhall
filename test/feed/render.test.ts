@@ -31,6 +31,7 @@ const member = (overrides: Partial<Member> = {}): Member => ({
   kind: 'claude',
   last_seen_at: AT,
   left_at: null,
+  muted: false,
   name: 'api',
   presence: 'active',
   role: 'unassigned',

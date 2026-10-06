@@ -134,6 +134,10 @@ export const MIGRATIONS = [
   UPDATE events SET payload = json_set(payload, '$.to', 'away')
     WHERE kind = 'presence' AND json_extract(payload, '$.to') = 'gone';
   `,
+  // A muted member reads but cannot post, and nothing rings it, until the human or an orchestrator unmutes it.
+  `
+  ALTER TABLE members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

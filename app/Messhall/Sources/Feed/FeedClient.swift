@@ -12,6 +12,7 @@ public struct FeedClient: Sendable {
     case reopen(room: String)
     case role(room: String, member: String, role: String)
     case remove(room: String, member: String)
+    case mute(room: String, member: String, muted: Bool)
   }
 
   public struct KeyMissing: Error {}
@@ -70,6 +71,10 @@ public struct FeedClient: Sendable {
     case .remove(let room, let member):
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/members/\(member)"))
       request.httpMethod = "DELETE"
+    case .mute(let room, let member, let muted):
+      let action = muted ? "mute" : "unmute"
+      request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/members/\(member)/\(action)"))
+      request.httpMethod = "POST"
     }
     request.setValue(try humanKey(), forHTTPHeaderField: "x-messhall-key")
     return request

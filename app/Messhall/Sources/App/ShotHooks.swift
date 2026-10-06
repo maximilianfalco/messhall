@@ -103,6 +103,15 @@
       }
     }
 
+    /// `-shotMute <member>`: mutes a member in the `-shotRoom` room through the same path as the Mute item.
+    static func mute(_ member: String, room: String?, store: FeedStore, client: FeedClient) async {
+      guard let room else { return }
+      while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }
+      if let refusal = await store.mute(member, muted: true, room: room, via: client) {
+        FileHandle.standardError.write(Data("shotMute refused: \(refusal)\n".utf8))
+      }
+    }
+
     /// `-shotRoom <name>` opens that room. `-shotNewRoom <draft>` opens the New Room sheet with that name typed.
     static func navigate(room: String?, newRoom: String?, navigation: Navigation) {
       if let room { navigation.room = room }

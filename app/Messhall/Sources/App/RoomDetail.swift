@@ -30,7 +30,8 @@ struct RoomDetail: View {
       RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(
         live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil,
-        setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) }
+        setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) },
+        mute: room.isOpen ? { mute($0) } : nil
       )
       .id(room.name)
       Divider()
@@ -106,6 +107,10 @@ struct RoomDetail: View {
 
   private func remove(_ members: [String]) {
     Task { refusal = await store.remove(members, room: room.name, via: client) }
+  }
+
+  private func mute(_ member: Member) {
+    Task { refusal = await store.mute(member.name, muted: !member.muted, room: room.name, via: client) }
   }
 }
 
@@ -218,6 +223,7 @@ struct MemberStrip: View {
   let mention: ((String) -> Void)?
   let setRole: ((_ role: String, _ member: String) -> Void)?
   let remove: ([String]) -> Void
+  let mute: ((Member) -> Void)?
   @State private var showsAway = Self.startsOpen
 
   #if DEBUG
@@ -251,6 +257,9 @@ struct MemberStrip: View {
               Button(role.capitalized) { setRole(role, member.name) }
             }
           }
+        }
+        if let mute, let action = member.muteAction {
+          Button(action) { mute(member) }
         }
       }
   }
@@ -353,6 +362,9 @@ struct MemberChip: View {
           if let role = member.rolePill {
             RolePill(role: role)
           }
+          if member.muted {
+            MutedPill()
+          }
         }
         HStack(spacing: 4) {
           PresenceDot(presence: member.presence)
@@ -405,6 +417,20 @@ struct RolePill: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
       .overlay(Capsule().strokeBorder(.secondary.opacity(0.5), lineWidth: 0.5))
+  }
+}
+
+/// Says the member is muted: it reads, but its posts are refused.
+struct MutedPill: View {
+  var body: some View {
+    Label("muted", systemImage: "speaker.slash.fill")
+      .labelStyle(.titleAndIcon)
+      .font(.subheadline)
+      .fixedSize()
+      .foregroundStyle(.orange)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .background(.orange.opacity(0.12), in: Capsule())
   }
 }
 

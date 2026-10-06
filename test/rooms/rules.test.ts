@@ -17,6 +17,7 @@ const member = (fields: Partial<Member> & Pick<Member, 'name'>): Member => ({
   kind: 'claude',
   last_seen_at: T0,
   left_at: null,
+  muted: false,
   presence: 'active',
   role: 'unassigned',
   room_id: 'r1',
@@ -78,6 +79,17 @@ describe('concerns', () => {
     expect(concerns({ pausedWith: {}, member: three[1]!, members: three, message: message({ from: 'human' }) })).toBe(
       true,
     );
+  });
+
+  it('concerns a muted member never, not even a mention or the human', () => {
+    const muted = member({ muted: true, name: 'web' });
+    const members = [...ROOM.slice(0, 2), muted];
+
+    expect(
+      [message({ from: 'api', mentions: ['web'] }), message({ from: 'human' })].map(msg =>
+        concerns({ member: muted, members, message: msg, pausedWith: {} }),
+      ),
+    ).toStrictEqual([false, false]);
   });
 
   it('concerns the only other agent in a room of two', () => {

@@ -55,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let room = UserDefaults.standard.string(forKey: "shotRoom")
         Task { await ShotHooks.remove(member, room: room, store: store, client: client) }
       }
+      if let member = UserDefaults.standard.string(forKey: "shotMute") {
+        let room = UserDefaults.standard.string(forKey: "shotRoom")
+        Task { await ShotHooks.mute(member, room: room, store: store, client: client) }
+      }
       ShotHooks.navigate(
         room: UserDefaults.standard.string(forKey: "shotRoom"),
         newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"), navigation: navigation)

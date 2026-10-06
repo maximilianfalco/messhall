@@ -15,10 +15,13 @@ type RoomAction =
   | { action: 'close' | 'reopen'; name: string }
   | { action: 'kick'; member: string; name: string }
   | { action: 'list' }
+  | { action: 'mute' | 'unmute'; member: string; name: string }
   | { action: 'new'; name: string; topic?: string };
 
 function done(input: Exclude<RoomAction, { action: 'list' }>) {
   if (input.action === 'kick') return `removed ${input.member} from #${input.name}`;
+  if (input.action === 'mute') return `muted ${input.member} in #${input.name}, it can read but not post`;
+  if (input.action === 'unmute') return `unmuted ${input.member} in #${input.name}`;
   if (input.action === 'new') return `made #${input.name}, standing until you close it`;
   return `${input.action === 'close' ? 'closed' : 'reopened'} #${input.name}`;
 }
@@ -35,10 +38,14 @@ function request(input: RoomAction, url: string) {
     const path = `${encodeURIComponent(input.name)}/members/${encodeURIComponent(input.member)}`;
     return { init: { method: 'DELETE' }, url: `${url}/api/rooms/${path}` };
   }
+  if (input.action === 'mute' || input.action === 'unmute') {
+    const path = `${encodeURIComponent(input.name)}/members/${encodeURIComponent(input.member)}/${input.action}`;
+    return { init: { method: 'POST' }, url: `${url}/api/rooms/${path}` };
+  }
   return { init: { method: 'POST' }, url: `${url}/api/rooms/${encodeURIComponent(input.name)}/${input.action}` };
 }
 
-/** Makes, closes, reopens or lists rooms, or kicks any agent seat, as the human through the daemon. Prints one line per room, or one red line. */
+/** Makes, closes, reopens or lists rooms, kicks any agent seat, or mutes a member, as the human through the daemon. Prints one line per room, or one red line. */
 export async function runRoom({
   dataDir: dir,
   fetch,
@@ -81,11 +88,11 @@ async function print(input: RoomAction) {
   process.exitCode = result.code;
 }
 
-/** Registers `room new | close | reopen | kick | list`. */
+/** Registers `room new | close | reopen | kick | mute | unmute | list`. */
 export function registerRoom(program: Command) {
   const room = program
     .command('room')
-    .description('Make, close, reopen and list rooms, and kick members, as the human.');
+    .description('Make, close, reopen and list rooms, and kick or mute members, as the human.');
   room
     .command('new')
     .description('Make a standing room. It stays open until you close it.')
@@ -108,6 +115,18 @@ export function registerRoom(program: Command) {
     .argument('<room>', 'room name')
     .argument('<member>', 'member name')
     .action((name: string, member: string) => print({ action: 'kick', member, name }));
+  room
+    .command('mute')
+    .description('Mute a member: it can still read, but its posts are refused and nothing rings it.')
+    .argument('<room>', 'room name')
+    .argument('<member>', 'member name')
+    .action((name: string, member: string) => print({ action: 'mute', member, name }));
+  room
+    .command('unmute')
+    .description('Let a muted member post again.')
+    .argument('<room>', 'room name')
+    .argument('<member>', 'member name')
+    .action((name: string, member: string) => print({ action: 'unmute', member, name }));
   room
     .command('list')
     .description('List every room, closed ones too.')

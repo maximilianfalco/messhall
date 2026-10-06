@@ -6,6 +6,8 @@ import { FEED_BODY_MAX_BYTES } from '../config.js';
 const ROOM_PATH = /^\/api\/rooms\/([^/]+)\/([^/]+)$/;
 const MEMBER_ROLE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/role$/;
 const MEMBER_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)$/;
+const MEMBER_MUTE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/mute$/;
+const MEMBER_UNMUTE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/unmute$/;
 
 /** The room name and action in `/api/rooms/<name>/<action>`, or undefined when the path is not one. */
 export function roomTarget(req: IncomingMessage) {
@@ -24,6 +26,14 @@ function memberIn(req: IncomingMessage, pattern: RegExp) {
 
 /** The room and member in `/api/rooms/<name>/members/<member>/role`, or undefined when the path is not one. */
 export const memberRoleTarget = (req: IncomingMessage) => memberIn(req, MEMBER_ROLE_PATH);
+
+/** The room and member, muted or not, in `/api/rooms/<name>/members/<member>/mute` or `/unmute`. Undefined otherwise. */
+export function memberMuteTarget(req: IncomingMessage) {
+  const mute = memberIn(req, MEMBER_MUTE_PATH);
+  if (mute) return { ...mute, muted: true };
+  const unmute = memberIn(req, MEMBER_UNMUTE_PATH);
+  return unmute && { ...unmute, muted: false };
+}
 
 /** The room and member in `/api/rooms/<name>/members/<member>`, or undefined when the path is not one. */
 export const memberTarget = (req: IncomingMessage) => memberIn(req, MEMBER_PATH);

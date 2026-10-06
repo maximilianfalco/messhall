@@ -12,9 +12,11 @@ const GUTTER = ' '.repeat(7);
 const MEMBER_MARKS: Record<MemberChange, string> = {
   joined: '+',
   left: '-',
+  muted: '!',
   reconnected: '+',
   removed: '-',
   role: '*',
+  unmuted: '*',
 };
 const ROOM_WORDS: Record<RoomChange, (room: Room) => string> = {
   closed: () => 'closed',

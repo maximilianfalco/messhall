@@ -72,9 +72,9 @@ describe('openDb', () => {
   it('turns gone into away in members and stored events, and gives every member an empty seat key', () => {
     const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
     old.function('client_label', { varargs: true }, () => null);
-    MIGRATIONS.slice(0, -1).forEach(sql => old.exec(sql));
+    MIGRATIONS.slice(0, 11).forEach(sql => old.exec(sql));
     old.exec(`
-      PRAGMA user_version = ${MIGRATIONS.length - 1};
+      PRAGMA user_version = 11;
       INSERT INTO rooms (id, name, created_at) VALUES ('r1', 'demo', 't0');
       INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, gone_at) VALUES
         ('r1', 'api', 'claude', 't0', 't1', 'gone', 't1'), ('r1', 'web', 'codex', 't0', 't2', 'idle', NULL);

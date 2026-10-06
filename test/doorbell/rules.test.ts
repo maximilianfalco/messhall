@@ -17,6 +17,7 @@ const member = (fields: Partial<Member> & Pick<Member, 'name'>): Member => ({
   kind: 'claude',
   last_seen_at: at(0),
   left_at: null,
+  muted: false,
   presence: 'idle',
   role: 'unassigned',
   room_id: 'r1',

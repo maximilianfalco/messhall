@@ -60,6 +60,7 @@ const toMember = (row: Row) =>
     ...row,
     client_label: row.client_name ? clientType(String(row.client_name)).label : null,
     done: row.done === 1,
+    muted: row.muted === 1,
   });
 const toMessage = (row: Row) =>
   messageSchema.parse({ ...row, from: row.from_name, mentions: parseStoredJson(String(row.mentions)) });
@@ -140,6 +141,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     setRole: db.prepare(
       'UPDATE members SET role = ?, role_instructions = ?, role_set_by = ? WHERE room_id = ? AND name = ?',
     ),
+    setMuted: db.prepare('UPDATE members SET muted = ? WHERE room_id = ? AND name = ?'),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
     stale: db.prepare(
@@ -402,6 +404,37 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
+    /** Mutes or unmutes a member with a system line. A muted member reads but cannot post. Only the human seat or
+     * an unmuted orchestrator may, so a muted one cannot lift its own mute. Never on the human. Setting the state it
+     * already has writes nothing. */
+    muteMember({
+      by,
+      member: name,
+      muted,
+      room: roomName,
+    }: {
+      by: string;
+      member: string;
+      muted: boolean;
+      room: string;
+    }) {
+      return transaction(emit => {
+        const found = seat(roomName, by);
+        if (!found.ok) return found;
+        if (!canAssignRole({ by: found.member })) return { ok: false, reason: 'not_allowed' } as const;
+        if (found.member.muted) return { ok: false, reason: 'muted' } as const;
+        const target = findMember(found.room, name);
+        if (!target) return { ok: false, reason: 'no_member' } as const;
+        if (target.kind === 'human') return { ok: false, reason: 'human' } as const;
+        if (target.muted === muted) return { member: target, ok: true } as const;
+        sql.setMuted.run(muted ? 1 : 0, found.room.id, name);
+        const member = findMember(found.room, name)!;
+        emit({ change: muted ? 'muted' : 'unmuted', member, room: found.room.name, type: 'member' });
+        systemLine(found.room, `${name} ${muted ? 'muted' : 'unmuted'} by ${by}`, emit);
+        return { member, ok: true } as const;
+      });
+    },
+
     /** A member's role with its instructions and who set them, or undefined when there is no such member. */
     roleOf({ name, room: roomName }: { name: string; room: string }) {
       const room = findRoom(roomName);
@@ -494,6 +527,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const found = seat(roomName, from);
         if (!found.ok) return found;
         const { member } = found;
+        if (member.muted) return { ok: false, reason: 'muted' } as const;
         const human = member.kind === 'human';
         let { room } = found;
         if (room.closed_at !== null) {

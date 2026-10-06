@@ -12,6 +12,7 @@ import { registerKick } from './tools/kick.js';
 import { registerLeave } from './tools/leave.js';
 import { registerListMembers } from './tools/listMembers.js';
 import { registerListRooms } from './tools/listRooms.js';
+import { registerMute } from './tools/mute.js';
 import { registerMyRole } from './tools/myRole.js';
 import { registerPost } from './tools/post.js';
 import { registerReadSince } from './tools/readSince.js';
@@ -24,6 +25,7 @@ const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: s
   leave: registerLeave,
   list_members: registerListMembers,
   list_rooms: registerListRooms,
+  mute: registerMute,
   my_role: registerMyRole,
   post: registerPost,
   read_since: registerReadSince,

@@ -31,6 +31,7 @@ private let models: [String: [String]] = [
   "CloseResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
   "Member": Member.CodingKeys.allCases.map(\.rawValue),
   "MemberEvent": MemberEvent.CodingKeys.allCases.map(\.rawValue),
+  "MuteResult": MuteResult.CodingKeys.allCases.map(\.rawValue),
   "Message": Message.CodingKeys.allCases.map(\.rawValue),
   "MessageEvent": MessageEvent.CodingKeys.allCases.map(\.rawValue),
   "NewRoom": NewRoom.CodingKeys.allCases.map(\.rawValue),

@@ -17,6 +17,7 @@ const member = (name: string): Member => ({
   kind: 'claude',
   last_seen_at: new Date(T0).toISOString(),
   left_at: null,
+  muted: false,
   presence: 'idle',
   role: 'unassigned',
   room_id: 'r1',
