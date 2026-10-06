@@ -1,5 +1,6 @@
 #if DEBUG
   import AppKit
+  import Carbon.HIToolbox
   import Feed
   import SwiftUI
 
@@ -163,6 +164,50 @@
         view as? NSSplitView ?? view.subviews.lazy.compactMap(find).first
       }
       return NSApp.windows.first(where: isPlain)?.contentView.flatMap(find)?.delegate as? NSSplitViewController
+    }
+
+    /// `-shotMenu YES`: clicks the app's own menu bar item, so its menu opens for app-shot to grab.
+    /// The click stays inside this app, so the real app never gets it.
+    static func openMenu() async {
+      while NSApp.windows.first(where: isPlain) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      try? await Task.sleep(for: .seconds(1))
+      func find(_ view: NSView) -> NSButton? {
+        view as? NSButton ?? view.subviews.lazy.compactMap(find).first
+      }
+      let bar = NSApp.windows.first { String(describing: type(of: $0)).contains("StatusBarWindow") }
+      bar?.contentView.flatMap(find)?.performClick(nil)
+    }
+
+    /// `-shotHotkey <file>`: holds the hotkey from `-appSettings`, shuts the window and sends the app one press.
+    /// The press goes to this app's own Carbon target, so no key reaches any other app. The steps go to the file.
+    static func pressHotkey(_ hotkey: GlobalHotkey, settings: AppSettings, logTo file: String) async {
+      while NSApp.windows.first(where: isPlain) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      try? await Task.sleep(for: .seconds(1))
+      let keys = settings.snapshot.hotkey
+      var log = "keys: \(keys.label)\nregister status: \(hotkey.register(keys.registration))\n"
+      NSApp.windows.first(where: isPlain)?.close()
+      try? await Task.sleep(for: .seconds(1))
+      log += "window before press: \(NSApp.windows.contains(where: isPlain) ? "open" : "shut")\n"
+      var press: EventRef?
+      var id = GlobalHotkey.id
+      CreateEvent(
+        nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed), 0, EventAttributes(kEventAttributeNone), &press)
+      if let press {
+        SetEventParameter(
+          press, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+          MemoryLayout<EventHotKeyID>.size, &id)
+        SendEventToEventTarget(press, GetApplicationEventTarget())
+        ReleaseEvent(press)
+      }
+      for _ in 0..<50 where !NSApp.windows.contains(where: isPlain) {
+        try? await Task.sleep(for: .milliseconds(100))
+      }
+      log += "window after press: \(NSApp.windows.contains(where: isPlain) ? "open" : "shut")\n"
+      hotkey.unregister()
+      // Carbon refuses keys this app still holds, so a clean register again proves they were let go.
+      log += "register again after letting go: \(hotkey.register(keys.registration))\n"
+      hotkey.unregister()
+      try? log.write(toFile: file, atomically: true, encoding: .utf8)
     }
 
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.

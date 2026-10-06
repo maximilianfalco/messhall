@@ -31,15 +31,13 @@ struct MenuBarMenu: View {
     }
     if !openRooms.isEmpty { Divider() }
     Button("Open Messhall") { show(nil) }
-      .keyboardShortcut("o")
+      .keyboardShortcut(AppSettings.shared.snapshot.hotkey.shortcut)
     Button("Settings\u{2026}") {
       openSettings()
       NSApp.activate()
     }
-    .keyboardShortcut(",")
     Divider()
     Button("Quit Messhall") { NSApp.terminate(nil) }
-      .keyboardShortcut("q")
   }
 
   private var status: String {
