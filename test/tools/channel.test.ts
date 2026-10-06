@@ -69,6 +69,14 @@ describe('inputText', () => {
     expect(inputText(paneFixture('stuck-paste'))).toBe('[Pasted text #1 +3 lines]');
   });
 
+  it('skips the dim placeholder of an empty box', () => {
+    expect(inputText(paneFixture('placeholder'))).toBe('');
+  });
+
+  it('reads a prompt from a pane captured with styles', () => {
+    expect(inputText(paneFixture('stuck-styled'))).toBe('reply with the word ok');
+  });
+
   it('is empty when no input box shows', () => {
     expect(inputText(paneFixture('dialog'))).toBe('');
   });

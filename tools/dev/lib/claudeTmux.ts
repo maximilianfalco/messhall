@@ -19,6 +19,10 @@ const DIALOG_TARGETS = [/I am using this for local development/i, /Yes, I trust 
 const LOGIN = /Select login method|Please run \/login|Invalid API key|OAuth error/i;
 const SELECTED = '❯';
 const RULE = /^─{20,}$/;
+// oxlint-disable-next-line no-control-regex
+const DIM_RUN = /\x1b\[2m.*?(\x1b\[0m|$)/gm;
+// oxlint-disable-next-line no-control-regex
+const STYLE = /\x1b\[[\d;]*m/g;
 const SETTLE_MS = 300;
 const SUBMIT_TRIES = 5;
 
@@ -88,9 +92,10 @@ export async function until<T>(
   return until(deadline, check);
 }
 
-/** The text left in Claude Code's input box, the lines between the last two rules. Empty when no box shows. */
+/** The text left in Claude Code's input box, the lines between the last two rules. Empty when no box shows.
+ * Takes a pane captured with `-e`: the dim placeholder of an empty box is dropped, not read as text. */
 export function inputText(screen: string) {
-  const lines = screen.split('\n');
+  const lines = screen.replace(DIM_RUN, '').replace(STYLE, '').split('\n');
   const bottom = lines.findLastIndex(line => RULE.test(line.trim()));
   const top = lines.slice(0, bottom).findLastIndex(line => RULE.test(line.trim()));
   if (top < 0) return '';
@@ -120,7 +125,7 @@ export async function typePrompt(
     await sleep(settleMs);
     await send(['send-keys', '-t', session, 'Enter']);
     await sleep(settleMs);
-    if (inputText((await send(['capture-pane', '-p', '-t', session])).stdout)) await submit(triesLeft - 1);
+    if (inputText((await send(['capture-pane', '-p', '-e', '-t', session])).stdout)) await submit(triesLeft - 1);
   };
   await submit(SUBMIT_TRIES);
 }

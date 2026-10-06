@@ -286,9 +286,9 @@ describe('nudgeRun', () => {
       'has-session -t messhall-B82',
       'send-keys -t messhall-B82 -l carry on',
       'send-keys -t messhall-B82 Enter',
-      'capture-pane -p -t messhall-B82',
+      'capture-pane -p -e -t messhall-B82',
       'send-keys -t messhall-B82 Enter',
-      'capture-pane -p -t messhall-B82',
+      'capture-pane -p -e -t messhall-B82',
     ]);
   });
 
