@@ -14,12 +14,13 @@ import {
   claudeLine,
   codexBlock,
   codexTuis,
+  geminiEntry,
   hasChannels,
   runMcpDoctor,
   runMcpInstall,
   runMcpUninstall,
 } from '../../src/cli/mcp.js';
-import { codexConfigPath } from '../../src/config.js';
+import { codexConfigPath, geminiSettingsPath } from '../../src/config.js';
 import { KEY_HEADER } from '../../src/daemon/keys.js';
 
 const KEY = 'a1'.repeat(32);
@@ -60,11 +61,13 @@ const refused = () => Promise.reject(new TypeError('fetch failed'));
 
 let home: string;
 let codexConfig: string;
+let geminiSettings: string;
 let logs: string[];
 
 beforeEach(() => {
   home = mkdtempSync(path.join(tmpdir(), 'messhall-mcp-cli-'));
   codexConfig = path.join(home, '.codex', 'config.toml');
+  geminiSettings = path.join(home, '.gemini', 'settings.json');
   writeFileSync(path.join(home, 'agent-key'), KEY, { mode: 0o600 });
   writeFileSync(path.join(home, 'human-key'), 'c3'.repeat(32), { mode: 0o600 });
   logs = [];
@@ -83,6 +86,7 @@ function deps(overrides: Partial<McpDeps> = {}): McpDeps {
     confirm: () => Promise.resolve(true),
     dataDir: home,
     fetch: healthy,
+    geminiSettings,
     isTty: true,
     log: line => logs.push(line),
     run: fakeRun({}).run,
@@ -95,6 +99,14 @@ const writeCodex = (text: string) => {
   mkdirSync(path.dirname(codexConfig), { recursive: true });
   writeFileSync(codexConfig, text);
 };
+
+const writeGemini = (text: string) => {
+  mkdirSync(path.dirname(geminiSettings), { recursive: true });
+  writeFileSync(geminiSettings, text);
+};
+
+const geminiOf = (settings: object) => `${JSON.stringify(settings, null, 2)}\n`;
+const GEMINI_ENTRY = geminiEntry({ key: KEY, url: URL_BASE });
 
 const configOf = (line: string) => JSON.parse(line.slice(line.indexOf("'") + 1, line.lastIndexOf("'"))) as unknown;
 
@@ -126,6 +138,32 @@ describe('codexConfigPath', () => {
     vi.stubEnv('CODEX_HOME', '/tmp/codex-home');
 
     expect(codexConfigPath()).toBe('/tmp/codex-home/config.toml');
+  });
+});
+
+describe('geminiSettingsPath', () => {
+  it('lives under HOME/.gemini by default', () => {
+    vi.stubEnv('GEMINI_CLI_HOME', '');
+    vi.stubEnv('HOME', '/tmp/someone');
+
+    expect(geminiSettingsPath()).toBe('/tmp/someone/.gemini/settings.json');
+  });
+
+  it('honors GEMINI_CLI_HOME', () => {
+    vi.stubEnv('GEMINI_CLI_HOME', '/tmp/gemini-home');
+
+    expect(geminiSettingsPath()).toBe('/tmp/gemini-home/.gemini/settings.json');
+  });
+});
+
+describe('geminiEntry', () => {
+  it('holds the http url, the key header, a ten minute timeout and trust', () => {
+    expect(GEMINI_ENTRY).toStrictEqual({
+      headers: { 'X-Messhall-Key': KEY },
+      httpUrl: MCP_URL,
+      timeout: 600_000,
+      trust: true,
+    });
   });
 });
 
@@ -185,7 +223,10 @@ describe('runMcpInstall --print', () => {
     expect(logs[0]).toBe(claudeLine({ key: KEY, url: URL_BASE }));
     expect(output()).toContain('claude --dangerously-load-development-channels server:messhall');
     expect(output().split(KEY)).toHaveLength(2);
+    expect(output()).toContain(`"httpUrl": "${MCP_URL}"`);
+    expect(output()).toContain('"X-Messhall-Key": "<agent key>"');
     expect(existsSync(codexConfig)).toBe(false);
+    expect(existsSync(geminiSettings)).toBe(false);
   });
 });
 
@@ -335,6 +376,104 @@ describe('runMcpInstall codex', () => {
   });
 });
 
+describe('runMcpInstall gemini', () => {
+  const claudeDone = () => fakeRun({ 'claude mcp get': [done(getOutput())] }).run;
+
+  beforeEach(() => {
+    writeCodex(`${codexBlock({ key: KEY, url: URL_BASE })}\n`);
+  });
+
+  it('adds the entry and keeps the rest of the file, with a backup', async () => {
+    const before = geminiOf({ mcpServers: { other: { command: 'other' } }, theme: 'dark' });
+    writeGemini(before);
+
+    const code = await runMcpInstall({ print: false, yes: true }, deps({ run: claudeDone() }));
+
+    expect(code).toBe(0);
+    expect(JSON.parse(readFileSync(geminiSettings, 'utf8'))).toStrictEqual({
+      mcpServers: { messhall: GEMINI_ENTRY, other: { command: 'other' } },
+      theme: 'dark',
+    });
+    expect(readFileSync(`${geminiSettings}.bak`, 'utf8')).toBe(before);
+    expect(output()).toContain('✔ gemini: wrote');
+    expect(output()).not.toContain(KEY);
+  });
+
+  it('creates settings.json when gemini has a folder but no file', async () => {
+    mkdirSync(path.dirname(geminiSettings));
+
+    await runMcpInstall({ print: false, yes: true }, deps({ run: claudeDone() }));
+
+    expect(readFileSync(geminiSettings, 'utf8')).toBe(geminiOf({ mcpServers: { messhall: GEMINI_ENTRY } }));
+  });
+
+  it('skips gemini when there is no .gemini folder', async () => {
+    const code = await runMcpInstall({ print: false, yes: true }, deps({ run: claudeDone() }));
+
+    expect(code).toBe(0);
+    expect(existsSync(path.dirname(geminiSettings))).toBe(false);
+    expect(output()).toContain('gemini: no');
+  });
+
+  it('leaves an identical entry alone without asking', async () => {
+    const text = geminiOf({ mcpServers: { messhall: GEMINI_ENTRY } });
+    writeGemini(text);
+    const confirm = vi.fn(() => Promise.resolve(true));
+
+    await runMcpInstall({ print: false, yes: false }, deps({ confirm, run: claudeDone() }));
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(existsSync(`${geminiSettings}.bak`)).toBe(false);
+    expect(output()).toContain('✔ gemini: already installed');
+  });
+
+  it('replaces an older entry after asking', async () => {
+    writeGemini(geminiOf({ mcpServers: { messhall: { ...GEMINI_ENTRY, headers: { 'X-Messhall-Key': OLD_KEY } } } }));
+    const confirm = vi.fn(() => Promise.resolve(true));
+
+    await runMcpInstall({ print: false, yes: false }, deps({ confirm, run: claudeDone() }));
+
+    expect(confirm).toHaveBeenCalledWith(`replace the messhall entry in ${geminiSettings}?`);
+    expect(readFileSync(geminiSettings, 'utf8')).toBe(geminiOf({ mcpServers: { messhall: GEMINI_ENTRY } }));
+  });
+
+  it('leaves the file alone when the user says no', async () => {
+    writeGemini('{}\n');
+
+    const code = await runMcpInstall(
+      { print: false, yes: false },
+      deps({ confirm: () => Promise.resolve(false), run: claudeDone() }),
+    );
+
+    expect(code).toBe(0);
+    expect(readFileSync(geminiSettings, 'utf8')).toBe('{}\n');
+    expect(output()).toContain('gemini: skipped, nothing written');
+  });
+
+  it('exits 1 and writes nothing when settings.json is not plain json', async () => {
+    const text = '{\n  // mine\n  "theme": "dark"\n}\n';
+    writeGemini(text);
+
+    const code = await runMcpInstall({ print: false, yes: true }, deps({ run: claudeDone() }));
+
+    expect(code).toBe(1);
+    expect(readFileSync(geminiSettings, 'utf8')).toBe(text);
+    expect(output()).toContain(`✖ gemini: ${geminiSettings} is not plain JSON`);
+  });
+
+  it('refuses a pipe without --yes when only gemini needs a write', async () => {
+    writeGemini('{}\n');
+    const { calls, run } = fakeRun({});
+
+    const code = await runMcpInstall({ print: false, yes: false }, deps({ isTty: false, run }));
+
+    expect(code).toBe(1);
+    expect(calls).toStrictEqual([]);
+    expect(output()).toContain('Not a terminal.');
+    expect(readFileSync(geminiSettings, 'utf8')).toBe('{}\n');
+  });
+});
+
 describe('runMcpDoctor', () => {
   const versions = {
     'claude --version': [done('2.1.289 (Claude Code)')],
@@ -390,6 +529,54 @@ describe('runMcpDoctor', () => {
     expect(output()).toContain('messhall start');
     expect(output()).toContain('✖ claude entry: missing');
     expect(output()).toContain('✖ codex entry: missing');
+  });
+});
+
+describe('runMcpDoctor gemini', () => {
+  const run = () =>
+    fakeRun({
+      'claude --version': [done('2.1.289 (Claude Code)')],
+      'claude mcp get': [done(getOutput())],
+      'codex --version': [done('codex-cli 0.157.1')],
+    }).run;
+
+  beforeEach(() => {
+    writeCodex(`${codexBlock({ key: KEY, url: URL_BASE })}\n`);
+  });
+
+  it('is a dim info line when gemini is not set up', async () => {
+    const code = await runMcpDoctor(deps({ run: run() }));
+
+    expect(code).toBe(0);
+    expect(logs).toContain(pc.dim(`gemini entry: no ${path.dirname(geminiSettings)}, gemini not set up`));
+  });
+
+  it('is green when the entry matches', async () => {
+    writeGemini(geminiOf({ mcpServers: { messhall: GEMINI_ENTRY } }));
+
+    const code = await runMcpDoctor(deps({ run: run() }));
+
+    expect(code).toBe(0);
+    expect(output()).toContain(`✔ gemini entry: ${MCP_URL} with the agent key`);
+    expect(output()).not.toContain(KEY);
+  });
+
+  it.each([
+    ['missing', '{}\n', '✖ gemini entry: missing'],
+    [
+      'stale',
+      geminiOf({ mcpServers: { messhall: { ...GEMINI_ENTRY, headers: { 'X-Messhall-Key': OLD_KEY } } } }),
+      '✖ gemini entry: url, key, timeout or trust is out of date',
+    ],
+    ['not plain json', '{ // mine\n}', '✖ gemini entry: '],
+  ])('goes red when the entry is %s', async (_, text, line) => {
+    writeGemini(text);
+
+    const code = await runMcpDoctor(deps({ run: run() }));
+
+    expect(code).toBe(1);
+    expect(output()).toContain(line);
+    expect(output()).not.toContain(OLD_KEY);
   });
 });
 
@@ -506,5 +693,32 @@ describe('runMcpUninstall', () => {
     expect(code).toBe(0);
     expect(output()).toContain('claude code: no messhall entry');
     expect(output()).toContain('codex: no messhall block');
+    expect(output()).toContain('gemini: no messhall entry');
+  });
+
+  it('removes only the messhall entry from the gemini settings, with a backup', async () => {
+    const before = geminiOf({ mcpServers: { messhall: GEMINI_ENTRY, other: { command: 'other' } }, theme: 'dark' });
+    writeGemini(before);
+
+    const code = await runMcpUninstall({ yes: true }, deps({ run: fakeRun({}).run }));
+
+    expect(code).toBe(0);
+    expect(readFileSync(geminiSettings, 'utf8')).toBe(
+      geminiOf({ mcpServers: { other: { command: 'other' } }, theme: 'dark' }),
+    );
+    expect(readFileSync(`${geminiSettings}.bak`, 'utf8')).toBe(before);
+    expect(output()).toContain('✔ gemini: removed the messhall entry');
+  });
+
+  it('refuses a pipe without --yes when gemini has an entry', async () => {
+    const text = geminiOf({ mcpServers: { messhall: GEMINI_ENTRY } });
+    writeGemini(text);
+    const { calls, run } = fakeRun({});
+
+    const code = await runMcpUninstall({ yes: false }, deps({ isTty: false, run }));
+
+    expect(code).toBe(1);
+    expect(calls).toStrictEqual([]);
+    expect(readFileSync(geminiSettings, 'utf8')).toBe(text);
   });
 });

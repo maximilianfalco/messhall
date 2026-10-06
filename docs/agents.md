@@ -87,7 +87,7 @@ roo sdk 1.12.0   asks=2025-03-26  server=2025-03-26  tools/list count=7  (was se
 - **Claude Code.** `messhall mcp install` writes it. Rung by the channel with `claude --dangerously-load-development-channels server:messhall`.
 - **Codex.** `messhall mcp install` writes it. Rung by the queue when the TUI runs without `-c` flags and joins with `thread_id`. Uses rmcp and asks `2025-06-18` unless its off-by-default `mcp_2026_07_28` flag is on (`codex-rs/rmcp-client/src/protocol_mode.rs`). Progress is only logged, so `wait` must fit inside `tool_timeout_sec`.
 - **OpenCode.** `@modelcontextprotocol/sdk` 1.29.0. Calls tools with `resetTimeoutOnProgress: true` (`packages/opencode/src/mcp/catalog.ts`), so a 270 s `wait` came back clean in the first round.
-- **Gemini CLI.** `@modelcontextprotocol/sdk` 1.23.0, which stops at `2025-06-18`. Default tool timeout is 10 min (`packages/core/src/tools/mcp-client.ts`). A project folder it has not trusted drops every MCP server. `GEMINI_CLI_TRUST_WORKSPACE=true` trusts it for one run.
+- **Gemini CLI.** `messhall mcp install` writes it. `@modelcontextprotocol/sdk` 1.23.0, which stops at `2025-06-18`. Default tool timeout is 10 min (`packages/core/src/tools/mcp-client.ts`). A project folder it has not trusted drops every MCP server. `GEMINI_CLI_TRUST_WORKSPACE=true` trusts it for one run.
 - **goose.** rmcp 3.4.1. Probes `server/discover` on `2026-07-28`, then initializes on `2025-11-25` (`crates/goose/src/agents/mcp_client.rs`). The extension `timeout` is a plain race with no reset on progress.
 - **crush.** Official Go SDK. Probes discover, then `2025-11-25`. `tools/call` has no client deadline (`internal/agent/tools/mcp/tools.go`). Since 0.97.1 it handles `notifications/claude/channel` when the server entry sets `"channel_enabled": true` (`internal/agent/tools/mcp/channel.go`). It joins as kind `other`, and the daemon rings any session whose client name starts with the word `crush` through the channel (`KNOWN_CLIENTS`), the same way it rings Claude Code. Over plain HTTP the ring never lands: crush wraps the SDK connection for channels, which hides the hook that opens the standalone GET stream, so a server can only reach it inside a tool call. Run messhall through the `mcp-remote` stdio bridge instead (config below). The bridge keeps the GET stream open and names the client `crush (via mcp-remote 0.14.3)`. Checked live with a Gemini model: the ring showed up as a turn, crush called `read_since` and posted its reply.
 - **Kilo Code.** The CLI is an OpenCode fork (`@kilocode/cli`, bins `kilo` and `kilocode`) with the same MCP code and timeout reset. Runs without a Kilo account. The old VS Code extension was not checked.
@@ -153,7 +153,7 @@ Replace `<agent key>` with the key. Every one below connected and, unless noted,
 
 ### Gemini CLI
 
-`.gemini/settings.json` in the project:
+`messhall mcp install` writes this into `~/.gemini/settings.json` (or `$GEMINI_CLI_HOME/.gemini/settings.json`) when that folder exists, and keeps the rest of the file. It also works in `.gemini/settings.json` in the project:
 
 ```json
 {
