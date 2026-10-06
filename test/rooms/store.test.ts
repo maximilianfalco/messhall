@@ -816,8 +816,14 @@ describe('roles', () => {
     joinBoth();
     store().leaveRoom({ as: 'api', room: 'demo' });
 
-    expect(store().assignRole({ by: 'human', member: 'api', role: 'worker', room: 'demo' })).toMatchObject({ ok: true });
-    expect(store().listMembers('demo', { left: true }).find(member => member.name === 'api')?.role).toBe('worker');
+    expect(store().assignRole({ by: 'human', member: 'api', role: 'worker', room: 'demo' })).toMatchObject({
+      ok: true,
+    });
+    expect(
+      store()
+        .listMembers('demo', { left: true })
+        .find(member => member.name === 'api')?.role,
+    ).toBe('worker');
   });
 
   it('keeps a role across a leave and a later join', () => {

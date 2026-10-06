@@ -140,15 +140,13 @@ export function spawnArgv({ debugFile, mcpConfig, model }: { debugFile: string; 
 
 /** Spawn and seat sessions from `tmux list-panes -a -F '#{session_name}\t#{pane_id}\t#{pane_pid}'`, first pane each. */
 export function parseFlock(listing: string) {
-  const panes = new Map<string, FlockPane>();
-  for (const line of listing.split('\n')) {
+  const panes = listing.split('\n').flatMap((line): FlockPane[] => {
     const [session = '', pane = '', pid = ''] = line.split('\t');
-    if (panes.has(session)) continue;
     const base = { pane, pid: Number(pid), session };
     const name = SEAT.exec(session)?.[1];
     const row = SESSION.exec(session)?.[1];
-    if (name) panes.set(session, { ...base, kind: 'seat', name });
-    else if (row) panes.set(session, { ...base, kind: 'row', row });
-  }
-  return [...panes.values()];
+    if (name) return [{ ...base, kind: 'seat', name }];
+    return row ? [{ ...base, kind: 'row', row }] : [];
+  });
+  return panes.filter((entry, index) => panes.findIndex(other => other.session === entry.session) === index);
 }
