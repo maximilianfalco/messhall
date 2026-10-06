@@ -3,6 +3,6 @@ import { defineConfig } from 'oxfmt';
 
 export default defineConfig(
   Object.assign(structuredClone(oxfmtConfig), {
-    ignorePatterns: ['**/.claude/**', '**/dist/**', '**/*.json', 'pnpm-lock.yaml'],
+    ignorePatterns: ['**/.claude/**', '**/dist/**', 'src/codex/generated/**', '**/*.json', 'pnpm-lock.yaml'],
   }),
 );

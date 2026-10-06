@@ -36,6 +36,12 @@ export function codexConfigPath() {
   return path.join(process.env.CODEX_HOME || path.join(homedir(), '.codex'), 'config.toml');
 }
 
+/** Codex's shared app-server control socket. `MESSHALL_CODEX_SOCKET` wins, then `CODEX_HOME`, as for codex itself. */
+export function codexControlSocket() {
+  const codexHome = process.env.CODEX_HOME || path.join(homedir(), '.codex');
+  return process.env.MESSHALL_CODEX_SOCKET || path.join(codexHome, 'app-server-control', 'app-server-control.sock');
+}
+
 /** Where rooms and keys live. `MESSHALL_HOME` wins so tests and tapes never touch the real data. */
 export function dataDir() {
   return process.env.MESSHALL_HOME || path.join(homedir(), 'Library', 'Application Support', 'messhall');
@@ -61,6 +67,9 @@ export const HEALTH_TIMEOUT_MS = 1000;
 export const RING_BATCH_MS = 3000;
 export const RING_THROTTLE_MS = 20_000;
 export const RING_ACTIVE_SKIP_MS = 5000;
+export const CODEX_REQUEST_TIMEOUT_MS = 5000;
+export const CODEX_RECONNECT_MIN_MS = 500;
+export const CODEX_RECONNECT_MAX_MS = 30_000;
 export const FEED_SNAPSHOT_MESSAGES = 50;
 export const FEED_PAGE_DEFAULT = 50;
 export const FEED_PAGE_MAX = 200;

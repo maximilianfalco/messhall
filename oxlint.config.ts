@@ -11,7 +11,7 @@ export default defineConfig({
   options: {
     reportUnusedDisableDirectives: 'error',
   },
-  ignorePatterns: ['**/.claude/**', '**/dist/**', '**/node_modules/**'],
+  ignorePatterns: ['**/.claude/**', '**/dist/**', 'src/codex/generated/**', '**/node_modules/**'],
   env: {
     es2022: true,
     node: true,

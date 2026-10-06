@@ -15,6 +15,7 @@ import { connectHttp } from '../../src/mcp/testing.js';
 import { createMcpEndpoint } from '../../src/mcp/transport.js';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
+import { fakeCodexRpc } from '../codex/fakeCodex.js';
 
 import { textOf } from './harness.js';
 
@@ -201,7 +202,7 @@ describe('createMcpEndpoint sweep', () => {
   it('closes a session with no open request for 30 minutes and marks its members gone', async () => {
     const db = openDb({ dataDir: home });
     const store = createRoomStore({ db, now });
-    const endpoint = createMcpEndpoint({ now, store });
+    const endpoint = createMcpEndpoint({ codex: fakeCodexRpc(), now, store });
     server = createServer((req, res) => {
       endpoint.handle(req, res)?.catch(() => {});
     });

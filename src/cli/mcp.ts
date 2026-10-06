@@ -8,7 +8,8 @@ import path from 'node:path';
 import { confirm as clackConfirm, isCancel } from '@clack/prompts';
 import pc from 'picocolors';
 
-import { codexConfigPath, daemonUrl, dataDir } from '../config.js';
+import { createCodexClient } from '../codex/client.js';
+import { codexConfigPath, codexControlSocket, daemonUrl, dataDir } from '../config.js';
 import { readBlock, withBlock, withoutBlock } from '../lib/codexToml.js';
 import { runCommand } from '../lib/run.js';
 import { SERVER_NAME, TEXT_BUDGET } from '../mcp/constants.js';
@@ -22,7 +23,8 @@ import { readAgentKey } from './agentKey.js';
 import { probeHealth } from './status.js';
 
 const CLAUDE = 'claude';
-const KEY_HEADER_NAME = 'X-Messhall-Key';
+// Codex fails the MCP handshake with the lowercase name, so this spelling is load-bearing.
+export const KEY_HEADER_NAME = 'X-Messhall-Key';
 const MASK = '<agent key>';
 const CODEX_HEADER = `[mcp_servers.${SERVER_NAME}]`;
 // Codex asks before every MCP tool call by default, which stalls a room.
@@ -208,7 +210,8 @@ async function toolChecks(): Promise<Check[]> {
   const session = createSession({ id: 'doctor', now });
   const sessions = createSessionRegistry<{ session: McpSession }>();
   const store = createRoomStore({ db, now });
-  const client = await connectInMemory(() => createMesshallServer({ now, session, sessions, store }));
+  const codex = createCodexClient({ socketPath: codexControlSocket() });
+  const client = await connectInMemory(() => createMesshallServer({ codex, now, session, sessions, store }));
   try {
     const { tools } = await client.listTools();
     return tools.map(tool => {
@@ -217,6 +220,7 @@ async function toolChecks(): Promise<Check[]> {
     });
   } finally {
     await client.close();
+    codex.close();
     db.close();
     rmSync(home, { force: true, recursive: true });
   }

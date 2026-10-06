@@ -16,8 +16,12 @@ export function createSession({ id, now }: { id: string; now: () => Date }) {
     bind(binding: { kind: AgentKind; name: string; room: string; threadId?: string }) {
       rooms.set(binding.room, binding.name);
       ({ kind } = binding);
-      // Kept for the Codex doorbell. Not checked yet.
+      // A codex thread id is only passed once thread/read has checked it.
       if (binding.threadId) ({ threadId } = binding);
+    },
+    /** Forgets the codex thread after a ring failed, so the member falls back to wait. */
+    dropThread() {
+      threadId = undefined;
     },
     /** Counts one open HTTP request until the returned function runs. */
     hold() {
