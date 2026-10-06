@@ -26,6 +26,7 @@ struct RoomDetail: View {
     .navigationSubtitle(subtitle)
     .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
     .onChange(of: room.name) { query = "" }
+    .toolbar { MuteButton(room: room.name) }
   }
 }
 

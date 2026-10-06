@@ -25,8 +25,8 @@ const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: s
 };
 
 /**
- * One MCP server for one session. It speaks only 2025-11-25: on 2026-07-28 Claude Code stops
- * treating it as a channel. The channel capability is what Claude Code checks at register time.
+ * One MCP server for one session. It speaks 2025-11-25 and 2025-06-18, never 2026-07-28: there
+ * Claude Code stops treating it as a channel. Claude Code checks the channel capability at register time.
  */
 export function createMesshallServer(deps: ToolDeps) {
   const server = new McpServer(

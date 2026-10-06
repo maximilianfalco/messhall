@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
-import { checkShotHome, pickWindow, seedShotRooms } from '../../tools/dev/commands/appShot.js';
+import { checkShotHome, leftoverApps, pickWindow, seedShotRooms } from '../../tools/dev/commands/appShot.js';
 
 describe('pickWindow', () => {
   it('picks the largest layer 0 window', () => {
@@ -56,5 +56,25 @@ describe('seedShotRooms', () => {
       'web codex waiting',
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
+  });
+});
+
+describe('leftoverApps', () => {
+  it('kills only the launched pids that are still alive and returns them', () => {
+    const alive = new Set([12, 30]);
+    const killed: number[] = [];
+
+    const left = leftoverApps({
+      isAlive: pid => alive.has(pid),
+      kill: pid => killed.push(pid),
+      launched: [11, 12, 13],
+    });
+
+    expect(left).toStrictEqual([12]);
+    expect(killed).toStrictEqual([12]);
+  });
+
+  it('returns nothing when every launched app quit', () => {
+    expect(leftoverApps({ isAlive: () => false, kill: () => {}, launched: [11, 12] })).toStrictEqual([]);
   });
 });
