@@ -7,6 +7,7 @@ import { registerEnv } from './commands/env.js';
 import { registerFeatureMap } from './commands/featuremap.js';
 import { registerQaUpload } from './commands/qaUpload.js';
 import { registerRoom } from './commands/room.js';
+import { registerSchema } from './commands/schema.js';
 import { registerStore } from './commands/store.js';
 
 const program = new Command()
@@ -22,6 +23,7 @@ const program = new Command()
   registerStore,
   registerDaemon,
   registerRoom,
+  registerSchema,
 ].forEach(register => register(program));
 
 await program.parseAsync(process.argv);

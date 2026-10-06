@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "tsx --disable-warning=ExperimentalWarning src/cli.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && pnpm -s schema",
+    "schema": "tsx --disable-warning=ExperimentalWarning tools/dev/cli.ts schema",
     "test": "vitest run",
     "lint": "oxlint --config oxlint.config.ts .",
     "lint:types": "tsc --noEmit",
