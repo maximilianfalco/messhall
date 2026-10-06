@@ -1,4 +1,4 @@
-# QA tape for the spawn rules: the seat prompt keeps agents off the human seat, the argv reads the main checkout, row agents close their own row.
+# QA tape for the spawn rules: the seat prompt keeps agents off the human seat, the argv may read the main checkout's plan, row agents close their own row.
 
 Output demo/out/spawn-rules.mp4
 Output demo/out/spawn-rules.gif
@@ -18,7 +18,7 @@ Type "clear"
 Enter
 Show
 
-Type "pnpm -s messhall-dev spawn agent --as reviewer-9 --dry-run | grep -oE -- '--add-dir [^ ]+|Talk in the room[^.]*\.|Never speak as the human[^.]*\.|test with[^.]*\.'; echo exit $?"
+Type "pnpm -s messhall-dev spawn agent --as reviewer-9 --dry-run | grep -oE -- 'Read\(/[^)]*\)|Talk in the room[^.]*\.|Never speak as the human[^.]*\.|test with[^.]*\.'; echo exit $?"
 Sleep 500ms
 Enter
 Sleep 6s

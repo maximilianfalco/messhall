@@ -127,9 +127,7 @@ describe('spawnArgv', () => {
   it('is the shared claude argv with the normal tools and the model', () => {
     const files = { debugFile: '/d.log', mcpConfig: '/m.json' };
     expect(spawnArgv({ ...files, mainCheckout: '/repo', model: 'opus' })).toStrictEqual([
-      ...claudeArgv({ ...files, allowedTools: SPAWN_ALLOWED_TOOLS }),
-      '--add-dir',
-      '/repo',
+      ...claudeArgv({ ...files, allowedTools: [...SPAWN_ALLOWED_TOOLS, 'Read(//repo/personal-dev-notes.md)'] }),
       '--model',
       'opus',
     ]);

@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 
 import { claudeArgv } from './claudeTmux.js';
@@ -5,6 +7,7 @@ import { claudeArgv } from './claudeTmux.js';
 export const SPAWN_SESSION_PREFIX = 'messhall-';
 export const SEAT_SESSION_PREFIX = `${SPAWN_SESSION_PREFIX}seat-`;
 export const ROLE_WAIT_MIN = 2;
+const PLAN_FILE = 'personal-dev-notes.md';
 // A build agent works alone, so it gets the usual tools, not the demo's short list.
 export const SPAWN_ALLOWED_TOOLS = [
   `mcp__${SERVER_NAME}`,
@@ -116,7 +119,7 @@ export function seatPrompt({ name, room }: { name: string; room: string }) {
   return [`You are a seated agent with no job yet.`, ...seatLines({ name, room, until: '' })].join(' ');
 }
 
-/** The shared claude argv with the normal tool set and `--model`. `--add-dir` lets it read the main checkout's linked plan without a prompt. */
+/** The shared claude argv with the normal tool set and `--model`. It may also read the main checkout's plan without a prompt. */
 export function spawnArgv({
   debugFile,
   mainCheckout,
@@ -128,13 +131,9 @@ export function spawnArgv({
   mcpConfig: string;
   model: string;
 }) {
-  return [
-    ...claudeArgv({ allowedTools: SPAWN_ALLOWED_TOOLS, debugFile, mcpConfig }),
-    '--add-dir',
-    mainCheckout,
-    '--model',
-    model,
-  ];
+  // A read rule on one file, not --add-dir, since Edit and Write would then reach the whole main checkout.
+  const allowedTools = [...SPAWN_ALLOWED_TOOLS, `Read(/${path.join(mainCheckout, PLAN_FILE)})`];
+  return [...claudeArgv({ allowedTools, debugFile, mcpConfig }), '--model', model];
 }
 
 /** Spawn and seat sessions from `tmux list-panes -a -F '#{session_name}\t#{pane_id}\t#{pane_pid}'`, first pane each. */
