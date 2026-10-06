@@ -30,7 +30,13 @@ describe('config', () => {
   });
 
   it('writes logs to Library/Logs', () => {
+    vi.stubEnv('MESSHALL_HOME', '');
     vi.stubEnv('HOME', '/Users/someone');
     expect(logDir()).toBe('/Users/someone/Library/Logs/messhall');
+  });
+
+  it('keeps logs under MESSHALL_HOME when it is set', () => {
+    vi.stubEnv('MESSHALL_HOME', '/tmp/messhall-test-home');
+    expect(logDir()).toBe('/tmp/messhall-test-home/logs');
   });
 });

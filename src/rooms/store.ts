@@ -1,0 +1,355 @@
+import type { BusEvent, MemberChange } from '../../contracts/events.ts';
+import type { AgentKind, Member, MessageKind, Presence, Room } from '../../contracts/room.ts';
+import type { DatabaseSync } from 'node:sqlite';
+
+import { randomUUID } from 'node:crypto';
+
+import {
+  HUMAN_NAME,
+  memberSchema,
+  messageSchema,
+  RESERVED_NAMES,
+  roomSchema,
+  roomSummarySchema,
+  SYSTEM_NAME,
+  TEXT_MAX_CHARS,
+} from '../../contracts/room.ts';
+import { DEFAULT_MESSAGE_CAP, READ_LIMIT } from '../config.js';
+import { parseStoredJson } from '../lib/json.js';
+
+import { createEventBus } from './events.js';
+import { capState, nextPresence, parseMentions } from './rules.js';
+
+export type TouchState = Exclude<Presence, 'idle'>;
+
+export interface PresenceChange {
+  from: Presence;
+  name: string;
+  room: string;
+  to: Presence;
+}
+
+type Emit = (event: BusEvent) => void;
+type Row = Record<string, unknown>;
+
+const NAME_MAX = 40;
+
+const toRoom = (row: Row) => roomSchema.parse(row);
+const toMember = (row: Row) => memberSchema.parse({ ...row, done: row.done === 1 });
+const toMessage = (row: Row) =>
+  messageSchema.parse({ ...row, from: row.from_name, mentions: parseStoredJson(String(row.mentions)) });
+
+const isReserved = (name: string) => (RESERVED_NAMES as readonly string[]).includes(name);
+
+/**
+ * The room store over one db handle. Every write runs in a transaction and its events reach
+ * listeners only after the commit. Time comes from `now`, so tests drive the clock.
+ */
+export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date }) {
+  const bus = createEventBus({ db, now });
+  const stamp = () => now().toISOString();
+
+  const sql = {
+    agentsNotDone: db.prepare(
+      "SELECT count(*) AS n FROM members WHERE room_id = ? AND left_at IS NULL AND kind != 'human' AND done = 0",
+    ),
+    closeRoom: db.prepare('UPDATE rooms SET closed_at = ? WHERE id = ?'),
+    countPosts: db.prepare("SELECT count(*) AS n FROM messages WHERE room_id = ? AND kind != 'system'"),
+    insertMember: db.prepare(
+      'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence) VALUES (?, ?, ?, ?, ?, ?)',
+    ),
+    insertMessage: db.prepare(
+      'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
+    ),
+    insertRoom: db.prepare('INSERT INTO rooms (id, name, created_at, message_cap) VALUES (?, ?, ?, ?)'),
+    latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
+    leave: db.prepare("UPDATE members SET left_at = ?, presence = 'gone' WHERE room_id = ? AND name = ?"),
+    liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
+    member: db.prepare('SELECT * FROM members WHERE room_id = ? AND name = ?'),
+    moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
+    rejoin: db.prepare(
+      "UPDATE members SET kind = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
+    ),
+    reopen: db.prepare('UPDATE rooms SET closed_at = NULL, message_cap = ? WHERE id = ?'),
+    room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
+    roomById: db.prepare('SELECT * FROM rooms WHERE id = ?'),
+    rooms: db.prepare(
+      "SELECT rooms.*, (SELECT count(*) FROM messages WHERE room_id = rooms.id AND kind != 'system') AS message_count FROM rooms ORDER BY name",
+    ),
+    seen: db.prepare('UPDATE members SET presence = ?, last_seen_at = ? WHERE room_id = ? AND name = ?'),
+    setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
+    setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
+    sweepable: db.prepare(
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence != 'gone' ORDER BY rooms.name, members.name",
+    ),
+    unseen: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? AND from_name != ? ORDER BY id LIMIT ?'),
+  };
+
+  function transaction<T>(work: (emit: Emit) => T) {
+    const pending: BusEvent[] = [];
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = work(event => pending.push(event));
+      db.exec('COMMIT');
+      pending.forEach(event => bus.emit(event));
+      return result;
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  const findRoom = (name: string) => {
+    const row = sql.room.get(name);
+    return row ? toRoom(row) : undefined;
+  };
+  const roomById = (id: string) => toRoom(sql.roomById.get(id)!);
+  const findMember = (room: Room, name: string) => {
+    const row = sql.member.get(room.id, name);
+    return row ? toMember(row) : undefined;
+  };
+  const countPosts = (room: Room) => Number(sql.countPosts.get(room.id)?.n);
+
+  function post(room: Room, from: string, kind: MessageKind, text: string, mentions: string[], emit: Emit) {
+    const message = toMessage(sql.insertMessage.get(room.id, from, kind, text, JSON.stringify(mentions), stamp())!);
+    emit({ message, room: room.name, type: 'message' });
+    return message;
+  }
+  const systemLine = (room: Room, text: string, emit: Emit) => post(room, SYSTEM_NAME, 'system', text, [], emit);
+
+  function setPresence(room: Room, member: Member, to: Presence, emit: Emit, seen: boolean) {
+    if (seen) sql.seen.run(to, stamp(), room.id, member.name);
+    else sql.setPresence.run(to, room.id, member.name);
+    if (member.presence === to) return;
+    emit({ from: member.presence, name: member.name, room: room.name, to, type: 'presence' });
+    if (to === 'gone') systemLine(room, `${member.name} is gone`, emit);
+  }
+
+  function addHuman(room: Room, emit: Emit) {
+    const existing = findMember(room, HUMAN_NAME);
+    if (existing) return existing;
+    sql.insertMember.run(room.id, HUMAN_NAME, 'human', stamp(), stamp(), 'idle');
+    const member = findMember(room, HUMAN_NAME)!;
+    emit({ change: 'joined', member, room: room.name, type: 'member' });
+    return member;
+  }
+
+  function createRoom(name: string, emit: Emit) {
+    sql.insertRoom.run(randomUUID(), name, stamp(), DEFAULT_MESSAGE_CAP);
+    const room = findRoom(name)!;
+    emit({ change: 'created', room, type: 'room' });
+    addHuman(room, emit);
+    return room;
+  }
+
+  function close(room: Room, text: string, emit: Emit) {
+    sql.closeRoom.run(stamp(), room.id);
+    systemLine(room, text, emit);
+    emit({ change: 'closed', room: roomById(room.id), type: 'room' });
+  }
+
+  function reopen(room: Room, emit: Emit) {
+    sql.reopen.run(countPosts(room) + DEFAULT_MESSAGE_CAP, room.id);
+    const reopened = roomById(room.id);
+    systemLine(reopened, `#${room.name} reopened, ${DEFAULT_MESSAGE_CAP} more posts`, emit);
+    emit({ change: 'reopened', room: reopened, type: 'room' });
+    return reopened;
+  }
+
+  function suggestName(room: Room, name: string) {
+    for (let n = 2; ; n += 1) {
+      const suffix = `-${n}`;
+      const candidate = `${name.slice(0, NAME_MAX - suffix.length)}${suffix}`;
+      if (!findMember(room, candidate)) return candidate;
+    }
+  }
+
+  // Finds the room and a member still in it, the gate every member call goes through.
+  function seat(roomName: string, name: string) {
+    const room = findRoom(roomName);
+    if (!room) return { ok: false, reason: 'no_room' } as const;
+    const member = findMember(room, name);
+    if (!member || member.left_at !== null) return { ok: false, reason: 'not_member' } as const;
+    return { member, ok: true, room } as const;
+  }
+
+  return {
+    events: { on: bus.on, since: bus.since },
+
+    /** Adds the human seat to a room that lacks it. Rooms made by `joinRoom` already have it. */
+    ensureHuman(roomName: string) {
+      return transaction(emit => {
+        const room = findRoom(roomName);
+        if (!room) return { ok: false, reason: 'no_room' } as const;
+        return { member: addHuman(room, emit), ok: true } as const;
+      });
+    },
+
+    /**
+     * Joins `as` to the room, making the room on first join. A gone holder is taken over with its
+     * cursor ("reconnected"), a live holder gives `name_taken` with a free name to try.
+     */
+    joinRoom({ as, kind, room: roomName }: { as: string; kind: AgentKind; room: string }) {
+      if (isReserved(as)) return { ok: false, reason: 'name_reserved' } as const;
+      return transaction(emit => {
+        const room = findRoom(roomName) ?? createRoom(roomName, emit);
+        const existing = findMember(room, as);
+        if (existing && existing.left_at === null && existing.presence !== 'gone') {
+          return { ok: false, reason: 'name_taken', suggestion: suggestName(room, as) } as const;
+        }
+        const change: MemberChange = existing?.left_at === null ? 'reconnected' : 'joined';
+        if (existing) sql.rejoin.run(kind, stamp(), room.id, as);
+        else sql.insertMember.run(room.id, as, kind, stamp(), stamp(), 'active');
+        const member = findMember(room, as)!;
+        emit({ change, member, room: room.name, type: 'member' });
+        systemLine(room, `${as} ${change}`, emit);
+        return { change, member, ok: true, room } as const;
+      });
+    },
+
+    /** Leaves the room with a system line. The cursor stays for a later join. */
+    leaveRoom({ as, note, room: roomName }: { as: string; note?: string; room: string }) {
+      return transaction(emit => {
+        const found = seat(roomName, as);
+        if (!found.ok) return found;
+        sql.leave.run(stamp(), found.room.id, as);
+        emit({ change: 'left', member: findMember(found.room, as)!, room: found.room.name, type: 'member' });
+        systemLine(found.room, note ? `${as} left: ${note}` : `${as} left`, emit);
+        return { ok: true } as const;
+      });
+    },
+
+    /** Members still in the room, by name. Empty when the room does not exist. */
+    listMembers(roomName: string) {
+      const room = findRoom(roomName);
+      return room ? sql.liveMembers.all(room.id).map(toMember) : [];
+    },
+
+    /** Every room by name, with how many posts count toward its cap. */
+    listRooms() {
+      return sql.rooms.all().map(row => roomSummarySchema.parse(row));
+    },
+
+    /**
+     * Posts as a member. Mentions are read against current members. Closes the room at its cap or
+     * when every agent is done. Only the human can post into a closed room, and that reopens it.
+     */
+    postMessage({
+      done = false,
+      from,
+      room: roomName,
+      text,
+    }: {
+      done?: boolean;
+      from: string;
+      room: string;
+      text: string;
+    }) {
+      if (text.length > TEXT_MAX_CHARS) return { length: text.length, ok: false, reason: 'too_long' } as const;
+      return transaction(emit => {
+        const found = seat(roomName, from);
+        if (!found.ok) return found;
+        const { member } = found;
+        const human = member.kind === 'human';
+        let { room } = found;
+        if (room.closed_at !== null) {
+          if (!human) {
+            return { ok: false, reason: countPosts(room) >= room.message_cap ? 'room_full' : 'room_closed' } as const;
+          }
+          room = reopen(room, emit);
+        }
+        const names = sql.liveMembers.all(room.id).map(row => String(row.name));
+        const kind = done && !human ? 'done' : 'chat';
+        const message = post(room, from, kind, text, parseMentions({ names, text }), emit);
+        sql.setDone.run(kind === 'done' ? 1 : 0, room.id, from);
+        setPresence(room, member, 'active', emit, true);
+
+        const count = countPosts(room);
+        const cap = capState({ cap: room.message_cap, count });
+        if (cap === 'full') {
+          close(
+            room,
+            `#${room.name} reached its cap of ${room.message_cap} and is closed. ask the human to reopen`,
+            emit,
+          );
+        } else if (cap === 'warn') {
+          systemLine(room, `#${room.name} is at ${count}/${room.message_cap}, wrap up`, emit);
+        }
+        if (cap !== 'full' && kind === 'done' && Number(sql.agentsNotDone.get(room.id)?.n) === 0) {
+          close(room, 'all done, room closed', emit);
+        }
+        return { message, ok: true } as const;
+      });
+    },
+
+    /**
+     * Messages after the member's cursor, minus its own, at most 50, and moves the cursor.
+     * With `afterId` it reads from that point and leaves the cursor alone.
+     */
+    readUnseen({
+      afterId,
+      as,
+      limit = READ_LIMIT,
+      room: roomName,
+    }: {
+      afterId?: number;
+      as: string;
+      limit?: number;
+      room: string;
+    }) {
+      return transaction(emit => {
+        const found = seat(roomName, as);
+        if (!found.ok) return found;
+        const { member, room } = found;
+        const take = Math.min(limit, READ_LIMIT);
+        const rows = sql.unseen.all(room.id, afterId ?? member.cursor, as, take + 1);
+        const messages = rows.slice(0, take).map(toMessage);
+        const more = rows.length > take;
+        if (afterId === undefined) {
+          const last = more ? messages.at(-1)!.id : Number(sql.latestId.get(room.id)?.id ?? member.cursor);
+          if (last > member.cursor) sql.moveCursor.run(last, room.id, as);
+        }
+        setPresence(room, member, 'active', emit, true);
+        return { messages, more, ok: true } as const;
+      });
+    },
+
+    /** Reopens a closed room with a full cap from where it stands. */
+    reopenRoom(roomName: string) {
+      return transaction(emit => {
+        const room = findRoom(roomName);
+        if (!room) return { ok: false, reason: 'no_room' } as const;
+        if (room.closed_at === null) return { ok: false, reason: 'open' } as const;
+        return { ok: true, room: reopen(room, emit) } as const;
+      });
+    },
+
+    /** Moves agents along with the clock: active to idle at 2 minutes, anything to gone at 30. The human is left alone. */
+    sweepPresence() {
+      return transaction(emit => {
+        const at = now();
+        return sql.sweepable.all().flatMap(row => {
+          const member = toMember(row);
+          const to = nextPresence({ member, now: at });
+          if (to === member.presence) return [];
+          const room = roomById(member.room_id);
+          setPresence(room, member, to, emit, false);
+          const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to };
+          return [change];
+        });
+      });
+    },
+
+    /** Records a call: `active` for any call, `waiting` while blocked in wait, `gone` on session close. */
+    touch({ as, room: roomName, state }: { as: string; room: string; state: TouchState }) {
+      return transaction(emit => {
+        const found = seat(roomName, as);
+        if (!found.ok) return found;
+        setPresence(found.room, found.member, state, emit, state !== 'gone');
+        return { member: findMember(found.room, as)!, ok: true } as const;
+      });
+    },
+  };
+}
+
+export type RoomStore = ReturnType<typeof createRoomStore>;

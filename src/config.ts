@@ -11,7 +11,17 @@ export function dataDir() {
   return process.env.MESSHALL_HOME || path.join(homedir(), 'Library', 'Application Support', 'messhall');
 }
 
-/** Where the daemon writes its log file. */
+/** Where the daemon writes its log file. Under `MESSHALL_HOME` when set, so tests keep logs out of the real dir. */
 export function logDir() {
-  return path.join(homedir(), 'Library', 'Logs', 'messhall');
+  const home = process.env.MESSHALL_HOME;
+  return home ? path.join(home, 'logs') : path.join(homedir(), 'Library', 'Logs', 'messhall');
 }
+
+export const DEFAULT_MESSAGE_CAP = 200;
+export const CAP_WARN_RATIO = 0.8;
+export const READ_LIMIT = 50;
+export const IDLE_AFTER_MS = 2 * 60_000;
+export const GONE_AFTER_MS = 30 * 60_000;
+export const EVENT_KEEP_MS = 7 * 24 * 60 * 60_000;
+export const DB_FILE = 'messhall.db';
+export const DB_BUSY_TIMEOUT_MS = 5000;
