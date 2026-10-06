@@ -232,4 +232,30 @@ describe('openDb', () => {
     ]);
     db.close();
   });
+
+  it('stamps members already gone with their last call as when they went gone', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    old.function('client_label', { varargs: true }, () => null);
+    MIGRATIONS.slice(0, 8).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = 8;
+      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
+      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence) VALUES
+        ('r1', 'api', 'claude', 't0', 't1', 'gone'), ('r1', 'web', 'codex', 't0', 't2', 'idle');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect(
+      db
+        .prepare('select name, gone_at from members order by name')
+        .all()
+        .map(row => ({ ...row })),
+    ).toStrictEqual([
+      { gone_at: 't1', name: 'api' },
+      { gone_at: null, name: 'web' },
+    ]);
+    db.close();
+  });
 });

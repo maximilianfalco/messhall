@@ -81,6 +81,7 @@ describe('renderEvent', () => {
     ['joined', member({ kind: 'codex', name: 'web' }), '       + web joined (codex)'],
     ['left', member({ left_at: AT }), '       - api left'],
     ['reconnected', member(), '       + api reconnected (claude)'],
+    ['removed', member({ left_at: AT, presence: 'left' }), '       - api dropped out'],
     ['role', member({ name: 'reviewer-1', role: 'reviewer' }), '       * reviewer-1 is now reviewer'],
   ] as const)('renders a member who %s', (change, who, line) => {
     expect(render({ change, member: who, room: 'checkout', type: 'member' }, 'checkout')).toStrictEqual([line]);

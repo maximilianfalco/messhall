@@ -110,6 +110,7 @@ public final class FeedStore {
     case .member(let e):
       update(e.room) { room in
         room.members.removeAll { $0.name == e.member.name }
+        guard e.change != .removed else { return }
         room.members.append(e.member)
         room.members.sort { $0.name < $1.name }
       }

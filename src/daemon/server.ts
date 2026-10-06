@@ -121,6 +121,7 @@ export async function startDaemon({
   const sweep = setInterval(() => {
     try {
       store.sweepPresence();
+      store.clearStale();
     } catch (error) {
       logger.error(asError(error), { message: 'presence sweep failed' });
     }

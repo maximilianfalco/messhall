@@ -9,7 +9,13 @@ import { HUMAN_NAME } from '../../contracts/room.ts';
 // Lines with no time line up under the text of lines that have one ("HH:MM  ").
 const GUTTER = ' '.repeat(7);
 
-const MEMBER_MARKS: Record<MemberChange, string> = { joined: '+', left: '-', reconnected: '+', role: '*' };
+const MEMBER_MARKS: Record<MemberChange, string> = {
+  joined: '+',
+  left: '-',
+  reconnected: '+',
+  removed: '-',
+  role: '*',
+};
 const ROOM_WORDS: Record<RoomChange, (room: Room) => string> = {
   closed: () => 'closed',
   created: () => 'created',
@@ -31,6 +37,7 @@ function messageLine({ message, tag }: { message: Message; tag: string }) {
 
 function memberLine(member: Member, change: MemberChange) {
   if (change === 'role') return `${MEMBER_MARKS.role} ${member.name} is now ${member.role}`;
+  if (change === 'removed') return `${MEMBER_MARKS.removed} ${member.name} dropped out`;
   return `${MEMBER_MARKS[change]} ${member.name} ${change}${change === 'left' ? '' : ` (${member.kind})`}`;
 }
 
