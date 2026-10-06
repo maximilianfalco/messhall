@@ -1,0 +1,657 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "messhall contracts",
+  "$defs": {
+    "BusEvent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MessageEvent"
+        },
+        {
+          "$ref": "#/$defs/MemberEvent"
+        },
+        {
+          "$ref": "#/$defs/PresenceEvent"
+        },
+        {
+          "$ref": "#/$defs/RoomEvent"
+        }
+      ],
+      "description": "One change in the room store."
+    },
+    "FeedError": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "description": "What went wrong, in plain words."
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "Health": {
+      "type": "object",
+      "properties": {
+        "live_members": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Agents in a room right now that are not gone."
+        },
+        "ok": {
+          "type": "boolean",
+          "const": true,
+          "description": "Always true when the daemon answers."
+        },
+        "rooms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Rooms the daemon holds, open or closed."
+        },
+        "uptime_s": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Whole seconds since the daemon started."
+        },
+        "version": {
+          "type": "string",
+          "description": "The messhall version the daemon runs."
+        }
+      },
+      "required": [
+        "live_members",
+        "ok",
+        "rooms",
+        "uptime_s",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "History": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "description": "One page of a room, oldest first."
+        }
+      },
+      "required": [
+        "messages"
+      ],
+      "additionalProperties": false
+    },
+    "HumanPost": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "What the human says, 1 to 4,000 chars."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "HumanPostResult": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "description": "The message as posted, from human.",
+          "$ref": "#/$defs/Message"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "Member": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Id of the last message this member has read."
+        },
+        "done": {
+          "type": "boolean",
+          "description": "True after the member posted done, until its next post."
+        },
+        "joined_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When the member first joined."
+        },
+        "kind": {
+          "description": "Which agent runs the member.",
+          "$ref": "#/$defs/MemberKind"
+        },
+        "last_seen_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When the member last made a call."
+        },
+        "left_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the member left, null while it is in the room."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Role name in the room."
+        },
+        "presence": {
+          "description": "What the member is doing now.",
+          "$ref": "#/$defs/Presence"
+        },
+        "room_id": {
+          "type": "string",
+          "description": "Room id."
+        }
+      },
+      "required": [
+        "cursor",
+        "done",
+        "joined_at",
+        "kind",
+        "last_seen_at",
+        "left_at",
+        "name",
+        "presence",
+        "room_id"
+      ],
+      "additionalProperties": false
+    },
+    "MemberEvent": {
+      "type": "object",
+      "properties": {
+        "change": {
+          "type": "string",
+          "enum": [
+            "joined",
+            "left",
+            "reconnected"
+          ],
+          "description": "joined, left or reconnected."
+        },
+        "member": {
+          "description": "The member after the change.",
+          "$ref": "#/$defs/Member"
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "type": {
+          "type": "string",
+          "const": "member",
+          "description": "A member came or went."
+        }
+      },
+      "required": [
+        "change",
+        "member",
+        "room",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "MemberKind": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex",
+        "other",
+        "human"
+      ],
+      "description": "Which agent runs the member: claude, codex, other or human."
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When it was posted."
+        },
+        "from": {
+          "type": "string",
+          "description": "Member name, or messhall for daemon lines."
+        },
+        "id": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Global message id, one order across every room."
+        },
+        "kind": {
+          "description": "Message kind.",
+          "$ref": "#/$defs/MessageKind"
+        },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Member names mentioned with @, or all."
+        },
+        "room_id": {
+          "type": "string",
+          "description": "Room id."
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Message text, at most 4,000 chars."
+        }
+      },
+      "required": [
+        "created_at",
+        "from",
+        "id",
+        "kind",
+        "mentions",
+        "room_id",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "MessageEvent": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "description": "The new message.",
+          "$ref": "#/$defs/Message"
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "type": {
+          "type": "string",
+          "const": "message",
+          "description": "A message was posted."
+        }
+      },
+      "required": [
+        "message",
+        "room",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "MessageKind": {
+      "type": "string",
+      "enum": [
+        "chat",
+        "system",
+        "done"
+      ],
+      "description": "chat from a member, system from the daemon, done when a member is finished."
+    },
+    "Presence": {
+      "type": "string",
+      "enum": [
+        "active",
+        "waiting",
+        "idle",
+        "gone"
+      ],
+      "description": "What the member is doing: active, waiting, idle or gone."
+    },
+    "PresenceEvent": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "Presence before.",
+          "$ref": "#/$defs/Presence"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Member name."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "to": {
+          "description": "Presence after.",
+          "$ref": "#/$defs/Presence"
+        },
+        "type": {
+          "type": "string",
+          "const": "presence",
+          "description": "A member changed presence."
+        }
+      },
+      "required": [
+        "from",
+        "name",
+        "room",
+        "to",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "ReopenResult": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "description": "The room, open again with a full cap.",
+          "$ref": "#/$defs/Room"
+        }
+      },
+      "required": [
+        "room"
+      ],
+      "additionalProperties": false
+    },
+    "Room": {
+      "type": "object",
+      "properties": {
+        "closed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the room closed, null while it is open."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When the first member joined."
+        },
+        "id": {
+          "type": "string",
+          "description": "Room id."
+        },
+        "message_cap": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Posts allowed before the room closes."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name, unique."
+        },
+        "topic": {
+          "description": "What the room is for, null when unset.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "closed_at",
+        "created_at",
+        "id",
+        "message_cap",
+        "name",
+        "topic"
+      ],
+      "additionalProperties": false
+    },
+    "RoomEvent": {
+      "type": "object",
+      "properties": {
+        "change": {
+          "type": "string",
+          "enum": [
+            "created",
+            "closed",
+            "reopened",
+            "topic"
+          ],
+          "description": "created, closed, reopened or topic."
+        },
+        "room": {
+          "description": "The room after the change.",
+          "$ref": "#/$defs/Room"
+        },
+        "type": {
+          "type": "string",
+          "const": "room",
+          "description": "A room changed."
+        }
+      },
+      "required": [
+        "change",
+        "room",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "RoomSummary": {
+      "type": "object",
+      "properties": {
+        "closed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the room closed, null while it is open."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When the first member joined."
+        },
+        "id": {
+          "type": "string",
+          "description": "Room id."
+        },
+        "message_cap": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Posts allowed before the room closes."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name, unique."
+        },
+        "topic": {
+          "description": "What the room is for, null when unset.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Posts that count toward the cap."
+        }
+      },
+      "required": [
+        "closed_at",
+        "created_at",
+        "id",
+        "message_cap",
+        "name",
+        "topic",
+        "message_count"
+      ],
+      "additionalProperties": false
+    },
+    "SequencedEvent": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When it happened."
+        },
+        "event": {
+          "description": "What happened.",
+          "$ref": "#/$defs/BusEvent"
+        },
+        "seq": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Global event sequence, for replay."
+        }
+      },
+      "required": [
+        "created_at",
+        "event",
+        "seq"
+      ],
+      "additionalProperties": false
+    },
+    "Snapshot": {
+      "type": "object",
+      "properties": {
+        "rooms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SnapshotRoom"
+          },
+          "description": "Every room, open or closed, by name."
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "The event sequence this snapshot is current to. Resume the feed after it."
+        }
+      },
+      "required": [
+        "rooms",
+        "seq"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotRoom": {
+      "type": "object",
+      "properties": {
+        "closed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the room closed, null while it is open."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When the first member joined."
+        },
+        "id": {
+          "type": "string",
+          "description": "Room id."
+        },
+        "message_cap": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Posts allowed before the room closes."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name, unique."
+        },
+        "topic": {
+          "description": "What the room is for, null when unset.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Posts that count toward the cap."
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Member"
+          },
+          "description": "Members still in the room, by name, the human seat too."
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "description": "The last 50 messages, oldest first, system lines too."
+        }
+      },
+      "required": [
+        "closed_at",
+        "created_at",
+        "id",
+        "message_cap",
+        "name",
+        "topic",
+        "message_count",
+        "members",
+        "messages"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import type { Daemon } from '../../src/daemon/server.js';
 
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CLI_VERSION, DB_FILE, PRESENCE_SWEEP_MS } from '../../src/config.js';
+import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
@@ -115,6 +116,20 @@ describe('startDaemon', () => {
     const res = await get({ headers: { host: 'evil.example' }, path: '/nothing', port });
 
     expect(res.status).toBe(403);
+  });
+
+  it('mounts the feed behind the guard and the keys', async () => {
+    const { port } = await start();
+    const key = readFileSync(path.join(home, KEY_FILES.human), 'utf8');
+
+    const [open, keyless, browser] = await Promise.all([
+      get({ headers: { [KEY_HEADER]: key }, path: '/api/snapshot', port }),
+      get({ path: '/api/snapshot', port }),
+      get({ headers: { [KEY_HEADER]: key, origin: 'https://evil.example' }, path: '/api/snapshot', port }),
+    ]);
+
+    expect([open.status, keyless.status, browser.status]).toStrictEqual([200, 401, 403]);
+    expect(JSON.parse(open.body)).toStrictEqual({ rooms: [], seq: 0 });
   });
 
   it('sweeps presence on its interval with its own clock', async () => {
