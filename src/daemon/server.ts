@@ -6,6 +6,7 @@ import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
 import { CLI_VERSION, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
+import { feedRoutes } from '../feed/routes.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
 import { openDb } from '../rooms/db.js';
@@ -85,15 +86,15 @@ export async function startDaemon({
   const bound = await listen(server, port);
   if (!bound.ok) return { ok: false, pid: await findPortHolder(port), port, reason: 'port_taken' } as const;
 
-  // The MCP and feed jobs keep this and wrap their routes in its requireKey.
-  loadKeys({ dataDir });
+  const keys = loadKeys({ dataDir });
   const db = openDb({ dataDir });
   const store = createRoomStore({ db, now });
   const startedAt = now().getTime();
 
-  // MCP mounts at /mcp and the feed under /api here.
+  // MCP mounts at /mcp here.
   const routes: Route[] = [
     { handle: (_req, res) => sendJson(res, 200, health({ now, startedAt, store })), method: 'GET', path: '/health' },
+    ...feedRoutes({ keys, now, store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 

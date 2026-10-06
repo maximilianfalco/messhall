@@ -1,8 +1,7 @@
 import type { SequencedEvent } from '../../contracts/events.ts';
+import type { RoomStore } from '../../src/rooms/store.js';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-import type { RoomStore } from '../../src/rooms/store.js';
 
 import { scratchStore } from './scratch.js';
 

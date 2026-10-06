@@ -1,3 +1,4 @@
+import type { KeyKind } from '../../src/daemon/keys.js';
 import type { Handler } from '../../src/daemon/router.js';
 import type { Server } from 'node:http';
 
@@ -7,8 +8,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { KeyKind } from '../../src/daemon/keys.js';
 
 import { KEY_FILES, KEY_HEADER, loadKeys } from '../../src/daemon/keys.js';
 

@@ -49,8 +49,7 @@ export function loadKeys({ dataDir }: { dataDir: string }) {
       const allowed: readonly KeyKind[] = typeof kinds === 'string' ? [kinds] : kinds;
       return ((req, res) => {
         const presented = req.headers[KEY_HEADER];
-        const kind =
-          typeof presented === 'string' ? KEY_KINDS.find(item => same(presented, keys[item])) : undefined;
+        const kind = typeof presented === 'string' ? KEY_KINDS.find(item => same(presented, keys[item])) : undefined;
         if (!kind) {
           sendJson(res, 401, { error: `missing or wrong ${KEY_HEADER}` });
           return;
