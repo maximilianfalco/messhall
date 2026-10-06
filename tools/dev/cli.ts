@@ -16,6 +16,7 @@ import { registerMcp } from './commands/mcp.js';
 import { registerQaUpload } from './commands/qaUpload.js';
 import { registerRoom } from './commands/room.js';
 import { registerSchema } from './commands/schema.js';
+import { registerSpawn } from './commands/spawn.js';
 import { registerStore } from './commands/store.js';
 import { registerSummarize } from './commands/summarize.js';
 
@@ -42,6 +43,7 @@ const program = new Command()
   registerCodex,
   registerCodexTypes,
   registerDemo,
+  registerSpawn,
 ].forEach(register => register(program));
 
 await program.parseAsync(process.argv);
