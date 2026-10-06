@@ -1,3 +1,4 @@
+import type { Client } from '@modelcontextprotocol/client';
 import type { Command } from 'commander';
 
 import { readFileSync } from 'node:fs';
@@ -5,7 +6,7 @@ import path from 'node:path';
 
 import { daemonUrl, dataDir } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
-import { connectHttp } from '../../../src/mcp/testing.js';
+import { callTool, joinPostLeave, withAgentSession, type ToolReply } from '../../../src/mcp/oneshot.js';
 import { bad, dim, ok } from '../lib/print.js';
 
 interface AgentOptions {
@@ -18,8 +19,6 @@ interface AgentOptions {
   wait?: boolean;
 }
 
-type Connected = Awaited<ReturnType<typeof connectHttp>>;
-
 function readKey(file: string) {
   try {
     return readFileSync(file, 'utf8').trim();
@@ -30,48 +29,51 @@ function readKey(file: string) {
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+/** Join, post, wait, then read_since. Stays in the room, so the member turns gone when the session ends. */
+async function joinAndWait(client: Client, { role, room, say, timeout }: Omit<AgentOptions, 'keyFile' | 'url'>) {
+  const replies = [await callTool(client, 'join', { as: role, room })];
+  const step = async (name: string, args: Record<string, unknown>) => {
+    const reply = await callTool(client, name, args);
+    replies.push(reply);
+    return !reply.isError;
+  };
+  if (replies[0]!.isError) return replies;
+  if (say) await step('post', { room, text: say });
+  if (await step('wait', { room, timeout_s: timeout })) await step('read_since', { room });
+  return replies;
+}
+
 /**
- * A scripted agent over real HTTP MCP: joins `room` as `role`, posts `say`, and with `wait` blocks
- * until something concerns it, then reads. Ends its session with DELETE, so the member turns gone.
+ * A scripted agent over real HTTP MCP: joins `room` as `role` and posts `say`. Without `wait` it
+ * leaves before the session ends. With `wait` it blocks until something concerns it, reads, and ends gone.
  */
 export async function agentRun({ keyFile, role, room, say, timeout, url, wait }: AgentOptions) {
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
-  let connected: Connected;
-  try {
-    connected = await connectHttp({ key, name: `messhall-dev-agent-${role}`, url });
-  } catch (error) {
+  const session = await withAgentSession({ key, name: `messhall-dev-agent-${role}`, url }, client =>
+    wait
+      ? joinAndWait(client, { role, room, say, timeout })
+      : joinPostLeave({ as: role, client, room, text: say }).then(result => result.replies),
+  );
+  if (!session.ok) {
     return {
       code: 1,
-      report: bad(`could not reach messhall at ${url} (${errorText(error)}). run pnpm messhall-dev daemon --keep`),
+      report: bad(
+        `could not reach messhall at ${url} (${errorText(session.error)}). run pnpm messhall-dev daemon --keep`,
+      ),
     };
   }
-  const { client, transport } = connected;
-  const lines: string[] = [];
-  let failed = false;
-  const call = async (label: string, name: string, args: Record<string, unknown>) => {
-    const started = performance.now();
-    const result = await client.callTool({ arguments: args, name }, { resetTimeoutOnProgress: true, timeout: 300_000 });
-    const seconds = ((performance.now() - started) / 1000).toFixed(1);
-    const text = result.content.map(block => (block.type === 'text' ? block.text : '')).join('\n');
-    failed ||= Boolean(result.isError);
-    lines.push(result.isError ? bad(label) : ok(name === 'wait' ? `${label}, blocked ${seconds} s` : label), text, '');
-    return !result.isError;
-  };
-
-  try {
-    const joined = await call(`${role} join #${room}`, 'join', { as: role, room });
-    if (joined && say) await call(`${role} post`, 'post', { room, text: say });
-    if (joined && wait && (await call(`${role} wait`, 'wait', { room, timeout_s: timeout }))) {
-      await call(`${role} read_since`, 'read_since', { room });
-    }
-  } finally {
-    await transport.terminateSession().catch(() => {});
-    await client.close();
-  }
-  lines.push(dim(`session ended, ${role} is gone from #${room}`));
-  return { code: failed ? 1 : 0, report: lines.join('\n') };
+  const label = ({ name, seconds }: ToolReply) =>
+    name === 'join'
+      ? `${role} join #${room}`
+      : name === 'wait'
+        ? `${role} wait, blocked ${seconds.toFixed(1)} s`
+        : `${role} ${name}`;
+  const lines = session.value.flatMap(reply => [reply.isError ? bad(label(reply)) : ok(label(reply)), reply.text, '']);
+  const left = session.value.some(reply => reply.name === 'leave' && !reply.isError);
+  lines.push(dim(left ? `session ended, ${role} left #${room}` : `session ended, ${role} is gone from #${room}`));
+  return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
 /** Registers `agent <role> --room <r> [--say <text>] [--wait] [--url <u>] [--key-file <f>]`. */

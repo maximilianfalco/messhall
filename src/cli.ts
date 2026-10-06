@@ -8,6 +8,7 @@ import { registerExport } from './cli/export.js';
 import { registerInstall } from './cli/install.js';
 import { registerLogs } from './cli/logs.js';
 import { registerMcp } from './cli/mcp.js';
+import { registerPost } from './cli/post.js';
 import { registerSay } from './cli/say.js';
 import { registerStart } from './cli/start.js';
 import { registerStatus } from './cli/status.js';
@@ -28,6 +29,7 @@ const program = new Command()
   registerStatus,
   registerLogs,
   registerSay,
+  registerPost,
   registerWatch,
   registerExport,
   registerDaemon,
