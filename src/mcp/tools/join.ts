@@ -34,6 +34,9 @@ async function nameFromRoots(server: McpServer, ctx: ServerContext) {
   return uri?.startsWith('file:') ? roleFromFolder(path.basename(fileURLToPath(uri))) : undefined;
 }
 
+const TOPIC_NOT_SET =
+  'the room already has a topic, so yours was not set. the maker or an orchestrator can change it with set_topic.';
+
 const summaryBlock = (summary: Message | undefined) =>
   summary
     ? [
@@ -64,8 +67,8 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       const holderDead = holders.every(entry => entry.session.dead());
       // Codex sends no seat header, so its thread id is its seat key.
       const seat = session.seat ?? input.thread_id;
-      const { invite, observe, room } = input;
-      const joined = store.joinRoom({ as, client, holderDead, invite, kind, observe, room, seatKey: seat });
+      const { invite, observe, room, topic } = input;
+      const joined = store.joinRoom({ as, client, holderDead, invite, kind, observe, room, seatKey: seat, topic });
       if (!joined.ok && joined.reason === 'no_invite') {
         return refuse(`no invite for ${as} in #${room}. check the name and the invite, or join without one.`);
       }
@@ -91,6 +94,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       [
         reconnected ? `reconnected #${input.room} as ${as}, your bookmark is kept.` : `joined #${input.room} as ${as}.`,
         `topic: ${room.topic ?? 'none'}. ${room.closed_at ? 'closed' : 'open'}, ${room.message_count} posts.`,
+        ...(input.topic && input.topic !== room.topic ? [TOPIC_NOT_SET] : []),
         `members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,

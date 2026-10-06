@@ -4,8 +4,10 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { postInputSchema } from '../../../contracts/mcp.ts';
 
 import { notJoined, refuse, registerRoomTool, removedFrom, reply } from './registry.js';
+import { unreadConcerning } from './wait.js';
 
-/** Registers `post`: membership, the open room and the text limit all come from the store. */
+/** Registers `post`: membership, the open room and the text limit all come from the store.
+ * The reply counts unread lines that concern the poster, so crossed posts get read first. */
 export function registerPost(server: McpServer, deps: ToolDeps, description: string) {
   const { session, store } = deps;
   registerRoomTool(
@@ -19,7 +21,12 @@ export function registerPost(server: McpServer, deps: ToolDeps, description: str
       if (posted.ok) {
         const { mentions } = posted.message;
         const mentioned = mentions.length ? `, mentioned ${mentions.map(name => `@${name}`).join(' ')}` : '';
-        return reply(`posted #${posted.message.id} in #${room}${mentioned}.`);
+        const crossed = unreadConcerning({ as, room, store });
+        const senders = [...new Set(crossed.map(message => message.from))].join(' and ');
+        const news = crossed.length
+          ? ` ${crossed.length} new from ${senders} since your last read, call read_since before you go on.`
+          : '';
+        return reply(`posted #${posted.message.id} in #${room}${mentioned}.${news}`);
       }
       switch (posted.reason) {
         case 'too_long':

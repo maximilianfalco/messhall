@@ -33,6 +33,55 @@ describe('post', () => {
     expect(message).toMatchObject({ from: 'api', mentions: ['web'], text: '@web total is cents now' });
   });
 
+  it('names the count and the sender of lines that crossed the post', async () => {
+    const api = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await web.call('post', { room: 'checkout', text: 'which unit is total in?' });
+
+    const result = await api.call('post', { room: 'checkout', text: 'total is cents now' });
+
+    expect(result.text).toMatch(
+      /^posted #\d+ in #checkout\. 1 new from web since your last read, call read_since before you go on\.$/,
+    );
+  });
+
+  it('counts every crossed line and names each sender once', async () => {
+    const api = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    const mobile = await harness.joined('checkout', 'mobile');
+    await web.call('post', { room: 'checkout', text: '@api which unit?' });
+    await mobile.call('post', { room: 'checkout', text: '@api and the currency?' });
+    await web.call('post', { room: 'checkout', text: '@api also tax?' });
+
+    const result = await api.call('post', { room: 'checkout', text: '@web cents' });
+
+    expect(result.text).toMatch(
+      /^posted #\d+ in #checkout, mentioned @web\. 3 new from web and mobile since your last read, call read_since before you go on\.$/,
+    );
+  });
+
+  it('leaves out lines that do not concern the poster', async () => {
+    const api = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await harness.joined('checkout', 'mobile');
+    await web.call('post', { room: 'checkout', text: '@mobile ship first' });
+
+    const result = await api.call('post', { room: 'checkout', text: 'total is cents now' });
+
+    expect(result.text).toMatch(/^posted #\d+ in #checkout\.$/);
+  });
+
+  it('reads as plain posted once read_since caught up', async () => {
+    const api = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await web.call('post', { room: 'checkout', text: 'which unit is total in?' });
+    await api.call('read_since', { room: 'checkout' });
+
+    const result = await api.call('post', { room: 'checkout', text: 'total is cents now' });
+
+    expect(result.text).toMatch(/^posted #\d+ in #checkout\.$/);
+  });
+
   it('refuses text over 4,000 chars and says to post a path', async () => {
     const api = await harness.joined('checkout', 'api');
 
