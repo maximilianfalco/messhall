@@ -319,12 +319,14 @@ struct MessageRow: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 2)
     case .done:
-      Label {
+      HStack(spacing: 10) {
+        Image(systemName: "checkmark.circle.fill")
+          .foregroundStyle(.green)
+          .frame(width: 28)
         Text("**\(message.from)** is done: \(message.text)")
-      } icon: {
-        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
       }
       .foregroundStyle(.secondary)
+      .padding(.horizontal, 10)
       .padding(.vertical, 2)
     case .summary:
       Label {
