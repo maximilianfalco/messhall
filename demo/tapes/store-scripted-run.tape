@@ -1,4 +1,4 @@
-# QA tape for the room store: a scripted run on a scratch store, then a read-only query on its db.
+# QA tape for the room store: the scripted run's steps, then read-only queries on its db and a refused write.
 # The store lives under the scratch MESSHALL_HOME, never the real data dir.
 
 Output demo/out/store-scripted-run.mp4
@@ -19,10 +19,10 @@ Type "rm -rf $MESSHALL_HOME/store; clear"
 Enter
 Show
 
-Type "pnpm -s messhall-dev store --data-dir $MESSHALL_HOME/store; echo exit $?"
+Type "pnpm -s messhall-dev store --data-dir $MESSHALL_HOME/store | sed -n 1,10p; echo exit $pipestatus[1]"
 Sleep 500ms
 Enter
-Sleep 9s
+Sleep 7s
 
 Hide
 Type "clear"
@@ -32,7 +32,12 @@ Show
 Type `pnpm -s messhall-dev db "select name, presence, cursor, done from members" --data-dir $MESSHALL_HOME/store; echo exit $?`
 Sleep 500ms
 Enter
-Sleep 2s
+Sleep 3s
+
+Type `pnpm -s messhall-dev db "select id, from_name, kind, mentions, text from messages" --data-dir $MESSHALL_HOME/store; echo exit $?`
+Sleep 500ms
+Enter
+Sleep 3s
 
 Type `pnpm -s messhall-dev db "delete from messages" --data-dir $MESSHALL_HOME/store; echo exit $?`
 Sleep 500ms
