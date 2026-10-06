@@ -11,6 +11,8 @@ final class Navigation {
   var newRoomDraft: String?
   /// Bumped to ask the menu bar label, which always lives, to open the window.
   var windowRequests = 0
+  /// Bumped the same way to open the Settings window.
+  var settingsRequests = 0
 }
 
 @MainActor
@@ -18,10 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   let store = FeedStore()
   let client = FeedClient()
   let navigation = Navigation()
-  let notifier = Notifier()
+  let settings = AppSettings.shared
+  lazy var notifier = Notifier(settings: settings)
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
+    settings.snapshot.appearance.apply()
     #if DEBUG
       if ShotHooks.isShot { NSApp.setActivationPolicy(.accessory) }
       if let dir = UserDefaults.standard.string(forKey: "renderStatus") {
@@ -49,6 +53,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       if pause > 0 { Task { await ShotHooks.toggleSidebar(pause: pause) } }
       if let file = UserDefaults.standard.string(forKey: "shotSheet") {
         Task { await ShotHooks.saveSheet(to: file) }
+      }
+      if UserDefaults.standard.bool(forKey: "shotSettings") {
+        Task { await ShotHooks.openSettings(navigation: navigation) }
       }
     #endif
   }
@@ -84,6 +91,7 @@ struct MesshallApp: App {
       MainWindow(store: delegate.store, client: delegate.client, navigation: delegate.navigation)
         .frame(minWidth: 720, minHeight: 440)
         .environment(delegate.notifier)
+        .accentFromSettings()
     }
     .defaultSize(width: 980, height: 640)
     .commands {
@@ -92,6 +100,10 @@ struct MesshallApp: App {
         NewRoomCommand(navigation: delegate.navigation)
         RoomToggleCommand()
       }
+    }
+
+    Settings {
+      SettingsView(store: delegate.store, settings: delegate.settings)
     }
 
     MenuBarExtra {

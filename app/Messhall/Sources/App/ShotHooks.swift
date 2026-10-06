@@ -11,11 +11,7 @@
 
     /// `-shotAppearance light|dark`: a launch arg cannot flip the system setting, so the app is set instead.
     static func forceAppearance(_ name: String?) {
-      switch name {
-      case "light": NSApp.appearance = NSAppearance(named: .aqua)
-      case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
-      default: break
-      }
+      name.flatMap(AppearanceChoice.init(rawValue:))?.apply()
     }
 
     /// `-shotScrollTop YES`: the transcript opens at its first message, so an agent post shows the jump pill.
@@ -50,6 +46,23 @@
       try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
     }
 
+    /// `-shotSettings YES`: opens Settings and shuts the main window, so the shot finds Settings.
+    /// The pane comes from `-appSettings`, the same as a reopen after a quit.
+    static func openSettings(navigation: Navigation) async {
+      while mainWindow() == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      navigation.settingsRequests += 1
+      while NSApp.windows.first(where: isSettings) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      mainWindow()?.close()
+    }
+
+    private static func isSettings(_ window: NSWindow) -> Bool {
+      window.isVisible && window.identifier?.rawValue.contains("Settings") == true
+    }
+
+    private static func mainWindow() -> NSWindow? {
+      NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) && $0.sheetParent == nil && !isSettings($0) }
+    }
+
     /// `-shotToggleSidebar <seconds>`: hides then shows the sidebar, the same call as View > Hide Sidebar.
     static func toggleSidebar(pause: Double) async {
       while splitController() == nil { try? await Task.sleep(for: .milliseconds(100)) }
@@ -70,8 +83,7 @@
       func find(_ view: NSView) -> NSSplitView? {
         view as? NSSplitView ?? view.subviews.lazy.compactMap(find).first
       }
-      let window = NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) && $0.sheetParent == nil }
-      return window?.contentView.flatMap(find)?.delegate as? NSSplitViewController
+      return mainWindow()?.contentView.flatMap(find)?.delegate as? NSSplitViewController
     }
 
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.
