@@ -29,6 +29,12 @@ const SHOTS = [
   { appearance: 'dark', name: 'window-dark' },
   { appearance: 'light', name: 'post-light', post: true },
   { appearance: 'dark', name: 'post-dark' },
+  { appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' },
+  { appearance: 'dark', name: 'new-room-dark', newRoom: 'launch-week' },
+  { appearance: 'light', name: 'standing-light', room: 'release-notes' },
+  { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
+  { appearance: 'light', name: 'closed-light', room: 'billing' },
+  { appearance: 'dark', name: 'closed-dark', room: 'billing' },
 ] as const;
 // Shot after the daemon stops, so the window shows its empty state.
 const DOWN_SHOTS = [
@@ -57,7 +63,7 @@ export function checkShotHome(home: string) {
   if (path.resolve(home) === real) return `refusing ${home}, it is the real data dir`;
 }
 
-/** Seeds three rooms on a fresh db so every screen has something to show. Presence follows `now`. */
+/** Seeds four rooms on a fresh db so every screen has something to show. Presence follows `now`. */
 export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) {
   let at = now.getTime() - 20 * 60_000;
   const db = openDb({ dataDir });
@@ -95,6 +101,10 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     store.touch({ as: 'web', room: 'checkout', state: 'waiting' });
     at = now.getTime();
     store.postMessage({ from: 'api', room: 'checkout', text: '@qa both sides are merged, over to you' });
+    store.createRoom({ created_by: 'human', name: 'release-notes', topic: 'notes for the v2 launch' });
+    store.joinRoom({ as: 'writer', kind: 'codex', room: 'release-notes' });
+    store.postMessage({ from: 'writer', room: 'release-notes', text: 'first pass of the notes is up, @human take a look' });
+    store.postMessage({ done: true, from: 'writer', room: 'release-notes', text: 'notes drafted' });
     store.sweepPresence();
   } finally {
     db.close();
@@ -112,7 +122,13 @@ async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS)
 }
 
 async function shoot({ app, env, shot }: { app: string; env: NodeJS.ProcessEnv; shot: Shot }) {
-  const args = ['-shotAppearance', shot.appearance, ...('post' in shot ? ['-shotPost', POST_TEXT] : [])];
+  const args = [
+    '-shotAppearance',
+    shot.appearance,
+    ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
+    ...('room' in shot ? ['-shotRoom', shot.room] : []),
+    ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom] : []),
+  ];
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), args, { env, stdio: 'ignore' });
   const exited = new Promise(resolve => {
     child.once('exit', resolve);
@@ -143,7 +159,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post and the daemon-down state in light and dark. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. */
 async function appShot({ home, port }: { home: string; port: number }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -184,7 +200,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, New Room sheet, standing and closed rooms and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

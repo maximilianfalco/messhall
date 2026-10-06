@@ -24,6 +24,12 @@
       }
     }
 
+    /// `-shotRoom <name>` opens that room. `-shotNewRoom <draft>` opens the New Room sheet with that name typed.
+    static func navigate(room: String?, newRoom: String?, navigation: Navigation) {
+      if let room { navigation.room = room }
+      if let newRoom { navigation.newRoomDraft = newRoom }
+    }
+
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.
     static func renderStatus(into dir: URL) {
       for scheme in [ColorScheme.light, .dark] {

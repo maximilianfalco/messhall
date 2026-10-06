@@ -25,11 +25,15 @@ private let models: [String: [String]] = [
   "FeedError": FeedError.CodingKeys.allCases.map(\.rawValue),
   "HumanPost": HumanPost.CodingKeys.allCases.map(\.rawValue),
   "HumanPostResult": HumanPostResult.CodingKeys.allCases.map(\.rawValue),
+  "CloseResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
   "Member": Member.CodingKeys.allCases.map(\.rawValue),
   "MemberEvent": MemberEvent.CodingKeys.allCases.map(\.rawValue),
   "Message": Message.CodingKeys.allCases.map(\.rawValue),
   "MessageEvent": MessageEvent.CodingKeys.allCases.map(\.rawValue),
+  "NewRoom": NewRoom.CodingKeys.allCases.map(\.rawValue),
+  "NewRoomResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
   "PresenceEvent": PresenceEvent.CodingKeys.allCases.map(\.rawValue),
+  "ReopenResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
   "Room": Room.CodingKeys.allCases.map(\.rawValue),
   "RoomEvent": RoomEvent.CodingKeys.allCases.map(\.rawValue),
   "Snapshot": Snapshot.CodingKeys.allCases.map(\.rawValue),
@@ -43,8 +47,7 @@ private let enums: [String: [String]] = [
 ]
 
 private let unused: Set = [
-  "BusEvent", "CloseResult", "Health", "History", "NewRoom", "NewRoomResult", "ReopenResult", "RoomSummary",
-  "SequencedEvent",
+  "BusEvent", "Health", "History", "RoomSummary", "SequencedEvent",
 ]
 
 @Suite("contracts/schema.json")

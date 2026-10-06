@@ -6,6 +6,8 @@ import SwiftUI
 @MainActor
 final class Navigation {
   var room: String?
+  /// The name the New Room sheet starts with. Nil while the sheet is shut.
+  var newRoomDraft: String?
 }
 
 @MainActor
@@ -30,6 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       if let text = UserDefaults.standard.string(forKey: "shotPost") {
         Task { await ShotHooks.post(text, store: store, client: client) }
       }
+      ShotHooks.navigate(
+        room: UserDefaults.standard.string(forKey: "shotRoom"),
+        newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"), navigation: navigation)
     #endif
   }
 }
@@ -46,12 +51,28 @@ struct MesshallApp: App {
         .frame(minWidth: 720, minHeight: 440)
     }
     .defaultSize(width: 980, height: 640)
-    .commands { SidebarCommands() }
+    .commands {
+      SidebarCommands()
+      CommandGroup(replacing: .newItem) { NewRoomCommand(navigation: delegate.navigation) }
+    }
 
     MenuBarExtra {
       MenuBarMenu(store: delegate.store, navigation: delegate.navigation)
     } label: {
       MenuBarLabel(store: delegate.store)
     }
+  }
+}
+
+struct NewRoomCommand: View {
+  let navigation: Navigation
+  @Environment(\.openWindow) private var openWindow
+
+  var body: some View {
+    Button("New Room\u{2026}") {
+      openWindow(id: MesshallApp.windowID)
+      navigation.newRoomDraft = ""
+    }
+    .keyboardShortcut("n")
   }
 }

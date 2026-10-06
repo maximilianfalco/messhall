@@ -94,6 +94,68 @@ struct FeedStoreTests {
     #expect(store.openRoomCount == 1)
   }
 
+  @Test("a created event adds a standing room with who made it")
+  func created() throws {
+    let store = try loaded()
+
+    store.apply(.event(seq: 8, .room(RoomEvent(change: .created, room: humanRoom(closedAt: nil)))))
+
+    let room = try #require(store.room(named: "ops"))
+    #expect(room.standing)
+    #expect(room.createdBy == "human")
+    #expect(room.isOpen)
+    #expect(store.openRoomCount == 2)
+  }
+
+  @Test("closed then reopened keeps the transcript and flips the room back open")
+  func closedReopened() throws {
+    let store = try loaded()
+
+    store.apply(.event(seq: 8, .room(RoomEvent(change: .closed, room: checkout(closedAt: "2026-01-01T09:05:00.000Z")))))
+    #expect(store.room(named: "checkout")?.isOpen == false)
+    #expect(store.openRoomCount == 0)
+
+    store.apply(.event(seq: 9, .room(RoomEvent(change: .reopened, room: checkout(closedAt: nil)))))
+    #expect(store.room(named: "checkout")?.isOpen == true)
+    #expect(store.room(named: "checkout")?.messages.count == 2)
+    #expect(store.room(named: "checkout")?.members.count == 2)
+  }
+
+  @Test("a room event carries a changed standing flag and maker onto a known room")
+  func standingChange() throws {
+    let store = try loaded()
+    var room = checkout(closedAt: nil)
+    room.standing = true
+    room.createdBy = "human"
+
+    store.apply(.event(seq: 8, .room(RoomEvent(change: .topic, room: room))))
+
+    #expect(store.room(named: "checkout")?.standing == true)
+    #expect(store.room(named: "checkout")?.createdBy == "human")
+  }
+
+  @Test("a room the human just made shows at once and is not doubled by its event")
+  func addedRoom() throws {
+    let store = try loaded()
+
+    store.add(humanRoom(closedAt: nil))
+    store.apply(.event(seq: 8, .room(RoomEvent(change: .created, room: humanRoom(closedAt: nil)))))
+
+    #expect(store.rooms.map(\.name) == ["checkout", "ops"])
+  }
+
+  private func humanRoom(closedAt: String?) -> Room {
+    Room(
+      id: "r9", name: "ops", topic: nil, createdAt: "2026-01-01T10:00:00.000Z", createdBy: "human", standing: true,
+      closedAt: closedAt, messageCap: 200)
+  }
+
+  private func checkout(closedAt: String?) -> Room {
+    Room(
+      id: "r1", name: "checkout", topic: "order schema change", createdAt: "2026-01-01T09:00:00.000Z",
+      createdBy: "api", standing: false, closedAt: closedAt, messageCap: 200)
+  }
+
   @Test("an event for an unknown room is ignored")
   func unknownRoom() throws {
     let store = try loaded()

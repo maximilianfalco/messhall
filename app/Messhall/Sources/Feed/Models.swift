@@ -240,6 +240,27 @@ public struct HumanPostResult: Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable { case message }
 }
 
+public struct NewRoom: Codable, Equatable, Sendable {
+  public var name: String
+  public var topic: String?
+  public var cap: Int?
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case name, topic, cap }
+
+  public init(name: String, topic: String?, cap: Int?) {
+    self.name = name
+    self.topic = topic
+    self.cap = cap
+  }
+}
+
+/// The answer to a new room, a close or a reopen: the room as it is now.
+public struct RoomResult: Codable, Equatable, Sendable {
+  public var room: Room
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case room }
+}
+
 public struct FeedError: Codable, Equatable, Sendable {
   public var error: String
 

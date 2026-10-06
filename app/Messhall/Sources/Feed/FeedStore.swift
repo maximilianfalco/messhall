@@ -46,6 +46,11 @@ public final class FeedStore {
     apply(.message(MessageEvent(room: room, message: message)))
   }
 
+  /// Shows a room the human just made, closed or reopened, before its event comes back.
+  func add(_ room: Room) {
+    apply(.room(RoomEvent(change: .topic, room: room)))
+  }
+
   private func apply(_ event: BusEvent) {
     switch event {
     case .message(let e):
@@ -74,6 +79,8 @@ public final class FeedStore {
       }
       update(e.room.name) { room in
         room.topic = e.room.topic
+        room.createdBy = e.room.createdBy
+        room.standing = e.room.standing
         room.closedAt = e.room.closedAt
         room.messageCap = e.room.messageCap
       }

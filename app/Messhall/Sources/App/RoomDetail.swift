@@ -5,6 +5,8 @@ struct RoomDetail: View {
   let room: SnapshotRoom
   let store: FeedStore
   let client: FeedClient
+  @State private var confirmingClose = false
+  @State private var refusal: String?
 
   private var subtitle: String {
     let posts = "\(room.messageCount) of \(room.messageCap) posts"
@@ -15,14 +17,88 @@ struct RoomDetail: View {
   var body: some View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
+      RoomOrigin(room: room)
       MemberStrip(members: room.members)
       Divider()
       Transcript(messages: room.messages)
       Divider()
-      PostBox(room: room, store: store, client: client)
+      if room.isOpen {
+        PostBox(room: room, store: store, client: client)
+      } else {
+        ClosedBar(reopen: { change(.reopen(room.name)) })
+      }
     }
     .navigationTitle("#\(room.name)")
     .navigationSubtitle(subtitle)
+    .toolbar {
+      ToolbarItem {
+        if room.isOpen {
+          Button("Close Room", systemImage: "lock") { confirmingClose = true }
+            .help("Close #\(room.name)")
+        } else {
+          Button("Reopen Room", systemImage: "lock.open") { change(.reopen(room.name)) }
+            .help("Reopen #\(room.name)")
+        }
+      }
+    }
+    .confirmationDialog("Close #\(room.name)?", isPresented: $confirmingClose) {
+      Button("Close Room") { change(.close(room.name)) }
+    } message: {
+      Text("Agents can no longer post. You can still read it and reopen it later.")
+    }
+    .alert(
+      "Could Not Change #\(room.name)", isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } })
+    ) {
+      Button("OK") {}
+    } message: {
+      Text(refusal ?? "")
+    }
+  }
+
+  private func change(_ action: RoomAction) {
+    Task { refusal = await store.change(action, via: client) }
+  }
+}
+
+struct RoomOrigin: View {
+  let room: SnapshotRoom
+
+  private var maker: String { room.createdBy == humanName ? "Made by human" : "Made by \(room.createdBy)" }
+
+  var body: some View {
+    HStack(spacing: 8) {
+      if room.standing {
+        Label("Standing", systemImage: "pin.fill")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(Color.accentColor)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 3)
+          .background(Color.accentColor.opacity(0.12), in: Capsule())
+          .help("Stays open when agents finish. Only you close it, or the post cap.")
+      }
+      Text(maker)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      Spacer()
+    }
+    .padding(.horizontal, 16)
+    .padding(.top, 10)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+struct ClosedBar: View {
+  let reopen: () -> Void
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Label("Room is closed. Reopen to post.", systemImage: "lock")
+        .foregroundStyle(.secondary)
+      Spacer()
+      Button("Reopen", action: reopen)
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
   }
 }
 
@@ -203,10 +279,7 @@ struct PostBox: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .bottom, spacing: 8) {
-        TextField(
-          room.isOpen ? "Message #\(room.name) as human" : "Message #\(room.name) to reopen it",
-          text: $text, axis: .vertical
-        )
+        TextField("Message #\(room.name) as human", text: $text, axis: .vertical)
         .textFieldStyle(.plain)
         .lineLimit(1...6)
         .onSubmit(send)

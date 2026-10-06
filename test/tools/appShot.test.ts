@@ -31,7 +31,7 @@ describe('checkShotHome', () => {
 });
 
 describe('seedShotRooms', () => {
-  it('leaves an open room with agents and a done line, a quiet open room and a closed room', () => {
+  it('leaves an open room with agents and a done line, a quiet open room, a closed room and a standing room', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');
 
@@ -39,15 +39,16 @@ describe('seedShotRooms', () => {
 
     const db = openDb({ dataDir });
     const store = createRoomStore({ db, now: () => now });
-    const rooms = store.listRooms().map(room => [room.name, room.closed_at === null]);
+    const rooms = store.listRooms().map(room => [room.name, room.closed_at === null, room.created_by, room.standing]);
     const members = store.listMembers('checkout');
     const page = store.listMessages({ limit: 50, room: 'checkout' });
     db.close();
 
     expect(rooms).toStrictEqual([
-      ['billing', false],
-      ['checkout', true],
-      ['docs-sync', true],
+      ['billing', false, 'ledger', false],
+      ['checkout', true, 'qa', false],
+      ['docs-sync', true, 'writer', false],
+      ['release-notes', true, 'human', true],
     ]);
     expect(members.map(member => `${member.name} ${member.kind} ${member.presence}`)).toStrictEqual([
       'api claude active',
