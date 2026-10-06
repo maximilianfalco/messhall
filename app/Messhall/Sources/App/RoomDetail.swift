@@ -176,6 +176,9 @@ struct MemberChip: View {
           if let label = member.clientLabel {
             TypePill(label: label, name: member.name)
           }
+          if let role = member.rolePill {
+            RolePill(role: role)
+          }
         }
         HStack(spacing: 4) {
           PresenceDot(presence: member.presence)
@@ -213,6 +216,21 @@ struct TypePill: View {
       .padding(.vertical, 1)
       .background(avatarColor(for: name).opacity(0.18), in: Capsule())
       .overlay(Capsule().strokeBorder(avatarColor(for: name).opacity(0.35), lineWidth: 0.5))
+  }
+}
+
+/// The member's role, outlined only so it reads quieter than the type pill.
+struct RolePill: View {
+  let role: String
+
+  var body: some View {
+    Text(role)
+      .font(.subheadline)
+      .lineLimit(1)
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .overlay(Capsule().strokeBorder(.secondary.opacity(0.5), lineWidth: 0.5))
   }
 }
 
@@ -463,6 +481,9 @@ struct ChatRow: View {
           if let label = message.typeLabel(sender: sender) {
             TypePill(label: label, name: message.from)
               .help(sender?.client ?? label)
+          }
+          if let role = sender?.rolePill {
+            RolePill(role: role)
           }
           Text(message.time)
             .font(.caption)

@@ -4,12 +4,25 @@ import Testing
 
 @Suite("Member type")
 struct MemberTypeTests {
-  static func member(name: String = "web", kind: MemberKind = .other, client: String?, version: String?, label: String?)
-    -> Member
-  {
+  static func member(
+    name: String = "web", kind: MemberKind = .other, client: String?, version: String?, label: String?,
+    role: String = "unassigned"
+  ) -> Member {
     Member(
       roomId: "r1", name: name, kind: kind, clientLabel: label, clientName: client, clientVersion: version,
-      presence: .waiting, cursor: 0, done: false, joinedAt: "t0", lastSeenAt: "t0", leftAt: nil)
+      presence: .waiting, role: role, cursor: 0, done: false, joinedAt: "t0", lastSeenAt: "t0", leftAt: nil)
+  }
+
+  @Test("the role pill shows a set role")
+  func rolePill() {
+    #expect(Self.member(client: nil, version: nil, label: nil, role: "reviewer").rolePill == "reviewer")
+  }
+
+  @Test("the role pill hides for unassigned and for the human seat")
+  func rolePillHidden() {
+    #expect(Self.member(client: nil, version: nil, label: nil).rolePill == nil)
+    #expect(
+      Self.member(name: "human", kind: .human, client: nil, version: nil, label: nil, role: "observer").rolePill == nil)
   }
 
   @Test("decode the client fields of a member")

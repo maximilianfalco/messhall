@@ -6,6 +6,11 @@ extension Member {
     clientName.map { [$0, clientVersion].compactMap(\.self).joined(separator: " ") }
   }
 
+  /// The role pill next to the type pill. Nil when no role is set, and on the human seat.
+  public var rolePill: String? {
+    kind == .human || role == "unassigned" ? nil : role
+  }
+
   /// `web, opencode 1.18.34, waiting`. A member with no client says its kind instead.
   public func spokenLabel(as displayName: String) -> String {
     "\(displayName), \(client ?? kind.rawValue), \(presence.rawValue)"

@@ -5,7 +5,7 @@ import Foundation
 public enum Presence: String, Codable, CaseIterable, Sendable { case active, waiting, idle, gone, left }
 public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done, summary }
 public enum MemberKind: String, Codable, CaseIterable, Sendable { case claude, codex, other, human }
-public enum MemberChange: String, Codable, Sendable { case joined, left, reconnected }
+public enum MemberChange: String, Codable, Sendable { case joined, left, reconnected, role }
 public enum RoomChange: String, Codable, Sendable { case created, closed, reopened, topic }
 
 public struct Room: Codable, Equatable, Sendable {
@@ -35,6 +35,7 @@ public struct Member: Codable, Equatable, Sendable {
   public var clientName: String?
   public var clientVersion: String?
   public var presence: Presence
+  public var role: String
   public var cursor: Int
   public var done: Bool
   public var joinedAt: String
@@ -42,7 +43,7 @@ public struct Member: Codable, Equatable, Sendable {
   public var leftAt: String?
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case name, kind, presence, cursor, done
+    case name, kind, presence, role, cursor, done
     case roomId = "room_id"
     case clientLabel = "client_label"
     case clientName = "client_name"
