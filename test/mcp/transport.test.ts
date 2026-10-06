@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DAEMON_HOST, SESSION_IDLE_MS } from '../../src/config.js';
+import { DAEMON_HOST, SESSION_DEAD_MS } from '../../src/config.js';
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { connectHttp } from '../../src/mcp/testing.js';
@@ -173,6 +173,22 @@ describe('the /mcp endpoint', () => {
 
 describe('createMcpEndpoint sweep', () => {
   let server: Server | undefined;
+  let store: ReturnType<typeof createRoomStore>;
+  let endpoint: ReturnType<typeof createMcpEndpoint>;
+  let closeDb: () => void;
+
+  beforeEach(async () => {
+    const db = openDb({ dataDir: home });
+    closeDb = () => db.close();
+    store = createRoomStore({ db, now });
+    endpoint = createMcpEndpoint({ codex: fakeCodexRpc(), now, store });
+    server = createServer((req, res) => {
+      endpoint.handle(req, res)?.catch(() => {});
+    });
+    await new Promise<void>(resolve => {
+      server!.listen(0, DAEMON_HOST, resolve);
+    });
+  });
 
   afterEach(async () => {
     await new Promise<void>(resolve => {
@@ -180,35 +196,76 @@ describe('createMcpEndpoint sweep', () => {
       server?.close(() => resolve());
     });
     server = undefined;
+    closeDb();
   });
 
-  it('closes a session with no open request for 30 minutes and marks its members gone', async () => {
-    const db = openDb({ dataDir: home });
-    const store = createRoomStore({ db, now });
-    const endpoint = createMcpEndpoint({ codex: fakeCodexRpc(), now, store });
-    server = createServer((req, res) => {
-      endpoint.handle(req, res)?.catch(() => {});
-    });
-    await new Promise<void>(resolve => {
-      server!.listen(0, DAEMON_HOST, resolve);
-    });
-    const address = server.address();
-    const url = `http://${DAEMON_HOST}:${typeof address === 'object' && address ? address.port : 0}`;
-    const api = await agent(url, 'no-key-check-here');
-    await api.call('join', { as: 'api', room: 'checkout' });
-    at += SESSION_IDLE_MS;
-    const held = await endpoint.sweep();
-    await api.client.close();
-    await vi.waitFor(() => expect(endpoint.sessionsFor({ name: 'api', room: 'checkout' })[0]?.session.open).toBe(0));
+  const endpointUrl = () => {
+    const address = server!.address();
+    return `http://${DAEMON_HOST}:${typeof address === 'object' && address ? address.port : 0}`;
+  };
+  const sessionOf = (name: string) => endpoint.sessionsFor({ name, room: 'checkout' })[0]?.session;
+  const presenceOf = (name: string) => store.listMembers('checkout').find(member => member.name === name)?.presence;
 
-    at += SESSION_IDLE_MS - 1;
+  async function rawSession() {
+    const url = endpointUrl();
+    const send = (body: unknown, headers: Record<string, string> = {}, signal?: AbortSignal) =>
+      fetch(`${url}/mcp`, {
+        body: JSON.stringify(body),
+        headers: { accept: INIT_ACCEPT, 'content-type': 'application/json', ...headers },
+        method: 'POST',
+        signal,
+      });
+    const init = await send(initialize('2025-11-25'));
+    await init.text();
+    const session = { 'mcp-session-id': init.headers.get('mcp-session-id')! };
+    const call = (name: string, args: Record<string, unknown>, signal?: AbortSignal) =>
+      send({ id: 2, jsonrpc: '2.0', method: 'tools/call', params: { arguments: args, name } }, session, signal);
+    await (await call('join', { as: 'api', room: 'checkout' })).text();
+    return { call };
+  }
+
+  it('closes a session with no stream and no call for 60 s at the next sweep and marks its members gone', async () => {
+    const api = await agent(endpointUrl(), 'no-key-check-here');
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await api.client.close();
+    await vi.waitFor(() => expect(sessionOf('api')?.open).toBe(0));
+
+    at += SESSION_DEAD_MS - 1;
     const early = await endpoint.sweep();
     at += 1;
     const swept = await endpoint.sweep();
 
-    expect([held, early, swept]).toStrictEqual([0, 0, 1]);
-    expect(endpoint.sessionsFor({ name: 'api', room: 'checkout' })).toStrictEqual([]);
-    expect(store.listMembers('checkout').find(member => member.name === 'api')?.presence).toBe('gone');
-    db.close();
+    expect([early, swept]).toStrictEqual([0, 1]);
+    expect(sessionOf('api')).toBeUndefined();
+    expect(presenceOf('api')).toBe('gone');
+  });
+
+  it('keeps a session whose stream is open however long it is quiet', async () => {
+    const api = await agent(endpointUrl(), 'no-key-check-here');
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await vi.waitFor(() => expect(sessionOf('api')?.open).toBeGreaterThan(0));
+
+    at += 10 * SESSION_DEAD_MS;
+
+    await expect(endpoint.sweep()).resolves.toBe(0);
+    expect(presenceOf('api')).toBe('active');
+  });
+
+  it('keeps a session with no stream alive while a wait is in flight, then sweeps it once the caller dies', async () => {
+    const api = await rawSession();
+    const abort = new AbortController();
+    const waiting = api.call('wait', { room: 'checkout', timeout_s: 270 }, abort.signal).catch(() => {});
+    await vi.waitFor(() => expect(presenceOf('api')).toBe('waiting'));
+
+    at += 3 * SESSION_DEAD_MS;
+    const held = await endpoint.sweep();
+    abort.abort();
+    await waiting;
+    await vi.waitFor(() => expect(sessionOf('api')?.open).toBe(0));
+    at += SESSION_DEAD_MS;
+    const swept = await endpoint.sweep();
+
+    expect([held, swept]).toStrictEqual([0, 1]);
+    expect(presenceOf('api')).toBe('gone');
   });
 });

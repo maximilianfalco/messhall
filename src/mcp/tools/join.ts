@@ -64,7 +64,9 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
 
     let reconnected = false;
     if (!held) {
-      const joined = store.joinRoom({ as, client, kind, room: input.room });
+      const holders = sessions.sessionsFor({ name: as, room: input.room });
+      const holderDead = holders.every(entry => entry.session.dead());
+      const joined = store.joinRoom({ as, client, holderDead, kind, room: input.room });
       if (!joined.ok && joined.reason === 'name_reserved') {
         return refuse(`${RESERVED_NAMES.join(', ')} are reserved. pick another name.`);
       }
@@ -72,7 +74,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       if (!joined.ok) return refuse(`name taken, try ${joined.suggestion}.`);
       reconnected = joined.change === 'reconnected';
       // A takeover leaves the old session bound, so drop it there before it can post as this name.
-      sessions.sessionsFor({ name: as, room: input.room }).forEach(entry => entry.session.unbind(input.room));
+      holders.forEach(entry => entry.session.unbind(input.room));
     }
     const newest = store.listMessages({ limit: 1, room: input.room });
     const mark = newest.ok ? (newest.messages.at(-1)?.id ?? 0) : 0;

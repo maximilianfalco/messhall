@@ -206,6 +206,22 @@ describe('wait', () => {
     expect(memberOf('api').presence).toBe('active');
   });
 
+  it('leaves a member gone when its session ended during the wait', async () => {
+    const api = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await api.call('read_since', { room: 'checkout' });
+    const waiting = pending(api.call('wait', { room: 'checkout', timeout_s: 10 }, LONG));
+    await vi.advanceTimersByTimeAsync(0);
+
+    api.session.unbind('checkout');
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'gone' });
+    await web.call('post', { room: 'checkout', text: '@api still there?' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(waiting.done).toBe(true);
+    expect(memberOf('api').presence).toBe('gone');
+  });
+
   it('sends progress every 30 seconds when the call carries a progress token', async () => {
     const api = await harness.joined('checkout', 'api');
     const onprogress = vi.fn<(progress: Progress) => void>();

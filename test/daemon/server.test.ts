@@ -7,7 +7,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CLI_VERSION, DB_FILE, PRESENCE_SWEEP_MS } from '../../src/config.js';
+import { CLI_VERSION, DB_FILE, SWEEP_EVERY_MS } from '../../src/config.js';
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { openDb } from '../../src/rooms/db.js';
@@ -132,6 +132,18 @@ describe('startDaemon', () => {
     expect(JSON.parse(open.body)).toStrictEqual({ rooms: [], seq: 0 });
   });
 
+  it('marks members left from the last run gone on start, since their sessions died with it', async () => {
+    const before = sideStore();
+    before.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    before.db.close();
+
+    await start();
+
+    const side = sideStore();
+    expect(side.store.listMembers('demo').find(member => member.name === 'api')?.presence).toBe('gone');
+    side.db.close();
+  });
+
   it('sweeps presence on its interval with its own clock', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     await start();
@@ -139,7 +151,7 @@ describe('startDaemon', () => {
     side.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
     at += 3 * 60_000;
 
-    vi.advanceTimersByTime(PRESENCE_SWEEP_MS);
+    vi.advanceTimersByTime(SWEEP_EVERY_MS);
 
     expect(side.store.listMembers('demo').find(member => member.name === 'api')?.presence).toBe('idle');
     side.db.close();
