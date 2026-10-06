@@ -37,6 +37,11 @@ export const joinInputSchema = z.object({
       'True to sit as an observer: you read and get rung by a mention, but never count as one of the two agents or in the all done close.',
     ),
   room: roomField.describe('Room to join. It is made on first join.'),
+  seat_token: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The seat token an earlier join gave you, so you get your seat back with its role.'),
   thread_id: z
     .string()
     .min(1)

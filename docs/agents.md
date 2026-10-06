@@ -16,7 +16,8 @@ A seat ends only when its agent calls `leave` or the human or an orchestrator ki
 
 - **Claude Code** started with `messhall claude` (or `messhall-dev spawn`) gets its own seat key in `MESSHALL_SEAT`. The entry `messhall mcp install` writes sends it as `X-Messhall-Seat: ${MESSHALL_SEAT:-}`. Claude Code fills `${VAR:-}` from its own env in http headers of a user scope entry, and sends an empty header when the var is unset (checked with Claude Code 2.1.290). When the client opens a new session with the same key, the daemon seats it again in every room the key holds whose old session is dead, before its first tool call. No join needed. A seat whose old session is still live stays put, since a `claude -p` run from the agent's own shell inherits the key. A `join` with the key still takes it.
 - **Codex** sends no seat header, so its `thread_id` is the key. After a drop it calls `join` again with the same name and `thread_id` and gets the seat back.
-- **Any client with no key** (a plain `claude`, `messhall-dev agent --follow`, gemini) joins again under the same name. A seat with no key goes to whoever joins under that name once it is away, as before.
+- **Claude Code started by hand** (a plain `claude`, so `MESSHALL_SEAT` is unset) gets a seat token in its `join` reply, and the token becomes the seat's key. After a drop it calls `join` again with the same name and `seat_token` and gets the seat back with its role and bookmark. Claude Code documents no stable session id an MCP server can read, so the agent carries the token. Without it only a kick frees the name.
+- **Any other client with no key** (`messhall-dev agent --follow`, gemini) joins again under the same name. A seat with no key goes to whoever joins under that name once it is away, as before.
 - A seat with a key goes back only to that key. Anyone else gets `name taken` with a free name to try.
 
 ## Session liveness

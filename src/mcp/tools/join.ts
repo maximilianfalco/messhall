@@ -2,6 +2,7 @@ import type { Message } from '../../../contracts/room.ts';
 import type { ToolDeps } from './registry.js';
 import type { McpServer, ServerContext } from '@modelcontextprotocol/server';
 
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +38,9 @@ async function nameFromRoots(server: McpServer, ctx: ServerContext) {
 const TOPIC_NOT_SET =
   'the room already has a topic, so yours was not set. the maker or an orchestrator can change it with set_topic.';
 
+const seatTokenLine = (token: string) =>
+  `seat token: ${token}. pass it as seat_token on your next join to get this seat back. without it only a kick frees the name.`;
+
 const summaryBlock = (summary: Message | undefined) =>
   summary
     ? [
@@ -62,11 +66,15 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
     const threadId = read?.ok && read.result.thread.status.type !== 'notLoaded' ? input.thread_id : undefined;
 
     let reconnected = false;
+    let token: string | undefined;
     if (!held) {
       const holders = sessions.sessionsFor({ name: as, room: input.room });
       const holderDead = holders.every(entry => entry.session.dead());
+      // A claude started by hand sends no seat header, so it gets a token to bring back on its next join.
+      const keyless = !session.seat && !input.thread_id && !input.invite;
+      token = keyless ? (input.seat_token ?? (kind === 'claude' ? randomUUID() : undefined)) : undefined;
       // Codex sends no seat header, so its thread id is its seat key.
-      const seat = session.seat ?? input.thread_id;
+      const seat = session.seat ?? input.thread_id ?? token;
       const { invite, observe, room, topic } = input;
       const joined = store.joinRoom({ as, client, holderDead, invite, kind, observe, room, seatKey: seat, topic });
       if (!joined.ok && joined.reason === 'no_invite') {
@@ -98,6 +106,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
         `members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,
+        ...(token ? [seatTokenLine(token)] : []),
         ...roleBlock({ role: store.roleOf({ name: as, room: input.room })!, room: input.room }),
         ...(kind === 'codex' || input.thread_id
           ? [session.threadId ? 'doorbell: codex' : 'doorbell: none (call wait)']

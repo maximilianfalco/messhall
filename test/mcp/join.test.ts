@@ -191,6 +191,39 @@ describe('join', () => {
     expect(result).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
   });
 
+  it('gives a claude with no seat key a seat token and hands its away seat back only to that token', async () => {
+    const oldApi = await harness.agent({ name: 'claude-code' });
+    const first = await oldApi.call('join', { as: 'api', room: 'checkout' });
+    const token = /seat token: ([0-9a-f-]{36})\./.exec(first.text)?.[1];
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
+    const stranger = await harness.agent({ name: 'claude-code' });
+    const newApi = await harness.agent({ name: 'claude-code' });
+
+    const refused = await stranger.call('join', { as: 'api', room: 'checkout' });
+    const guessed = await stranger.call('join', { as: 'api', room: 'checkout', seat_token: 'guess' });
+    const joined = await newApi.call('join', { as: 'api', room: 'checkout', seat_token: token });
+
+    expect(token).toBeDefined();
+    expect(refused).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(guessed).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(joined.text).toContain('reconnected #checkout as api');
+    expect(joined.text).toContain(`seat token: ${token}.`);
+  });
+
+  it('gives no seat token to a session with a seat key, a codex thread or a client other than claude', async () => {
+    const keyed = await harness.agent({ name: 'claude-code', seat: 'seat-a' });
+    const codex = await harness.agent({ name: 'codex-mcp-client' });
+    const other = await harness.agent();
+
+    const replies = await Promise.all([
+      keyed.call('join', { as: 'api', room: 'checkout' }),
+      codex.call('join', { as: 'web', room: 'checkout', thread_id: LIVE_THREAD }),
+      other.call('join', { as: 'ops', room: 'checkout' }),
+    ]);
+
+    replies.forEach(reply => expect(reply.text).not.toContain('seat token'));
+  });
+
   it('hands an away seat back to codex by its thread id and to no other thread', async () => {
     const oldApi = await harness.agent({ name: 'codex-mcp-client' });
     await oldApi.call('join', { as: 'api', room: 'checkout', thread_id: LIVE_THREAD });
