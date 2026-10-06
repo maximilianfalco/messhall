@@ -15,10 +15,13 @@ import { humanRoutes } from './human.js';
 import { buildSnapshot } from './snapshot.js';
 import { eventStream, intervalTimer } from './sse.js';
 
-const pageQuerySchema = z.object({
-  after: z.coerce.number().int().nonnegative().optional(),
-  limit: z.coerce.number().int().positive().default(FEED_PAGE_DEFAULT),
-});
+const pageQuerySchema = z
+  .object({
+    after: z.coerce.number().int().nonnegative().optional(),
+    before: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().default(FEED_PAGE_DEFAULT),
+  })
+  .refine(query => query.after === undefined || query.before === undefined);
 
 const searchQuerySchema = z.object({
   limit: z.coerce.number().int().positive().default(SEARCH_LIMIT),
@@ -48,11 +51,13 @@ export function feedRoutes({
     }
     const query = pageQuerySchema.safeParse(Object.fromEntries(target.query));
     if (!query.success) {
-      sendJson(res, 400, { error: 'after is a message id and limit a positive whole number' });
+      sendJson(res, 400, {
+        error: 'after or before is a message id, not both, and limit a positive whole number',
+      });
       return;
     }
-    const { after, limit } = query.data;
-    const page = store.listMessages({ after, limit: Math.min(limit, FEED_PAGE_MAX), room: target.name });
+    const { after, before, limit } = query.data;
+    const page = store.listMessages({ after, before, limit: Math.min(limit, FEED_PAGE_MAX), room: target.name });
     if (page.ok) sendJson(res, 200, { messages: page.messages } satisfies History);
     else sendJson(res, 404, { error: 'no such room' });
   };

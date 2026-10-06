@@ -99,6 +99,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
     member: db.prepare('SELECT * FROM members WHERE room_id = ? AND name = ?'),
     messagesAfter: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? ORDER BY id LIMIT ?'),
+    messagesBefore: db.prepare(
+      'SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND id < ? ORDER BY id DESC LIMIT ?) ORDER BY id',
+    ),
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
@@ -108,7 +111,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
     roomById: db.prepare('SELECT * FROM rooms WHERE id = ?'),
     rooms: db.prepare(
-      `SELECT rooms.*, (SELECT count(*) FROM messages WHERE room_id = rooms.id AND ${IS_POST}) AS message_count FROM rooms ORDER BY name`,
+      `SELECT rooms.*, (SELECT count(*) FROM messages WHERE room_id = rooms.id AND ${IS_POST}) AS message_count, (SELECT min(id) FROM messages WHERE room_id = rooms.id) AS first_message_id FROM rooms ORDER BY name`,
     ),
     search: db.prepare(
       'SELECT messages.*, rooms.name AS room FROM messages_fts JOIN messages ON messages.id = messages_fts.rowid JOIN rooms ON rooms.id = messages.room_id WHERE messages_fts MATCH ? AND (? IS NULL OR rooms.id = ?) ORDER BY messages.id DESC LIMIT ?',
@@ -353,12 +356,29 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return (left ? sql.allMembers : sql.liveMembers).all(room.id).map(toMember);
     },
 
-    /** A page of a room's messages, system lines too, oldest first: the latest `limit`, or the `limit` after `after`.
-     * Reads only, so no cursor or presence moves. */
-    listMessages({ after, limit, room: roomName }: { after?: number; limit: number; room: string }) {
+    /**
+     * A page of a room's messages, system lines too, oldest first: the latest `limit`, the `limit` after `after`,
+     * or the `limit` just below `before`. Reads only, so no cursor or presence moves.
+     */
+    listMessages({
+      after,
+      before,
+      limit,
+      room: roomName,
+    }: {
+      after?: number;
+      before?: number;
+      limit: number;
+      room: string;
+    }) {
       const room = findRoom(roomName);
       if (!room) return { ok: false, reason: 'no_room' } as const;
-      const rows = after === undefined ? sql.latest.all(room.id, limit) : sql.messagesAfter.all(room.id, after, limit);
+      const rows =
+        after !== undefined
+          ? sql.messagesAfter.all(room.id, after, limit)
+          : before !== undefined
+            ? sql.messagesBefore.all(room.id, before, limit)
+            : sql.latest.all(room.id, limit);
       return { messages: rows.map(toMessage), ok: true } as const;
     },
 

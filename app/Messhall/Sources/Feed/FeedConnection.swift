@@ -27,6 +27,22 @@ extension FeedStore {
     }
   }
 
+  /// Loads one older page of a room and puts it above the loaded lines. A failed load just ends, so the next scroll retries.
+  public func loadOlder(room: String, via client: FeedClient) async {
+    guard let before = beginLoadingOlder(room) else { return }
+    do {
+      let request = try client.request(.history(room: room, before: before, limit: Paging.pageSize))
+      let (data, response) = try await client.session.data(for: request)
+      try client.check(response, data)
+      let page = try JSONDecoder().decode(History.self, from: data).messages
+      // A snapshot in between may have moved the top, and this page would then leave a gap.
+      guard self.room(named: room)?.oldestLoadedId == before else { return endLoadingOlder(room) }
+      prepend(page, to: room)
+    } catch {
+      endLoadingOlder(room)
+    }
+  }
+
   /// Posts as the human and shows the message at once. Returns the refusal text, or nil.
   public func post(_ text: String, room: String, via client: FeedClient) async -> String? {
     switch await HumanSeat(client: client).post(room: room, text: text) {

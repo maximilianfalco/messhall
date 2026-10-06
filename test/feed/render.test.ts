@@ -126,11 +126,13 @@ const snapshot: Snapshot = {
         member({ kind: 'human', name: 'human', presence: 'idle' }),
         member({ kind: 'other', left_at: AT, name: 'ci', presence: 'left' }),
       ],
+      first_message_id: 1,
       message_count: 2,
       messages: [message(), message({ from: 'human', id: 2, text: 'nice' })],
     },
     {
       ...room({ closed_at: AT, created_by: 'human', id: 'room-2', name: 'search', standing: true }),
+      first_message_id: null,
       members: [],
       message_count: 0,
       messages: [],

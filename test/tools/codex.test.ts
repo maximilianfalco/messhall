@@ -63,6 +63,17 @@ describe('memberStatus', () => {
     });
   });
 
+  it('reads a label that carries the client version', () => {
+    const list = '- api (codex 0.160.1 (no doorbell), active, you), last seen 2026-01-01T10:00:05.000Z';
+
+    expect(memberStatus({ list, name: 'api' })).toStrictEqual({
+      doorbell: false,
+      lastSeen: Date.parse('2026-01-01T10:00:05.000Z'),
+      presence: 'active',
+    });
+    expect(memberStatus({ list: list.replace(' (no doorbell)', ''), name: 'api' })?.doorbell).toBe(true);
+  });
+
   it('gives undefined for a member not in the list', () => {
     expect(memberStatus({ list: LIST, name: 'ios' })).toBeUndefined();
   });

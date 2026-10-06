@@ -629,6 +629,19 @@
             "null"
           ]
         },
+        "first_message_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Id of the oldest message in the room, system lines too. Null while it has none."
+        },
         "message_count": {
           "type": "integer",
           "minimum": 0,
@@ -645,6 +658,7 @@
         "name",
         "standing",
         "topic",
+        "first_message_id",
         "message_count"
       ],
       "additionalProperties": false
@@ -845,6 +859,19 @@
             "null"
           ]
         },
+        "first_message_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Id of the oldest message in the room, system lines too. Null while it has none."
+        },
         "message_count": {
           "type": "integer",
           "minimum": 0,
@@ -875,6 +902,7 @@
         "name",
         "standing",
         "topic",
+        "first_message_id",
         "message_count",
         "members",
         "messages"

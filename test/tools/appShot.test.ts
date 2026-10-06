@@ -62,6 +62,7 @@ describe('seedShotRooms', () => {
       ['checkout', true, 'qa', false],
       ['docs-sync', true, 'writer', false],
       ['handoff', true, 'api', false],
+      ['history', true, 'planner', false],
       ['kickoff', true, 'human', true],
       ['release-notes', true, 'human', true],
     ]);
@@ -110,6 +111,22 @@ describe('seedShotRooms', () => {
     expect(page.ok && page.messages.map(message => message.kind).join(' ')).toBe(
       'system system system chat chat system system chat system system chat system system',
     );
+  });
+
+  it('leaves a room with 120 posts, more than the snapshot holds, so its top pages in', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+
+    seedShotRooms({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => now });
+    const history = store.listRooms().find(room => room.name === 'history');
+    const page = store.listMessages({ limit: 200, room: 'history' });
+    db.close();
+
+    expect(history?.message_count).toBe(120);
+    expect(page.ok && page.messages[1]?.text).toBe('step 1 of 120: read the plan');
   });
 });
 
@@ -180,6 +197,13 @@ describe('shotArgs', () => {
     expect(shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' })).toStrictEqual(
       expect.arrayContaining(['-shotNewRoom', 'Release Notes', '-shotSheet']),
     );
+  });
+
+  it('scrolls the long room to the top so an older page loads, and has the app note where the anchor row landed', () => {
+    const args = shotArgs({ appearance: 'dark', name: 'history-dark', pageTop: true, room: 'history' });
+
+    expect(args).toStrictEqual(expect.arrayContaining(['-shotRoom', 'history']));
+    expect(args[args.indexOf('-shotPageTop') + 1]).toMatch(/demo\/out\/shots\/history-dark\.anchor$/);
   });
 
   it('opens every fold for the expanded shot', () => {
