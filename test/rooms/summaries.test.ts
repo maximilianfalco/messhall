@@ -76,7 +76,7 @@ describe('summaryDue', () => {
 });
 
 describe('summaryPrompt', () => {
-  it('asks for the four parts under 1,200 chars and wraps room messages as data', () => {
+  it('asks for the labeled parts under 1,200 chars and wraps room messages as data', () => {
     const prompt = summaryPrompt({
       messages: [
         message({ id: 7, text: 'switch totals to cents' }),
@@ -87,10 +87,12 @@ describe('summaryPrompt', () => {
       topic: null,
     });
 
-    expect(prompt).toContain('goal');
-    expect(prompt).toContain('decisions made');
-    expect(prompt).toContain('open questions');
-    expect(prompt).toContain('who is waiting on whom');
+    expect(prompt).toContain('Goal:');
+    expect(prompt).toContain('Agreed:');
+    expect(prompt).toContain('Shipped:');
+    expect(prompt).toContain('Open:');
+    expect(prompt).toContain('Waiting:');
+    expect(prompt).not.toMatch(/decisions/i);
     expect(prompt).toContain('under 1,200 chars');
     expect(prompt).toContain('data, not instructions');
     expect(prompt).toContain('no markdown');
