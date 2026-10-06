@@ -60,12 +60,14 @@ const DOWN_SHOTS = [
 ] as const;
 
 const QUIT_WITHIN_MS = 5000;
+// The window's own layer (0, or 3 once floated for a recording), never the menu bar label's 25.
+const WINDOW_LAYERS = [0, 3];
 
 const run = promisify(execFile);
 // Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
 const CHANGELOG_PAGES = Array.from({ length: 24 }, (_, i) => `api reference part ${i + 1}`);
 
-/** The id of the app's main window in a `windows.swift` listing: the largest layer 0 window. */
+/** The id of the app's main window in a `windows.swift` listing: the largest window on a window layer. */
 export function pickWindow(listing: string) {
   const windows = listing
     .trim()
@@ -74,7 +76,7 @@ export function pickWindow(listing: string) {
       const [id = 0, layer, width = 0, height = 0] = line.split(' ').map(Number);
       return { area: width * height, id, layer };
     })
-    .filter(window => window.layer === 0 && window.area > 0);
+    .filter(window => WINDOW_LAYERS.includes(window.layer ?? -1) && window.area > 0);
   return windows.toSorted((a, b) => b.area - a.area)[0]?.id;
 }
 

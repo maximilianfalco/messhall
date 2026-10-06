@@ -23,6 +23,10 @@ describe('pickWindow', () => {
     expect(pickWindow(lines.join('\n'))).toBe(12);
   });
 
+  it('picks a window floated for a recording but never the menu bar label', () => {
+    expect(pickWindow(['10 25 48 24', '12 3 980 640'].join('\n'))).toBe(12);
+  });
+
   it('gives undefined when the app has no window yet', () => {
     expect(pickWindow('10 25 48 24\n')).toBeUndefined();
   });
