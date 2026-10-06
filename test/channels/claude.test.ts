@@ -34,7 +34,10 @@ describe('createClaudeRinger', () => {
     const two = fakeEntry({ id: 's2' });
     const ringer = createClaudeRinger({ sessionsFor: () => [one.entry, two.entry] });
     await expect(ringer.ring(RING)).resolves.toBe(2);
-    const sent = { method: 'notifications/claude/channel', params: { content: RING.text, meta: RING.meta } };
+    const sent = {
+      method: 'notifications/claude/channel',
+      params: { content: '2 new in #checkout. Call read_since.', meta: RING.meta },
+    };
     expect(one.notification).toHaveBeenCalledWith(sent);
     expect(two.notification).toHaveBeenCalledWith(sent);
   });
@@ -86,7 +89,9 @@ describe('createClaudeRinger', () => {
     );
     const ringer = createClaudeRinger({ sessionsFor: () => [{ server, session }] });
     await ringer.ring(RING);
-    await vi.waitFor(() => expect(received).toStrictEqual([{ content: RING.text, meta: RING.meta }]));
+    await vi.waitFor(() =>
+      expect(received).toStrictEqual([{ content: '2 new in #checkout. Call read_since.', meta: RING.meta }]),
+    );
     expect(client.getServerCapabilities()?.experimental).toStrictEqual({ 'claude/channel': {} });
     await client.close();
     scratch.cleanup();

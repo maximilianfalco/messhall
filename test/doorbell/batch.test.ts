@@ -50,6 +50,7 @@ function setup() {
     deliver: batch => {
       rings.push(batch);
     },
+    members: () => MEMBERS,
     now: timers.now,
     setTimer: timers.setTimer,
   });
@@ -65,7 +66,7 @@ function setup() {
       room_id: room,
       text,
     };
-    batcher.add({ closed: false, members: MEMBERS, message, room });
+    batcher.add({ closed: false, message, room });
   };
   return { batcher, post, rings, timers };
 }
