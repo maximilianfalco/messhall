@@ -65,6 +65,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'history-dark', pageTop: true, room: 'history' },
   { appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' },
   { appearance: 'dark', name: 'role-dark', role: 'qa=reviewer', room: 'checkout' },
+  { appearance: 'light', name: 'observer-light', openFolds: true, role: 'qa=observer', room: 'checkout' },
+  { appearance: 'dark', name: 'observer-dark', openFolds: true, role: 'qa=observer', room: 'checkout' },
   { appearance: 'light', mute: 'qa', name: 'mute-light', openFolds: true, room: 'checkout' },
   { appearance: 'dark', mute: 'qa', name: 'mute-dark', openFolds: true, room: 'checkout' },
   { appearance: 'light', name: 'settings-appearance-light', settings: 'appearance' },
