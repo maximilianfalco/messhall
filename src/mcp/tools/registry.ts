@@ -6,6 +6,7 @@ import type { CallToolResult, McpServer, ServerContext, StandardSchemaWithJSON }
 
 import { logger } from '../../lib/logger.js';
 import { TOOL_ANNOTATIONS, TOOL_TITLES } from '../constants.js';
+import { reattachSeats } from '../seats.js';
 
 export interface ToolDeps {
   codex: Pick<CodexClient, 'request'>;
@@ -44,6 +45,7 @@ export function registerRoomTool<Input, Output>(
     name,
     { annotations: TOOL_ANNOTATIONS[name], description, inputSchema, title: TOOL_TITLES[name] },
     async (input: Output, ctx: ServerContext) => {
+      reattachSeats({ ...deps, server });
       deps.session.seen();
       try {
         return await handler(input, ctx);

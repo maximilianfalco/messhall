@@ -171,6 +171,43 @@ describe('the /mcp endpoint', () => {
     expect(second.sessionsFor({ name: 'api', room: 'checkout' })).toHaveLength(1);
   });
 
+  it('seats whichever session calls first when a reconnect opens sibling sessions with one seat header', async () => {
+    const first = await start();
+    const api = await agent(first.url, agentKey(), 'seat-a');
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await first.close();
+    daemon = undefined;
+    const second = await start();
+
+    const early = await agent(second.url, agentKey(), 'seat-a');
+    const late = await agent(second.url, agentKey(), 'seat-a');
+    const posted = await late.call('post', { room: 'checkout', text: 'back after the restart' });
+    const earlyRead = await early.call('read_since', { room: 'checkout' });
+
+    expect(posted.isError).toBe(false);
+    expect(earlyRead).toStrictEqual({ isError: true, text: 'you are not in #checkout. call join first.' });
+    expect(second.sessionsFor({ name: 'api', room: 'checkout' }).map(entry => entry.session.id)).toStrictEqual([
+      late.transport.sessionId,
+    ]);
+  });
+
+  it('keeps the done mark when a seat comes back after a restart', async () => {
+    const first = await start();
+    const api = await agent(first.url, agentKey(), 'seat-a');
+    const web = await agent(first.url);
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await web.call('join', { as: 'web', room: 'checkout' });
+    await api.call('post', { done: true, room: 'checkout', text: 'my part is in' });
+    await first.close();
+    daemon = undefined;
+    const second = await start();
+
+    const back = await agent(second.url, agentKey(), 'seat-a');
+    const members = await back.call('list_members', { room: 'checkout' });
+
+    expect(members.text).toMatch(/api \([^)]*done/);
+  });
+
   it('seats an invited agent on its first call with its role, so it posts with no join', async () => {
     const { url } = await start();
     const side = createRoomStore({ db: openDb({ dataDir: home }), now });
