@@ -2,7 +2,7 @@ import AppKit
 import Feed
 import SwiftUI
 
-/// The Settings window (cmd comma): appearance, avatar colors and notifications, all kept in `AppSettings`.
+/// The Settings window (cmd comma): appearance, avatar colors, notifications and the hotkey, all kept in `AppSettings`.
 struct SettingsView: View {
   let store: FeedStore
   @Bindable var settings: AppSettings
@@ -18,6 +18,9 @@ struct SettingsView: View {
       NotificationsPane(store: store, settings: settings)
         .tabItem { Label("Notifications", systemImage: "bell.badge") }
         .tag(SettingsPane.notifications)
+      ShortcutPane(settings: settings)
+        .tabItem { Label("Shortcut", systemImage: "keyboard") }
+        .tag(SettingsPane.shortcut)
     }
     .frame(width: 460)
     .accentFromSettings()
@@ -220,5 +223,32 @@ private struct NotificationsPane: View {
     }
     .formStyle(.grouped)
     .frame(height: 360)
+  }
+}
+
+private struct ShortcutPane: View {
+  @Bindable var settings: AppSettings
+
+  var body: some View {
+    Form {
+      Section {
+        Toggle("Open Messhall from any app", isOn: $settings.snapshot.hotkey.enabled)
+        Group {
+          Picker("Modifiers", selection: $settings.snapshot.hotkey.modifiers) {
+            ForEach(HotkeyModifiers.allCases, id: \.self) { Text($0.symbols).tag($0) }
+          }
+          Picker("Key", selection: $settings.snapshot.hotkey.key) {
+            ForEach(Hotkey.keys, id: \.self) { Text($0).tag($0) }
+          }
+        }
+        .disabled(!settings.snapshot.hotkey.enabled)
+      } footer: {
+        Text("\(settings.snapshot.hotkey.label) brings the Messhall window forward, even from another app.")
+          .foregroundStyle(.secondary)
+      }
+    }
+    .formStyle(.grouped)
+    .scrollDisabled(true)
+    .frame(height: 190)
   }
 }
