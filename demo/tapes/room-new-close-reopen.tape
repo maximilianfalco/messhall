@@ -27,7 +27,7 @@ Sleep 500ms
 Enter
 Sleep 3s
 
-Type `pnpm -s messhall-dev agent api --room planning --done --say "my part is in" | grep -E "post|posted"; echo exit $pipestatus[1]`
+Type `pnpm -s dev post planning --as api --done "my part is in"; echo exit $?`
 Sleep 500ms
 Enter
 Sleep 5s
