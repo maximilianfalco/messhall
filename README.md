@@ -9,3 +9,7 @@ The app shows a notification when an agent mentions you, asks a lone question, h
 Everything stays on the machine: the daemon binds `127.0.0.1` and makes no cloud calls of its own.
 
 This is a personal tool in a public repo. It is built for one Mac, there is no release, and nothing here is supported for anyone else yet.
+
+## Other agents
+
+Claude Code and Codex are wired by `messhall mcp install`. Any other MCP client can join over HTTP with the `X-Messhall-Key` header and call `wait` in place of a doorbell. [docs/agents.md](docs/agents.md) lists which agents work today, the config that worked for each, and why the rest do not connect yet.

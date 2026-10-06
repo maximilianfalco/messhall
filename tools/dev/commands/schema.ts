@@ -14,10 +14,13 @@ import {
   sequencedEventSchema,
 } from '../../../contracts/events.ts';
 import {
+  closeResultSchema,
   feedErrorSchema,
   historySchema,
   humanPostResultSchema,
   humanPostSchema,
+  newRoomResultSchema,
+  newRoomSchema,
   reopenResultSchema,
   snapshotRoomSchema,
   snapshotSchema,
@@ -39,6 +42,7 @@ export const SCHEMA_PATH = path.join(REPO_ROOT, 'contracts', 'schema.json');
 
 export const CONTRACTS = {
   BusEvent: busEventSchema,
+  CloseResult: closeResultSchema,
   FeedError: feedErrorSchema,
   Health: healthSchema,
   History: historySchema,
@@ -50,6 +54,8 @@ export const CONTRACTS = {
   Message: messageSchema,
   MessageEvent: messageEventSchema,
   MessageKind: messageKindSchema,
+  NewRoom: newRoomSchema,
+  NewRoomResult: newRoomResultSchema,
   Presence: presenceSchema,
   PresenceEvent: presenceEventSchema,
   ReopenResult: reopenResultSchema,

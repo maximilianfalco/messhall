@@ -19,6 +19,19 @@
       ],
       "description": "One change in the room store."
     },
+    "CloseResult": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "description": "The room, closed until the human reopens it.",
+          "$ref": "#/$defs/Room"
+        }
+      },
+      "required": [
+        "room"
+      ],
+      "additionalProperties": false
+    },
     "FeedError": {
       "type": "object",
       "properties": {
@@ -312,9 +325,49 @@
       "enum": [
         "chat",
         "system",
-        "done"
+        "done",
+        "summary"
       ],
-      "description": "chat from a member, system from the daemon, done when a member is finished."
+      "description": "chat from a member, system from the daemon, done when a member is finished, summary of the room so far from the daemon."
+    },
+    "NewRoom": {
+      "type": "object",
+      "properties": {
+        "cap": {
+          "description": "Posts allowed before the room closes, 200 when left out.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name, unique."
+        },
+        "topic": {
+          "description": "What the room is for, 1 to 200 chars.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "NewRoomResult": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "description": "The new room, standing and made by human.",
+          "$ref": "#/$defs/Room"
+        }
+      },
+      "required": [
+        "room"
+      ],
+      "additionalProperties": false
     },
     "Presence": {
       "type": "string",
@@ -396,7 +449,11 @@
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-          "description": "When the first member joined."
+          "description": "When the room was made."
+        },
+        "created_by": {
+          "type": "string",
+          "description": "Who made the room: human, or the name of the agent whose join made it."
         },
         "id": {
           "type": "string",
@@ -413,6 +470,10 @@
           "pattern": "^[a-z0-9-]{1,40}$",
           "description": "Room name, unique."
         },
+        "standing": {
+          "type": "boolean",
+          "description": "True for a room the human made. It stays open when every agent is done, until its cap or the human closes it."
+        },
         "topic": {
           "description": "What the room is for, null when unset.",
           "type": [
@@ -424,9 +485,11 @@
       "required": [
         "closed_at",
         "created_at",
+        "created_by",
         "id",
         "message_cap",
         "name",
+        "standing",
         "topic"
       ],
       "additionalProperties": false
@@ -482,7 +545,11 @@
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-          "description": "When the first member joined."
+          "description": "When the room was made."
+        },
+        "created_by": {
+          "type": "string",
+          "description": "Who made the room: human, or the name of the agent whose join made it."
         },
         "id": {
           "type": "string",
@@ -498,6 +565,10 @@
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
           "description": "Room name, unique."
+        },
+        "standing": {
+          "type": "boolean",
+          "description": "True for a room the human made. It stays open when every agent is done, until its cap or the human closes it."
         },
         "topic": {
           "description": "What the room is for, null when unset.",
@@ -516,9 +587,11 @@
       "required": [
         "closed_at",
         "created_at",
+        "created_by",
         "id",
         "message_cap",
         "name",
+        "standing",
         "topic",
         "message_count"
       ],
@@ -595,7 +668,11 @@
           "type": "string",
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
-          "description": "When the first member joined."
+          "description": "When the room was made."
+        },
+        "created_by": {
+          "type": "string",
+          "description": "Who made the room: human, or the name of the agent whose join made it."
         },
         "id": {
           "type": "string",
@@ -611,6 +688,10 @@
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
           "description": "Room name, unique."
+        },
+        "standing": {
+          "type": "boolean",
+          "description": "True for a room the human made. It stays open when every agent is done, until its cap or the human closes it."
         },
         "topic": {
           "description": "What the room is for, null when unset.",
@@ -643,9 +724,11 @@
       "required": [
         "closed_at",
         "created_at",
+        "created_by",
         "id",
         "message_cap",
         "name",
+        "standing",
         "topic",
         "message_count",
         "members",

@@ -1,9 +1,9 @@
-import type { HumanPostResult, ReopenResult } from '../../contracts/feed.ts';
+import type { CloseResult, HumanPostResult, NewRoomResult, ReopenResult } from '../../contracts/feed.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
 import type { RoomStore } from '../rooms/store.js';
 
-import { humanPostSchema } from '../../contracts/feed.ts';
+import { humanPostSchema, newRoomSchema } from '../../contracts/feed.ts';
 import { HUMAN_NAME } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
@@ -14,8 +14,29 @@ const NO_ROOM = { error: 'no such room' };
 /** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
  * this runs, so no agent can speak as the human. */
 export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
+  const create: Handler = async (req, res) => {
+    const body = await readJson(req);
+    const parsed = newRoomSchema.safeParse(body.ok ? body.value : undefined);
+    if (!parsed.success) {
+      sendJson(res, 400, {
+        error: 'send json { name, topic?, cap? }: name is a-z, 0-9 and dashes, cap a whole number',
+      });
+      return;
+    }
+    const result = store.createRoom({ ...parsed.data, created_by: HUMAN_NAME });
+    if (result.ok) sendJson(res, 201, { room: result.room } satisfies NewRoomResult);
+    else sendJson(res, 409, { error: `room #${parsed.data.name} already exists` });
+  };
+
   const post: Handler = async (req, res) => {
     const target = roomTarget(req);
+    if (target?.action === 'close') {
+      const result = store.closeRoom(target.name);
+      if (result.ok) sendJson(res, 200, { room: result.room } satisfies CloseResult);
+      else if (result.reason === 'no_room') sendJson(res, 404, NO_ROOM);
+      else sendJson(res, 409, { error: 'room is closed' });
+      return;
+    }
     if (target?.action === 'reopen') {
       const result = store.reopenRoom(target.name);
       if (result.ok) sendJson(res, 200, { room: result.room } satisfies ReopenResult);
@@ -44,6 +65,9 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     else sendJson(res, 409, { error: `post refused: ${result.reason}` });
   };
 
-  const routes: Route[] = [{ handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' }];
+  const routes: Route[] = [
+    { handle: keys.requireKey('human', create), method: 'POST', path: '/api/rooms' },
+    { handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' },
+  ];
   return routes;
 }

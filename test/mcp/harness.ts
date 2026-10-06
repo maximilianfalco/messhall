@@ -46,6 +46,12 @@ export function mcpHarness() {
     return member;
   }
 
+  function summary(input: { coversId: number; room: string; text: string }) {
+    const result = scratch.store.addSummary(input);
+    if (!result.ok) throw new Error(result.reason);
+    return result.message;
+  }
+
   return {
     agent,
     async cleanup() {
@@ -60,6 +66,7 @@ export function mcpHarness() {
     },
     joined,
     sessions,
+    summary,
     get store() {
       return scratch.store;
     },

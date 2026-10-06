@@ -3,7 +3,7 @@ import Foundation
 // Hand-written from contracts/schema.json. SchemaTests fail when a field or a value drifts.
 
 public enum Presence: String, Codable, CaseIterable, Sendable { case active, waiting, idle, gone }
-public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done }
+public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done, summary }
 public enum MemberKind: String, Codable, CaseIterable, Sendable { case claude, codex, other, human }
 public enum MemberChange: String, Codable, Sendable { case joined, left, reconnected }
 public enum RoomChange: String, Codable, Sendable { case created, closed, reopened, topic }
@@ -13,12 +13,15 @@ public struct Room: Codable, Equatable, Sendable {
   public var name: String
   public var topic: String?
   public var createdAt: String
+  public var createdBy: String
+  public var standing: Bool
   public var closedAt: String?
   public var messageCap: Int
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case id, name, topic
+    case id, name, topic, standing
     case createdAt = "created_at"
+    case createdBy = "created_by"
     case closedAt = "closed_at"
     case messageCap = "message_cap"
   }
@@ -65,6 +68,8 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var name: String
   public var topic: String?
   public var createdAt: String
+  public var createdBy: String
+  public var standing: Bool
   public var closedAt: String?
   public var messageCap: Int
   public var messageCount: Int
@@ -74,8 +79,9 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var isOpen: Bool { closedAt == nil }
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case id, name, topic, members, messages
+    case id, name, topic, standing, members, messages
     case createdAt = "created_at"
+    case createdBy = "created_by"
     case closedAt = "closed_at"
     case messageCap = "message_cap"
     case messageCount = "message_count"
@@ -83,18 +89,21 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
 
   init(room: Room) {
     self.init(
-      id: room.id, name: room.name, topic: room.topic, createdAt: room.createdAt, closedAt: room.closedAt,
-      messageCap: room.messageCap, messageCount: 0, members: [], messages: [])
+      id: room.id, name: room.name, topic: room.topic, createdAt: room.createdAt, createdBy: room.createdBy,
+      standing: room.standing, closedAt: room.closedAt, messageCap: room.messageCap, messageCount: 0, members: [],
+      messages: [])
   }
 
   init(
-    id: String, name: String, topic: String?, createdAt: String, closedAt: String?, messageCap: Int,
-    messageCount: Int, members: [Member], messages: [Message]
+    id: String, name: String, topic: String?, createdAt: String, createdBy: String, standing: Bool,
+    closedAt: String?, messageCap: Int, messageCount: Int, members: [Member], messages: [Message]
   ) {
     self.id = id
     self.name = name
     self.topic = topic
     self.createdAt = createdAt
+    self.createdBy = createdBy
+    self.standing = standing
     self.closedAt = closedAt
     self.messageCap = messageCap
     self.messageCount = messageCount

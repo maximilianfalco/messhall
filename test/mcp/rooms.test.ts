@@ -63,10 +63,24 @@ describe('list_rooms', () => {
 
     expect(result.text.split('\n')).toStrictEqual([
       '2 rooms:',
-      '#billing open, topic none, 0/200 posts, last activity 2026-01-01T10:01:00.000Z',
+      '#billing open, made by web, topic none, 0/200 posts, last activity 2026-01-01T10:01:00.000Z',
       '  members: human (human, idle), web (other, active)',
-      '#checkout open, topic none, 1/200 posts, last activity 2026-01-01T10:00:00.000Z',
+      '#checkout open, made by api, topic none, 1/200 posts, last activity 2026-01-01T10:00:00.000Z',
       '  members: api (other, active), human (human, idle)',
+    ]);
+  });
+
+  it('marks a standing room made by the human, and a closed room', async () => {
+    harness.store.createRoom({ created_by: 'human', name: 'planning', topic: 'q4' });
+    harness.store.closeRoom('planning');
+    const agent = await harness.agent();
+
+    const result = await agent.call('list_rooms');
+
+    expect(result.text.split('\n')).toStrictEqual([
+      '1 rooms:',
+      '#planning closed, standing (made by human), topic q4, 0/200 posts, last activity 2026-01-01T10:00:00.000Z',
+      '  members: human (human, idle)',
     ]);
   });
 

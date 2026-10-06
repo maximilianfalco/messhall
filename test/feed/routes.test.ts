@@ -44,6 +44,19 @@ describe('GET /api/snapshot', () => {
     expect(body.rooms[1]!.messages.map(message => message.text)).toStrictEqual(['api joined', 'post 1']);
   });
 
+  it('keeps closed rooms with who made them and whether they stand', async () => {
+    seed('alpha');
+    store().createRoom({ created_by: 'human', name: 'planning' });
+    store().closeRoom('planning');
+
+    const body = snapshotSchema.parse(await (await get('/api/snapshot')).json());
+
+    expect(body.rooms.map(room => [room.name, room.created_by, room.standing, room.closed_at !== null])).toStrictEqual([
+      ['alpha', 'api', false, false],
+      ['planning', 'human', true, true],
+    ]);
+  });
+
   it('caps each room at its last 50 messages', async () => {
     seed('demo', 60);
 

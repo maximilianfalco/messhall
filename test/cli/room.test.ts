@@ -1,0 +1,85 @@
+import { rmSync } from 'node:fs';
+import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { runRoom } from '../../src/cli/room.js';
+import { KEY_FILES } from '../../src/daemon/keys.js';
+import { feedServer } from '../feed/feedServer.js';
+
+let feed: Awaited<ReturnType<typeof feedServer>>;
+
+beforeEach(async () => {
+  feed = await feedServer();
+});
+
+afterEach(async () => {
+  await feed.close();
+});
+
+const room = async (input: Parameters<typeof runRoom>[0]['input'], url = feed.url) => {
+  const result = await runRoom({ dataDir: feed.scratch.dataDir, fetch, input, url });
+  return { code: result.code, output: result.output.map(line => stripVTControlCharacters(line)) };
+};
+const rooms = () => feed.scratch.store.listRooms();
+
+describe('runRoom', () => {
+  it('makes a standing room with a topic and a cap', async () => {
+    const result = await room({ action: 'new', cap: 50, name: 'planning', topic: 'q4' });
+
+    expect(result).toStrictEqual({ code: 0, output: ['made #planning, standing until you close it'] });
+    expect(rooms()[0]).toMatchObject({ created_by: 'human', message_cap: 50, standing: true, topic: 'q4' });
+  });
+
+  it('passes on the refusal for a name that exists', async () => {
+    await room({ action: 'new', name: 'planning' });
+
+    await expect(room({ action: 'new', name: 'planning' })).resolves.toStrictEqual({
+      code: 1,
+      output: ['messhall refused: room #planning already exists'],
+    });
+  });
+
+  it('closes and reopens a room', async () => {
+    await room({ action: 'new', name: 'planning' });
+
+    await expect(room({ action: 'close', name: 'planning' })).resolves.toStrictEqual({
+      code: 0,
+      output: ['closed #planning'],
+    });
+    expect(rooms()[0]!.closed_at).not.toBeNull();
+    await expect(room({ action: 'reopen', name: 'planning' })).resolves.toStrictEqual({
+      code: 0,
+      output: ['reopened #planning'],
+    });
+    expect(rooms()[0]!.closed_at).toBeNull();
+  });
+
+  it('lists every room, closed ones too, with the standing tag', async () => {
+    feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+    await room({ action: 'new', name: 'planning', topic: 'q4' });
+    await room({ action: 'close', name: 'planning' });
+
+    await expect(room({ action: 'list' })).resolves.toStrictEqual({
+      code: 0,
+      output: ['#checkout  open, 2 members, 0/200 posts', '#planning  closed, standing, 1 members, 0/200 posts, q4'],
+    });
+  });
+
+  it('says the daemon is down in one line', async () => {
+    await expect(room({ action: 'list' }, 'http://127.0.0.1:1')).resolves.toStrictEqual({
+      code: 1,
+      output: ['messhall is down, nothing answers on http://127.0.0.1:1. run messhall start'],
+    });
+  });
+
+  it('says so when there is no human key yet', async () => {
+    rmSync(path.join(feed.scratch.dataDir, KEY_FILES.human));
+
+    const result = await room({ action: 'close', name: 'planning' });
+
+    expect(result.code).toBe(1);
+    expect(result.output[0]).toMatch(/^no human key in .+, start the daemon once$/);
+  });
+});

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PRESENCES = ['active', 'waiting', 'idle', 'gone'] as const;
-export const MESSAGE_KINDS = ['chat', 'system', 'done'] as const;
+export const MESSAGE_KINDS = ['chat', 'system', 'done', 'summary'] as const;
 export const MEMBER_KINDS = ['claude', 'codex', 'other', 'human'] as const;
 
 export const NAME_PATTERN = /^[a-z0-9-]{1,40}$/;
@@ -25,17 +25,25 @@ export const timestampSchema = z.iso.datetime().describe('ISO 8601 time in UTC.'
 export const presenceSchema = z.enum(PRESENCES).describe('What the member is doing: active, waiting, idle or gone.');
 export const messageKindSchema = z
   .enum(MESSAGE_KINDS)
-  .describe('chat from a member, system from the daemon, done when a member is finished.');
+  .describe(
+    'chat from a member, system from the daemon, done when a member is finished, summary of the room so far from the daemon.',
+  );
 export const memberKindSchema = z
   .enum(MEMBER_KINDS)
   .describe('Which agent runs the member: claude, codex, other or human.');
 
 export const roomSchema = z.object({
   closed_at: timestampSchema.nullable().describe('When the room closed, null while it is open.'),
-  created_at: timestampSchema.describe('When the first member joined.'),
+  created_at: timestampSchema.describe('When the room was made.'),
+  created_by: z.string().describe('Who made the room: human, or the name of the agent whose join made it.'),
   id: z.string().describe('Room id.'),
   message_cap: z.number().int().positive().describe('Posts allowed before the room closes.'),
   name: nameSchema.describe('Room name, unique.'),
+  standing: z
+    .boolean()
+    .describe(
+      'True for a room the human made. It stays open when every agent is done, until its cap or the human closes it.',
+    ),
   topic: z.string().nullable().describe('What the room is for, null when unset.'),
 });
 

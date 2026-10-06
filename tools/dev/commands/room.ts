@@ -16,7 +16,8 @@ const clip = (text: string) => {
   return flat.length > TEXT_MAX ? `${flat.slice(0, TEXT_MAX - 1)}…` : flat;
 };
 
-/** A room's members with presence and cursor, then its last messages, read only from `<dataDir>/messhall.db`. */
+/** A room's state and who made it, its members with presence and cursor, then its last messages.
+ * Read only from `<dataDir>/messhall.db`. */
 export function roomReport({
   dataDir,
   limit = LAST_MESSAGES,
@@ -30,10 +31,14 @@ export function roomReport({
   if (!existsSync(file)) return { code: 1, report: bad(`no ${DB_FILE} in ${dataDir}`) };
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    const room = db.prepare('SELECT id, closed_at, message_cap FROM rooms WHERE name = ?').get(name);
+    const room = db
+      .prepare('SELECT id, closed_at, message_cap, created_by, standing FROM rooms WHERE name = ?')
+      .get(name);
     if (!room) return { code: 1, report: bad(`no room #${name} in ${dataDir}`) };
     const roomId = String(room.id);
-    const posts = db.prepare("SELECT count(*) AS n FROM messages WHERE room_id = ? AND kind != 'system'").get(roomId);
+    const posts = db
+      .prepare("SELECT count(*) AS n FROM messages WHERE room_id = ? AND kind IN ('chat', 'done')")
+      .get(roomId);
     const members = db
       .prepare(
         'SELECT name, kind, presence, cursor, last_seen_at, left_at FROM members WHERE room_id = ? ORDER BY name',
@@ -45,7 +50,7 @@ export function roomReport({
       .toReversed();
     const state = room.closed_at === null ? 'open' : 'closed';
     const report = [
-      `#${name} ${state}, ${Number(posts?.n)}/${Number(room.message_cap)} posts`,
+      `#${name} ${state}, ${Number(posts?.n)}/${Number(room.message_cap)} posts, made by ${String(room.created_by)}, ${room.standing === 1 ? 'standing' : 'not standing'}`,
       '',
       formatTable(
         ['member', 'kind', 'presence', 'cursor', 'last seen', 'left'],

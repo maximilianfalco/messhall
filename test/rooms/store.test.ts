@@ -3,7 +3,7 @@ import type { RoomStore } from '../../src/rooms/store.js';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { scratchStore } from './scratch.js';
+import { scratchStore, T0 } from './scratch.js';
 
 let scratch: ReturnType<typeof scratchStore>;
 
@@ -366,5 +366,213 @@ describe('listMessages', () => {
 
   it('refuses a room that does not exist', () => {
     expect(store().listMessages({ limit: 5, room: 'nope' })).toStrictEqual({ ok: false, reason: 'no_room' });
+  });
+});
+
+describe('human-made rooms', () => {
+  const human = () => store().createRoom({ created_by: 'human', name: 'demo', topic: 'q4' });
+  const changes = (seen: SequencedEvent[]) =>
+    seen.flatMap(item => (item.event.type === 'room' ? [item.event.change] : []));
+
+  it('makes a standing room with its topic, the default cap and the human seat, and emits room created', () => {
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    const result = human();
+
+    expect(result.ok && result.room).toMatchObject({
+      closed_at: null,
+      created_by: 'human',
+      message_cap: 200,
+      name: 'demo',
+      standing: true,
+      topic: 'q4',
+    });
+    expect(changes(seen)).toStrictEqual(['created']);
+    expect(
+      store()
+        .listMembers('demo')
+        .map(member => member.name),
+    ).toStrictEqual(['human']);
+  });
+
+  it('takes a cap', () => {
+    const result = store().createRoom({ cap: 5, created_by: 'human', name: 'demo' });
+
+    expect(result.ok && result.room).toMatchObject({ message_cap: 5, topic: null });
+  });
+
+  it('refuses a name that already exists', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect(human()).toStrictEqual({ ok: false, reason: 'exists' });
+  });
+
+  it('records the agent that made a room by joining it, not standing', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect(store().listRooms()[0]).toMatchObject({ created_by: 'api', standing: false });
+  });
+
+  it('stays open after every agent posts done', () => {
+    human();
+    joinBoth();
+
+    post('api', 'done', true);
+    post('web', 'done', true);
+
+    expect(store().listRooms()[0]!.closed_at).toBeNull();
+    expect(texts('demo')).not.toContain('messhall: all done, room closed');
+    expect(post('api', 'back again').kind).toBe('chat');
+  });
+
+  it('stays open after every agent leaves', () => {
+    human();
+    joinBoth();
+
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    store().leaveRoom({ as: 'web', room: 'demo' });
+
+    expect(store().listRooms()[0]!.closed_at).toBeNull();
+  });
+
+  it('still closes at its cap', () => {
+    store().createRoom({ cap: 2, created_by: 'human', name: 'demo' });
+    joinBoth();
+
+    post('api', 'one');
+    post('web', 'two');
+
+    expect(store().listRooms()[0]!.closed_at).not.toBeNull();
+    expect(texts('demo').at(-1)).toBe('messhall: #demo reached its cap of 2 and is closed. ask the human to reopen');
+  });
+
+  it('closes by hand with a system line and a room closed event', () => {
+    human();
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    const result = store().closeRoom('demo');
+
+    expect(result.ok && result.room.closed_at).toBe(new Date(T0).toISOString());
+    expect(texts('demo').at(-1)).toBe('messhall: #demo closed by the human');
+    expect(changes(seen)).toStrictEqual(['closed']);
+  });
+
+  it('refuses to close a room that is closed or missing', () => {
+    human();
+    store().closeRoom('demo');
+
+    expect(store().closeRoom('demo')).toStrictEqual({ ok: false, reason: 'closed' });
+    expect(store().closeRoom('nope')).toStrictEqual({ ok: false, reason: 'no_room' });
+  });
+
+  it('keeps a closed room in the listing', () => {
+    human();
+    store().createRoom({ created_by: 'human', name: 'other' });
+    store().closeRoom('demo');
+
+    expect(
+      store()
+        .listRooms()
+        .map(room => [room.name, room.closed_at !== null]),
+    ).toStrictEqual([
+      ['demo', true],
+      ['other', false],
+    ]);
+  });
+
+  it('refuses a join into a closed standing room until the human reopens it', () => {
+    human();
+    store().closeRoom('demo');
+
+    expect(store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' })).toStrictEqual({
+      ok: false,
+      reason: 'room_closed',
+    });
+
+    store().reopenRoom('demo');
+
+    expect(store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' }).ok).toBe(true);
+  });
+});
+
+describe('summaries', () => {
+  function summarize(text = 'Goal: cents.') {
+    const coversId = Number(scratch.db.prepare('select max(id) as id from messages').get()?.id);
+    const result = store().addSummary({ coversId, room: 'demo', text });
+    if (!result.ok) throw new Error(result.reason);
+    return result.message;
+  }
+
+  it('refuses a summary for a room that does not exist', () => {
+    expect(store().addSummary({ coversId: 0, room: 'nope', text: 'x' })).toStrictEqual({
+      ok: false,
+      reason: 'no_room',
+    });
+  });
+
+  it('stores a summary from messhall that the cap count leaves out', () => {
+    joinBoth();
+    post('api', 'hello');
+
+    const summary = summarize();
+
+    expect(summary).toMatchObject({ from: 'messhall', kind: 'summary', mentions: [], text: 'Goal: cents.' });
+    expect(store().listRooms()[0]!.message_count).toBe(1);
+    expect(store().latestSummary('demo')).toStrictEqual(summary);
+  });
+
+  it('never closes a room at its cap because of summaries', () => {
+    joinBoth();
+    Array.from({ length: 199 }, (_, index) => post(index % 2 ? 'web' : 'api', `m${index}`));
+
+    summarize();
+
+    expect(store().listRooms()[0]).toMatchObject({ closed_at: null, message_count: 199 });
+  });
+
+  it('starts a new member at the latest summary, so its first read is the summary and what came after', () => {
+    joinBoth();
+    post('api', 'old news');
+    const summary = summarize();
+    post('web', 'after the summary');
+
+    store().joinRoom({ as: 'late', kind: 'claude', room: 'demo' });
+    const read = store().readUnseen({ as: 'late', room: 'demo' });
+
+    expect(read.ok && read.messages.map(item => item.text)).toStrictEqual([
+      summary.text,
+      'after the summary',
+      'late joined',
+    ]);
+  });
+
+  it('starts a new member at 0 in a room with no summary', () => {
+    joinBoth();
+
+    store().joinRoom({ as: 'late', kind: 'claude', room: 'demo' });
+
+    expect(memberOf('demo', 'late')?.cursor).toBe(0);
+  });
+
+  it('reports the posts so far, where the last summary stands and the posts after it', () => {
+    joinBoth();
+    post('api', 'one');
+    post('web', 'two');
+    summarize('first');
+    post('api', 'three');
+
+    const state = store().summaryState('demo');
+
+    expect(
+      state.ok && { ...state, previous: state.previous?.text, messages: state.messages.map(m => m.text) },
+    ).toMatchObject({
+      count: 3,
+      lastSummaryAt: 2,
+      messages: ['three'],
+      ok: true,
+      previous: 'first',
+    });
   });
 });
