@@ -62,10 +62,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
     ),
     insertRoom: db.prepare('INSERT INTO rooms (id, name, created_at, message_cap) VALUES (?, ?, ?, ?)'),
+    latest: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id'),
     latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
     leave: db.prepare("UPDATE members SET left_at = ?, presence = 'gone' WHERE room_id = ? AND name = ?"),
     liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
     member: db.prepare('SELECT * FROM members WHERE room_id = ? AND name = ?'),
+    messagesAfter: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? ORDER BY id LIMIT ?'),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
       "UPDATE members SET kind = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
@@ -174,7 +176,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   }
 
   return {
-    events: { on: bus.on, since: bus.since },
+    events: { bounds: bus.bounds, on: bus.on, since: bus.since },
 
     /** Adds the human seat to a room that lacks it. Rooms made by `joinRoom` already have it. */
     ensureHuman(roomName: string) {
@@ -223,6 +225,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     listMembers(roomName: string) {
       const room = findRoom(roomName);
       return room ? sql.liveMembers.all(room.id).map(toMember) : [];
+    },
+
+    /** A page of a room's messages, system lines too, oldest first: the latest `limit`, or the `limit` after `after`.
+     * Reads only, so no cursor or presence moves. */
+    listMessages({ after, limit, room: roomName }: { after?: number; limit: number; room: string }) {
+      const room = findRoom(roomName);
+      if (!room) return { ok: false, reason: 'no_room' } as const;
+      const rows = after === undefined ? sql.latest.all(room.id, limit) : sql.messagesAfter.all(room.id, after, limit);
+      return { messages: rows.map(toMessage), ok: true } as const;
     },
 
     /** Every room by name, with how many posts count toward its cap. */
