@@ -27,13 +27,12 @@ export function startDoorbell({
         logger.error(error instanceof Error ? error : new Error(String(error)), { message: 'ring failed' }),
     );
   };
-  const batcher = createBatcher({ deliver, now, setTimer });
+  const batcher = createBatcher({ deliver, members: room => store.listMembers(room), now, setTimer });
   const off = store.events.on(({ event }) => {
     if (event.type !== 'message') return;
     const room = store.listRooms().find(item => item.name === event.room);
     batcher.add({
       closed: room?.closed_at !== null,
-      members: store.listMembers(event.room),
       message: event.message,
       room: event.room,
     });

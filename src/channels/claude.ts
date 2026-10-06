@@ -11,6 +11,9 @@ export interface ChannelEntry {
   session: Pick<McpSession, 'id' | 'kind'>;
 }
 
+/** Claude Code already shows the server name, so the ring drops its own `messhall: ` lead. */
+const CLAUDE_PREFIX = 'messhall: ';
+
 /**
  * Rings Claude Code over Channels: one notification on each live claude session that holds the
  * member. Claude Code sends no ack, and a session that went away is dropped, so wait still works.
@@ -23,6 +26,7 @@ export function createClaudeRinger({
   const ringer: Ringer = {
     kind: 'claude',
     async ring({ member, meta, text }: RingInput) {
+      const content = text.startsWith(CLAUDE_PREFIX) ? text.slice(CLAUDE_PREFIX.length) : text;
       const byId = new Map(
         member.rooms
           .flatMap(room => sessionsFor({ name: member.name, room }))
@@ -32,7 +36,7 @@ export function createClaudeRinger({
       const sent = await Promise.all(
         [...byId.values()].map(entry =>
           entry.server.server
-            .notification({ method: CHANNEL_METHOD, params: { content: text, meta } })
+            .notification({ method: CHANNEL_METHOD, params: { content, meta } })
             .then(() => true)
             .catch((error: unknown) => {
               logger.info('doorbell session gone', { error: String(error), session: entry.session.id });

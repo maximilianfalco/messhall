@@ -41,6 +41,7 @@ type EntryState = 'absent' | 'older' | 'same';
 
 export interface McpDeps {
   codexConfig: string;
+  codexSocket: string;
   confirm: (message: string) => Promise<boolean>;
   dataDir: string;
   fetch: Parameters<typeof probeHealth>[0]['fetch'];
@@ -57,6 +58,7 @@ interface Where {
 
 interface Check {
   good: boolean;
+  info?: boolean;
   line: string;
 }
 
@@ -257,6 +259,69 @@ async function versionCheck(run: McpDeps['run'], name: string): Promise<Check> {
     : { good: false, line: `${name}: ${version}, no channels, needs 2.1.80 or newer` };
 }
 
+// Codex subcommands that are not a TUI a user types into.
+const NOT_TUI = new Set([
+  'a',
+  'agents',
+  'app',
+  'app-server',
+  'apply',
+  'archive',
+  'completion',
+  'debug',
+  'delete',
+  'doctor',
+  'e',
+  'exec',
+  'login',
+  'logout',
+  'mcp',
+  'mcp-server',
+  'plugin',
+  'queue',
+  'remote-control',
+  'review',
+  'sandbox',
+  'update',
+]);
+// Any of these starts codex embedded, off the shared daemon, so no doorbell reaches it.
+const EMBEDDED_FLAGS = ['-c', '--config', '--enable', '--disable', '--search', '--no-daemon'];
+
+/** Codex TUIs in `ps -axo pid,args` output, each with the flag that made it embedded, or null. */
+export function codexTuis(ps: string) {
+  return ps
+    .split('\n')
+    .slice(1)
+    .flatMap(line => {
+      const [pid, bin, ...args] = line.trim().split(/\s+/);
+      if (!pid || !bin || path.basename(bin) !== 'codex' || NOT_TUI.has(args[0] ?? '')) return [];
+      const flag = EMBEDDED_FLAGS.find(name => args.some(arg => arg === name || arg.startsWith(`${name}=`)));
+      return [{ flag: flag ?? null, pid: Number(pid) }];
+    });
+}
+
+/** One line for the shared daemon, plus a red line per embedded TUI. Only pid and flag show, since args can hold secrets. */
+async function codexSessionChecks(deps: McpDeps): Promise<Check[]> {
+  const tuis = codexTuis((await deps.run('ps', ['-axo', 'pid,args'])).stdout);
+  const socket = existsSync(deps.codexSocket);
+  const running = `${tuis.length} codex running`;
+  const summary: Check = socket
+    ? { good: true, line: `codex sessions: shared daemon up, ${running}` }
+    : {
+        good: true,
+        info: true,
+        line: tuis.length
+          ? `codex sessions: ${running}, no shared daemon socket at ${deps.codexSocket}`
+          : 'codex sessions: no shared daemon and no codex running',
+      };
+  const embedded = tuis.flatMap(({ flag, pid }) =>
+    flag
+      ? [{ good: false, line: `codex pid ${pid} started with ${flag}: embedded, cannot be rung (fall back to wait)` }]
+      : [],
+  );
+  return [summary, ...embedded];
+}
+
 /** One green or red line per check. Returns 1 when any line is red. */
 export async function runMcpDoctor(deps: McpDeps) {
   const where = { key: readAgentKey(deps.dataDir), url: deps.url };
@@ -271,9 +336,10 @@ export async function runMcpDoctor(deps: McpDeps) {
     codexEntryCheck(deps.codexConfig, where),
     await versionCheck(deps.run, CLAUDE),
     await versionCheck(deps.run, 'codex'),
+    ...(await codexSessionChecks(deps)),
     ...(await toolChecks()),
   ];
-  checks.forEach(check => deps.log(check.good ? ok(check.line) : bad(check.line)));
+  checks.forEach(check => deps.log(check.info ? dim(check.line) : check.good ? ok(check.line) : bad(check.line)));
   return checks.every(check => check.good) ? 0 : 1;
 }
 
@@ -307,6 +373,7 @@ async function confirmPrompt(message: string) {
 
 const systemDeps = (): McpDeps => ({
   codexConfig: codexConfigPath(),
+  codexSocket: codexControlSocket(),
   confirm: confirmPrompt,
   dataDir: dataDir(),
   fetch,
@@ -332,7 +399,9 @@ export function registerMcp(program: Command) {
     });
   mcp
     .command('doctor')
-    .description('Check the daemon, both agent entries, the key, claude and codex versions, and the tools.')
+    .description(
+      'Check the daemon, both agent entries, the key, claude and codex versions, codex sessions, and the tools.',
+    )
     .action(async () => {
       process.exitCode = await runMcpDoctor(systemDeps());
     });

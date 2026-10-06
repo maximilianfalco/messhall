@@ -61,6 +61,9 @@ export function mcpHarness() {
     },
     clock: scratch.clock,
     codex,
+    get db() {
+      return scratch.db;
+    },
     joined,
     sessions,
     summary,

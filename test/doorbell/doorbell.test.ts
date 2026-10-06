@@ -89,6 +89,34 @@ describe('startDoorbell', () => {
     stop();
   });
 
+  it('delays the ring for a member active in the last 5 s until the grace passes', async () => {
+    const { advance, rung, stop } = setup(scratch);
+    scratch.store.touch({ as: 'web', room: 'checkout', state: 'active' });
+    await advance(1000);
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web the schema moved' });
+    await advance(3000);
+    expect(rung).toStrictEqual([]);
+    await advance(2999);
+    expect(rung).toStrictEqual([]);
+    await advance(1);
+    expect(rung.map(ring => ring.text)).toStrictEqual([
+      'messhall: 1 new in #checkout, api mentioned you. Call read_since.',
+    ]);
+    stop();
+  });
+
+  it('drops the delayed ring when the member reads in between', async () => {
+    const { advance, rung, stop } = setup(scratch);
+    scratch.store.touch({ as: 'web', room: 'checkout', state: 'active' });
+    await advance(1000);
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web the schema moved' });
+    await advance(2000);
+    scratch.store.readUnseen({ as: 'web', room: 'checkout' });
+    await advance(30_000);
+    expect(rung).toStrictEqual([]);
+    stop();
+  });
+
   it('stops ringing once stopped', async () => {
     const { advance, rung, stop } = setup(scratch);
     stop();
