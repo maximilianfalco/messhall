@@ -137,8 +137,13 @@ export function registerWait(server: McpServer, deps: ToolDeps, description: str
     const limit = waitLimitFor(server.server.getClientVersion()?.name);
     const timeoutS = Math.min(input.timeout_s ?? limit.defaultS, limit.maxS);
     const hit = await block({ ctx, rooms, store, timeoutS });
-    rooms.forEach((as, room) => store.touch({ as, room, state: 'active' }));
+    // A session that ended mid-wait left its members gone. Reading or touching would bring them back.
+    const held = [...rooms].filter(([room, as]) => session.rooms.get(room) === as);
+    held.forEach(([room, as]) => store.touch({ as, room, state: 'active' }));
     session.seen();
-    return reply(hit ? summary({ as: rooms.get(hit.room)!, hit, mark: session.markOf(hit.room), store }) : NOTHING_YET);
+    const live = hit && held.some(([room]) => room === hit.room) ? hit : undefined;
+    return reply(
+      live ? summary({ as: rooms.get(live.room)!, hit: live, mark: session.markOf(live.room), store }) : NOTHING_YET,
+    );
   });
 }

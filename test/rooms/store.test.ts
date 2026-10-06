@@ -111,6 +111,19 @@ describe('joinRoom', () => {
     expect(texts('demo').at(-1)).toBe('messhall: api reconnected');
   });
 
+  it('takes over a live name when the holder session is dead and keeps its cursor', () => {
+    joinBoth();
+    post('web', 'one');
+    store().readUnseen({ as: 'api', room: 'demo' });
+    const cursor = memberOf('demo', 'api')!.cursor;
+
+    const result = store().joinRoom({ as: 'api', holderDead: true, kind: 'claude', room: 'demo' });
+
+    expect(result).toMatchObject({ change: 'reconnected', ok: true });
+    expect(memberOf('demo', 'api')).toMatchObject({ cursor, presence: 'active' });
+    expect(texts('demo').at(-1)).toBe('messhall: api reconnected');
+  });
+
   it('lets a member who left join again', () => {
     joinBoth();
     store().leaveRoom({ as: 'api', room: 'demo' });
@@ -297,6 +310,36 @@ describe('presence', () => {
     store().sweepPresence();
 
     expect(memberOf('demo', 'web')!.presence).toBe('waiting');
+  });
+
+  it('marks every member still in a room gone after a restart, with one line per open room', () => {
+    joinBoth();
+    store().joinRoom({ as: 'ios', kind: 'other', room: 'demo' });
+    store().leaveRoom({ as: 'ios', room: 'demo' });
+    joinBoth('old');
+    store().closeRoom('old');
+    store().touch({ as: 'web', room: 'old', state: 'gone' });
+    const before = texts('old').length;
+
+    const changes = store().markAllGone();
+
+    expect(changes).toStrictEqual([
+      { from: 'active', name: 'api', room: 'demo', to: 'gone' },
+      { from: 'active', name: 'web', room: 'demo', to: 'gone' },
+      { from: 'active', name: 'api', room: 'old', to: 'gone' },
+    ]);
+    expect(
+      store()
+        .listMembers('demo')
+        .map(member => [member.name, member.presence]),
+    ).toStrictEqual([
+      ['api', 'gone'],
+      ['human', 'idle'],
+      ['web', 'gone'],
+    ]);
+    expect(texts('demo').at(-1)).toBe('messhall: messhall restarted, api and web are gone');
+    expect(texts('old')).toHaveLength(before);
+    expect(store().markAllGone()).toStrictEqual([]);
   });
 
   it('emits a presence event for each change', () => {

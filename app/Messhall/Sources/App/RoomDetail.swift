@@ -238,8 +238,14 @@ struct Transcript: View {
   let columnsChangedAt: Date?
   @State private var nearBottom = true
   @State private var showPill = false
+  @State private var opened: [Int: Bool] = [:]
 
   private static let end = "end"
+
+  // A filter shows the matching lines as they are, so a search for a name is not hidden in a fold.
+  private var items: [TranscriptItem] {
+    query.trimmingCharacters(in: .whitespaces).isEmpty ? messages.folded() : messages.map { .message($0) }
+  }
 
   var body: some View {
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -253,8 +259,14 @@ struct Transcript: View {
         ScrollView {
           VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-              ForEach(messages) { message in
-                MessageRow(message: message, sender: members.first { $0.name == message.from }).id(message.id)
+              ForEach(items) { item in
+                switch item {
+                case .message(let message):
+                  MessageRow(message: message, sender: members.first { $0.name == message.from }).id(item.id)
+                case .fold(let fold):
+                  let open = isOpen(fold)
+                  FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }.id(item.id)
+                }
               }
             }
             .padding(16)
@@ -308,6 +320,22 @@ struct Transcript: View {
     #endif
   }
 
+  private func isOpen(_ fold: Fold) -> Bool {
+    #if DEBUG
+      if ShotHooks.openFolds, opened[fold.id] == nil { return true }
+    #endif
+    return opened[fold.id] ?? fold.startsOpen
+  }
+
+  private func toggle(_ fold: Fold, to open: Bool, _ proxy: ScrollViewProxy) {
+    let action = Follow.afterToggle(nearBottom: nearBottom)
+    opened[fold.id] = open
+    // The next turn, so the run has its new height before the scroll aims at the end.
+    DispatchQueue.main.async {
+      if case .scroll(let animated) = action { scroll(proxy, animated: animated) }
+    }
+  }
+
   private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
     showPill = false
     guard animated else {
@@ -333,6 +361,47 @@ struct JumpToLatest: View {
     .overlay(Capsule().strokeBorder(.separator))
     .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
     .help("Scroll to the newest message")
+  }
+}
+
+struct FoldRow: View {
+  let fold: Fold
+  let open: Bool
+  let toggle: () -> Void
+  @State private var hovering = false
+
+  private var span: String {
+    let (first, last) = (fold.messages[0].time, fold.messages[fold.messages.count - 1].time)
+    return first == last ? first : "\(first) to \(last)"
+  }
+
+  var body: some View {
+    VStack(spacing: 6) {
+      Button(action: toggle) {
+        HStack(spacing: 6) {
+          Image(systemName: "chevron.right")
+            .imageScale(.small)
+            .fontWeight(.semibold)
+            .rotationEffect(.degrees(open ? 90 : 0))
+          Text("\(fold.messages.count) presence changes  \(span)")
+        }
+        .font(.caption)
+        .foregroundStyle(hovering ? .primary : .secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .background(.quaternary.opacity(hovering ? 0.6 : 0), in: Capsule())
+        .contentShape(Capsule())
+      }
+      .buttonStyle(.plain)
+      .onHover { hovering = $0 }
+      .help(open ? "Hide these lines" : "Show these lines")
+      .accessibilityLabel("\(fold.messages.count) presence changes, \(span)")
+      .accessibilityValue(open ? "Expanded" : "Collapsed")
+      if open {
+        ForEach(fold.messages) { MessageRow(message: $0, sender: nil) }
+      }
+    }
+    .frame(maxWidth: .infinity)
   }
 }
 

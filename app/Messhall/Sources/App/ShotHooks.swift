@@ -17,6 +17,9 @@
     /// `-shotScrollTop YES`: the transcript opens at its first message, so an agent post shows the jump pill.
     static let startAtTop = UserDefaults.standard.bool(forKey: "shotScrollTop")
 
+    /// `-shotOpenFolds YES`: every run of presence lines starts open, so a shot shows the lines inside.
+    static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
+
     /// `-shotPost <text>`: posts into the first open room through the same path as the post box.
     static func post(_ text: String, store: FeedStore, client: FeedClient) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }

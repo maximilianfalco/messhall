@@ -14,7 +14,6 @@ import {
 } from '@modelcontextprotocol/node';
 import { DEFAULT_MAX_REQUEST_BODY_SIZE, isInitializeRequest } from '@modelcontextprotocol/server';
 
-import { SESSION_IDLE_MS } from '../config.js';
 import { sendJson } from '../daemon/router.js';
 import { logger } from '../lib/logger.js';
 
@@ -52,7 +51,7 @@ async function readJson(req: IncomingMessage) {
 
 /**
  * The `/mcp` endpoint: one transport and one McpServer per `Mcp-Session-Id`. A session ends on
- * DELETE, on transport close, or after 30 idle minutes, and its members turn gone.
+ * DELETE, on transport close, or when the sweep finds it dead, and its members turn gone.
  */
 export function createMcpEndpoint({
   codex,
@@ -119,12 +118,11 @@ export function createMcpEndpoint({
       await Promise.all(sessions.all().map(entry => entry.transport.close()));
     },
     handle,
-    /** Closes sessions with no open request for 30 minutes. Returns how many closed. */
+    /** Closes dead sessions: no GET stream, no open request and no call for a minute. Returns how many closed. */
     async sweep() {
-      const cutoff = now().getTime() - SESSION_IDLE_MS;
-      const idle = sessions.all().filter(entry => entry.session.idleSince(cutoff));
-      await Promise.all(idle.map(entry => entry.transport.close()));
-      return idle.length;
+      const dead = sessions.all().filter(entry => entry.session.dead());
+      await Promise.all(dead.map(entry => entry.transport.close()));
+      return dead.length;
     },
     /** The live sessions holding `name` in `room`, so the doorbell can ring through each one's server. */
     sessionsFor: sessions.sessionsFor,

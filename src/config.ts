@@ -77,11 +77,12 @@ export const CAP_WARN_RATIO = 0.8;
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const GONE_AFTER_MS = 30 * 60_000;
-export const SESSION_IDLE_MS = 30 * 60_000;
+// A session with no stream and no request this long is dead: its client most likely died.
+export const SESSION_DEAD_MS = 60_000;
 export const EVENT_KEEP_MS = 7 * 24 * 60 * 60_000;
 export const DB_FILE = 'messhall.db';
 export const DB_BUSY_TIMEOUT_MS = 5000;
-export const PRESENCE_SWEEP_MS = 30_000;
+export const SWEEP_EVERY_MS = 15_000;
 export const HEALTH_TIMEOUT_MS = 1000;
 export const RING_BATCH_MS = 3000;
 export const RING_THROTTLE_MS = 20_000;

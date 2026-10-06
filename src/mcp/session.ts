@@ -1,5 +1,7 @@
 import type { AgentKind } from '../../contracts/room.ts';
 
+import { SESSION_DEAD_MS } from '../config.js';
+
 /**
  * What the daemon knows about one MCP session: the name it holds in each room, its agent kind,
  * when it was last seen, and how many HTTP requests it has open right now.
@@ -48,9 +50,9 @@ export function createSession({ id, now }: { id: string; now: () => Date }) {
     markOf(room: string) {
       return marks.get(room) ?? 0;
     },
-    /** True when no request is open and none ended after `cutoff`. A held GET stream keeps it live. */
-    idleSince(cutoff: number) {
-      return open === 0 && lastSeen <= cutoff;
+    /** True when no request is open, the GET stream too, and none came for a minute. Its client most likely died. */
+    dead() {
+      return open === 0 && now().getTime() - lastSeen >= SESSION_DEAD_MS;
     },
     /** True when the client takes `notifications/claude/channel`, so the channel ringer can reach it. */
     get channel() {
