@@ -46,10 +46,19 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm test
 
+  feature-map:
+    name: Feature map
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm messhall-dev featuremap --check
+
   ci:
     name: CI
     if: always()
-    needs: [format, lint, types, test]
+    needs: [format, lint, types, test, feature-map]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

@@ -6,8 +6,9 @@ Repo rules for Messhall. The global `~/CLAUDE.md` still applies; these add to it
 
 - The plan lives in the gitignored `personal-dev-notes.md` under "Plan (moved out of the repo)". It is the source of truth for scope and decisions, and its "Engineering standards" section is binding for every change. Read that file first; worktrees link it in.
 - `CRITICAL.md` names the code trees that hold the trust promise (the Host/Origin guard, the agent and human keys, the human-seat routes). Changes there wait for the owner to merge and run on the strongest model.
-- The `messhall-control` skill (`.claude/skills/messhall-control/`) is how work gets verified: `pnpm messhall-dev check` before any commit, the matching `messhall-dev` command as evidence, and a feature map row for every surface. Until it lands, `make check` is the gate.
+- The `messhall-control` skill (`.claude/skills/messhall-control/`) is how work gets verified: `pnpm messhall-dev check` before any commit, the matching `messhall-dev` command as evidence, and a feature map row for every surface.
 - The `messhall-pickup-any-work` skill (`.claude/skills/messhall-pickup-any-work/`) is how work gets picked: claim a row in the job queue, build it in its own worktree, close the row. Spawned with no brief? Run that skill.
+- The `messhall-tape-qa` skill (`.claude/skills/messhall-tape-qa/`) is how QA proof gets recorded: one vhs tape per case, uploaded with `pnpm messhall-dev qa-upload`, a table in the PR.
 
 ## Branches, commits, pushes
 

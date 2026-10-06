@@ -10,14 +10,18 @@
 - Open with `Hide`, `Type "clear"`, `Enter`, `Show`, so the take starts on a clean screen.
 - End every command with `; echo exit $?` so the exit code is on screen.
 - Finish with a `Sleep` long enough to read the last frame.
-- Any tape that touches a daemon sets `Env MESSHALL_HOME "/tmp/messhall-tape-home"` and `Env MESSHALL_PORT "7797"`. Never the real data dir or port.
+- Every tape sets `Env MESSHALL_HOME "/tmp/messhall-tape-home"`, and any tape that touches a daemon also sets `Env MESSHALL_PORT "7797"`. Never the real data dir or port.
 - Keep gifs under 10MB, or GitHub refuses them. Lower `Height` or `Framerate` if one grows past it.
 - Look at the last frame before you upload: `ffmpeg -sseof -0.3 -i demo/out/<name>.mp4 -frames:v 1 /tmp/last.png`.
 
 ## Render and upload
 
+The `messhall-tape-qa` skill (`.claude/skills/messhall-tape-qa/`) is the full flow. In short, from the repo root or the worktree:
+
 ```
-vhs demo/tapes/<name>.tape        # from the repo root or the worktree
+bash .claude/skills/messhall-tape-qa/scripts/render.sh demo/tapes/<name>.tape
+pnpm -s messhall-dev qa-upload <pr> demo/out/<name>.gif >> urls.txt
+python3 .claude/skills/messhall-tape-qa/scripts/build_qa.py before.md rows.json urls.txt new.md
 ```
 
-Gifs go to the `qa-assets` branch under `pr-<n>/`, pushed with git plumbing so the working branch never changes. Link them as `https://github.com/maximilianfalco/messhall/blob/qa-assets/pr-<n>/<file>?raw=true` in a `| case | recording |` table at the end of the PR's "QA and Testing" section.
+`render.sh` refuses a tape without an `Env MESSHALL_HOME` line or one that points at the real data dir. `qa-upload` pushes the gif to the `qa-assets` branch under `pr-<n>/` with git plumbing, so the working branch never changes. `build_qa.py` writes the `| case | recording |` table at the end of the PR's "QA and Testing" section.
