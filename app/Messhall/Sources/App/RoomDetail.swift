@@ -19,7 +19,7 @@ struct RoomDetail: View {
   #endif
 
   private var subtitle: String {
-    let posts = "\(room.messageCount) of \(room.messageCap) posts"
+    let posts = room.messageCount == 1 ? "1 post" : "\(room.messageCount) posts"
     guard let topic = room.topic else { return room.isOpen ? posts : "Closed, \(posts)" }
     return "\(topic), \(posts)"
   }
@@ -175,7 +175,7 @@ struct RoomOrigin: View {
           .padding(.horizontal, 8)
           .padding(.vertical, 3)
           .background(Color.accentColor.opacity(0.12), in: Capsule())
-          .help("Stays open when agents finish. Only you close it, or the post cap.")
+          .help("Stays open when agents finish. Only you close it.")
       }
       Text(maker)
         .font(.callout)

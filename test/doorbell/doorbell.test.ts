@@ -86,6 +86,26 @@ describe('startDoorbell', () => {
     stop();
   });
 
+  it('stops ringing a paused pair until the human posts', async () => {
+    Array.from({ length: 12 }, (_, index) =>
+      scratch.store.postMessage({
+        from: index % 2 ? 'web' : 'api',
+        room: 'checkout',
+        text: `@${index % 2 ? 'api' : 'web'} hi`,
+      }),
+    );
+    const { advance, rung, stop } = setup(scratch);
+
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web still there?' });
+    await advance(3000);
+    expect(rung).toStrictEqual([]);
+
+    scratch.store.postMessage({ from: 'human', room: 'checkout', text: 'wrap up' });
+    await advance(3000);
+    expect(rung.map(ring => ring.member.name)).toStrictEqual(['infra', 'web']);
+    stop();
+  });
+
   it('rings nobody for a kind with no ringer', async () => {
     const { advance, rung, stop } = setup(scratch);
     scratch.store.postMessage({ from: 'web', room: 'checkout', text: '@api ping' });

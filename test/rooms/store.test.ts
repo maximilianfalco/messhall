@@ -40,11 +40,12 @@ function post(from: string, text: string, done?: boolean) {
 }
 
 describe('joinRoom', () => {
-  it('creates the room on first join with the default cap and the human seat', () => {
+  it('creates the room on first join with the human seat', () => {
     const result = store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
 
     expect(result.ok).toBe(true);
-    expect(store().listRooms()).toMatchObject([{ closed_at: null, message_cap: 200, message_count: 0, name: 'demo' }]);
+    expect(store().listRooms()).toMatchObject([{ closed_at: null, message_count: 0, name: 'demo' }]);
+    expect(store().listRooms()[0]).not.toHaveProperty('message_cap');
     expect(
       store()
         .listMembers('demo')
@@ -190,21 +191,17 @@ describe('postMessage', () => {
     expect(post('api', '@all wrap up').mentions).toStrictEqual(['all']);
   });
 
-  it('warns at 160 posts and closes the room at 200', () => {
+  it('keeps a room open past 250 posts with no wrap up line', () => {
     joinBoth();
-    Array.from({ length: 199 }, (_, index) => post(index % 2 ? 'web' : 'api', `m${index}`));
+    Array.from({ length: 250 }, (_, index) => post(index % 2 ? 'web' : 'api', `m${index}`));
 
-    expect(texts('demo')).toContain('messhall: #demo is at 160/200, wrap up');
-    expect(store().listRooms()[0]!.closed_at).toBeNull();
-
-    post('web', 'm199');
-
-    expect(texts('demo').at(-1)).toBe('messhall: #demo reached its cap of 200 and is closed. ask the human to reopen');
-    expect(store().listRooms()[0]).toMatchObject({ closed_at: expect.any(String), message_count: 200 });
-    expect(store().postMessage({ from: 'api', room: 'demo', text: 'one more' })).toStrictEqual({
-      ok: false,
-      reason: 'room_full',
-    });
+    expect(store().listRooms()[0]).toMatchObject({ closed_at: null, message_count: 250 });
+    expect(texts('demo').filter(line => line.startsWith('messhall:'))).toStrictEqual([
+      'messhall: api joined',
+      'messhall: web joined',
+      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
+    ]);
+    expect(post('api', 'one more').kind).toBe('chat');
   });
 
   it('closes the room when the last agent is done and lets a later post put a member back in', () => {
@@ -235,11 +232,8 @@ describe('postMessage', () => {
 
     post('human', '@web one more fix please');
 
-    expect(store().listRooms()[0]).toMatchObject({ closed_at: null, message_cap: 202 });
-    expect(texts('demo').slice(-2)).toStrictEqual([
-      'messhall: #demo reopened, 200 more posts',
-      'human: @web one more fix please',
-    ]);
+    expect(store().listRooms()[0]!.closed_at).toBeNull();
+    expect(texts('demo').slice(-2)).toStrictEqual(['messhall: #demo reopened', 'human: @web one more fix please']);
     expect(store().postMessage({ from: 'web', room: 'demo', text: 'on it' }).ok).toBe(true);
   });
 });
@@ -414,7 +408,7 @@ describe('listing', () => {
     ).toHaveLength(1);
   });
 
-  it('reopens a room with a full cap', () => {
+  it('reopens a closed room', () => {
     joinBoth();
     expect(store().reopenRoom('demo')).toStrictEqual({ ok: false, reason: 'open' });
     post('api', 'done', true);
@@ -422,7 +416,8 @@ describe('listing', () => {
 
     const result = store().reopenRoom('demo');
 
-    expect(result.ok && result.room).toMatchObject({ closed_at: null, message_cap: 202 });
+    expect(result.ok && result.room).toMatchObject({ closed_at: null });
+    expect(texts('demo').at(-1)).toBe('messhall: #demo reopened');
   });
 });
 
@@ -464,7 +459,7 @@ describe('human-made rooms', () => {
   const changes = (seen: SequencedEvent[]) =>
     seen.flatMap(item => (item.event.type === 'room' ? [item.event.change] : []));
 
-  it('makes a standing room with its topic, the default cap and the human seat, and emits room created', () => {
+  it('makes a standing room with its topic and the human seat, and emits room created', () => {
     const seen: SequencedEvent[] = [];
     store().events.on(event => seen.push(event));
 
@@ -473,7 +468,6 @@ describe('human-made rooms', () => {
     expect(result.ok && result.room).toMatchObject({
       closed_at: null,
       created_by: 'human',
-      message_cap: 200,
       name: 'demo',
       standing: true,
       topic: 'q4',
@@ -484,12 +478,6 @@ describe('human-made rooms', () => {
         .listMembers('demo')
         .map(member => member.name),
     ).toStrictEqual(['human']);
-  });
-
-  it('takes a cap', () => {
-    const result = store().createRoom({ cap: 5, created_by: 'human', name: 'demo' });
-
-    expect(result.ok && result.room).toMatchObject({ message_cap: 5, topic: null });
   });
 
   it('refuses a name that already exists', () => {
@@ -524,17 +512,6 @@ describe('human-made rooms', () => {
     store().leaveRoom({ as: 'web', room: 'demo' });
 
     expect(store().listRooms()[0]!.closed_at).toBeNull();
-  });
-
-  it('still closes at its cap', () => {
-    store().createRoom({ cap: 2, created_by: 'human', name: 'demo' });
-    joinBoth();
-
-    post('api', 'one');
-    post('web', 'two');
-
-    expect(store().listRooms()[0]!.closed_at).not.toBeNull();
-    expect(texts('demo').at(-1)).toBe('messhall: #demo reached its cap of 2 and is closed. ask the human to reopen');
   });
 
   it('closes by hand with a system line and a room closed event', () => {
@@ -602,7 +579,7 @@ describe('summaries', () => {
     });
   });
 
-  it('stores a summary from messhall that the cap count leaves out', () => {
+  it('stores a summary from messhall that the post count leaves out', () => {
     joinBoth();
     post('api', 'hello');
 
@@ -611,15 +588,6 @@ describe('summaries', () => {
     expect(summary).toMatchObject({ from: 'messhall', kind: 'summary', mentions: [], text: 'Goal: cents.' });
     expect(store().listRooms()[0]!.message_count).toBe(1);
     expect(store().latestSummary('demo')).toStrictEqual(summary);
-  });
-
-  it('never closes a room at its cap because of summaries', () => {
-    joinBoth();
-    Array.from({ length: 199 }, (_, index) => post(index % 2 ? 'web' : 'api', `m${index}`));
-
-    summarize();
-
-    expect(store().listRooms()[0]).toMatchObject({ closed_at: null, message_count: 199 });
   });
 
   it('starts a new member at the latest summary, so its first read is the summary and what came after', () => {
@@ -1065,5 +1033,57 @@ describe('removing a member by hand', () => {
 
     expect(store().removeMember({ member: 'ghost', room: 'demo' })).toStrictEqual({ ok: false, reason: 'no_member' });
     expect(store().removeMember({ member: 'api', room: 'nope' })).toStrictEqual({ ok: false, reason: 'no_room' });
+  });
+});
+
+describe('the loop guard', () => {
+  const trade = (count: number) =>
+    Array.from({ length: count }, (_, index) => post(index % 2 ? 'web' : 'api', `line ${index + 1}`));
+  const loopLines = () => texts('demo').filter(line => line.includes('traded'));
+
+  it('pauses two agents after 12 lines alone and asks the human in one line', () => {
+    joinBoth();
+
+    trade(11);
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(1);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toStrictEqual([
+      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
+    ]);
+    expect(store().listMessages({ limit: 1, room: 'demo' }).messages?.[0]?.mentions).toStrictEqual(['human']);
+  });
+
+  it('says it once while the pair stays paused', () => {
+    joinBoth();
+
+    trade(30);
+
+    expect(loopLines()).toHaveLength(1);
+  });
+
+  it('restarts the run when a third agent speaks', () => {
+    joinBoth();
+    store().joinRoom({ as: 'infra', kind: 'claude', room: 'demo' });
+
+    trade(6);
+    post('infra', 'hi both');
+    trade(6);
+
+    expect(store().pausedWith('demo')).toStrictEqual({});
+    expect(loopLines()).toStrictEqual([]);
+  });
+
+  it('lifts the pause when the human posts, and pauses again after 12 more', () => {
+    joinBoth();
+    trade(12);
+
+    post('human', 'stop and sum up');
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(12);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toHaveLength(2);
   });
 });

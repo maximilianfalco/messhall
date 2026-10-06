@@ -113,6 +113,15 @@ export const MIGRATIONS = [
   ALTER TABLE members ADD COLUMN gone_at TEXT;
   UPDATE members SET gone_at = last_seen_at WHERE presence = 'gone';
   `,
+  // Rooms no longer close at a post count. Stored room events lose the field too, so replay matches the contract.
+  `
+  ALTER TABLE rooms DROP COLUMN message_cap;
+  UPDATE events SET payload = json_remove(payload, '$.room.message_cap') WHERE kind = 'room';
+  `,
+  // The agent this member traded too many lines with alone. Lines between them ring nobody until the human posts.
+  `
+  ALTER TABLE members ADD COLUMN paused_with TEXT;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

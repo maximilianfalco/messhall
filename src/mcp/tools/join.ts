@@ -99,7 +99,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
     return reply(
       [
         reconnected ? `reconnected #${input.room} as ${as}, your bookmark is kept.` : `joined #${input.room} as ${as}.`,
-        `topic: ${room.topic ?? 'none'}. ${room.closed_at ? 'closed' : 'open'}, ${room.message_count}/${room.message_cap} posts.`,
+        `topic: ${room.topic ?? 'none'}. ${room.closed_at ? 'closed' : 'open'}, ${room.message_count} posts.`,
         `members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,

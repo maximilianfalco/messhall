@@ -15,7 +15,6 @@ const room = (overrides: Partial<Room> = {}): Room => ({
   created_at: AT,
   created_by: 'api',
   id: 'room-1',
-  message_cap: 200,
   name: 'checkout',
   standing: false,
   topic: null,
@@ -145,19 +144,19 @@ const snapshot: Snapshot = {
 describe('renderSnapshot', () => {
   it('prints every room with the members still in it and last messages', () => {
     expect(plain(renderSnapshot({ snapshot }))).toStrictEqual([
-      '#checkout  open, 2/200 posts, ship the cart',
+      '#checkout  open, 2 posts, ship the cart',
       '       api active, web waiting, human',
       '10:04  api  hello',
       '10:04  human  nice',
       '',
-      '#search  closed, standing, 0/200 posts',
+      '#search  closed, standing, 0 posts',
       '       nobody here',
     ]);
   });
 
   it('prints only the watched room', () => {
     expect(plain(renderSnapshot({ room: 'search', snapshot }))).toStrictEqual([
-      '#search  closed, standing, 0/200 posts',
+      '#search  closed, standing, 0 posts',
       '       nobody here',
     ]);
   });
@@ -176,8 +175,8 @@ describe('renderSnapshot', () => {
 describe('renderRooms', () => {
   it('lists each room in one line, counting only members still in it', () => {
     expect(plain(renderRooms({ snapshot }))).toStrictEqual([
-      '#checkout  open, 3 members, 2/200 posts, ship the cart',
-      '#search  closed, standing, 0 members, 0/200 posts',
+      '#checkout  open, 3 members, 2 posts, ship the cart',
+      '#search  closed, standing, 0 members, 0 posts',
     ]);
   });
 });

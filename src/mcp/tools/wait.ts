@@ -45,7 +45,7 @@ function concernsMember({
 }) {
   const members = store.listMembers(room);
   const member = members.find(item => item.name === as);
-  return member !== undefined && concerns({ member, members, message });
+  return member !== undefined && concerns({ member, members, message, pausedWith: store.pausedWith(room) });
 }
 
 // Reads past the bookmark without moving it: wait only counts, read_since moves it.

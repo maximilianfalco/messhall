@@ -91,7 +91,6 @@ export interface DemoMessage {
 }
 
 export interface DemoRoom {
-  cap: number;
   closed: boolean;
 }
 
@@ -129,9 +128,9 @@ export function readRoom({ dataDir, name }: { dataDir: string; name: string }) {
   if (!existsSync(file)) return;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    const row = db.prepare('SELECT id, closed_at, message_cap FROM rooms WHERE name = ?').get(name);
+    const row = db.prepare('SELECT id, closed_at FROM rooms WHERE name = ?').get(name);
     if (!row) return;
-    const room: DemoRoom = { cap: Number(row.message_cap), closed: row.closed_at !== null };
+    const room: DemoRoom = { closed: row.closed_at !== null };
     const members: DemoMember[] = db
       .prepare('SELECT name, cursor FROM members WHERE room_id = ?')
       .all(String(row.id))
@@ -151,7 +150,7 @@ export function readRoom({ dataDir, name }: { dataDir: string; name: string }) {
   }
 }
 
-/** The room checks: both joined, each read a post of the other, each said done, closed with all done, under the cap. */
+/** The room checks: both joined, each read a post of the other, each said done, closed with all done. */
 export function demoChecks({
   members,
   messages,
@@ -194,7 +193,6 @@ export function demoChecks({
       name: 'room closed with all done',
       pass: room.closed && allDone,
     },
-    { detail: `${posts.length}/${room.cap} posts`, name: 'under the cap', pass: posts.length < room.cap },
   ];
 }
 

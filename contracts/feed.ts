@@ -50,11 +50,10 @@ export const humanPostResultSchema = z.object({
 });
 
 export const reopenResultSchema = z.object({
-  room: roomSchema.describe('The room, open again with a full cap.'),
+  room: roomSchema.describe('The room, open again.'),
 });
 
 export const newRoomSchema = z.object({
-  cap: z.number().int().positive().optional().describe('Posts allowed before the room closes, 200 when left out.'),
   name: nameSchema.describe('Room name, unique.'),
   topic: z.string().min(1).max(TOPIC_MAX_CHARS).optional().describe('What the room is for, 1 to 200 chars.'),
 });

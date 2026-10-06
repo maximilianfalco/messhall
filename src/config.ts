@@ -37,6 +37,11 @@ export function codexConfigPath() {
   return path.join(process.env.CODEX_HOME || path.join(homedir(), '.codex'), 'config.toml');
 }
 
+/** Gemini CLI's user settings. `GEMINI_CLI_HOME` stands in for the home dir, as it does for gemini itself. */
+export function geminiSettingsPath() {
+  return path.join(process.env.GEMINI_CLI_HOME || homedir(), '.gemini', 'settings.json');
+}
+
 /** Codex's shared app-server control socket. `MESSHALL_CODEX_SOCKET` wins, then `CODEX_HOME`, as for codex itself. */
 export function codexControlSocket() {
   const codexHome = process.env.CODEX_HOME || path.join(homedir(), '.codex');
@@ -72,8 +77,6 @@ export function claudeBin({ exists = existsSync }: { exists?: (file: string) => 
   return [...onPath, ...spots].find(file => exists(file)) ?? 'claude';
 }
 
-export const DEFAULT_MESSAGE_CAP = 200;
-export const CAP_WARN_RATIO = 0.8;
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const GONE_AFTER_MS = 30 * 60_000;
@@ -89,6 +92,8 @@ export const HEALTH_TIMEOUT_MS = 1000;
 export const RING_BATCH_MS = 3000;
 export const RING_THROTTLE_MS = 20_000;
 export const RING_ACTIVE_HOLD_MS = 5000;
+// Two agents trading this many lines alone pause their doorbells until the human posts.
+export const LOOP_GUARD_LINES = 12;
 export const CODEX_REQUEST_TIMEOUT_MS = 5000;
 export const CODEX_RECONNECT_MIN_MS = 500;
 export const CODEX_RECONNECT_MAX_MS = 30_000;

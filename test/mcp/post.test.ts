@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_MESSAGE_CAP } from '../../src/config.js';
-
 import { mcpHarness, type McpHarness } from './harness.js';
 
 let harness: McpHarness;
@@ -57,21 +55,6 @@ describe('post', () => {
     expect(result).toStrictEqual({
       isError: true,
       text: '#checkout is closed, every agent said done. ask the human to post or reopen it.',
-    });
-  });
-
-  it('refuses a post once the room is at its cap', async () => {
-    const api = await harness.joined('checkout', 'api');
-    await Array.from({ length: DEFAULT_MESSAGE_CAP }).reduce<Promise<unknown>>(
-      chain => chain.then(() => api.call('post', { room: 'checkout', text: 'tick' })),
-      Promise.resolve(),
-    );
-
-    const result = await api.call('post', { room: 'checkout', text: 'over' });
-
-    expect(result).toStrictEqual({
-      isError: true,
-      text: 'room closed at its cap, ask the human to reopen.',
     });
   });
 

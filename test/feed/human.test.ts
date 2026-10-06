@@ -112,13 +112,13 @@ describe('POST /api/rooms/:name/messages', () => {
 });
 
 describe('POST /api/rooms/:name/reopen', () => {
-  it('reopens a closed room with a full cap', async () => {
+  it('reopens a closed room', async () => {
     closeRoom();
 
     const res = await human('/api/rooms/demo/reopen');
 
     expect(res.status).toBe(200);
-    expect(reopenResultSchema.parse(await res.json()).room).toMatchObject({ closed_at: null, message_cap: 201 });
+    expect(reopenResultSchema.parse(await res.json()).room).toMatchObject({ closed_at: null });
   });
 
   it('answers 409 for a room that is open', async () => {
@@ -137,13 +137,12 @@ describe('POST /api/rooms', () => {
     const seen: SequencedEvent[] = [];
     store().events.on(event => seen.push(event));
 
-    const res = await human('/api/rooms', { cap: 50, name: 'planning', topic: 'q4' });
+    const res = await human('/api/rooms', { name: 'planning', topic: 'q4' });
 
     expect(res.status).toBe(201);
     expect(newRoomResultSchema.parse(await res.json()).room).toMatchObject({
       closed_at: null,
       created_by: 'human',
-      message_cap: 50,
       name: 'planning',
       standing: true,
       topic: 'q4',
@@ -163,12 +162,9 @@ describe('POST /api/rooms', () => {
     expect((await human('/api/rooms', { name: 'demo' })).status).toBe(409);
   });
 
-  it.each([{}, { name: 'Bad Name' }, { cap: 0, name: 'ok' }, { name: 'ok', topic: '' }])(
-    'refuses the body %j with 400',
-    async body => {
-      expect((await human('/api/rooms', body)).status).toBe(400);
-    },
-  );
+  it.each([{}, { name: 'Bad Name' }, { name: 'ok', topic: '' }])('refuses the body %j with 400', async body => {
+    expect((await human('/api/rooms', body)).status).toBe(400);
+  });
 });
 
 describe('POST /api/rooms/:name/close', () => {

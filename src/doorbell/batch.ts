@@ -81,8 +81,18 @@ export function createBatcher({
 
   return {
     /** Queues a ring for each member the message rings. */
-    add({ closed, message, room }: { closed: boolean; message: Message; room: string }) {
-      ringsFor({ closed, lastRing, members: members(room), message, now: now() }).forEach(ring => {
+    add({
+      closed,
+      message,
+      pausedWith,
+      room,
+    }: {
+      closed: boolean;
+      message: Message;
+      pausedWith: Readonly<Record<string, string>>;
+      room: string;
+    }) {
+      ringsFor({ closed, lastRing, members: members(room), message, now: now(), pausedWith }).forEach(ring => {
         const batch = pending.get(ring.name) ?? {
           cancel: setTimer(() => fire(ring.name), ring.at - now().getTime()),
           kind: ring.kind,

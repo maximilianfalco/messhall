@@ -26,9 +26,7 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     const body = await readJson(req);
     const parsed = newRoomSchema.safeParse(body.ok ? body.value : undefined);
     if (!parsed.success) {
-      sendJson(res, 400, {
-        error: 'send json { name, topic?, cap? }: name is a-z, 0-9 and dashes, cap a whole number',
-      });
+      sendJson(res, 400, { error: 'send json { name, topic? }: name is a-z, 0-9 and dashes' });
       return;
     }
     const result = store.createRoom({ ...parsed.data, created_by: HUMAN_NAME });

@@ -60,11 +60,8 @@ struct FoldTests {
   }
 
   @Test(
-    "cap warnings and room lines are never folded and break the run",
-    arguments: [
-      "#checkout is at 160/200, wrap up", "#checkout reached its cap of 200 and is closed. ask the human to reopen",
-      "all done, room closed", "#checkout closed by the human", "#checkout reopened, 200 more posts",
-    ])
+    "room lines are never folded and break the run",
+    arguments: ["all done, room closed", "#checkout closed by the human", "#checkout reopened"])
   func keptOut(text: String) {
     let messages = [
       line(1, "a joined"), line(2, "b joined"), line(3, text), line(4, "a left"), line(5, "b left"),

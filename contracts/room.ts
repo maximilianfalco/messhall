@@ -44,13 +44,10 @@ export const roomSchema = z.object({
   created_at: timestampSchema.describe('When the room was made.'),
   created_by: z.string().describe('Who made the room: human, or the name of the agent whose join made it.'),
   id: z.string().describe('Room id.'),
-  message_cap: z.number().int().positive().describe('Posts allowed before the room closes.'),
   name: nameSchema.describe('Room name, unique.'),
   standing: z
     .boolean()
-    .describe(
-      'True for a room the human made. It stays open when every agent is done, until its cap or the human closes it.',
-    ),
+    .describe('True for a room the human made. It stays open when every agent is done, until the human closes it.'),
   topic: z.string().nullable().describe('What the room is for, null when unset.'),
 });
 
@@ -114,7 +111,7 @@ export const roomSummarySchema = roomSchema.extend({
     .positive()
     .nullable()
     .describe('Id of the oldest message in the room, system lines too. Null while it has none.'),
-  message_count: z.number().int().nonnegative().describe('Posts that count toward the cap.'),
+  message_count: z.number().int().nonnegative().describe('Posts from members, not daemon lines or summaries.'),
 });
 
 export type Room = z.infer<typeof roomSchema>;

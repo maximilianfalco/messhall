@@ -9,7 +9,6 @@
       "created_by": "api",
       "standing": false,
       "closed_at": null,
-      "message_cap": 200,
       "message_count": 1,
       "first_message_id": 1,
       "members": [

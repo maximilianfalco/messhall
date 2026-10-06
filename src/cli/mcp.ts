@@ -4,14 +4,16 @@ import type { Command } from 'commander';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { confirm as clackConfirm, isCancel } from '@clack/prompts';
 import pc from 'picocolors';
 
 import { createCodexClient } from '../codex/client.js';
-import { codexConfigPath, codexControlSocket, daemonUrl, dataDir } from '../config.js';
+import { codexConfigPath, codexControlSocket, daemonUrl, dataDir, geminiSettingsPath } from '../config.js';
 import { readBlock, withBlock, withoutBlock } from '../lib/codexToml.js';
 import { runCommand } from '../lib/run.js';
+import { parseSettings, readServer, withoutServer, withServer } from '../lib/settingsJson.js';
 import { SERVER_NAME, TEXT_BUDGET } from '../mcp/constants.js';
 import { createMesshallServer } from '../mcp/server.js';
 import { createSession, createSessionRegistry } from '../mcp/session.js';
@@ -29,6 +31,8 @@ const MASK = '<agent key>';
 const CODEX_HEADER = `[mcp_servers.${SERVER_NAME}]`;
 // Codex asks before every MCP tool call by default, which stalls a room.
 const CODEX_APPROVAL = 'approve';
+// Gemini's own default, written out so a long wait call is never cut short by a lower one.
+const GEMINI_TIMEOUT_MS = 600_000;
 const CHANNEL_LINE = `claude --dangerously-load-development-channels server:${SERVER_NAME}`;
 // Claude Code shipped Channels in this release.
 const CHANNELS_SINCE = [2, 1, 80] as const;
@@ -45,6 +49,7 @@ export interface McpDeps {
   confirm: (message: string) => Promise<boolean>;
   dataDir: string;
   fetch: Parameters<typeof probeHealth>[0]['fetch'];
+  geminiSettings: string;
   isTty: boolean;
   log: (line: string) => void;
   run: typeof runCommand;
@@ -87,6 +92,13 @@ export function codexBlock({ key, url }: Where) {
   ].join('\n');
 }
 
+/** The `mcpServers.messhall` entry for Gemini CLI's settings. `trust` skips the ask before every tool call. */
+export function geminiEntry({ key, url }: Where) {
+  return { headers: { [KEY_HEADER_NAME]: key }, httpUrl: mcpUrl(url), timeout: GEMINI_TIMEOUT_MS, trust: true };
+}
+
+const geminiJson = (where: Where) => JSON.stringify({ mcpServers: { [SERVER_NAME]: geminiEntry(where) } }, null, 2);
+
 /** True when a `claude --version` line is 2.1.80 or newer. */
 export function hasChannels(version: string) {
   const match = /(\d+)\.(\d+)\.(\d+)/.exec(version);
@@ -127,6 +139,17 @@ function codexState(file: string, where: Where): EntryState {
   const found = readCodexEntry(file);
   if (found === null) return 'absent';
   return found === codexBlock(where) ? 'same' : 'older';
+}
+
+/** Gemini's parsed settings and how its messhall entry compares to `where`. No `.gemini` dir means gemini is not set up. */
+function readGemini(file: string, where: Where) {
+  if (!existsSync(path.dirname(file))) return { settings: null, state: 'not set up' } as const;
+  const settings = parseSettings(readText(file));
+  if (!settings) return { settings, state: 'invalid' } as const;
+  const found = readServer({ name: SERVER_NAME, settings });
+  const state: EntryState =
+    found === undefined ? 'absent' : isDeepStrictEqual(found, geminiEntry(where)) ? 'same' : 'older';
+  return { settings, state };
 }
 
 /** Writes `text` to `file`, copying the old file to `<file>.bak` first. */
@@ -179,7 +202,34 @@ async function installCodex(deps: McpDeps, where: Where, { yes }: { yes: boolean
   deps.log(ok(`codex: wrote ${file}${backup}`));
 }
 
-/** Adds messhall to Claude Code and Codex. The key shows only in the `--print` line.
+async function installGemini(deps: McpDeps, where: Where, { yes }: { yes: boolean }) {
+  const file = deps.geminiSettings;
+  const { settings, state } = readGemini(file, where);
+  if (state === 'not set up') {
+    deps.log(dim(`gemini: no ${path.dirname(file)}, skipped`));
+    return true;
+  }
+  if (!settings) {
+    deps.log(bad(`gemini: ${file} is not plain JSON, add the entry from messhall mcp install --print by hand`));
+    return false;
+  }
+  if (state === 'same') {
+    deps.log(ok('gemini: already installed'));
+    return true;
+  }
+  deps.log(dim(geminiJson({ ...where, key: MASK })));
+  const question = state === 'older' ? `replace the messhall entry in ${file}?` : `add this to ${file}?`;
+  if (!yes && !(await deps.confirm(question))) {
+    deps.log(dim('gemini: skipped, nothing written'));
+    return true;
+  }
+  const backup = existsSync(file) ? ', backup at settings.json.bak' : '';
+  writeWithBackup(file, withServer({ entry: geminiEntry(where), name: SERVER_NAME, settings }));
+  deps.log(ok(`gemini: wrote ${file}${backup}`));
+  return true;
+}
+
+/** Adds messhall to Claude Code, Codex and Gemini CLI. The key shows only in the `--print` line.
  * The daemon has to be up, since the add is checked by connecting to it. */
 export async function runMcpInstall({ print, yes }: { print: boolean; yes: boolean }, deps: McpDeps) {
   const where = { key: readAgentKey(deps.dataDir), url: deps.url };
@@ -188,6 +238,8 @@ export async function runMcpInstall({ print, yes }: { print: boolean; yes: boole
     channelNote(deps.log);
     deps.log(dim(`codex, written to ${deps.codexConfig} by messhall mcp install:`));
     deps.log(dim(codexBlock({ ...where, key: MASK })));
+    deps.log(dim(`gemini, written to ${deps.geminiSettings} by messhall mcp install:`));
+    deps.log(dim(geminiJson({ ...where, key: MASK })));
     return 0;
   }
   const probe = await probeHealth({ fetch: deps.fetch, url: deps.url });
@@ -195,14 +247,18 @@ export async function runMcpInstall({ print, yes }: { print: boolean; yes: boole
     deps.log(bad(`messhall is not running on ${deps.url}. run messhall start, then try again`));
     return 1;
   }
-  if (!yes && !deps.isTty && codexState(deps.codexConfig, where) !== 'same') {
-    notTerminal('rerun with --yes to write the codex config, or --print to only see the lines').forEach(deps.log);
+  const geminiWrites = ['absent', 'older'].includes(readGemini(deps.geminiSettings, where).state);
+  if (!yes && !deps.isTty && (codexState(deps.codexConfig, where) !== 'same' || geminiWrites)) {
+    notTerminal('rerun with --yes to write the codex and gemini configs, or --print to only see the lines').forEach(
+      deps.log,
+    );
     return 1;
   }
   const claudeOk = await installClaude(deps, where);
   channelNote(deps.log);
   await installCodex(deps, where, { yes });
-  return claudeOk ? 0 : 1;
+  const geminiOk = await installGemini(deps, where, { yes });
+  return claudeOk && geminiOk ? 0 : 1;
 }
 
 async function toolChecks(): Promise<Check[]> {
@@ -247,6 +303,19 @@ function codexEntryCheck(file: string, where: Where): Check {
     return { good: false, line: 'codex entry: url, key or approval mode is out of date. run messhall mcp install' };
   }
   return { good: true, line: `codex entry: ${mcpUrl(where.url)} with the agent key, tools ${CODEX_APPROVAL}` };
+}
+
+function geminiEntryCheck(file: string, where: Where): Check {
+  const { state } = readGemini(file, where);
+  if (state === 'not set up') {
+    return { good: true, info: true, line: `gemini entry: no ${path.dirname(file)}, gemini not set up` };
+  }
+  if (state === 'invalid') return { good: false, line: `gemini entry: ${file} is not plain JSON` };
+  if (state === 'absent') return { good: false, line: `gemini entry: missing from ${file}, run messhall mcp install` };
+  if (state === 'older') {
+    return { good: false, line: 'gemini entry: url, key, timeout or trust is out of date. run messhall mcp install' };
+  }
+  return { good: true, line: `gemini entry: ${mcpUrl(where.url)} with the agent key, trusted` };
 }
 
 async function versionCheck(run: McpDeps['run'], name: string): Promise<Check> {
@@ -334,6 +403,7 @@ export async function runMcpDoctor(deps: McpDeps) {
     daemon,
     claudeEntryCheck(await readClaudeEntry(deps.run), where),
     codexEntryCheck(deps.codexConfig, where),
+    geminiEntryCheck(deps.geminiSettings, where),
     await versionCheck(deps.run, CLAUDE),
     await versionCheck(deps.run, 'codex'),
     ...(await codexSessionChecks(deps)),
@@ -343,26 +413,44 @@ export async function runMcpDoctor(deps: McpDeps) {
   return checks.every(check => check.good) ? 0 : 1;
 }
 
-/** Removes the Claude Code entry and the Codex block. The daemon and the data dir stay. */
-export async function runMcpUninstall({ yes }: { yes: boolean }, deps: McpDeps) {
+async function uninstallCodex(deps: McpDeps, { yes }: { yes: boolean }) {
   const file = deps.codexConfig;
-  const hasBlock = readCodexEntry(file) !== null;
-  if (hasBlock && !yes && !deps.isTty) {
-    notTerminal('rerun with --yes to edit the codex config').forEach(deps.log);
+  if (readCodexEntry(file) === null) return deps.log(dim('codex: no messhall block'));
+  if (!yes && !(await deps.confirm(`remove the messhall block from ${file}?`))) {
+    return deps.log(dim('codex: skipped, nothing written'));
+  }
+  writeWithBackup(file, withoutBlock({ header: CODEX_HEADER, text: readText(file) }));
+  deps.log(ok('codex: removed the messhall block, backup at config.toml.bak'));
+}
+
+/** Gemini's parsed settings when they hold a messhall entry, else null. */
+function geminiWithEntry(file: string) {
+  const settings = parseSettings(readText(file));
+  return settings && readServer({ name: SERVER_NAME, settings }) !== undefined ? settings : null;
+}
+
+async function uninstallGemini(deps: McpDeps, { yes }: { yes: boolean }) {
+  const file = deps.geminiSettings;
+  const settings = geminiWithEntry(file);
+  if (!settings) return deps.log(dim('gemini: no messhall entry'));
+  if (!yes && !(await deps.confirm(`remove the messhall entry from ${file}?`))) {
+    return deps.log(dim('gemini: skipped, nothing written'));
+  }
+  writeWithBackup(file, withoutServer({ name: SERVER_NAME, settings }));
+  deps.log(ok('gemini: removed the messhall entry, backup at settings.json.bak'));
+}
+
+/** Removes the Claude Code entry, the Codex block and the Gemini entry. The daemon and the data dir stay. */
+export async function runMcpUninstall({ yes }: { yes: boolean }, deps: McpDeps) {
+  const edits = readCodexEntry(deps.codexConfig) !== null || geminiWithEntry(deps.geminiSettings) !== null;
+  if (edits && !yes && !deps.isTty) {
+    notTerminal('rerun with --yes to edit the codex and gemini configs').forEach(deps.log);
     return 1;
   }
   const removed = await deps.run(CLAUDE, REMOVE_ARGS);
   deps.log(removed.code === 0 ? ok('claude code: removed the messhall entry') : dim('claude code: no messhall entry'));
-  if (!hasBlock) {
-    deps.log(dim('codex: no messhall block'));
-    return 0;
-  }
-  if (!yes && !(await deps.confirm(`remove the messhall block from ${file}?`))) {
-    deps.log(dim('codex: skipped, nothing written'));
-    return 0;
-  }
-  writeWithBackup(file, withoutBlock({ header: CODEX_HEADER, text: readText(file) }));
-  deps.log(ok('codex: removed the messhall block, backup at config.toml.bak'));
+  await uninstallCodex(deps, { yes });
+  await uninstallGemini(deps, { yes });
   return 0;
 }
 
@@ -377,6 +465,7 @@ const systemDeps = (): McpDeps => ({
   confirm: confirmPrompt,
   dataDir: dataDir(),
   fetch,
+  geminiSettings: geminiSettingsPath(),
   isTty: Boolean(process.stdin.isTTY),
   log: line => console.log(line),
   run: runCommand,
@@ -385,14 +474,16 @@ const systemDeps = (): McpDeps => ({
 
 /** Registers `mcp install`, `mcp doctor` and `mcp uninstall`. */
 export function registerMcp(program: Command) {
-  const mcp = program.command('mcp').description('Add messhall to Claude Code and Codex, check it, or take it out.');
+  const mcp = program
+    .command('mcp')
+    .description('Add messhall to Claude Code, Codex and Gemini CLI, check it, or take it out.');
   mcp
     .command('install')
     .description(
-      'Add messhall to Claude Code with claude mcp add-json and to the Codex config, then check it connects.',
+      'Add messhall to Claude Code with claude mcp add-json, to the Codex config and to the Gemini settings, then check it connects.',
     )
     .option('--print', 'only print the lines, change nothing')
-    .option('--yes', 'write the Codex config without asking')
+    .option('--yes', 'write the Codex and Gemini configs without asking')
     .action(async (options: { print?: boolean; yes?: boolean }) => {
       const flags = { print: Boolean(options.print), yes: Boolean(options.yes) };
       process.exitCode = await runMcpInstall(flags, systemDeps());
@@ -400,15 +491,15 @@ export function registerMcp(program: Command) {
   mcp
     .command('doctor')
     .description(
-      'Check the daemon, both agent entries, the key, claude and codex versions, codex sessions, and the tools.',
+      'Check the daemon, the Claude, Codex and Gemini entries, the key, claude and codex versions, codex sessions, and the tools.',
     )
     .action(async () => {
       process.exitCode = await runMcpDoctor(systemDeps());
     });
   mcp
     .command('uninstall')
-    .description('Remove messhall from Claude Code and Codex. Keeps the daemon and the data dir.')
-    .option('--yes', 'edit the Codex config without asking')
+    .description('Remove messhall from Claude Code, Codex and Gemini CLI. Keeps the daemon and the data dir.')
+    .option('--yes', 'edit the Codex and Gemini configs without asking')
     .action(async (options: { yes?: boolean }) => {
       process.exitCode = await runMcpUninstall({ yes: Boolean(options.yes) }, systemDeps());
     });

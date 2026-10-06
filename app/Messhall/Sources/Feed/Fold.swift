@@ -28,7 +28,7 @@ public let foldOpenBelow = 3
 private let presenceEndings = [" joined", " reconnected", " left", " is gone"]
 
 extension Message {
-  /// A joined, left, gone or reconnected line. Cap warnings and room lines are not, so they never fold.
+  /// A joined, left, gone or reconnected line. Room lines are not, so they never fold.
   public var isPresence: Bool {
     guard kind == .system, !text.hasPrefix("#") else { return false }
     return presenceEndings.contains { text.hasSuffix($0) } || text.contains(" left: ")

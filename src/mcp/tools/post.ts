@@ -5,7 +5,7 @@ import { postInputSchema } from '../../../contracts/mcp.ts';
 
 import { notJoined, refuse, registerRoomTool, reply } from './registry.js';
 
-/** Registers `post`: membership, the open room, the cap and the text limit all come from the store. */
+/** Registers `post`: membership, the open room and the text limit all come from the store. */
 export function registerPost(server: McpServer, deps: ToolDeps, description: string) {
   const { session, store } = deps;
   registerRoomTool(
@@ -24,8 +24,6 @@ export function registerPost(server: McpServer, deps: ToolDeps, description: str
       switch (posted.reason) {
         case 'too_long':
           return refuse(`too long (${posted.length} chars). Write it to a file and post the path.`);
-        case 'room_full':
-          return refuse('room closed at its cap, ask the human to reopen.');
         case 'room_closed':
           return refuse(`#${room} is closed, every agent said done. ask the human to post or reopen it.`);
         default:

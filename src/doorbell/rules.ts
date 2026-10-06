@@ -17,8 +17,8 @@ export interface RoomCount {
 }
 
 /**
- * Who a message rings and when: members it concerns, minus the poster, the human and anyone
- * blocked in wait. Rings land 3 s out, or 20 s after the last ring.
+ * Who a message rings and when: members it concerns, minus the poster, the human, anyone
+ * blocked in wait and a paused pair. Rings land 3 s out, or 20 s after the last ring.
  */
 export function ringsFor({
   closed,
@@ -26,18 +26,20 @@ export function ringsFor({
   members,
   message,
   now,
+  pausedWith,
 }: {
   closed: boolean;
   lastRing: Readonly<Record<string, number>>;
   members: Member[];
   message: Message;
   now: Date;
+  pausedWith: Readonly<Record<string, string>>;
 }) {
   if (closed) return [];
   const at = now.getTime();
   return members
     .filter(member => member.kind !== 'human' && member.presence !== 'waiting')
-    .filter(member => concerns({ member, members, message }))
+    .filter(member => concerns({ member, members, message, pausedWith }))
     .map(member => {
       const ring: Ring = {
         at: Math.max(at + RING_BATCH_MS, (lastRing[member.name] ?? -Infinity) + RING_THROTTLE_MS),

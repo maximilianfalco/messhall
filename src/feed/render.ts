@@ -44,7 +44,7 @@ function memberLine(member: Member, change: MemberChange) {
 type SnapshotRoom = Snapshot['rooms'][number];
 
 const stateOf = (room: SnapshotRoom) => [room.closed_at ? 'closed' : 'open', ...(room.standing ? ['standing'] : [])];
-const postsOf = (room: SnapshotRoom) => `${room.message_count}/${room.message_cap} posts`;
+const postsOf = (room: SnapshotRoom) => `${room.message_count} posts`;
 
 // The snapshot keeps members who left so old posts keep a sender. Lists and counts skip them.
 const present = (members: Member[]) => members.filter(item => item.presence !== 'left');

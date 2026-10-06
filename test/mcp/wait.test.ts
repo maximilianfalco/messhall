@@ -40,6 +40,24 @@ async function trio() {
 }
 
 describe('wait', () => {
+  it('stays asleep for a line from a paused partner and wakes for the human', async () => {
+    const api = await harness.joined('checkout', 'api');
+    await harness.joined('checkout', 'web');
+    Array.from({ length: 12 }, (_, index) =>
+      harness.store.postMessage({ from: index % 2 ? 'web' : 'api', room: 'checkout', text: `line ${index}` }),
+    );
+    await api.call('read_since', { room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout', timeout_s: 30 }, LONG));
+    harness.store.postMessage({ from: 'web', room: 'checkout', text: '@api one more' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(waiting.done).toBe(false);
+
+    harness.store.postMessage({ from: 'human', room: 'checkout', text: 'wrap it up' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(waiting.value?.text).toContain('human posted');
+  });
+
   it('times out with the call again text and never moves the cursor', async () => {
     const api = await harness.joined('checkout', 'api');
     const web = await harness.joined('checkout', 'web');

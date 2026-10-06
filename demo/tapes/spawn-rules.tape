@@ -23,7 +23,7 @@ Sleep 500ms
 Enter
 Sleep 6s
 
-Type "pnpm -s vitest run test/tools/spawn.test.ts -t 'spawnPrompt|seatPrompt|spawnArgv' | tail -5; echo exit $?"
+Type "pnpm -s vitest run test/tools/spawn.test.ts -t 'seat prompt|seatPrompt|rowInstructions|spawnArgv' | tail -5; echo exit $?"
 Sleep 500ms
 Enter
 

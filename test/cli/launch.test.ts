@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { claudeArgv, claudePrompt, runClaude } from '../../src/cli/claude.js';
 import { codexArgv, codexPrompt, runCodex } from '../../src/cli/codex.js';
+import { packageRoot } from '../../src/lib/packageRoot.js';
 
 const URL_BASE = 'http://127.0.0.1:7787';
 const CLAUDE_ENTRY = [
@@ -83,6 +84,12 @@ describe('claudeArgv', () => {
       'Join #checkout as api with the messhall tools, then wait for instructions from the room or the human.',
     );
   });
+
+  it('asks to join and then read and follow the brief when there is one', () => {
+    expect(claudePrompt({ brief: '/briefs/lead.md', name: 'lead', room: 'checkout' })).toBe(
+      'Join #checkout as lead with the messhall tools. Then read the brief at /briefs/lead.md and follow it in the room.',
+    );
+  });
 });
 
 describe('codexArgv', () => {
@@ -99,6 +106,13 @@ describe('codexArgv', () => {
     expect(prompt).toContain('$CODEX_THREAD_ID');
     expect(prompt).toContain('thread_id');
     expect(prompt).toContain('#checkout as web');
+  });
+
+  it('asks to read and follow the brief after the join when there is one', () => {
+    const prompt = codexPrompt({ brief: '/briefs/lead.md', name: 'web', room: 'checkout' });
+
+    expect(prompt).toContain('thread_id');
+    expect(prompt).toContain('Then read the brief at /briefs/lead.md and follow it in the room.');
   });
 });
 
@@ -140,6 +154,41 @@ describe('runClaude', () => {
     expect(output()).toContain('Join #lobby as checkout-api');
   });
 
+  it('passes the --brief file as a full path from the shell cwd', async () => {
+    writeFileSync(path.join(repo, 'lead.md'), 'lead the room');
+
+    await runClaude({ as: 'lead', brief: 'lead.md', cwd: home, extra: [], print: false }, deps());
+
+    expect(spawned[0]?.argv.at(-1)).toContain(`read the brief at ${path.join(repo, 'lead.md')} and follow it`);
+  });
+
+  it('gives the orchestrator name the shipped orchestrator brief', async () => {
+    await runClaude({ as: 'orchestrator', extra: [], print: false }, deps());
+
+    const shipped = path.join(packageRoot(), 'docs', 'briefs', 'orchestrator.md');
+    expect(spawned[0]?.argv.at(-1)).toContain(`read the brief at ${shipped} and follow it`);
+  });
+
+  it('keeps an explicit --brief over the shipped one for the orchestrator name', async () => {
+    writeFileSync(path.join(repo, 'mine.md'), 'my own rules');
+
+    await runClaude({ as: 'orchestrator', brief: 'mine.md', extra: [], print: false }, deps());
+
+    expect(spawned[0]?.argv.at(-1)).toContain(path.join(repo, 'mine.md'));
+  });
+
+  it.each([
+    ['a missing file', 'nope.md'],
+    ['a folder', '.'],
+  ])('refuses with one line on %s as --brief, even with --print', async (_case, brief) => {
+    const code = await runClaude({ brief, extra: [], print: true }, deps());
+
+    expect(code).toBe(1);
+    expect(spawned).toStrictEqual([]);
+    expect(logs).toHaveLength(1);
+    expect(output()).toContain(`no brief file at ${path.resolve(repo, brief)}`);
+  });
+
   it('refuses with one line when the daemon is down', async () => {
     const code = await runClaude({ extra: [], print: false }, deps({ fetch: refused }));
 
@@ -168,6 +217,15 @@ describe('runCodex', () => {
     expect(code).toBe(3);
     expect(spawned).toStrictEqual([{ argv: codexArgv({ name: 'checkout-api', room: 'checkout' }), cwd: repo }]);
     expect(output()).toContain('codex ');
+  });
+
+  it('takes --brief like messhall claude', async () => {
+    writeCodexEntry();
+    writeFileSync(path.join(repo, 'lead.md'), 'lead the room');
+
+    await runCodex({ brief: 'lead.md', print: false }, deps());
+
+    expect(spawned[0]?.argv.at(-1)).toContain(`read the brief at ${path.join(repo, 'lead.md')} and follow it`);
   });
 
   it('only prints the command and the prompt with --print', async () => {
