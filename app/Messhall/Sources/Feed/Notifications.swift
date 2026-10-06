@@ -1,6 +1,5 @@
 import Foundation
 
-let humanName = "human"
 let systemName = "messhall"
 let allMention = "all"
 // Matches the daemon's 80 percent line, "#room is at 160/200, wrap up".

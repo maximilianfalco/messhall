@@ -19,11 +19,11 @@ struct RoomDetail: View {
   var body: some View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
-      RoomOrigin(room: room)
+      RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(members: room.present)
       Divider()
       Transcript(
-        messages: room.messages.matching(query), members: room.members, query: query,
+        room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
         columnsChangedAt: columnsChangedAt)
         .id(room.name)
       Divider()
@@ -34,10 +34,12 @@ struct RoomDetail: View {
       }
     }
     .navigationTitle("#\(room.name)")
-    .navigationSubtitle(subtitle)
+    .titleInHeader()
     .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
     .onChange(of: room.name) { query = "" }
     .toolbar {
+      if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
+      ToolbarItem { CopyJoinButton(room: room.name) }
       ToolbarItem { MuteButton(room: room.name) }
       ToolbarItem {
         if room.isOpen {
@@ -92,6 +94,39 @@ struct RoomToggleCommand: View {
   }
 }
 
+extension View {
+  /// The room's name and post count live in the header, so the toolbar drops its copy.
+  /// Only where a flexible spacer can keep the buttons on the right.
+  @ViewBuilder func titleInHeader() -> some View {
+    if #available(macOS 26, *) { toolbar(removing: .title) } else { self }
+  }
+}
+
+/// The room's name and post count, then the Standing badge and who made it.
+struct RoomHeader: View {
+  let room: SnapshotRoom
+  let subtitle: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text("#\(room.name)")
+          .font(.title3.weight(.semibold))
+          .lineLimit(1)
+        Text(subtitle)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
+      .accessibilityElement(children: .combine)
+      .accessibilityAddTraits(.isHeader)
+      RoomOrigin(room: room)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal, 16)
+    .padding(.top, 10)
+  }
+}
+
 struct RoomOrigin: View {
   let room: SnapshotRoom
 
@@ -113,8 +148,6 @@ struct RoomOrigin: View {
         .foregroundStyle(.secondary)
       Spacer()
     }
-    .padding(.horizontal, 16)
-    .padding(.top, 10)
     .accessibilityElement(children: .combine)
   }
 }
@@ -232,6 +265,7 @@ struct PresenceDot: View {
 }
 
 struct Transcript: View {
+  let room: String
   let messages: [Message]
   let members: [Member]
   let query: String
@@ -250,10 +284,10 @@ struct Transcript: View {
   var body: some View {
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
       ContentUnavailableView.search(text: query)
+        .frame(maxHeight: .infinity)
     } else if messages.isEmpty {
-      ContentUnavailableView(
-        "No Messages Yet", systemImage: "text.bubble",
-        description: Text("Posts show up here as the agents talk."))
+      EmptyTranscript(room: room, copy: .pick(members: members))
+        .frame(maxHeight: .infinity)
     } else {
       ScrollViewReader { proxy in
         ScrollView {
@@ -452,15 +486,14 @@ struct ChatRow: View {
   let message: Message
   let sender: Member?
 
-  private var isHuman: Bool { message.from == humanName }
-
   var body: some View {
+    let line = message.chatLine(sender: sender)
     HStack(alignment: .top, spacing: 10) {
-      if !isHuman { AvatarView(name: message.from) }
-      VStack(alignment: isHuman ? .trailing : .leading, spacing: 3) {
+      if !line.mine { AvatarView(name: message.from) }
+      VStack(alignment: line.mine ? .trailing : .leading, spacing: 3) {
         HStack(spacing: 6) {
-          Text(isHuman ? youLabel : message.from).fontWeight(.semibold)
-          if let label = message.typeLabel(sender: sender) {
+          Text(line.title).fontWeight(.semibold)
+          if let label = line.pill {
             TypePill(label: label, name: message.from)
               .help(sender?.client ?? label)
           }
@@ -468,19 +501,19 @@ struct ChatRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-        .foregroundStyle(isHuman ? Color.accentColor : .primary)
-        Text(message.text)
-          .multilineTextAlignment(isHuman ? .trailing : .leading)
+        .foregroundStyle(line.mine ? Color.accentColor : .primary)
+        Text(line.text)
+          .multilineTextAlignment(line.mine ? .trailing : .leading)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
       }
-      if isHuman { AvatarView(name: message.from) }
+      if line.mine { AvatarView(name: message.from) }
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
-    .background(isHuman ? Color.accentColor.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
-    .padding(isHuman ? .leading : .trailing, isHuman ? 48 : 0)
-    .frame(maxWidth: .infinity, alignment: isHuman ? .trailing : .leading)
+    .background(line.mine ? Color.accentColor.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
+    .padding(line.mine ? .leading : .trailing, line.mine ? 48 : 0)
+    .frame(maxWidth: .infinity, alignment: line.mine ? .trailing : .leading)
   }
 }
 
