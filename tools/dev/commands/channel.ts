@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { DB_FILE } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
@@ -35,6 +36,7 @@ const PANE_LINES = 16;
 interface ChannelOptions {
   as: string;
   keep: boolean;
+  quiet?: number;
   room: string;
 }
 
@@ -69,7 +71,7 @@ function memberState({ home, name, room }: { home: string; name: string; room: s
  * Drives a real Claude Code in tmux with messhall as a dev channel: it joins, a scripted agent
  * mentions it, and the doorbell should make it read and reply. Cleans up unless `keep`.
  */
-export async function channelRun({ as, keep, room }: ChannelOptions) {
+export async function channelRun({ as, keep, quiet, room }: ChannelOptions) {
   const ownHome = !process.env.MESSHALL_HOME;
   const home = process.env.MESSHALL_HOME || mkdtempSync(path.join(tmpdir(), 'messhall-channel-'));
   const port = process.env.MESSHALL_PORT ? Number(process.env.MESSHALL_PORT) : DEFAULT_PORT;
@@ -108,6 +110,10 @@ export async function channelRun({ as, keep, room }: ChannelOptions) {
     });
     if (!joined) throw new Error(`${as} never joined #${room} and settled within 90 s`);
     note(`${as} joined #${room} and is quiet`);
+    if (quiet) {
+      await sleep(quiet * 1000);
+      note(`after ${quiet} s quiet, ${as} is ${memberState({ home, name: as, room })?.presence ?? 'not in the room'}`);
+    }
 
     scripted = await connectHttp({ key, name: 'messhall-dev-channel-api', url: daemon.url });
     await scripted.client.callTool({ arguments: { as: 'api', room }, name: 'join' });
@@ -176,15 +182,16 @@ export async function channelRun({ as, keep, room }: ChannelOptions) {
   return { code, report: report.join('\n') };
 }
 
-/** Registers `channel --room <r> [--as <role>] [--keep]`. */
+/** Registers `channel --room <r> [--as <role>] [--quiet <s>] [--keep]`. */
 export function registerChannel(program: Command) {
   program
     .command('channel')
     .description('A real Claude Code in tmux on messhall as a dev channel: a mention rings it, it reads and replies.')
     .requiredOption('--room <room>', 'room to join')
     .option('--as <role>', 'the role claude joins as', 'web')
+    .option('--quiet <s>', 'sit idle this long after the join before the mention', value => Number(value))
     .option('--keep', 'leave tmux and the daemon running')
-    .action(async (options: { as: string; keep?: boolean; room: string }) => {
+    .action(async (options: { as: string; keep?: boolean; quiet?: number; room: string }) => {
       const result = await channelRun({ ...options, keep: Boolean(options.keep) });
       console.log(result.report);
       process.exitCode = result.code;
