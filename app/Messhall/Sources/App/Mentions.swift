@@ -10,16 +10,11 @@ func mentionText(_ message: Message) -> AttributedString {
       text += AttributedString(plain)
     case .mention(let name):
       var tag = AttributedString("@\(name)")
+      tag.font = .body.weight(name == humanName ? .bold : .semibold)
       switch name {
-      case humanName:
-        tag.font = .body.bold()
-        tag.foregroundColor = .accentColor
-      case allMention:
-        tag.font = .body.weight(.semibold)
-        tag.foregroundColor = .secondary
-      default:
-        tag.font = .body.weight(.semibold)
-        tag.backgroundColor = avatarColor(for: name).opacity(0.18)
+      case humanName: tag.foregroundColor = .accentColor
+      case allMention: tag.foregroundColor = .secondary
+      default: tag.backgroundColor = avatarColor(for: name).opacity(0.18)
       }
       text += tag
     }
