@@ -1,10 +1,12 @@
 import { Command } from 'commander';
 
+import { registerAgent } from './commands/agent.js';
 import { registerCheck } from './commands/check.js';
 import { registerDaemon } from './commands/daemon.js';
 import { registerDb } from './commands/db.js';
 import { registerEnv } from './commands/env.js';
 import { registerFeatureMap } from './commands/featuremap.js';
+import { registerMcp } from './commands/mcp.js';
 import { registerQaUpload } from './commands/qaUpload.js';
 import { registerRoom } from './commands/room.js';
 import { registerStore } from './commands/store.js';
@@ -22,6 +24,8 @@ const program = new Command()
   registerStore,
   registerDaemon,
   registerRoom,
+  registerMcp,
+  registerAgent,
 ].forEach(register => register(program));
 
 await program.parseAsync(process.argv);

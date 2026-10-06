@@ -47,6 +47,7 @@ export const CAP_WARN_RATIO = 0.8;
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const GONE_AFTER_MS = 30 * 60_000;
+export const SESSION_IDLE_MS = 30 * 60_000;
 export const EVENT_KEEP_MS = 7 * 24 * 60 * 60_000;
 export const DB_FILE = 'messhall.db';
 export const DB_BUSY_TIMEOUT_MS = 5000;
