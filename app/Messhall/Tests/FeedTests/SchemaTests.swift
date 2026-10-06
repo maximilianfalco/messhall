@@ -8,7 +8,10 @@ private struct Definition: Decodable {
   let `enum`: [String]?
 }
 
-private struct JSONValue: Decodable {}
+private struct JSONValue: Decodable {
+  let current: Int?
+  enum CodingKeys: String, CodingKey { case current = "x-current" }
+}
 
 private struct SchemaFile: Decodable {
   let defs: [String: Definition]
@@ -46,9 +49,9 @@ private let models: [String: [String]] = [
 ]
 
 private let enums: [String: [String]] = [
-  "MemberKind": MemberKind.allCases.map(\.rawValue),
-  "MessageKind": MessageKind.allCases.map(\.rawValue),
-  "Presence": Presence.allCases.map(\.rawValue),
+  "MemberKind": MemberKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "MessageKind": MessageKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "Presence": Presence.allCases.filter { $0 != .unknown }.map(\.rawValue),
 ]
 
 private let unused: Set = [
@@ -76,5 +79,12 @@ struct SchemaTests {
     let definition = try #require(schema.defs[name])
 
     #expect(enums[name]! == definition.enum)
+  }
+
+  @Test("the app's feed contract is the schema's current one")
+  func contract() throws {
+    let field = try #require(schema.defs["Snapshot"]?.properties?["contract_version"])
+
+    #expect(field.current == FeedContract.version)
   }
 }

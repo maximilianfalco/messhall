@@ -118,6 +118,7 @@ describe('renderEvent', () => {
 });
 
 const snapshot: Snapshot = {
+  contract_version: 1,
   rooms: [
     {
       ...room({ topic: 'ship the cart' }),
@@ -140,6 +141,7 @@ const snapshot: Snapshot = {
     },
   ],
   seq: 9,
+  version: '0.1.0',
 };
 
 describe('renderSnapshot', () => {
@@ -169,7 +171,9 @@ describe('renderSnapshot', () => {
   });
 
   it('says when there are no rooms', () => {
-    expect(plain(renderSnapshot({ snapshot: { rooms: [], seq: 0 } }))).toStrictEqual(['no rooms yet']);
+    expect(
+      plain(renderSnapshot({ snapshot: { contract_version: 1, rooms: [], seq: 0, version: '0.1.0' } })),
+    ).toStrictEqual(['no rooms yet']);
   });
 });
 

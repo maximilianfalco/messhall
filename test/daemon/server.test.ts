@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
 import { CLI_VERSION, DB_FILE, SWEEP_EVERY_MS } from '../../src/config.js';
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
@@ -129,7 +130,12 @@ describe('startDaemon', () => {
     ]);
 
     expect([open.status, keyless.status, browser.status]).toStrictEqual([200, 401, 403]);
-    expect(JSON.parse(open.body)).toStrictEqual({ rooms: [], seq: 0 });
+    expect(JSON.parse(open.body)).toStrictEqual({
+      contract_version: FEED_CONTRACT_VERSION,
+      rooms: [],
+      seq: 0,
+      version: CLI_VERSION,
+    });
   });
 
   it('marks members from the last run away on start, since their sessions died with it', async () => {

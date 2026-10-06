@@ -1,0 +1,72 @@
+import { describe, expect, it } from 'vitest';
+
+import { busEventSchema, MEMBER_CHANGES, ROOM_CHANGES } from '../../contracts/events.ts';
+import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
+import { MEMBER_KINDS, MESSAGE_KINDS, PRESENCES } from '../../contracts/room.ts';
+import { contractSchema } from '../../tools/dev/commands/schema.js';
+
+describe('FEED_CONTRACT_VERSION', () => {
+  it('moves with the feed enums, bump it when one of them grows', () => {
+    expect({
+      enums: { MEMBER_CHANGES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES, ROOM_CHANGES },
+      event_types: busEventSchema.options.map(option => option.shape.type.value),
+      version: FEED_CONTRACT_VERSION,
+    }).toMatchInlineSnapshot(`
+      {
+        "enums": {
+          "MEMBER_CHANGES": [
+            "invited",
+            "joined",
+            "left",
+            "muted",
+            "reconnected",
+            "removed",
+            "role",
+            "unmuted",
+          ],
+          "MEMBER_KINDS": [
+            "claude",
+            "codex",
+            "other",
+            "human",
+          ],
+          "MESSAGE_KINDS": [
+            "chat",
+            "system",
+            "done",
+            "summary",
+          ],
+          "PRESENCES": [
+            "invited",
+            "active",
+            "waiting",
+            "idle",
+            "away",
+            "left",
+          ],
+          "ROOM_CHANGES": [
+            "created",
+            "closed",
+            "reopened",
+            "topic",
+          ],
+        },
+        "event_types": [
+          "message",
+          "member",
+          "presence",
+          "room",
+        ],
+        "version": 1,
+      }
+    `);
+  });
+
+  it('is in schema.json as x-current on Snapshot.contract_version', () => {
+    const schema = JSON.parse(contractSchema()) as {
+      $defs: { Snapshot: { properties: { contract_version: Record<string, unknown> } } };
+    };
+
+    expect(schema.$defs.Snapshot.properties.contract_version['x-current']).toBe(FEED_CONTRACT_VERSION);
+  });
+});

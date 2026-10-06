@@ -32,7 +32,7 @@ extension MemberKind {
     switch self {
     case .claude: "sparkle"
     case .codex: "terminal"
-    case .other: "cpu"
+    case .other, .unknown: "cpu"
     case .human: "person.fill"
     }
   }
@@ -45,7 +45,7 @@ extension Presence {
     switch self {
     case .active: .green
     case .waiting: .orange
-    case .invited, .idle, .away, .left: .secondary
+    case .invited, .idle, .away, .left, .unknown: .secondary
     }
   }
 }
