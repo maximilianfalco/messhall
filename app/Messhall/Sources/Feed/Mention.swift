@@ -60,6 +60,13 @@ public func steppedMention(from picked: String, by step: Int, in candidates: [St
   return candidates[(index + step + candidates.count) % candidates.count]
 }
 
+/// True when the draft holds mentions and nothing else, so sending it would ring agents with no message.
+public func onlyMentions(_ draft: String) -> Bool {
+  let ns = draft as NSString
+  let rest = mention.stringByReplacingMatches(in: draft, range: NSRange(location: 0, length: ns.length), withTemplate: "")
+  return rest.count < draft.count && rest.allSatisfy(\.isWhitespace)
+}
+
 /// The draft with its trailing `@partial` swapped for `@name `.
 public func completeMention(_ name: String, in draft: String) -> String {
   guard let query = mentionQuery(in: draft) else { return appendMention(name, to: draft) }

@@ -61,6 +61,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'empty-room-dark', room: 'kickoff' },
   { appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' },
   { appearance: 'dark', draft: 'over to @a', name: 'picker-dark', room: 'checkout' },
+  { appearance: 'light', keys: '@a|return', name: 'mention-pick-light', room: 'checkout' },
+  { appearance: 'dark', keys: '@a|return|return', name: 'mention-only-dark', room: 'checkout' },
   { appearance: 'light', name: 'history-light', pageTop: true, room: 'history' },
   { appearance: 'dark', name: 'history-dark', pageTop: true, room: 'history' },
   { appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' },
@@ -289,11 +291,13 @@ const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
 const windowFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.window`);
 const anchorFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.anchor`);
 const hotkeyFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.hotkey`);
+const keysFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.keys`);
 
 /** The file a shot's app writes a note into, printed under the table. */
 function noteFile(shot: Shot) {
   if ('pageTop' in shot) return anchorFile(shot);
   if ('hotkey' in shot) return hotkeyFile(shot);
+  if ('keys' in shot) return keysFile(shot);
 }
 
 /** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
@@ -330,6 +334,7 @@ export function shotArgs(shot: Shot) {
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
+    ...('keys' in shot ? ['-shotKeys', shot.keys, '-shotKeysOut', keysFile(shot)] : []),
     ...('pageTop' in shot ? ['-shotPageTop', anchorFile(shot)] : []),
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
     ...('menuOpen' in shot ? ['-shotMenu', 'YES'] : []),
@@ -396,6 +401,7 @@ async function shoot({
   rmSync(windowFile(shot), { force: true });
   rmSync(anchorFile(shot), { force: true });
   rmSync(hotkeyFile(shot), { force: true });
+  rmSync(keysFile(shot), { force: true });
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
@@ -431,6 +437,10 @@ async function shoot({
     if ('hotkey' in shot) {
       const missing = await waitFile(hotkeyFile(shot));
       if (missing) return `no hotkey press logged: ${missing}`;
+    }
+    if ('keys' in shot) {
+      const missing = await waitFile(keysFile(shot));
+      if (missing) return `no key presses logged: ${missing}`;
     }
     const target = await shotTarget({ id, pid: child.pid ?? 0, shot });
     if (!/^\d+$/.test(target)) return target;
@@ -483,7 +493,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, the New Room sheet, a standing room, a closed room, each Settings pane, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, the New Room sheet, a standing room, a closed room, each Settings pane, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -549,7 +559,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker, New Room sheet, standing and closed rooms, each Settings pane, older-app and blocked-notifications notices and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker and Return on it, New Room sheet, standing and closed rooms, each Settings pane, older-app and blocked-notifications notices and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)
