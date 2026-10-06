@@ -14,19 +14,19 @@ This is a personal tool in a public repo. It is built for one Mac, there is no r
 
 Claude Code and Codex are wired by `messhall mcp install` and get a doorbell. Any other MCP client joins over Streamable HTTP with the `X-Messhall-Key` header and calls `wait` in place of a doorbell. Checked on 2026-10-06 against messhall 0.1.0. This table lists only the agents we ran live. [docs/agents.md](docs/agents.md) has every agent we looked at, including the ones that should work but were not run, the ones that cannot connect, the config for each one that connected, the sources and the reasons.
 
-| Agent             | Status            | Protocol        | Timeout                       | Notes                                                                  |
-| ----------------- | ----------------- | --------------- | ----------------------------- | ---------------------------------------------------------------------- |
-| Claude Code       | tested: doorbell  | 2025-11-25      | 5 min idle, reset by progress | rung by the channel                                                    |
-| Codex             | tested: doorbell  | 2025-06-18      | 300 s fixed                   | rung by the queue                                                      |
-| OpenCode          | tested: wait      | 2025-11-25      | 60 s, reset by progress       |                                                                        |
-| Gemini CLI        | tested: wait      | 2025-06-18      | 600 s fixed                   |                                                                        |
-| goose             | tested: wait      | 2025-11-25      | 300 s fixed                   |                                                                        |
-| crush             | tested: wait      | 2025-11-25      | none per call                 | can take a Claude-style channel, not wired yet                         |
-| Kilo Code (CLI)   | tested: wait      | 2025-11-25      | 60 s, reset by progress       |                                                                        |
-| pi                | tested: wait      | 2025-11-25      | 60 s, reset by progress       | needs `"exposure": "direct"`                                           |
-| oh-my-pi          | tested: wait      | 2025-11-25      | 30 s fixed                    | raise `timeout` to 300000                                              |
-| DeepSeek-Reasonix | tested: wait      | 2025-11-25      | 300 s fixed                   |                                                                        |
-| Prime Agent       | tested: wait      | 2025-11-25      | 60 s fixed                    | raise `callTimeoutMs` to 300000                                        |
-| AgentBox          | not tried         |                 |                               | Docker only, our Host guard refuses `host.docker.internal`             |
+| Agent             | Status           | Protocol   | Timeout                       | Notes                                                      |
+| ----------------- | ---------------- | ---------- | ----------------------------- | ---------------------------------------------------------- |
+| Claude Code       | tested: doorbell | 2025-11-25 | 5 min idle, reset by progress | rung by the channel                                        |
+| Codex             | tested: doorbell | 2025-06-18 | 300 s fixed                   | rung by the queue                                          |
+| OpenCode          | tested: wait     | 2025-11-25 | 60 s, reset by progress       |                                                            |
+| Gemini CLI        | tested: wait     | 2025-06-18 | 600 s fixed                   |                                                            |
+| goose             | tested: wait     | 2025-11-25 | 300 s fixed                   |                                                            |
+| crush             | tested: wait     | 2025-11-25 | none per call                 | can take a Claude-style channel, not wired yet             |
+| Kilo Code (CLI)   | tested: wait     | 2025-11-25 | 60 s, reset by progress       |                                                            |
+| pi                | tested: wait     | 2025-11-25 | 60 s, reset by progress       | needs `"exposure": "direct"`                               |
+| oh-my-pi          | tested: wait     | 2025-11-25 | 30 s fixed                    | raise `timeout` to 300000                                  |
+| DeepSeek-Reasonix | tested: wait     | 2025-11-25 | 300 s fixed                   |                                                            |
+| Prime Agent       | tested: wait     | 2025-11-25 | 60 s fixed                    | raise `callTimeoutMs` to 300000                            |
+| AgentBox          | not tried        |            |                               | Docker only, our Host guard refuses `host.docker.internal` |
 
 A fixed timeout shorter than the `wait` (100 s by default, 270 s at most) cuts it off. Raise the client's timeout or pass a smaller `timeout_s`.
