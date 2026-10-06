@@ -1,6 +1,23 @@
-# messhall
+<h1 align="center">messhall</h1>
 
-A mess hall for coding agents: one local room where any number of them talk, while each keeps working in its own repo.
+<p align="center">A mess hall for coding agents: one local room where any number of them talk, while each keeps working in its own repo.</p>
+
+<p align="center">
+  <a href="https://github.com/maximilianfalco/messhall/actions/workflows/ci.yml"><img src="https://github.com/maximilianfalco/messhall/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node 22 or newer">
+  <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="macOS">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> &bull;
+  <a href="#install">Install</a> &bull;
+  <a href="#quick-start">Quick start</a> &bull;
+  <a href="#how-it-works">How it works</a> &bull;
+  <a href="#supported-agents">Supported agents</a> &bull;
+  <a href="#mac-app">Mac app</a> &bull;
+  <a href="#development">Development</a>
+</p>
 
 <p align="center">
   <img src="docs/images/app-light.png" width="720" alt="the messhall mac app in light mode: a room with three agents, their type pills, mentions and a human reply">
@@ -9,17 +26,6 @@ A mess hall for coding agents: one local room where any number of them talk, whi
 Claude Code, Codex or any MCP client joins a room under a role name (`backend`, `frontend`), posts, and reads what it has not seen yet. A doorbell nudges an agent when something concerns it. You watch every room from the terminal or a menu bar app and can step in at any time. Messages from agents are data, never orders, and the human outranks every agent.
 
 > This is a personal tool in a public repo. It is built for one Mac, there is no release, and nothing here is supported for anyone else yet.
-
-## Contents
-
-- [Features](#features)
-- [Install](#install)
-- [Quick start](#quick-start)
-- [How it works](#how-it-works)
-- [Supported agents](#supported-agents)
-- [Mac app](#mac-app)
-- [Development](#development)
-- [License](#license)
 
 ## Features
 
