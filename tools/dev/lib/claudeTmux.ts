@@ -3,42 +3,16 @@ import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { KEY_HEADER } from '../../../src/daemon/keys.js';
+import { dialogKeys, until } from '../../../src/flock/tmux.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { SEAT_HEADER, SERVER_NAME } from '../../../src/mcp/constants.js';
 
 import { run } from './run.js';
 
 export const READY_WITHIN_MS = 60_000;
-const POLL_MS = 500;
 const REGISTERED = `MCP server "${SERVER_NAME}": Channel notifications registered`;
 
-type Dialog = { keys: string[]; kind: 'answer' } | { kind: 'login' } | { kind: 'none' };
 export type Launch = 'login' | 'registered' | 'timeout';
-
-const DIALOG_TARGETS = [/I am using this for local development/i, /Yes, I trust this folder/i, /Yes, proceed/i];
-const LOGIN = /Select login method|Please run \/login|Invalid API key|OAuth error/i;
-const SELECTED = '❯';
-const RULE = /^─{20,}$/;
-// oxlint-disable-next-line no-control-regex
-const DIM_RUN = /\x1b\[2m.*?(\x1b\[0m|$)/gm;
-// oxlint-disable-next-line no-control-regex
-const STYLE = /\x1b\[[\d;]*m/g;
-const SETTLE_MS = 300;
-const SUBMIT_TRIES = 5;
-
-/** What to press on the pane: arrows from the `❯` line to the safe option of a known dialog, or stop on a login screen. */
-export function dialogKeys(pane: string): Dialog {
-  if (LOGIN.test(pane)) return { kind: 'login' };
-  const lines = pane.split('\n');
-  const target = lines.findLastIndex(line => DIALOG_TARGETS.some(pattern => pattern.test(line)));
-  const current = lines.findIndex(line => line.trimStart().startsWith(SELECTED));
-  if (target < 0 || current < 0) return { kind: 'none' };
-  const moves = target - current;
-  return {
-    keys: [...Array.from({ length: Math.abs(moves) }, () => (moves > 0 ? 'Down' : 'Up')), 'Enter'],
-    kind: 'answer',
-  };
-}
 
 interface McpTarget {
   key: string;
@@ -85,58 +59,6 @@ export function claudeArgv({
 export const tmux = (args: string[]) => run('tmux', args, tmpdir());
 export const pane = async (session: string) => (await tmux(['capture-pane', '-p', '-t', session])).stdout;
 export const readText = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
-
-/** Polls `check` until it gives a value or `deadline` passes. */
-export async function until<T>(
-  deadline: number,
-  check: () => Promise<T | undefined> | T | undefined,
-): Promise<T | undefined> {
-  const value = await check();
-  if (value !== undefined || Date.now() > deadline) return value;
-  await sleep(POLL_MS);
-  return until(deadline, check);
-}
-
-/** The text left in Claude Code's input box, the lines between the last two rules. Empty when no box shows.
- * Takes a pane captured with `-e`: the dim placeholder of an empty box is dropped, not read as text. */
-export function inputText(screen: string) {
-  const lines = screen.replace(DIM_RUN, '').replace(STYLE, '').split('\n');
-  const bottom = lines.findLastIndex(line => RULE.test(line.trim()));
-  const top = lines.slice(0, bottom).findLastIndex(line => RULE.test(line.trim()));
-  if (top < 0) return '';
-  return lines
-    .slice(top + 1, bottom)
-    .map(line => line.trim())
-    .join(' ')
-    .replace(SELECTED, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Types `text` into the session, then sends a lone Enter until the input box is empty, at most 5 times.
- * Text and Enter in one burst read as a paste, so the Enter turns into a newline and the prompt sits unsent.
- */
-export async function typePrompt(
-  session: string,
-  text: string,
-  { run: send = tmux, settleMs = SETTLE_MS }: { run?: typeof tmux; settleMs?: number } = {},
-): Promise<'sent' | 'stuck'> {
-  await send(['send-keys', '-t', session, '-l', text]);
-  const submit = async (triesLeft: number): Promise<'sent' | 'stuck'> => {
-    if (!triesLeft) return 'stuck';
-    await sleep(settleMs);
-    await send(['send-keys', '-t', session, 'Enter']);
-    await sleep(settleMs);
-    const left = inputText((await send(['capture-pane', '-p', '-e', '-t', session])).stdout);
-    return left ? submit(triesLeft - 1) : 'sent';
-  };
-  return submit(SUBMIT_TRIES);
-}
-
-/** The error line for a prompt that is still in the input box after every Enter. */
-export const stuckLine = (session: string) =>
-  `the prompt is stuck in the input box of tmux session ${session} after ${SUBMIT_TRIES} enters`;
 
 /** Starts `argv` in tmux in `cwd`, answers the trust and dev channel dialogs, waits for the channel to register. */
 export async function launchClaude({
