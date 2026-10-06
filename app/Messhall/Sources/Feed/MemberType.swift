@@ -11,6 +11,9 @@ extension Member {
     kind == .human || role == "unassigned" ? nil : role
   }
 
+  /// True for an observer, which reads the room but never counts as one of its agents.
+  public var isObserver: Bool { role == "observer" }
+
   static let usualRoles = ["worker", "reviewer", "orchestrator", "observer", "unassigned"]
 
   /// The roles the human can pick for this member. None for the human seat.

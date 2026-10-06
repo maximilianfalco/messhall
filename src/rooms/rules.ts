@@ -1,6 +1,6 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
-import { ALL_MENTION, HUMAN_NAME, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
+import { ALL_MENTION, HUMAN_NAME, OBSERVER_ROLE, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { AWAY_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
@@ -22,6 +22,11 @@ export function missingMentions({ names, text }: { names: string[]; text: string
   return splitMentions({ names, text }).missing;
 }
 
+/** True for a member that counts as an agent: not the human seat and not an observer. */
+export function isAgent(member: Pick<Member, 'kind' | 'role'>) {
+  return member.kind !== 'human' && member.role !== OBSERVER_ROLE;
+}
+
 /** True when the message is one the member should answer: a mention, `@all`, the human, or a room of two agents.
  * Daemon lines, summaries and lines from the partner a member is paused with concern nobody, and nothing concerns a muted member. */
 export function concerns({
@@ -39,7 +44,7 @@ export function concerns({
   if (member.muted || pausedWith[member.name] === message.from) return false;
   if (message.mentions.includes(member.name) || message.mentions.includes(ALL_MENTION)) return true;
   if (message.from === HUMAN_NAME) return true;
-  const agents = members.filter(other => other.kind !== 'human' && other.left_at === null).map(other => other.name);
+  const agents = members.filter(other => isAgent(other) && other.left_at === null).map(other => other.name);
   return agents.length === 2 && agents.includes(member.name) && agents.includes(message.from);
 }
 

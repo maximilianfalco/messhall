@@ -9,6 +9,7 @@ import {
   launchSchema,
   memberKindSchema,
   memberSchema,
+  OBSERVER_ROLE,
   ORCHESTRATOR_ROLE,
   messageSchema,
   RESERVED_NAMES,
@@ -23,7 +24,7 @@ import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
 import { createEventBus } from './events.js';
-import { canAssignRole, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
+import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -230,13 +231,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     emit({ change: 'closed', room: roomById(room.id), type: 'room' });
   }
 
-  // A room an agent made closes once every agent still in it is done.
+  // A room an agent made closes once every agent still in it is done. Observers never hold it open.
   function closeIfAllDone(room: Room, emit: Emit) {
     if (room.standing || room.closed_at !== null) return;
-    const agents = sql.liveMembers
-      .all(room.id)
-      .map(toMember)
-      .filter(member => member.kind !== 'human');
+    const agents = sql.liveMembers.all(room.id).map(toMember).filter(isAgent);
     if (agents.length && agents.every(member => member.done)) close(room, 'all done, room closed', emit);
   }
 
@@ -352,6 +350,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
      * away or its session is dead (`holderDead`). Anyone else gets `name_taken` with a free name to try.
      * An `invite` token proves the seat in place of `seatKey`, which becomes the key from then on.
      * A closed standing room waits for the human to reopen it. A `reattach` keeps the done mark, a join clears it.
+     * `observe` makes the seat an observer, new or not.
      * `topic` counts only on the join that makes the room.
      */
     joinRoom({
@@ -360,6 +359,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       holderDead = false,
       invite,
       kind,
+      observe = false,
       reattach = false,
       room: roomName,
       seatKey,
@@ -370,6 +370,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       holderDead?: boolean;
       invite?: string;
       kind: AgentKind;
+      observe?: boolean;
       reattach?: boolean;
       room: string;
       seatKey?: string;
@@ -390,10 +391,11 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
           existing?.left_at === null && existing.presence !== 'invited' ? 'reconnected' : 'joined';
         const cursor = startCursor(room);
         const [name, version] = [client?.name ?? null, client?.version ?? null];
-        const role = as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
+        const role = observe ? OBSERVER_ROLE : as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
         const seatKeyOrNull = seatKey ?? invite ?? null;
         if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), reattach ? 1 : 0, room.id, as);
-        else {
+        if (existing && observe) sql.setRole.run(OBSERVER_ROLE, null, as, room.id, as);
+        if (!existing) {
           const at = stamp();
           sql.insertMember.run(room.id, as, kind, at, at, 'active', cursor, name, version, role, seatKeyOrNull);
         }

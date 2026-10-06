@@ -49,11 +49,11 @@ describe('my_role', () => {
   it('says when a role came with no instructions', async () => {
     const orchestrator = await harness.joined('dev', 'orchestrator');
     const web = await harness.joined('dev', 'web');
-    await orchestrator.call('assign_role', { member: 'web', role: 'observer', room: 'dev' });
+    await orchestrator.call('assign_role', { member: 'web', role: 'reviewer', room: 'dev' });
 
     const result = await web.call('my_role', { room: 'dev' });
 
-    expect(result.text).toContain('your role in #dev: observer, set by orchestrator. no instructions came with it');
+    expect(result.text).toContain('your role in #dev: reviewer, set by orchestrator. no instructions came with it');
   });
 
   it('says call join first before a join', async () => {
