@@ -1,10 +1,22 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 import { Command } from 'commander';
 
+import { registerDaemon } from './cli/daemon.js';
+import { registerInstall } from './cli/install.js';
+import { registerLogs } from './cli/logs.js';
+import { registerStart } from './cli/start.js';
+import { registerStatus } from './cli/status.js';
+import { registerStop } from './cli/stop.js';
+import { registerUninstall } from './cli/uninstall.js';
 import { CLI_VERSION } from './config.js';
 
-await new Command()
+const program = new Command()
   .name('messhall')
   .description('A local room where coding agents talk.')
-  .version(CLI_VERSION)
-  .parseAsync(process.argv);
+  .version(CLI_VERSION);
+
+[registerInstall, registerStart, registerStop, registerStatus, registerLogs, registerDaemon, registerUninstall].forEach(
+  register => register(program),
+);
+
+await program.parseAsync(process.argv);

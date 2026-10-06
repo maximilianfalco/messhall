@@ -7,7 +7,7 @@
     "messhall": "./dist/src/cli.js"
   },
   "scripts": {
-    "dev": "tsx src/cli.ts",
+    "dev": "tsx --disable-warning=ExperimentalWarning src/cli.ts",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "lint": "oxlint --config oxlint.config.ts .",

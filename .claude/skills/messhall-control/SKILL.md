@@ -25,12 +25,14 @@ Two parts, used together:
 |---|---|
 | `pnpm messhall-dev check` | format, lint, types, tests and the feature map check, as one pass/fail table with the tail of each failed step. Exit 1 on any failure |
 | `pnpm messhall-dev featuremap [--check]` | row counts by status, and every `built` or `building` row whose code paths are missing. `--check` exits 1 on drift |
-| `pnpm messhall-dev env` | node, pnpm, `claude --version` and whether it has Channels (2.1.80+), `codex --version`, the data dir, and whether the daemon answers on port 7707 |
+| `pnpm messhall-dev env` | node, pnpm, `claude --version` and whether it has Channels (2.1.80+), `codex --version`, the data dir, and the daemon's `/health` on `MESSHALL_PORT` or 7707 |
 | `pnpm messhall-dev qa-upload <pr> <files...>` | commits gifs or screenshots to the `qa-assets` branch under `pr-<n>/` without touching your branch, prints one markdown image per file |
 | `pnpm messhall-dev db "<sql>" [--data-dir <d>]` | a read-only query against a `messhall.db`, rows as a table. A write fails |
+| `pnpm messhall-dev daemon [--keep]` | `messhall daemon` from source on `MESSHALL_HOME` (else a temp dir) and `MESSHALL_PORT` (else a free port): its url, pid, data dir and `/health` body. Stops it unless `--keep` |
+| `pnpm messhall-dev room <name> [--data-dir <d>]` | a room's members with presence and cursor, and its last messages, read only from the daemon's data dir |
 | `pnpm messhall-dev store [--data-dir <d>]` | a scripted join, post, read, done, leave and presence sweep on a scratch room store with a fake clock, then its rooms, members, messages and event counts |
 
-The rest (`daemon`, `room`, `mcp`, `agent`, `feed`, `channel`, `codex`, `demo`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
+The rest (`mcp`, `agent`, `feed`, `channel`, `codex`, `demo`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
 
 `scripts/messhall-dev` is a shell wrapper for the same tool, for use from any directory.
 

@@ -1,13 +1,13 @@
 import type { Command } from 'commander';
 
-import { dataDir, DEFAULT_PORT } from '../../../src/config.js';
+import { probeHealth } from '../../../src/cli/status.js';
+import { daemonUrl, dataDir } from '../../../src/config.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 import { run } from '../lib/run.js';
 
 // Claude Code shipped Channels in this release.
 const CHANNELS_SINCE = [2, 1, 80] as const;
-const HEALTH_TIMEOUT_MS = 1000;
 
 type EnvState = 'info' | 'missing' | 'ok';
 
@@ -42,21 +42,22 @@ async function claudeCheck() {
   return { ...check, detail: `${check.detail}, ${channels ? 'has channels' : 'no channels, needs 2.1.80+'}` };
 }
 
-// A down daemon is normal before it ships, so it never fails the command.
+// A down daemon is normal while nothing is installed, so it never fails the command.
 async function daemonCheck() {
-  const url = `http://127.0.0.1:${DEFAULT_PORT}/health`;
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) });
-    const check: EnvCheck = {
-      detail: `up on ${DEFAULT_PORT}, /health ${response.status}`,
-      name: 'daemon',
-      state: 'ok',
-    };
-    return check;
-  } catch {
-    const check: EnvCheck = { detail: `down, nothing answers ${url}`, name: 'daemon', state: 'info' };
+  const url = daemonUrl();
+  const probe = await probeHealth({ fetch, url });
+  if (probe.state !== 'up') {
+    const detail = probe.state === 'down' ? `down, nothing answers ${url}` : `${url} answers, but it is not messhall`;
+    const check: EnvCheck = { detail, name: 'daemon', state: 'info' };
     return check;
   }
+  const { health } = probe;
+  const check: EnvCheck = {
+    detail: `up on ${url}, v${health.version}, ${health.rooms} rooms, ${health.live_members} live members, up ${health.uptime_s}s`,
+    name: 'daemon',
+    state: 'ok',
+  };
+  return check;
 }
 
 /** Registers `env`, the tools and paths this machine needs. */
