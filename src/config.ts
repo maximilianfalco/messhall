@@ -31,6 +31,11 @@ export function launchAgentPath() {
   return path.join(homedir(), 'Library', 'LaunchAgents', `${LAUNCH_AGENT_LABEL}.plist`);
 }
 
+/** Codex's user config. `CODEX_HOME` wins, as it does for codex itself. */
+export function codexConfigPath() {
+  return path.join(process.env.CODEX_HOME || path.join(homedir(), '.codex'), 'config.toml');
+}
+
 /** Where rooms and keys live. `MESSHALL_HOME` wins so tests and tapes never touch the real data. */
 export function dataDir() {
   return process.env.MESSHALL_HOME || path.join(homedir(), 'Library', 'Application Support', 'messhall');
