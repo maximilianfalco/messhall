@@ -11,7 +11,7 @@ import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
-import { launchClaude, tmux as runTmux, typePrompt, until, writeMcpConfig } from '../lib/claudeTmux.js';
+import { launchClaude, tmux as runTmux, stuckLine, typePrompt, until, writeMcpConfig } from '../lib/claudeTmux.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 import { reviewQueue } from '../lib/review.js';
@@ -214,7 +214,10 @@ export async function spawnRun({
     await runTmux(['kill-session', '-t', session]);
     return giveBack(`claude did not come up (${ready})`);
   }
-  await typePrompt(session, prompt);
+  if ((await typePrompt(session, prompt)) === 'stuck') {
+    await runTmux(['kill-session', '-t', session]);
+    return giveBack(stuckLine(session));
+  }
   lines.push(
     ok(`claude on ${model} in tmux session ${session}, prompt typed`),
     dim(`it joins #${room} as ${slug}. watch: tmux attach -t ${session}, list: pnpm messhall-dev flock`),
@@ -248,6 +251,8 @@ export async function seatRun({
   model,
   name,
   room,
+  tmux = runTmux,
+  type = typePrompt,
   url,
 }: {
   dataDir: string;
@@ -256,6 +261,8 @@ export async function seatRun({
   model: string;
   name: string;
   room: string;
+  tmux?: Runner;
+  type?: typeof typePrompt;
   url: string;
 }) {
   if (!NAME_PATTERN.test(name) || (RESERVED_NAMES as readonly string[]).includes(name)) {
@@ -285,10 +292,13 @@ export async function seatRun({
   writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), seat: randomUUID(), url });
   const ready = await launch({ argv, cwd, debugFile, note: line => console.error(dim(line)), session });
   if (ready !== 'registered') {
-    await runTmux(['kill-session', '-t', session]);
+    await tmux(['kill-session', '-t', session]);
     return { code: 1, report: bad(`claude did not come up (${ready})`) };
   }
-  await typePrompt(session, prompt);
+  if ((await type(session, prompt)) === 'stuck') {
+    await tmux(['kill-session', '-t', session]);
+    return { code: 1, report: bad(stuckLine(session)) };
+  }
   return {
     code: 0,
     report: [
@@ -343,6 +353,26 @@ export async function flockStop({ target, tmux = runTmux }: { target: string; tm
   return { code: 0, report: [ok(`stopped ${session}`), ...hint].join('\n') };
 }
 
+/** Types `text` into a tmux claude session and submits it, so a nudge never sits unsent in the input box. */
+export async function nudgeRun({
+  session,
+  settleMs,
+  text,
+  tmux = runTmux,
+}: {
+  session: string;
+  settleMs?: number;
+  text: string;
+  tmux?: Runner;
+}) {
+  const found = await tmux(['has-session', '-t', session]);
+  if (found.code !== 0) return { code: 1, report: bad(`no tmux session ${session}`) };
+  const typed = await typePrompt(session, text, { run: tmux, settleMs });
+  return typed === 'sent'
+    ? { code: 0, report: ok(`sent to ${session}`) }
+    : { code: 1, report: bad(stuckLine(session)) };
+}
+
 /** Open review requests in `room`: the latest round per PR, who asked, who is named, and answered, waiting or stale. */
 export function reviewsReport({ dataDir, now = new Date(), room }: { dataDir: string; now?: Date; room: string }) {
   const listed = withStore({ dataDir }, store => store.listMessages({ limit: REVIEW_LOOKBACK, room }));
@@ -367,7 +397,7 @@ export function reviewsReport({ dataDir, now = new Date(), room }: { dataDir: st
   };
 }
 
-/** Registers `spawn <row|agent>`, `flock [stop <row|name>]` and `reviews`. */
+/** Registers `spawn <row|agent>`, `flock [stop <row|name>]`, `nudge` and `reviews`. */
 export function registerSpawn(program: Command) {
   program
     .command('spawn <row>')
@@ -420,6 +450,15 @@ export function registerSpawn(program: Command) {
     .description("Kill a row's spawned session, or a seat's by name.")
     .action(async (target: string) => {
       const result = await flockStop({ target });
+      console.log(result.report);
+      process.exitCode = result.code;
+    });
+
+  program
+    .command('nudge <session> <text>')
+    .description('Type a prompt into a tmux claude session and press Enter until it is sent.')
+    .action(async (session: string, text: string) => {
+      const result = await nudgeRun({ session, text });
       console.log(result.report);
       process.exitCode = result.code;
     });

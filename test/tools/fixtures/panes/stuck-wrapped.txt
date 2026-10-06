@@ -1,0 +1,11 @@
+⏺ API Error: Can't reach the API server
+
+✻ Churned for 32m 58s · done 5:57 PM
+                                                                                          new task? /clear to save 281.3k tokens
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ the network dropped and your last request failed. carry on from where you stopped: check git status, finish the
+  work, run the gate and open the PR
+  
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ➜ demo git:(main)  tokens: 737/turn · 280.9k/session · 28% ctx
+  ⏵⏵ auto mode on (shift+tab to cycle)

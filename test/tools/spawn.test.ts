@@ -2,9 +2,14 @@ import type { Runner } from '../../tools/dev/commands/spawn.js';
 import type { launchClaude } from '../../tools/dev/lib/claudeTmux.js';
 import type { RunResult } from '../../tools/dev/lib/run.js';
 
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
-import { flockStop, seatRun, seatThenAssign, spawnRun } from '../../tools/dev/commands/spawn.js';
+import { KEY_FILES } from '../../src/daemon/keys.js';
+import { flockStop, nudgeRun, seatRun, seatThenAssign, spawnRun } from '../../tools/dev/commands/spawn.js';
 import { claudeArgv } from '../../tools/dev/lib/claudeTmux.js';
 import {
   parseFlock,
@@ -265,6 +270,42 @@ describe('flockStop', () => {
   });
 });
 
+describe('nudgeRun', () => {
+  const STUCK = ['─'.repeat(40), '❯ carry on', '─'.repeat(40)].join('\n');
+  const EMPTY = ['─'.repeat(40), '❯ ', '─'.repeat(40)].join('\n');
+  const paneAfter = (panes: string[]) =>
+    vi.fn<Runner>(args => Promise.resolve(result(args[0] === 'capture-pane' ? (panes.shift() ?? EMPTY) : '')));
+
+  it('refuses a session tmux does not have', async () => {
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('', 1)));
+    const outcome = await nudgeRun({ session: 'messhall-B82', settleMs: 0, text: 'carry on', tmux });
+    expect(outcome.code).toBe(1);
+    expect(tmux).toHaveBeenCalledTimes(1);
+  });
+
+  it('types the text, then sends a lone Enter until the box is empty', async () => {
+    const tmux = paneAfter([STUCK, EMPTY]);
+    const outcome = await nudgeRun({ session: 'messhall-B82', settleMs: 0, text: 'carry on', tmux });
+    expect(outcome.code).toBe(0);
+    expect(tmux.mock.calls.map(([args]) => args.join(' '))).toStrictEqual([
+      'has-session -t messhall-B82',
+      'send-keys -t messhall-B82 -l carry on',
+      'send-keys -t messhall-B82 Enter',
+      'capture-pane -p -e -t messhall-B82',
+      'send-keys -t messhall-B82 Enter',
+      'capture-pane -p -e -t messhall-B82',
+    ]);
+  });
+
+  it('says the prompt is stuck when Enter never empties the box', async () => {
+    const tmux = paneAfter(Array.from({ length: 10 }, () => STUCK));
+    const outcome = await nudgeRun({ session: 'messhall-B82', settleMs: 0, text: 'carry on', tmux });
+    expect(outcome.code).toBe(1);
+    expect(outcome.report).toContain('stuck');
+    expect(tmux.mock.calls.filter(([args]) => args.includes('Enter'))).toHaveLength(5);
+  });
+});
+
 describe('seatRun', () => {
   it('prints the plan on a dry run without launching', async () => {
     const launch = vi.fn<typeof launchClaude>();
@@ -281,6 +322,26 @@ describe('seatRun', () => {
     expect(outcome.report).toContain('tmux session messhall-seat-reviewer-1');
     expect(outcome.report).toContain('join #dev as reviewer-1');
     expect(launch).not.toHaveBeenCalled();
+  });
+
+  it('stops the session and fails when the seat prompt is stuck in the box', async () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-seat-'));
+    writeFileSync(path.join(dataDir, KEY_FILES.agent), 'scratch-key');
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('')));
+    const outcome = await seatRun({
+      dataDir,
+      dryRun: false,
+      launch: () => Promise.resolve('registered'),
+      model: 'opus',
+      name: 'scratch-seat',
+      room: 'dev',
+      tmux,
+      type: () => Promise.resolve('stuck'),
+      url: 'http://127.0.0.1:1',
+    });
+    expect(outcome.code).toBe(1);
+    expect(outcome.report).toContain('stuck');
+    expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-seat-scratch-seat']);
   });
 
   it.each([['Reviewer 1'], ['human'], ['orchestrator-but-way-too-long-for-a-member-name']])(
