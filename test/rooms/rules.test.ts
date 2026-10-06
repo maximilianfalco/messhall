@@ -24,6 +24,8 @@ const member = (fields: Partial<Member> & Pick<Member, 'name'>): Member => ({
 
 const message = (fields: Partial<Message> & Pick<Message, 'from'>): Message => ({
   created_at: T0,
+  from_client_label: null,
+  from_kind: null,
   id: 1,
   kind: 'chat',
   mentions: [],

@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { DB_BUSY_TIMEOUT_MS, DB_FILE } from '../config.js';
 import { DbVersionError } from '../errors/DbVersionError.js';
+import { clientType } from '../mcp/constants.js';
 
 /** Schema steps in order. Never edit a shipped one, add the next. */
 export const MIGRATIONS = [
@@ -81,6 +82,19 @@ export const MIGRATIONS = [
     payload, '$.member.client_label', json('null'), '$.member.client_name', json('null'), '$.member.client_version', json('null')
   ) WHERE kind = 'member';
   `,
+  // Who sent each post, kept on the post so a sender who left still shows its type. Old posts take it from the member.
+  `
+  ALTER TABLE messages ADD COLUMN from_kind TEXT;
+  ALTER TABLE messages ADD COLUMN from_client_label TEXT;
+  UPDATE messages SET (from_kind, from_client_label) = (
+    SELECT kind, client_label(client_name) FROM members WHERE room_id = messages.room_id AND name = messages.from_name
+  ) WHERE kind IN ('chat', 'done');
+  UPDATE events SET payload = json_set(
+    payload,
+    '$.message.from_kind', (SELECT from_kind FROM messages WHERE id = json_extract(events.payload, '$.message.id')),
+    '$.message.from_client_label', (SELECT from_client_label FROM messages WHERE id = json_extract(events.payload, '$.message.id'))
+  ) WHERE kind = 'message';
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {
@@ -108,6 +122,8 @@ export function openDb({ dataDir }: { dataDir: string }) {
   mkdirSync(dataDir, { recursive: true });
   const db = new DatabaseSync(path.join(dataDir, DB_FILE), { timeout: DB_BUSY_TIMEOUT_MS });
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  // A migration labels old posts with the same table the store uses.
+  db.function('client_label', { deterministic: true }, name => (name === null ? null : clientType(String(name)).label));
   migrate(db);
   return db;
 }

@@ -39,6 +39,8 @@ const member = (overrides: Partial<Member> = {}): Member => ({
 const message = (overrides: Partial<TranscriptMessage> = {}): TranscriptMessage => ({
   created_at: AT,
   from: 'api',
+  from_client_label: null,
+  from_kind: null,
   id: 1,
   kind: 'chat',
   mentions: [],

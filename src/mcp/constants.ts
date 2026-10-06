@@ -39,6 +39,10 @@ export const KNOWN_CLIENTS: Record<string, KnownClient> = {
   goose: other('goose'),
   interpreter: other('open-interpreter'),
   kilo: other('kilo'),
+  // Our own one-shot clients. messhall-post is the name messhall post sent before it said messhall-cli.
+  'messhall-cli': other('script'),
+  'messhall-dev': other('script'),
+  'messhall-post': other('script'),
   'oh-my-pi': other('oh-my-pi'),
   omp: other('oh-my-pi'),
   'open-interpreter': other('open-interpreter'),

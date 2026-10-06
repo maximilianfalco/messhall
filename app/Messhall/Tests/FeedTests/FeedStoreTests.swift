@@ -50,18 +50,21 @@ struct FeedStoreTests {
     #expect(store.rooms[0].messageCount == 1)
   }
 
-  @Test("a member event adds a joiner and drops a leaver")
+  @Test("a member event adds a joiner and keeps a leaver as left")
   func member() throws {
     let store = try loaded()
     let joined = try event("MemberEvent")
     guard case .member(let payload) = joined else { Issue.record("not a member event"); return }
 
     store.apply(.event(seq: 8, joined))
-    store.apply(.event(seq: 9, .member(MemberEvent(room: "checkout", change: .left, member: payload.member))))
-
-    #expect(store.rooms[0].members.map(\.name) == ["api", "human"])
+    var left = payload.member
+    left.presence = .left
+    store.apply(.event(seq: 9, .member(MemberEvent(room: "checkout", change: .left, member: left))))
+    #expect(store.rooms[0].members.map(\.name) == ["api", "human", "web"])
+    #expect(store.rooms[0].members[2].presence == .left)
     store.apply(.event(seq: 10, joined))
     #expect(store.rooms[0].members.map(\.name) == ["api", "human", "web"])
+    #expect(store.rooms[0].members[2].presence == .waiting)
   }
 
   @Test("a presence event changes one member")
