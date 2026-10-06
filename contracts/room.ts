@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-export const PRESENCES = ['active', 'waiting', 'idle', 'away', 'left'] as const;
+export const PRESENCES = ['invited', 'active', 'waiting', 'idle', 'away', 'left'] as const;
 export const MESSAGE_KINDS = ['chat', 'system', 'done', 'summary'] as const;
 export const MEMBER_KINDS = ['claude', 'codex', 'other', 'human'] as const;
+export const LAUNCH_AGENTS = ['claude', 'codex'] as const;
 
 export const NAME_PATTERN = /^[a-z0-9-]{1,40}$/;
 export const TEXT_MAX_CHARS = 4000;
@@ -21,6 +22,7 @@ export type Presence = (typeof PRESENCES)[number];
 export type MessageKind = (typeof MESSAGE_KINDS)[number];
 export type MemberKind = (typeof MEMBER_KINDS)[number];
 export type AgentKind = Exclude<MemberKind, 'human'>;
+export type Launch = z.infer<typeof launchSchema>;
 
 export const nameSchema = z
   .string()
@@ -30,7 +32,7 @@ export const timestampSchema = z.iso.datetime().describe('ISO 8601 time in UTC.'
 export const presenceSchema = z
   .enum(PRESENCES)
   .describe(
-    'What the member is doing: active, waiting, idle, away (its session dropped or went quiet, the seat is kept) or left (called leave).',
+    'What the member is doing: invited (a seat made ahead, its agent has not come yet), active, waiting, idle, away (its session dropped or went quiet, the seat is kept) or left (called leave).',
   );
 export const messageKindSchema = z
   .enum(MESSAGE_KINDS)
@@ -57,6 +59,13 @@ export const roleSchema = z
   .string()
   .regex(NAME_PATTERN)
   .describe(`What the member does here, like ${ROLES.join(', ')}. Any short slug works.`);
+
+export const launchSchema = z.object({
+  agent: z.enum(LAUNCH_AGENTS).describe('Which agent to start: claude or codex.'),
+  brief: z.string().optional().describe('Path to a brief the agent reads first.'),
+  cwd: z.string().min(1).describe('Folder the agent starts in.'),
+  model: z.string().optional().describe('Model the agent runs on, its default when left out.'),
+});
 
 export const memberSchema = z.object({
   client_label: z

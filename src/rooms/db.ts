@@ -138,6 +138,10 @@ export const MIGRATIONS = [
   `
   ALTER TABLE members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
   `,
+  // How to start the agent of a seat made ahead by an invite, as JSON. Null for a seat its agent made by joining.
+  `
+  ALTER TABLE members ADD COLUMN launch TEXT;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

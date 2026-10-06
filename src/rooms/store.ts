@@ -1,11 +1,12 @@
 import type { BusEvent, MemberChange } from '../../contracts/events.ts';
-import type { AgentKind, Member, MessageKind, Presence, Room } from '../../contracts/room.ts';
+import type { AgentKind, Launch, Member, MessageKind, Presence, Room } from '../../contracts/room.ts';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { randomUUID } from 'node:crypto';
 
 import {
   HUMAN_NAME,
+  launchSchema,
   memberKindSchema,
   memberSchema,
   ORCHESTRATOR_ROLE,
@@ -17,7 +18,7 @@ import {
   TEXT_MAX_CHARS,
   UNASSIGNED_ROLE,
 } from '../../contracts/room.ts';
-import { LOOP_GUARD_LINES, READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
+import { INVITE_TTL_MS, LOOP_GUARD_LINES, READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
@@ -93,6 +94,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     insertMember: db.prepare(
       'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, client_name, client_version, role, seat_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ),
+    insertInvite: db.prepare(
+      "INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, role, role_instructions, role_set_by, seat_key, launch) VALUES (?, ?, ?, ?, ?, 'invited', ?, ?, ?, ?, ?, ?)",
+    ),
     insertMessage: db.prepare(
       'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at, from_kind, from_client_label) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
     ),
@@ -101,6 +105,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     ),
     insertRoom: db.prepare(
       'INSERT INTO rooms (id, name, topic, created_at, created_by, standing) VALUES (?, ?, ?, ?, ?, ?)',
+    ),
+    expiredInvites: db.prepare(
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE presence = 'invited' AND joined_at <= ? ORDER BY rooms.name, members.name",
     ),
     latest: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id'),
     latestSummary: db.prepare("SELECT * FROM messages WHERE room_id = ? AND kind = 'summary' ORDER BY id DESC LIMIT 1"),
@@ -148,7 +155,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE kind != 'human' AND left_at <= ? ORDER BY rooms.name, members.name",
     ),
     sweepable: db.prepare(
-      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence != 'away' ORDER BY rooms.name, members.name",
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence NOT IN ('away', 'invited') ORDER BY rooms.name, members.name",
     ),
     unseen: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? AND from_name != ? ORDER BY id LIMIT ?'),
   };
@@ -178,6 +185,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   };
   const countPosts = (room: Room) => Number(sql.countPosts.get(room.id)?.n);
   const latestSummaryRow = (room: Room) => sql.latestSummary.get(room.id);
+  // A new member starts where the latest summary stands, so its first read is that summary.
+  const startCursor = (room: Room) => Number(latestSummaryRow(room)?.covers_id ?? 0);
 
   // The sender's kind and label go on the post, so the transcript can show them after the sender leaves.
   function post(room: Room, from: Member | string, kind: MessageKind, text: string, mentions: string[], emit: Emit) {
@@ -333,12 +342,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
      * Joins `as` to the room, making the room on first join. A seat still held goes back, with its cursor
      * and role ("reconnected"), only to the same `seatKey`. A keyless seat goes to any caller once it is
      * away or its session is dead (`holderDead`). Anyone else gets `name_taken` with a free name to try.
+     * An `invite` token proves the seat in place of `seatKey`, which becomes the key from then on.
      * A closed standing room waits for the human to reopen it.
      */
     joinRoom({
       as,
       client,
       holderDead = false,
+      invite,
       kind,
       room: roomName,
       seatKey,
@@ -346,21 +357,25 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       as: string;
       client?: { name: string; version: string };
       holderDead?: boolean;
+      invite?: string;
       kind: AgentKind;
       room: string;
       seatKey?: string;
     }) {
       if (isReserved(as)) return { ok: false, reason: 'name_reserved' } as const;
       return transaction(emit => {
-        const room = findRoom(roomName) ?? makeRoom({ createdBy: as, name: roomName }, emit);
+        const found = findRoom(roomName);
+        if (invite && !(found && findMember(found, as))) return { ok: false, reason: 'no_invite' } as const;
+        const room = found ?? makeRoom({ createdBy: as, name: roomName }, emit);
         if (room.standing && room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
         const existing = findMember(room, as);
-        if (existing && existing.left_at === null && !reclaims({ existing, holderDead, room, seatKey })) {
+        const proof = invite ?? seatKey;
+        if (existing && existing.left_at === null && !reclaims({ existing, holderDead, room, seatKey: proof })) {
           return { ok: false, reason: 'name_taken', suggestion: suggestName(room, as) } as const;
         }
-        const change: MemberChange = existing?.left_at === null ? 'reconnected' : 'joined';
-        // A new member starts where the latest summary stands, so its first read is that summary.
-        const cursor = Number(latestSummaryRow(room)?.covers_id ?? 0);
+        const change: MemberChange =
+          existing?.left_at === null && existing.presence !== 'invited' ? 'reconnected' : 'joined';
+        const cursor = startCursor(room);
         const [name, version] = [client?.name ?? null, client?.version ?? null];
         const role = as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
         const seatKeyOrNull = seatKey ?? null;
@@ -373,6 +388,83 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         emit({ change, member, room: room.name, type: 'member' });
         systemLine(room, `${as} ${change}`, emit);
         return { change, member, ok: true, room } as const;
+      });
+    },
+
+    /**
+     * Makes a seat ahead of its agent: presence invited, with its role, instructions and how to launch it.
+     * Only the human or an unmuted orchestrator may, and only the human makes an orchestrator.
+     * Returns the fresh seat key, the one thing that later sits in the seat.
+     */
+    invite({
+      by,
+      instructions,
+      launch,
+      name,
+      role,
+      room: roomName,
+    }: {
+      by: string;
+      instructions?: string;
+      launch: Launch;
+      name: string;
+      role: string;
+      room: string;
+    }) {
+      if (isReserved(name)) return { ok: false, reason: 'name_reserved' } as const;
+      return transaction(emit => {
+        const found = seat(roomName, by);
+        if (!found.ok) return found;
+        const { member: inviter, room } = found;
+        // An orchestrator that could make orchestrators could hand its powers to any agent.
+        const madeOrchestrator = role === ORCHESTRATOR_ROLE && inviter.kind !== 'human';
+        if (!canAssignRole({ by: inviter }) || madeOrchestrator) return { ok: false, reason: 'not_allowed' } as const;
+        if (inviter.muted) return { ok: false, reason: 'muted' } as const;
+        if (room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
+        if (findMember(room, name)) {
+          return { ok: false, reason: 'name_taken', suggestion: suggestName(room, name) } as const;
+        }
+        const seatKey = randomUUID();
+        const at = stamp();
+        const spec = JSON.stringify(launch);
+        sql.insertInvite.run(
+          room.id,
+          name,
+          launch.agent,
+          at,
+          at,
+          startCursor(room),
+          role,
+          instructions ?? null,
+          by,
+          seatKey,
+          spec,
+        );
+        const member = findMember(room, name)!;
+        emit({ change: 'invited', member, room: room.name, type: 'member' });
+        systemLine(room, `${name} invited by ${by} as ${role}`, emit);
+        return { member, ok: true, seatKey } as const;
+      });
+    },
+
+    /** How to start a member's agent, from its invite. Undefined for a member that joined on its own, or none. */
+    launchOf({ name, room: roomName }: { name: string; room: string }) {
+      const room = findRoom(roomName);
+      const launch = room && sql.member.get(room.id, name)?.launch;
+      return typeof launch === 'string' ? launchSchema.parse(parseStoredJson(launch)) : undefined;
+    },
+
+    /** Drops invites whose agent made no call in 10 minutes, with a line each. */
+    expireInvites() {
+      return transaction(emit => {
+        const cutoff = new Date(now().getTime() - INVITE_TTL_MS).toISOString();
+        return sql.expiredInvites.all(cutoff).map(row => {
+          const member = toMember(row);
+          const room = roomById(member.room_id);
+          drop(room, member, emit);
+          systemLine(room, `${member.name} never came, invite dropped`, emit);
+          return { name: member.name, room: room.name };
+        });
       });
     },
 

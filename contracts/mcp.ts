@@ -14,6 +14,11 @@ export const joinInputSchema = z.object({
     .describe(
       'Your role name in the room, like api or web. Defaults to the repo folder name when the client sends roots.',
     ),
+  invite: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('For Codex: the invite token from your first prompt, so you sit in the seat made for you with its role.'),
   kind: z
     .enum(AGENT_KINDS)
     .optional()
