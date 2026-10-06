@@ -11,6 +11,7 @@ import { codexControlSocket } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 import { connectHttp } from '../../../src/mcp/testing.js';
+import { NOTHING_YET } from '../../../src/mcp/tools/wait.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 import { run } from '../lib/run.js';
 
@@ -171,7 +172,9 @@ export async function codexRun({ as, keep, room }: CodexOptions) {
       { arguments: { room, timeout_s: REPLY_WITHIN_S }, name: 'wait' },
       { resetTimeoutOnProgress: true, timeout: (REPLY_WITHIN_S + 10) * 1000 },
     );
-    if (!textOf(waited).includes('new in')) throw new Error(`no reply from ${as} within ${REPLY_WITHIN_S} s`);
+    if (waited.isError || textOf(waited) === NOTHING_YET) {
+      throw new Error(`no reply from ${as} within ${REPLY_WITHIN_S} s`);
+    }
     replyMs = Date.now() - postedAt;
     code = 0;
   } catch (error) {

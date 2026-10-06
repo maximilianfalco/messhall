@@ -2,7 +2,7 @@ import type { ToolAnnotations } from '@modelcontextprotocol/server';
 
 export const SERVER_NAME = 'messhall';
 // Newest first: a client asking for a version not here gets the first one.
-export const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18'];
+export const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'];
 // Claude Code cuts at 2,048 chars, so every text the model reads stays under this.
 export const TEXT_BUDGET = 1500;
 
