@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 
 import { execFile, spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -52,11 +52,23 @@ const SHOTS = [
   { appearance: 'dark', name: 'folded-dark', room: 'handoff' },
   { appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' },
   { appearance: 'dark', name: 'expanded-dark', openFolds: true, room: 'handoff' },
+  { appearance: 'light', name: 'settings-appearance-light', settings: 'appearance' },
+  { appearance: 'dark', name: 'settings-appearance-dark', settings: 'appearance' },
+  { appearance: 'light', name: 'settings-avatars-light', settings: 'avatars' },
+  { appearance: 'dark', name: 'settings-avatars-dark', settings: 'avatars' },
+  { appearance: 'light', name: 'settings-notifications-light', settings: 'notifications' },
+  { appearance: 'dark', name: 'settings-notifications-dark', settings: 'notifications' },
 ] as const;
 // Posts as the human first, so the take also shows the right side row and the scroll landing flush.
 const RECORDING = { appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true } as const;
-// The room the window opens on, muted through the app's own defaults key.
-const MUTED_ARGS = ['-mutedRooms', '(checkout)'];
+// The room the window opens on, muted through the app's settings.
+const MUTED = { mutedRooms: ['checkout'] };
+// Each Settings pane with something changed, so a pick and a Reset show.
+const PANE_SETTINGS = {
+  appearance: { accent: 'purple' },
+  avatars: { avatars: { colors: { web: { blue: 0.42, green: 0.42, red: 0.05 } } } },
+  notifications: { mutedRooms: ['billing'] },
+} as const;
 // Shot after the daemon stops, so the window shows its empty state.
 const DOWN_SHOTS = [
   { appearance: 'light', name: 'down-light' },
@@ -209,6 +221,7 @@ function processAlive(pid: number) {
 type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number] | typeof RECORDING;
 
 const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
+const windowFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.window`);
 
 /** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
 async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<string | undefined> {
@@ -226,7 +239,15 @@ export function shotArgs(shot: Shot) {
     '-shotAppearance',
     shot.appearance,
     ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
-    ...('muted' in shot ? MUTED_ARGS : []),
+    '-appSettings',
+    // A launch arg is read as a plist, so the JSON goes in as a quoted plist string.
+    JSON.stringify(
+      JSON.stringify({
+        ...('muted' in shot ? MUTED : {}),
+        ...('settings' in shot ? { pane: shot.settings, ...PANE_SETTINGS[shot.settings] } : {}),
+      }),
+    ),
+    ...('settings' in shot ? ['-shotSettings', windowFile(shot)] : []),
     ...('room' in shot ? ['-shotRoom', shot.room] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
@@ -251,6 +272,12 @@ function appPids(app: string) {
   return result.stdout.split('\n').filter(Boolean).map(Number);
 }
 
+/** The Settings window's number, which the app writes once Settings is up, or an error text. */
+async function settingsWindow(shot: Shot) {
+  const file = windowFile(shot);
+  return (await waitFile(file)) ?? readFileSync(file, 'utf8').trim();
+}
+
 async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<number | undefined> {
   const { stdout } = await run('swift', [WINDOWS_SCRIPT, String(pid)]);
   const id = pickWindow(stdout);
@@ -271,6 +298,7 @@ async function shoot({
   shot: Shot;
 }) {
   rmSync(shotFile(shot), { force: true });
+  rmSync(windowFile(shot), { force: true });
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
@@ -299,7 +327,9 @@ async function shoot({
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
     if ('newRoom' in shot) return (await waitFile(file)) ?? file;
     await sleep(SETTLE_MS);
-    await run('screencapture', ['-o', '-x', '-l', String(id), file]);
+    const target = 'settings' in shot ? await settingsWindow(shot) : String(id);
+    if (!/^\d+$/.test(target)) return target;
+    await run('screencapture', ['-o', '-x', '-l', target, file]);
     return file;
   } finally {
     child.kill('SIGTERM');
@@ -348,7 +378,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, folded and open presence runs, the jump pill, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, folded and open presence runs, the jump pill, the New Room sheet, a standing room, a closed room, each Settings pane and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -409,7 +439,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, jump pill, New Room sheet, standing and closed rooms and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, jump pill, New Room sheet, standing and closed rooms, each Settings pane and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

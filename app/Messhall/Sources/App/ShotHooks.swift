@@ -11,11 +11,7 @@
 
     /// `-shotAppearance light|dark`: a launch arg cannot flip the system setting, so the app is set instead.
     static func forceAppearance(_ name: String?) {
-      switch name {
-      case "light": NSApp.appearance = NSAppearance(named: .aqua)
-      case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
-      default: break
-      }
+      name.flatMap(AppearanceChoice.init(rawValue:))?.apply()
     }
 
     /// `-shotScrollTop YES`: the transcript opens at its first message, so an agent post shows the jump pill.
@@ -53,6 +49,26 @@
       try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
     }
 
+    /// `-shotSettings <file>`: picks Settings in the app menu, like cmd comma, and writes its window number.
+    /// The main window stays in the window list after a close, so app-shot needs the number to find Settings.
+    static func openSettings(numberInto file: String) async {
+      while NSApp.windows.first(where: isPlain) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      let main = NSApp.windows.first(where: isPlain)
+      guard let menu = NSApp.mainMenu?.items.first?.submenu,
+        let index = menu.items.firstIndex(where: { $0.keyEquivalent == "," })
+      else { return }
+      menu.performActionForItem(at: index)
+      while NSApp.windows.first(where: { $0 !== main && isPlain($0) }) == nil {
+        try? await Task.sleep(for: .milliseconds(100))
+      }
+      let settings = NSApp.windows.first { $0 !== main && isPlain($0) }
+      try? String(settings?.windowNumber ?? 0).write(toFile: file, atomically: true, encoding: .utf8)
+    }
+
+    private static func isPlain(_ window: NSWindow) -> Bool {
+      window.isVisible && window.styleMask.contains(.titled) && window.sheetParent == nil
+    }
+
     /// `-shotToggleSidebar <seconds>`: hides then shows the sidebar, the same call as View > Hide Sidebar.
     static func toggleSidebar(pause: Double) async {
       while splitController() == nil { try? await Task.sleep(for: .milliseconds(100)) }
@@ -73,8 +89,7 @@
       func find(_ view: NSView) -> NSSplitView? {
         view as? NSSplitView ?? view.subviews.lazy.compactMap(find).first
       }
-      let window = NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) && $0.sheetParent == nil }
-      return window?.contentView.flatMap(find)?.delegate as? NSSplitViewController
+      return NSApp.windows.first(where: isPlain)?.contentView.flatMap(find)?.delegate as? NSSplitViewController
     }
 
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.

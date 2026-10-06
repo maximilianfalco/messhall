@@ -2,34 +2,26 @@ import Feed
 import SwiftUI
 import UserNotifications
 
-/// Posts a banner for each live feed event that needs the human. Mutes live in `UserDefaults`.
+/// Posts a banner for each live feed event that needs the human. The switch and mutes live in `AppSettings`.
 @MainActor
 @Observable
 final class Notifier {
   nonisolated static let roomKey = "room"
-  private static let enabledKey = "notificationsEnabled"
-  private static let mutedKey = "mutedRooms"
 
-  @ObservationIgnored private let defaults = UserDefaults.standard
+  @ObservationIgnored private let settings: AppSettings
+
+  init(settings: AppSettings) {
+    self.settings = settings
+  }
 
   var enabled: Bool {
-    didSet { defaults.set(enabled, forKey: Self.enabledKey) }
+    get { settings.snapshot.notificationsEnabled }
+    set { settings.snapshot.notificationsEnabled = newValue }
   }
 
-  private(set) var mutedRooms: Set<String> {
-    didSet { defaults.set(mutedRooms.sorted(), forKey: Self.mutedKey) }
-  }
+  func isMuted(_ room: String) -> Bool { settings.snapshot.mutedRooms.contains(room) }
 
-  init() {
-    enabled = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
-    mutedRooms = Set(defaults.stringArray(forKey: Self.mutedKey) ?? [])
-  }
-
-  func isMuted(_ room: String) -> Bool { mutedRooms.contains(room) }
-
-  func toggleMute(_ room: String) {
-    if mutedRooms.remove(room) == nil { mutedRooms.insert(room) }
-  }
+  func toggleMute(_ room: String) { settings.snapshot.toggleMute(room) }
 
   /// The system shows its prompt only while the answer is not set, so this asks at most once.
   func requestPermission() {
@@ -37,7 +29,8 @@ final class Notifier {
   }
 
   func notify(_ event: BusEvent, room: SnapshotRoom?, liveSince: Date) {
-    let state = NotifyState(room: room, mutedRooms: mutedRooms, enabled: enabled, liveSince: liveSince)
+    let state = NotifyState(
+      room: room, mutedRooms: settings.snapshot.mutedRooms, enabled: enabled, liveSince: liveSince)
     guard let note = notificationFor(event: event, state: state) else { return }
     let content = UNMutableNotificationContent()
     content.title = note.title
@@ -55,7 +48,7 @@ struct MuteButton: View {
   @Environment(Notifier.self) private var notifier
 
   private var help: String {
-    if !notifier.enabled { return "Notifications are off in the Messhall menu bar menu" }
+    if !notifier.enabled { return "Notifications are off in Messhall Settings" }
     return notifier.isMuted(room) ? "Notifications for #\(room) are off" : "Turn off notifications for #\(room)"
   }
 

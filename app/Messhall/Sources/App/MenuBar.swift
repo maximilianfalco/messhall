@@ -19,7 +19,7 @@ struct MenuBarMenu: View {
   let store: FeedStore
   let navigation: Navigation
   @Environment(\.openWindow) private var openWindow
-  @Environment(Notifier.self) private var notifier
+  @Environment(\.openSettings) private var openSettings
 
   private var openRooms: [SnapshotRoom] { store.rooms.filter(\.isOpen) }
 
@@ -30,10 +30,14 @@ struct MenuBarMenu: View {
       Button("#\(room.name)  \(room.agentSummary)") { show(room.name) }
     }
     if !openRooms.isEmpty { Divider() }
-    Toggle("Notifications", isOn: Bindable(notifier).enabled)
-    Divider()
     Button("Open Messhall") { show(nil) }
       .keyboardShortcut("o")
+    Button("Settings\u{2026}") {
+      openSettings()
+      NSApp.activate()
+    }
+    .keyboardShortcut(",")
+    Divider()
     Button("Quit Messhall") { NSApp.terminate(nil) }
       .keyboardShortcut("q")
   }
