@@ -48,6 +48,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let room = UserDefaults.standard.string(forKey: "shotRoom")
         Task { await ShotHooks.setRole(role, room: room, store: store, client: client) }
       }
+      if let member = UserDefaults.standard.string(forKey: "shotRemove") {
+        let room = UserDefaults.standard.string(forKey: "shotRoom")
+        Task { await ShotHooks.remove(member, room: room, store: store, client: client) }
+      }
       if let member = UserDefaults.standard.string(forKey: "shotMute") {
         let room = UserDefaults.standard.string(forKey: "shotRoom")
         Task { await ShotHooks.mute(member, room: room, store: store, client: client) }

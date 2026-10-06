@@ -94,6 +94,11 @@ public final class FeedStore {
     add(result.message, to: room)
   }
 
+  /// Takes out a member the human just removed, before its event comes back.
+  func drop(_ member: Member, from room: String) {
+    apply(.member(MemberEvent(room: room, change: .removed, member: member)))
+  }
+
   /// Shows a member the human just muted or unmuted, before its event comes back.
   func add(_ member: Member, change: MemberChange, to room: String) {
     apply(.member(MemberEvent(room: room, change: change, member: member)))

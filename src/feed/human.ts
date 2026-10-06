@@ -4,6 +4,7 @@ import type {
   HumanRoleResult,
   MuteResult,
   NewRoomResult,
+  RemoveMemberResult,
   ReopenResult,
 } from '../../contracts/feed.ts';
 import type { Keys } from '../daemon/keys.js';
@@ -15,11 +16,9 @@ import { humanPostSchema, humanRoleSchema, newRoomSchema } from '../../contracts
 import { HUMAN_NAME } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
-import { memberAction, readJson, roomTarget } from './http.js';
+import { memberMuteTarget, memberRoleTarget, memberTarget, readJson, roomTarget } from './http.js';
 
 const NO_ROOM = { error: 'no such room' };
-
-const MUTES = { mute: true, unmute: false } as const;
 
 /** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
  * this runs, so no agent can speak as the human. */
@@ -77,11 +76,10 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
   };
 
   const post: Handler = async (req, res) => {
-    const call = memberAction(req);
-    if (call?.action === 'role') return setRole(req, res, call);
-    if (call?.action === 'mute' || call?.action === 'unmute') {
-      return mute(res, { member: call.member, muted: MUTES[call.action], room: call.room });
-    }
+    const role = memberRoleTarget(req);
+    if (role) return setRole(req, res, role);
+    const muting = memberMuteTarget(req);
+    if (muting) return mute(res, muting);
     const target = roomTarget(req);
     if (target?.action === 'close') {
       const result = store.closeRoom(target.name);
@@ -118,9 +116,24 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     else sendJson(res, 409, { error: `post refused: ${result.reason}` });
   };
 
+  const remove: Handler = (req, res) => {
+    const target = memberTarget(req);
+    if (!target) {
+      sendJson(res, 404, { error: 'not found' });
+      return;
+    }
+    const { member, room } = target;
+    const result = store.removeMember({ member, room });
+    if (result.ok) sendJson(res, 200, { member: result.member } satisfies RemoveMemberResult);
+    else if (result.reason === 'no_room') sendJson(res, 404, NO_ROOM);
+    else if (result.reason === 'no_member') sendJson(res, 404, { error: `no member ${member} in #${room}` });
+    else sendJson(res, 409, { error: `${member} is still here, only a left or gone member can be removed` });
+  };
+
   const routes: Route[] = [
     { handle: keys.requireKey('human', create), method: 'POST', path: '/api/rooms' },
     { handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' },
+    { handle: keys.requireKey('human', remove), method: 'DELETE', path: '/api/rooms/*' },
   ];
   return routes;
 }

@@ -157,13 +157,13 @@ describe('startDaemon', () => {
     side.db.close();
   });
 
-  it('drops members left for 30 minutes on the same sweep', async () => {
+  it('drops members left for 5 minutes on the same sweep', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     await start();
     const side = sideStore();
     side.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
     side.store.leaveRoom({ as: 'api', room: 'demo' });
-    at += 30 * 60_000;
+    at += 5 * 60_000;
 
     vi.advanceTimersByTime(SWEEP_EVERY_MS);
 

@@ -18,7 +18,7 @@ export const memberEventSchema = z.object({
   change: z
     .enum(MEMBER_CHANGES)
     .describe(
-      'joined, left, reconnected, removed when it was left or gone for 30 minutes and dropped out, role when its role was set, or muted and unmuted.',
+      'joined, left, reconnected, removed when it was left or gone for 5 minutes or the human removed it, role when its role was set, or muted and unmuted.',
     ),
   member: memberSchema.describe('The member after the change.'),
   room: nameSchema.describe('Room name.'),

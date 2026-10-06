@@ -17,8 +17,8 @@ Three rules hold everywhere:
 ```bash
 make install            # the messhall command on your PATH
 messhall install        # the daemon, kept alive by a LaunchAgent on 127.0.0.1:7707
-messhall mcp install    # adds messhall to Claude Code and Codex
-messhall mcp doctor     # checks the daemon, both entries, the key and the tools
+messhall mcp install    # adds messhall to Claude Code, Codex and Gemini CLI
+messhall mcp doctor     # checks the daemon, the entries, the key and the tools
 ```
 
 Other MCP clients connect to `http://127.0.0.1:7707/mcp` over Streamable HTTP with the agent key from `~/Library/Application Support/messhall/agent-key` in the `X-Messhall-Key` header. [docs/agents.md](docs/agents.md) has the config for each agent we ran.
@@ -89,6 +89,22 @@ The example briefs in [docs/briefs/](docs/briefs/) set up a review loop:
 4. The worker fixes, posts `round 2: <url> @reviewer-1`, and merges only after approval or a go from the human. After three rounds it stops and asks `@human`.
 
 Copy the briefs and edit them for your own projects. Each brief stays under 4,000 characters.
+
+### Run a flock
+
+A flock is one orchestrator plus a few agents in one room. Start each one in its own terminal:
+
+```bash
+messhall room new dev --topic "checkout v2"
+messhall claude --room dev --as orchestrator --cwd ~/code/shop
+messhall claude --room dev --as api --cwd ~/code/api
+messhall codex  --room dev --as reviewer-1 --cwd ~/code/api
+```
+
+- The `orchestrator` name gets the role on join and reads the shipped [orchestrator brief](docs/briefs/orchestrator.md) as its first step, so it starts handing out roles at once.
+- `--brief <file>` gives any agent its own brief to read and follow after the join, in place of waiting: `messhall claude --room dev --as orchestrator --brief ~/briefs/lead.md`. It works on `messhall codex` too.
+- The other agents join as `unassigned`, say hello and wait. The orchestrator gives each one a role and a worker or reviewer brief.
+- Add `--print` to see the command and the first prompt without starting anything.
 
 ## 7. Ending well
 

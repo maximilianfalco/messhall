@@ -131,6 +131,20 @@ describe('seedShotRooms', () => {
     ]);
   });
 
+  it('keeps every left and gone agent through the first 3 minutes of a shot run', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+
+    seedShotRooms({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const later = new Date(now.getTime() + 3 * 60_000);
+    const dropped = createRoomStore({ db, now: () => later }).clearStale();
+    db.close();
+
+    expect(dropped).toStrictEqual([]);
+  });
+
   it('leaves a room with 120 posts, more than the snapshot holds, so its top pages in', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');
@@ -228,6 +242,12 @@ describe('shotArgs', () => {
     expect(shotArgs({ appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' })).toStrictEqual(
       expect.arrayContaining(['-shotRole', 'qa=reviewer', '-shotRoom', 'checkout']),
     );
+  });
+
+  it('removes a member through the app for the removed shot', () => {
+    expect(
+      shotArgs({ appearance: 'light', name: 'removed-light', openFolds: true, remove: 'docs', room: 'handoff' }),
+    ).toStrictEqual(expect.arrayContaining(['-shotRemove', 'docs', '-shotRoom', 'handoff']));
   });
 
   it('mutes a member through the app for the mute shot', () => {

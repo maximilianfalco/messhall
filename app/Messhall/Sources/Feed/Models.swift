@@ -306,6 +306,12 @@ public struct HumanRoleResult: Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable { case member, message }
 }
 
+public struct RemoveMemberResult: Codable, Equatable, Sendable {
+  public var member: Member
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case member }
+}
+
 public struct NewRoom: Codable, Equatable, Sendable {
   public var name: String
   public var topic: String?

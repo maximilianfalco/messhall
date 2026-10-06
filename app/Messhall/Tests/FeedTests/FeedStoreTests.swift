@@ -203,6 +203,16 @@ struct FeedStoreTests {
     #expect(store.rooms[0].messages.last == line)
   }
 
+  @Test("a member the human just removed leaves the strip at once")
+  func remove() throws {
+    let store = try loaded()
+    let member = try #require(store.rooms[0].members.first { $0.kind != .human })
+
+    store.drop(member, from: "checkout")
+
+    #expect(!store.rooms[0].members.contains { $0.name == member.name })
+  }
+
   private func humanRoom(closedAt: String?) -> Room {
     Room(
       id: "r9", name: "ops", topic: nil, createdAt: "2026-01-01T10:00:00.000Z", createdBy: "human", standing: true,

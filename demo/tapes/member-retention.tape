@@ -1,4 +1,4 @@
-# QA tape for member retention: the scripted run drops an agent left for 30 minutes, the member table no longer has it
+# QA tape for member retention: the scripted run drops an agent left for 5 minutes, the member table no longer has it
 # while its posts keep their sender, then the store tests for clearing stale members.
 
 Output demo/out/member-retention.mp4

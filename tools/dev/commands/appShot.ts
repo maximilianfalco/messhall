@@ -33,7 +33,14 @@ const POST_TEXT = 'thanks both. ship it once the e2e run is green';
 // Lands below a transcript scrolled to the top, so the jump pill shows.
 const AGENT_POST = { as: 'editor', room: 'docs-sync', text: 'the glossary page is updated too' };
 
+// The handoff shots go first, before the stale sweep drops the agents that left. Removed comes last, it changes the room.
 const SHOTS = [
+  { appearance: 'light', name: 'folded-light', room: 'handoff' },
+  { appearance: 'dark', name: 'folded-dark', room: 'handoff' },
+  { appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' },
+  { appearance: 'dark', name: 'expanded-dark', openFolds: true, room: 'handoff' },
+  { appearance: 'light', name: 'removed-light', openFolds: true, remove: 'docs', room: 'handoff' },
+  { appearance: 'dark', name: 'removed-dark', openFolds: true, remove: 'web', room: 'handoff' },
   { appearance: 'light', name: 'window-light' },
   { appearance: 'dark', name: 'window-dark' },
   { appearance: 'light', name: 'post-light', post: true },
@@ -52,10 +59,6 @@ const SHOTS = [
   { appearance: 'dark', name: 'human-row-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', name: 'empty-room-light', room: 'kickoff' },
   { appearance: 'dark', name: 'empty-room-dark', room: 'kickoff' },
-  { appearance: 'light', name: 'folded-light', room: 'handoff' },
-  { appearance: 'dark', name: 'folded-dark', room: 'handoff' },
-  { appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' },
-  { appearance: 'dark', name: 'expanded-dark', openFolds: true, room: 'handoff' },
   { appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' },
   { appearance: 'dark', draft: 'over to @a', name: 'picker-dark', room: 'checkout' },
   { appearance: 'light', name: 'history-light', pageTop: true, room: 'history' },
@@ -188,14 +191,15 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     step(5 * 60_000);
     store.joinRoom({ as: 'ledger', client: CLAUDE, kind: 'claude', room: 'billing' });
     store.postMessage({ done: true, from: 'ledger', room: 'billing', text: 'invoices backfilled' });
-    seedHandoff({ step, store });
-    step(5 * 60_000);
     store.joinRoom({ as: 'qa', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'checkout' });
     store.postMessage({
       from: 'qa',
       room: 'checkout',
       text: '@all i will rerun the checkout e2e once both sides land',
     });
+    // Left and gone agents land late, so the 5 minute stale sweep keeps them through the shots.
+    at = now.getTime() - 5 * 60_000;
+    seedHandoff({ step, store });
     step(10_000);
     store.joinRoom({ as: 'ci', client: { name: 'messhall-cli', version: '0.1.0' }, kind: 'other', room: 'checkout' });
     store.postMessage({ from: 'ci', room: 'checkout', text: 'nightly e2e on main is green' });
@@ -294,6 +298,7 @@ export function shotArgs(shot: Shot) {
     ...('settings' in shot ? ['-shotSettings', windowFile(shot)] : []),
     ...('room' in shot ? ['-shotRoom', shot.room] : []),
     ...('role' in shot ? ['-shotRole', shot.role] : []),
+    ...('remove' in shot ? ['-shotRemove', shot.remove] : []),
     ...('mute' in shot ? ['-shotMute', shot.mute] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),

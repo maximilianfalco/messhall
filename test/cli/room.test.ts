@@ -92,6 +92,28 @@ describe('runRoom', () => {
     });
   });
 
+  it('kicks a left member out of the room', async () => {
+    feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+    feed.scratch.store.leaveRoom({ as: 'api', room: 'checkout' });
+
+    await expect(room({ action: 'kick', member: 'api', name: 'checkout' })).resolves.toStrictEqual({
+      code: 0,
+      output: ['removed api from #checkout'],
+    });
+    expect(feed.scratch.store.listMembers('checkout', { left: true }).map(member => member.name)).toStrictEqual([
+      'human',
+    ]);
+  });
+
+  it('passes on the refusal to kick a member that is still here', async () => {
+    feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+
+    await expect(room({ action: 'kick', member: 'api', name: 'checkout' })).resolves.toStrictEqual({
+      code: 1,
+      output: ['messhall refused: api is still here, only a left or gone member can be removed'],
+    });
+  });
+
   it('says the daemon is down in one line', async () => {
     await expect(room({ action: 'list' }, 'http://127.0.0.1:1')).resolves.toStrictEqual({
       code: 1,

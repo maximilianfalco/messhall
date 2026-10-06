@@ -286,7 +286,7 @@
             "role",
             "unmuted"
           ],
-          "description": "joined, left, reconnected, removed when it was left or gone for 30 minutes and dropped out, role when its role was set, or muted and unmuted."
+          "description": "joined, left, reconnected, removed when it was left or gone for 5 minutes or the human removed it, role when its role was set, or muted and unmuted."
         },
         "member": {
           "description": "The member after the change.",
@@ -517,6 +517,19 @@
         "room",
         "to",
         "type"
+      ],
+      "additionalProperties": false
+    },
+    "RemoveMemberResult": {
+      "type": "object",
+      "properties": {
+        "member": {
+          "description": "The member as it was when it dropped out, left or gone.",
+          "$ref": "#/$defs/Member"
+        }
+      },
+      "required": [
+        "member"
       ],
       "additionalProperties": false
     },

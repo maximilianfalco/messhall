@@ -93,6 +93,15 @@
       }
     }
 
+    /// `-shotRemove <member>`: removes a left or gone member of the `-shotRoom` room through the same path as its X.
+    static func remove(_ member: String, room: String?, store: FeedStore, client: FeedClient) async {
+      guard let room else { return }
+      while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }
+      if let refusal = await store.remove([member], room: room, via: client) {
+        FileHandle.standardError.write(Data("shotRemove refused: \(refusal)\n".utf8))
+      }
+    }
+
     /// `-shotMute <member>`: mutes a member in the `-shotRoom` room through the same path as the Mute item.
     static func mute(_ member: String, room: String?, store: FeedStore, client: FeedClient) async {
       guard let room else { return }
