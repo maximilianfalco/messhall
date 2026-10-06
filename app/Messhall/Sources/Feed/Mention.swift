@@ -49,6 +49,17 @@ public func mentionCandidates(query: String, members: [Member]) -> [String] {
   return matching.filter { $0.hasPrefix(query) } + matching.filter { !$0.hasPrefix(query) }
 }
 
+/// The name the picker marks: the one moved to while it still matches, else the first.
+public func pickedMention(_ highlight: String?, in candidates: [String]) -> String? {
+  candidates.contains { $0 == highlight } ? highlight : candidates.first
+}
+
+/// The name one step up or down from the marked one, wrapping at both ends.
+public func steppedMention(from picked: String, by step: Int, in candidates: [String]) -> String? {
+  guard let index = candidates.firstIndex(of: picked) else { return nil }
+  return candidates[(index + step + candidates.count) % candidates.count]
+}
+
 /// The draft with its trailing `@partial` swapped for `@name `.
 public func completeMention(_ name: String, in draft: String) -> String {
   guard let query = mentionQuery(in: draft) else { return appendMention(name, to: draft) }

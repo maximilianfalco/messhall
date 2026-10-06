@@ -188,6 +188,12 @@ describe('shotArgs', () => {
     );
   });
 
+  it('types the draft into the composer so the mention picker shows', () => {
+    expect(shotArgs({ appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' })).toStrictEqual(
+      expect.arrayContaining(['-shotDraft', 'thanks @', '-shotRoom', 'checkout']),
+    );
+  });
+
   it('has the app draw the sheet into the shot file itself', () => {
     const args = shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' });
 

@@ -20,6 +20,9 @@
     /// `-shotOpenFolds YES`: every run of presence lines starts open, so a shot shows the lines inside.
     static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
 
+    /// `-shotDraft <text>`: the composer opens with this typed, so a draft ending in `@` shows the mention picker.
+    static let draft = UserDefaults.standard.string(forKey: "shotDraft")
+
     /// `-shotPost <text>`: posts into the first open room through the same path as the post box.
     static func post(_ text: String, store: FeedStore, client: FeedClient) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }

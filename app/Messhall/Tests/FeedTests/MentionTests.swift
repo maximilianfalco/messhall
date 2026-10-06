@@ -52,6 +52,24 @@ struct MentionTests {
     #expect(mentionCandidates(query: "zz", members: [member("api")]) == [])
   }
 
+  @Test("the picker marks the name moved to while it still matches, else the first")
+  func picked() {
+    #expect(pickedMention("web", in: ["api", "web"]) == "web")
+    #expect(pickedMention("qa", in: ["api", "web"]) == "api")
+    #expect(pickedMention(nil, in: ["api", "web"]) == "api")
+    #expect(pickedMention("web", in: []) == nil)
+  }
+
+  @Test("arrow steps wrap at both ends of the list")
+  func step() {
+    let names = ["api", "web", "all"]
+
+    #expect(steppedMention(from: "api", by: 1, in: names) == "web")
+    #expect(steppedMention(from: "all", by: 1, in: names) == "api")
+    #expect(steppedMention(from: "api", by: -1, in: names) == "all")
+    #expect(steppedMention(from: "qa", by: 1, in: names) == nil)
+  }
+
   @Test("completing swaps the trailing partial for the name and a space")
   func complete() {
     #expect(completeMention("web", in: "hey @w") == "hey @web ")
