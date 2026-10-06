@@ -1,6 +1,6 @@
 import Foundation
 
-/// Acts as the human: posts messages and makes, closes and reopens rooms.
+/// Acts as the human: posts messages, makes, closes and reopens rooms, and sets roles.
 public struct HumanSeat: Sendable {
   public enum Outcome<Value: Equatable & Sendable>: Equatable, Sendable {
     case done(Value)
@@ -27,6 +27,10 @@ public struct HumanSeat: Sendable {
 
   public func reopen(room: String) async -> Outcome<Room> {
     await send(.reopen(room: room), as: RoomResult.self) { $0.room }
+  }
+
+  public func setRole(_ role: String, member: String, room: String) async -> Outcome<HumanRoleResult> {
+    await send(.role(room: room, member: member, role: role), as: HumanRoleResult.self) { $0 }
   }
 
   private func send<Body: Decodable, Value>(

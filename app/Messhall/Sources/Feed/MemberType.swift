@@ -11,6 +11,13 @@ extension Member {
     kind == .human || role == "unassigned" ? nil : role
   }
 
+  static let usualRoles = ["worker", "reviewer", "orchestrator", "observer", "unassigned"]
+
+  /// The roles the human can pick for this member. None for the human seat.
+  public var roleChoices: [String] {
+    kind == .human ? [] : Self.usualRoles.filter { $0 != role }
+  }
+
   /// `web, opencode 1.18.34, waiting`. A member with no client says its kind instead.
   public func spokenLabel(as displayName: String) -> String {
     "\(displayName), \(client ?? kind.rawValue), \(presence.rawValue)"

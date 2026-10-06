@@ -25,6 +25,19 @@ struct MemberTypeTests {
       Self.member(name: "human", kind: .human, client: nil, version: nil, label: nil, role: "observer").rolePill == nil)
   }
 
+  @Test("an agent offers every usual role but its own")
+  func roleChoices() {
+    #expect(
+      Self.member(client: nil, version: nil, label: nil, role: "worker").roleChoices == [
+        "reviewer", "orchestrator", "observer", "unassigned",
+      ])
+  }
+
+  @Test("the human seat offers no roles")
+  func roleChoicesHuman() {
+    #expect(Self.member(name: "human", kind: .human, client: nil, version: nil, label: nil).roleChoices == [])
+  }
+
   @Test("decode the client fields of a member")
   func decode() throws {
     let member = try Fixture.decode(Member.self, "Member")

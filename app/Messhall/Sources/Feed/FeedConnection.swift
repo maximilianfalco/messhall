@@ -54,6 +54,17 @@ extension FeedStore {
     }
   }
 
+  /// Sets a member's role as the human and shows it at once. Returns the refusal text, or nil.
+  public func setRole(_ role: String, member: String, room: String, via client: FeedClient) async -> String? {
+    switch await HumanSeat(client: client).setRole(role, member: member, room: room) {
+    case .done(let result):
+      add(result, to: room)
+      return nil
+    case .refused(let reason):
+      return reason
+    }
+  }
+
   /// Makes, closes or reopens a room as the human and shows it at once. Returns the refusal text, or nil.
   public func change(_ action: RoomAction, via client: FeedClient) async -> String? {
     let seat = HumanSeat(client: client)

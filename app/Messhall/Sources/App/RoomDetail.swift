@@ -20,7 +20,7 @@ struct RoomDetail: View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       RoomHeader(room: room, subtitle: subtitle)
-      MemberStrip(members: room.present)
+      MemberStrip(members: room.present, setRole: setRole)
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
@@ -81,6 +81,10 @@ struct RoomDetail: View {
 
   private func change(_ action: RoomAction) {
     Task { refusal = await store.change(action, via: client) }
+  }
+
+  private func setRole(_ role: String, member: String) {
+    Task { refusal = await store.setRole(role, member: member, room: room.name, via: client) }
   }
 }
 
@@ -189,6 +193,7 @@ struct ReconnectBanner: View {
 
 struct MemberStrip: View {
   let members: [Member]
+  let setRole: (_ role: String, _ member: String) -> Void
 
   private var ordered: [Member] {
     members.filter { $0.kind != .human } + members.filter { $0.kind == .human }
@@ -197,7 +202,18 @@ struct MemberStrip: View {
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
-        ForEach(ordered, id: \.name) { MemberChip(member: $0) }
+        ForEach(ordered, id: \.name) { member in
+          MemberChip(member: member)
+            .contextMenu {
+              if !member.roleChoices.isEmpty {
+                Menu("Role") {
+                  ForEach(member.roleChoices, id: \.self) { role in
+                    Button(role.capitalized) { setRole(role, member.name) }
+                  }
+                }
+              }
+            }
+        }
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 10)

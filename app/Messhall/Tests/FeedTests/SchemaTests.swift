@@ -26,6 +26,8 @@ private let models: [String: [String]] = [
   "History": History.CodingKeys.allCases.map(\.rawValue),
   "HumanPost": HumanPost.CodingKeys.allCases.map(\.rawValue),
   "HumanPostResult": HumanPostResult.CodingKeys.allCases.map(\.rawValue),
+  "HumanRole": HumanRole.CodingKeys.allCases.map(\.rawValue),
+  "HumanRoleResult": HumanRoleResult.CodingKeys.allCases.map(\.rawValue),
   "CloseResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
   "Member": Member.CodingKeys.allCases.map(\.rawValue),
   "MemberEvent": MemberEvent.CodingKeys.allCases.map(\.rawValue),
