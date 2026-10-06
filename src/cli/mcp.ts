@@ -339,6 +339,15 @@ async function versionCheck(run: McpDeps['run'], name: string): Promise<Check> {
     : { good: false, line: `${name}: ${version}, no channels, needs 2.1.80 or newer` };
 }
 
+async function tmuxCheck(run: McpDeps['run']): Promise<Check> {
+  const result = await run('tmux', ['-V']);
+  const version = result.stdout.trim();
+  if (result.code !== 0 || !version) {
+    return { good: false, line: 'tmux: not found, messhall spawn needs it. brew install tmux' };
+  }
+  return { good: true, line: `tmux: ${version}` };
+}
+
 // Codex subcommands that are not a TUI a user types into.
 const NOT_TUI = new Set([
   'a',
@@ -417,6 +426,7 @@ export async function runMcpDoctor(deps: McpDeps) {
     geminiEntryCheck(deps.geminiSettings, where),
     await versionCheck(deps.run, CLAUDE),
     await versionCheck(deps.run, 'codex'),
+    await tmuxCheck(deps.run),
     ...(await codexSessionChecks(deps)),
     ...(await toolChecks()),
   ];
@@ -502,7 +512,7 @@ export function registerMcp(program: Command) {
   mcp
     .command('doctor')
     .description(
-      'Check the daemon, the Claude, Codex and Gemini entries, the key, claude and codex versions, codex sessions, and the tools.',
+      'Check the daemon, the Claude, Codex and Gemini entries, the key, claude and codex versions, tmux, codex sessions, and the tools.',
     )
     .action(async () => {
       process.exitCode = await runMcpDoctor(systemDeps());

@@ -1,13 +1,17 @@
 import type { KeyKind } from '../../src/daemon/keys.js';
+import type { Tmux } from '../../src/flock/tmux.js';
 import type { Server } from 'node:http';
 
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 
+import { vi } from 'vitest';
+
 import { KEY_FILES, KEY_HEADER, loadKeys } from '../../src/daemon/keys.js';
 import { createRouter } from '../../src/daemon/router.js';
 import { feedRoutes } from '../../src/feed/routes.js';
+import { createSpawner } from '../../src/flock/spawner.js';
 import { scratchStore } from '../rooms/scratch.js';
 
 /** A timer the test moves by hand. Ticks fire when the elapsed time crosses their interval. */
@@ -42,13 +46,22 @@ export function fakeEvery() {
   };
 }
 
-/** The feed routes on a real port over a scratch store, with a hand moved timer. */
+/** The feed routes on a real port over a scratch store, with a hand moved timer and a fake tmux for the spawner. */
 export async function feedServer() {
   const scratch = scratchStore();
   const keys = loadKeys({ dataDir: scratch.dataDir });
   const timer = fakeEvery();
+  const tmux = vi.fn<Tmux>(() => Promise.resolve({ code: 0, stderr: '', stdout: '' }));
+  const spawner = createSpawner({
+    pollMs: 1,
+    readyWithinMs: 50,
+    settleMs: 0,
+    shell: '/bin/zsh',
+    store: scratch.store,
+    tmux,
+  });
   const server: Server = createServer(
-    createRouter(feedRoutes({ every: timer.every, keys, now: scratch.clock.now, store: scratch.store })),
+    createRouter(feedRoutes({ every: timer.every, keys, now: scratch.clock.now, spawner, store: scratch.store })),
   );
   await new Promise<void>(resolve => {
     server.listen(0, '127.0.0.1', resolve);
@@ -67,6 +80,7 @@ export async function feedServer() {
     headers: (kind: KeyKind) => ({ [KEY_HEADER]: keyOf(kind) }),
     scratch,
     timer,
+    tmux,
     url: `http://127.0.0.1:${port}`,
   };
 }

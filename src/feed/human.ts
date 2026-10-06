@@ -1,19 +1,22 @@
 import type {
   CloseResult,
+  Flock,
   HumanPostResult,
   HumanRoleResult,
   MuteResult,
   NewRoomResult,
   RemoveMemberResult,
   ReopenResult,
+  SpawnResult,
 } from '../../contracts/feed.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
+import type { Spawner } from '../flock/spawner.js';
 import type { RoomStore } from '../rooms/store.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { humanPostSchema, humanRoleSchema, newRoomSchema } from '../../contracts/feed.ts';
-import { HUMAN_NAME } from '../../contracts/room.ts';
+import { humanPostSchema, humanRoleSchema, humanSpawnSchema, newRoomSchema } from '../../contracts/feed.ts';
+import { HUMAN_NAME, nameSchema } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
 import { memberMuteTarget, memberRoleTarget, memberTarget, readJson, roomTarget } from './http.js';
@@ -21,8 +24,8 @@ import { memberMuteTarget, memberRoleTarget, memberTarget, readJson, roomTarget 
 const NO_ROOM = { error: 'no such room' };
 
 /** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
- * this runs, so no agent can speak as the human. */
-export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
+ * this runs, so no agent can speak as the human or start an agent. */
+export function humanRoutes({ keys, spawner, store }: { keys: Keys; spawner: Spawner; store: RoomStore }) {
   const create: Handler = async (req, res) => {
     const body = await readJson(req);
     const parsed = newRoomSchema.safeParse(body.ok ? body.value : undefined);
@@ -75,12 +78,65 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     else sendJson(res, 404, { error: `no member ${member} in #${room}` });
   };
 
+  // Waits for the agent's first call, up to two minutes, so the answer says whether it really started.
+  const spawn = async (req: IncomingMessage, res: ServerResponse, room: string) => {
+    const body = await readJson(req);
+    const parsed = humanSpawnSchema.safeParse(body.ok ? body.value : undefined);
+    if (!parsed.success) {
+      sendJson(res, 400, {
+        error:
+          'send json { name, role, cwd, instructions?, agent?, model? }: agent is claude or codex, model a plain name',
+      });
+      return;
+    }
+    const { agent, cwd, instructions, model, name, role } = parsed.data;
+    if (!store.ensureHuman(room).ok) {
+      sendJson(res, 404, NO_ROOM);
+      return;
+    }
+    const launch = { agent, cwd, ...(model ? { model } : {}) };
+    const result = await spawner.spawn({ by: HUMAN_NAME, instructions, launch, name, role, room });
+    if (result.ok) {
+      sendJson(res, 201, { member: result.member, session: result.session } satisfies SpawnResult);
+      return;
+    }
+    switch (result.reason) {
+      case 'no_cwd':
+        return sendJson(res, 400, { error: `cwd ${cwd} is not a folder. give a full path that exists` });
+      case 'name_reserved':
+        return sendJson(res, 400, { error: `${name} is reserved` });
+      case 'name_taken':
+        return sendJson(res, 409, { error: `${name} is taken in #${room}, try ${result.suggestion}` });
+      case 'room_closed':
+        return sendJson(res, 409, { error: 'room is closed' });
+      case 'no_room':
+      case 'not_member':
+      case 'not_allowed':
+      case 'muted':
+        return sendJson(res, 403, { error: `the human seat cannot spawn here: ${result.reason}` });
+      case 'tmux':
+        return sendJson(res, 502, { error: `tmux could not start: ${result.detail}. is tmux installed?` });
+      default:
+        return sendJson(res, 502, { error: `${agent} did not take its seat (${result.reason}), the seat is dropped` });
+    }
+  };
+
+  const flock: Handler = async (req, res) => {
+    const room = new URL(req.url ?? '/', 'http://127.0.0.1').searchParams.get('room') ?? undefined;
+    if (room !== undefined && !nameSchema.safeParse(room).success) {
+      sendJson(res, 400, { error: 'room is a room name' });
+      return;
+    }
+    sendJson(res, 200, { seats: await spawner.list({ room }) } satisfies Flock);
+  };
+
   const post: Handler = async (req, res) => {
     const role = memberRoleTarget(req);
     if (role) return setRole(req, res, role);
     const muting = memberMuteTarget(req);
     if (muting) return mute(res, muting);
     const target = roomTarget(req);
+    if (target?.action === 'spawn') return spawn(req, res, target.name);
     if (target?.action === 'close') {
       const result = store.closeRoom(target.name);
       if (result.ok) sendJson(res, 200, { room: result.room } satisfies CloseResult);
@@ -116,7 +172,7 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     else sendJson(res, 409, { error: `post refused: ${result.reason}` });
   };
 
-  const remove: Handler = (req, res) => {
+  const remove: Handler = async (req, res) => {
     const target = memberTarget(req);
     if (!target) {
       sendJson(res, 404, { error: 'not found' });
@@ -124,6 +180,8 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     }
     const { member, room } = target;
     const result = store.removeMember({ member, room });
+    // A kicked seat must not keep running its agent, which would only find itself removed.
+    if (result.ok) await spawner.stop({ name: member, room });
     if (result.ok) sendJson(res, 200, { member: result.member } satisfies RemoveMemberResult);
     else if (result.reason === 'no_room') sendJson(res, 404, NO_ROOM);
     else if (result.reason === 'no_member') sendJson(res, 404, { error: `no member ${member} in #${room}` });
@@ -134,6 +192,7 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     { handle: keys.requireKey('human', create), method: 'POST', path: '/api/rooms' },
     { handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', remove), method: 'DELETE', path: '/api/rooms/*' },
+    { handle: keys.requireKey('human', flock), method: 'GET', path: '/api/flock' },
   ];
   return routes;
 }

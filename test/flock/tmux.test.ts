@@ -25,6 +25,20 @@ const CHANNELS = `WARNING: Loading development channels
  Enter to confirm`;
 
 describe('dialogKeys', () => {
+  it('skips the codex update prompt instead of running the upgrade', () => {
+    const pane = '  Update available\n› 1. Update now (runs brew upgrade)\n  2. Skip\n  3. Skip until next version';
+    expect(dialogKeys(pane)).toStrictEqual({ keys: ['Down', 'Enter'], kind: 'answer' });
+  });
+
+  it('trusts the folder on the codex trust prompt', () => {
+    const pane = '  Trust this folder?\n› 1. Trust and continue\n  2. Back to Agent Command Center';
+    expect(dialogKeys(pane)).toStrictEqual({ keys: ['Enter'], kind: 'answer' });
+  });
+
+  it('leaves the codex composer alone', () => {
+    expect(dialogKeys('› Ask Codex to do anything\n  GPT-6-Luna high')).toStrictEqual({ kind: 'none' });
+  });
+
   it('moves down to trust on the folder trust prompt', () => {
     expect(dialogKeys(TRUST)).toStrictEqual({ keys: ['Down', 'Enter'], kind: 'answer' });
   });

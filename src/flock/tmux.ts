@@ -8,9 +8,17 @@ import { runCommand } from '../lib/run.js';
 export const SUBMIT_TRIES = 5;
 const POLL_MS = 500;
 const SETTLE_MS = 300;
-const DIALOG_TARGETS = [/I am using this for local development/i, /Yes, I trust this folder/i, /Yes, proceed/i];
+// Codex's update dialog runs brew upgrade on Enter, so its safe option is the plain Skip.
+const DIALOG_TARGETS = [
+  /I am using this for local development/i,
+  /Yes, I trust this folder/i,
+  /Yes, proceed/i,
+  /\d\. Trust and continue/,
+  /\d\. Skip\s*$/,
+];
 const LOGIN = /Select login method|Please run \/login|Invalid API key|OAuth error/i;
 const SELECTED = '❯';
+const CODEX_SELECTED = '›';
 const RULE = /^─{20,}$/;
 // oxlint-disable-next-line no-control-regex
 const DIM_RUN = /\x1b\[2m.*?(\x1b\[0m|$)/gm;
@@ -28,7 +36,7 @@ export function dialogKeys(pane: string): Dialog {
   if (LOGIN.test(pane)) return { kind: 'login' };
   const lines = pane.split('\n');
   const target = lines.findLastIndex(line => DIALOG_TARGETS.some(pattern => pattern.test(line)));
-  const current = lines.findIndex(line => line.trimStart().startsWith(SELECTED));
+  const current = lines.findIndex(line => [SELECTED, CODEX_SELECTED].some(mark => line.trimStart().startsWith(mark)));
   if (target < 0 || current < 0) return { kind: 'none' };
   const moves = target - current;
   return {

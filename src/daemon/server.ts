@@ -12,6 +12,7 @@ import { createRingers } from '../doorbell/ringer.js';
 import { createChannelRinger } from '../doorbell/ringers/channel.js';
 import { createCodexRinger } from '../doorbell/ringers/codex.js';
 import { feedRoutes } from '../feed/routes.js';
+import { createSpawner } from '../flock/spawner.js';
 import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
@@ -114,7 +115,7 @@ export async function startDaemon({
   const routes: Route[] = [
     { handle: (_req, res) => sendJson(res, 200, health({ now, startedAt, store })), method: 'GET', path: '/health' },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ keys, now, store }),
+    ...feedRoutes({ keys, now, spawner: createSpawner({ store }), store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 

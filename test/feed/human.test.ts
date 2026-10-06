@@ -1,15 +1,21 @@
 import type { SequencedEvent } from '../../contracts/events.ts';
 
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   closeResultSchema,
+  feedErrorSchema,
+  flockSchema,
   humanPostResultSchema,
   humanRoleResultSchema,
   muteResultSchema,
   newRoomResultSchema,
   removeMemberResultSchema,
   reopenResultSchema,
+  spawnResultSchema,
 } from '../../contracts/feed.ts';
 
 import { feedServer } from './feedServer.js';
@@ -446,5 +452,129 @@ describe('human route keys', () => {
     closeRoom();
 
     expect((await postAs(path, {})).status).toBe(401);
+  });
+});
+
+describe('POST /api/rooms/:name/spawn', () => {
+  let cwd: string;
+
+  beforeEach(() => {
+    store().createRoom({ created_by: 'human', name: 'demo' });
+    cwd = mkdtempSync(`${tmpdir()}/messhall-spawn-route-`);
+  });
+
+  const spawnBody = (body: Record<string, unknown> = {}) => ({ cwd, name: 'api', role: 'worker', ...body });
+  const seatOnStart = () =>
+    feed.tmux.mockImplementation(args => {
+      if (args[0] === 'new-session') {
+        const seatKey = args[args.indexOf('-e') + 1]?.replace('MESSHALL_SEAT=', '');
+        store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey });
+      }
+      return Promise.resolve({ code: 0, stderr: '', stdout: '' });
+    });
+
+  it('starts the agent in tmux and answers 201 with its seat and session', async () => {
+    seatOnStart();
+
+    const res = await human('/api/rooms/demo/spawn', spawnBody({ instructions: 'build the api', model: 'opus' }));
+
+    expect(res.status).toBe(201);
+    expect(spawnResultSchema.parse(await res.json())).toMatchObject({
+      member: { name: 'api', presence: 'active', role: 'worker' },
+      session: 'messhall-demo-api',
+    });
+    expect(store().roleOf({ name: 'api', room: 'demo' })).toMatchObject({ by: 'human', instructions: 'build the api' });
+  });
+
+  it('answers 400 for a cwd that is not a folder and starts nothing', async () => {
+    const res = await human('/api/rooms/demo/spawn', spawnBody({ cwd: `${cwd}/missing` }));
+
+    expect(res.status).toBe(400);
+    expect(feedErrorSchema.parse(await res.json()).error).toContain('not a folder');
+    expect(feed.tmux).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an unknown agent', { agent: 'gemini' }],
+    ['a model that reads as a flag', { model: '--dangerously-skip-permissions' }],
+    ['a bad name', { name: 'API!' }],
+  ])('answers 400 for %s and starts nothing', async (_case, body) => {
+    const res = await human('/api/rooms/demo/spawn', spawnBody(body));
+
+    expect(res.status).toBe(400);
+    expect(feed.tmux).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for a room that does not exist', async () => {
+    expect((await human('/api/rooms/nope/spawn', spawnBody())).status).toBe(404);
+  });
+
+  it('answers 409 with a free name when the name is taken', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    const res = await human('/api/rooms/demo/spawn', spawnBody());
+
+    expect(res.status).toBe(409);
+    expect(feedErrorSchema.parse(await res.json()).error).toContain('api-2');
+  });
+
+  it('answers 502 and frees the name when the agent never takes its seat', async () => {
+    const res = await human('/api/rooms/demo/spawn', spawnBody());
+
+    expect(res.status).toBe(502);
+    expect(feedErrorSchema.parse(await res.json()).error).toContain('timeout');
+    expect(memberNames()).toStrictEqual(['human']);
+  });
+
+  it('refuses the agent key with 403 before the handler, so no invite and no tmux', async () => {
+    const res = await postAs('/api/rooms/demo/spawn', feed.headers('agent'), spawnBody());
+
+    expect(res.status).toBe(403);
+    expect(memberNames()).toStrictEqual(['human']);
+    expect(feed.tmux).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/flock', () => {
+  it('lists spawned seats with their session for the human', async () => {
+    store().createRoom({ created_by: 'human', name: 'demo' });
+    store().invite({
+      by: 'human',
+      launch: { agent: 'claude', cwd: '/work/api' },
+      name: 'api',
+      role: 'worker',
+      room: 'demo',
+    });
+
+    const res = await fetch(`${feed.url}/api/flock?room=demo`, { headers: feed.headers('human') });
+
+    expect(res.status).toBe(200);
+    expect(flockSchema.parse(await res.json()).seats).toMatchObject([
+      { name: 'api', process: 'gone', room: 'demo', session: 'messhall-demo-api' },
+    ]);
+  });
+
+  it('refuses the agent key with 403', async () => {
+    expect((await fetch(`${feed.url}/api/flock`, { headers: feed.headers('agent') })).status).toBe(403);
+    expect(feed.tmux).not.toHaveBeenCalled();
+  });
+});
+
+describe('DELETE /api/rooms/:name/members/:member on a spawned seat', () => {
+  it('kills the seat tmux session along with the seat', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    const res = await deleteAs('/api/rooms/demo/members/api', feed.headers('human'));
+
+    expect(res.status).toBe(200);
+    expect(feed.tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-demo-api']);
+  });
+
+  it('kills nothing when the member is not there', async () => {
+    store().createRoom({ created_by: 'human', name: 'demo' });
+
+    await deleteAs('/api/rooms/demo/members/api', feed.headers('human'));
+
+    expect(feed.tmux).not.toHaveBeenCalled();
   });
 });

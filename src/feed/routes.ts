@@ -1,6 +1,7 @@
 import type { History, SearchResult } from '../../contracts/feed.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
+import type { Spawner } from '../flock/spawner.js';
 import type { RoomStore } from '../rooms/store.js';
 import type { Every } from './sse.js';
 
@@ -34,11 +35,13 @@ export function feedRoutes({
   every = intervalTimer,
   keys,
   now,
+  spawner,
   store,
 }: {
   every?: Every;
   keys: Keys;
   now: () => Date;
+  spawner: Spawner;
   store: RoomStore;
 }) {
   const read = (handler: Handler) => keys.requireKey(['agent', 'human'], handler);
@@ -80,7 +83,7 @@ export function feedRoutes({
     { handle: read(eventStream({ every, now, store })), method: 'GET', path: '/api/events' },
     { handle: read(history), method: 'GET', path: '/api/rooms/*' },
     { handle: read(search), method: 'GET', path: '/api/search' },
-    ...humanRoutes({ keys, store }),
+    ...humanRoutes({ keys, spawner, store }),
   ];
   return routes;
 }

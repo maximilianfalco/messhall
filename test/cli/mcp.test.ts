@@ -488,6 +488,7 @@ describe('runMcpDoctor', () => {
   const versions = {
     'claude --version': [done('2.1.289 (Claude Code)')],
     'codex --version': [done('codex-cli 0.157.1')],
+    'tmux -V': [done('tmux 3.5a')],
   };
 
   it('is all green when everything matches', async () => {
@@ -502,8 +503,19 @@ describe('runMcpDoctor', () => {
     expect(output()).toContain('✔ claude entry');
     expect(output()).toContain('✔ codex entry');
     expect(output()).toContain('has channels');
+    expect(output()).toContain('✔ tmux: tmux 3.5a');
     expect(output()).toMatch(/✔ tool join \d+\/1500 chars/);
     expect(output()).not.toContain(KEY);
+  });
+
+  it('goes red when tmux is missing, since spawn runs every agent in it', async () => {
+    writeCodex(`${codexBlock({ key: KEY, url: URL_BASE })}\n`);
+    const { run } = fakeRun({ ...versions, 'claude mcp get': [done(getOutput())], 'tmux -V': [NOT_FOUND] });
+
+    const code = await runMcpDoctor(deps({ run }));
+
+    expect(code).toBe(1);
+    expect(output()).toContain('✖ tmux: not found, messhall spawn needs it. brew install tmux');
   });
 
   it('goes red on a stale key in both entries', async () => {
@@ -558,6 +570,7 @@ describe('runMcpDoctor gemini', () => {
       'claude --version': [done('2.1.289 (Claude Code)')],
       'claude mcp get': [done(getOutput())],
       'codex --version': [done('codex-cli 0.157.1')],
+      'tmux -V': [done('tmux 3.5a')],
     }).run;
 
   beforeEach(() => {
@@ -638,6 +651,7 @@ describe('runMcpDoctor codex sessions', () => {
     'claude --version': [done('2.1.289 (Claude Code)')],
     'claude mcp get': [done(getOutput())],
     'codex --version': [done('codex-cli 0.157.1')],
+    'tmux -V': [done('tmux 3.5a')],
   });
   const socket = () => path.join(home, 'app-server-control.sock');
 
