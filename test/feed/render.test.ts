@@ -34,6 +34,7 @@ const member = (overrides: Partial<Member> = {}): Member => ({
   left_at: null,
   name: 'api',
   presence: 'active',
+  role: 'unassigned',
   room_id: 'room-1',
   ...overrides,
 });
@@ -80,6 +81,7 @@ describe('renderEvent', () => {
     ['joined', member({ kind: 'codex', name: 'web' }), '       + web joined (codex)'],
     ['left', member({ left_at: AT }), '       - api left'],
     ['reconnected', member(), '       + api reconnected (claude)'],
+    ['role', member({ name: 'reviewer-1', role: 'reviewer' }), '       * reviewer-1 is now reviewer'],
   ] as const)('renders a member who %s', (change, who, line) => {
     expect(render({ change, member: who, room: 'checkout', type: 'member' }, 'checkout')).toStrictEqual([line]);
   });

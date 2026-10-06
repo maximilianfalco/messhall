@@ -81,7 +81,9 @@ export const memberSchema = z.object({
   left_at: timestampSchema.nullable().describe('When the member left, null while it is in the room.'),
   name: nameSchema.describe('Role name in the room.'),
   presence: presenceSchema.describe('What the member is doing now.'),
-  role: roleSchema.describe('What the member does here. Starts unassigned, orchestrator for a member named orchestrator.'),
+  role: roleSchema.describe(
+    'What the member does here. Starts unassigned, orchestrator for a member named orchestrator.',
+  ),
   room_id: z.string().describe('Room id.'),
 });
 

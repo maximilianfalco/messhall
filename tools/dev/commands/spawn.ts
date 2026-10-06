@@ -4,6 +4,7 @@ import type { Command } from 'commander';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
+import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
 import { daemonUrl, dataDir as defaultDataDir, DB_FILE } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { shellLine } from '../../../src/lib/shell.js';
@@ -12,12 +13,26 @@ import { createRoomStore } from '../../../src/rooms/store.js';
 import { launchClaude, tmux as runTmux, typePrompt, writeMcpConfig } from '../lib/claudeTmux.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
+import { reviewQueue } from '../lib/review.js';
 import { run } from '../lib/run.js';
-import { branchSlug, parseFlock, parseQueueRow, sessionName, spawnArgv, spawnPlan, spawnPrompt } from '../lib/spawn.js';
+import {
+  branchSlug,
+  parseFlock,
+  parseQueueRow,
+  seatPrompt,
+  seatSessionName,
+  sessionName,
+  spawnArgv,
+  spawnPlan,
+  spawnPrompt,
+} from '../lib/spawn.js';
 
 const SKILL_SCRIPTS = path.join(REPO_ROOT, '.claude/skills/messhall-pickup-any-work/scripts');
 const DEFAULT_ROOM = 'dev';
 const DEFAULT_MODEL = 'opus';
+const DEFAULT_REVIEWERS = ['reviewer-1'];
+const ROW_ID = /^[a-z]\d+$/i;
+const REVIEW_LOOKBACK = 500;
 const FLOCK_FORMAT = '#{session_name}\t#{pane_id}\t#{pane_pid}';
 
 export type Runner = (args: string[]) => Promise<RunResult>;
@@ -42,6 +57,7 @@ interface SpawnOptions {
   model: string;
   now?: () => Date;
   queue?: Runner;
+  reviewers: string[];
   room: string;
   url: string;
 }
@@ -57,6 +73,7 @@ export async function spawnRun({
   model,
   now = () => new Date(),
   queue = runQueue,
+  reviewers,
   room,
   url,
 }: SpawnOptions) {
@@ -74,7 +91,7 @@ export async function spawnRun({
   const worktreeRel = `.worktrees/${slug}`;
   const plannedWorktree = path.join(await mainCheckout(), worktreeRel);
   const prompt = (worktree: string) =>
-    spawnPrompt({ branch: row.branch, brief: briefFile, id: row.id, room, worktree });
+    spawnPrompt({ branch: row.branch, brief: briefFile, id: row.id, reviewers, room, worktree });
 
   if (dryRun) {
     return {
@@ -122,18 +139,87 @@ export async function spawnRun({
   return { code: 0, report: lines.join('\n') };
 }
 
-function seatedNames({ dataDir, room }: { dataDir: string; room: string }) {
+/** Starts a seated claude with no queue row in tmux session `messhall-seat-<name>`, in the main checkout.
+ * It joins as `name` and waits for the orchestrator or the human to give it a role. */
+export async function seatRun({
+  dataDir,
+  dryRun,
+  launch = launchClaude,
+  model,
+  name,
+  room,
+  rubric,
+  url,
+}: {
+  dataDir: string;
+  dryRun: boolean;
+  launch?: typeof launchClaude;
+  model: string;
+  name: string;
+  room: string;
+  rubric?: string;
+  url: string;
+}) {
+  if (!NAME_PATTERN.test(name) || (RESERVED_NAMES as readonly string[]).includes(name)) {
+    return { code: 1, report: bad(`not spawning: ${name} is not a free member name (a-z, 0-9, dashes, up to 40)`) };
+  }
+  const rubricFile = rubric && path.resolve(rubric);
+  if (rubricFile && !existsSync(rubricFile)) return { code: 1, report: bad(`no rubric at ${rubricFile}`) };
+  const session = seatSessionName(name);
+  const debugFile = path.join(dataDir, 'spawn', `seat-${name}-debug.log`);
+  const mcpConfig = path.join(dataDir, 'spawn', `seat-${name}-mcp.json`);
+  const argv = spawnArgv({ debugFile, mcpConfig, model });
+  const cwd = await mainCheckout();
+  const prompt = seatPrompt({ name, room, rubric: rubricFile });
+  if (dryRun) {
+    return {
+      code: 0,
+      report: [
+        dim('dry run, nothing started. would run:'),
+        dim(`tmux session ${session}: cd ${cwd} && ${shellLine(argv)}`),
+        dim(`prompt: ${prompt}`),
+        ok(`${name} is ready to seat in #${room}`),
+      ].join('\n'),
+    };
+  }
+  const keyFile = path.join(dataDir, KEY_FILES.agent);
+  if (!existsSync(keyFile)) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once`) };
+  mkdirSync(path.dirname(debugFile), { recursive: true });
+  rmSync(debugFile, { force: true });
+  writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), url });
+  const ready = await launch({ argv, cwd, debugFile, note: line => console.error(dim(line)), session });
+  if (ready !== 'registered') {
+    await runTmux(['kill-session', '-t', session]);
+    return { code: 1, report: bad(`claude did not come up (${ready})`) };
+  }
+  await typePrompt(session, prompt);
+  return {
+    code: 0,
+    report: [
+      ok(`claude on ${model} in tmux session ${session}, prompt typed`),
+      dim(`it joins #${room} as ${name} and waits for a role. watch: tmux attach -t ${session}`),
+    ].join('\n'),
+  };
+}
+
+function withStore<T>({ dataDir }: { dataDir: string }, use: (store: ReturnType<typeof createRoomStore>) => T) {
   if (!existsSync(path.join(dataDir, DB_FILE))) return;
   const db = openDb({ dataDir });
   try {
-    const members = createRoomStore({ db, now: () => new Date() }).listMembers(room);
-    return new Set(members.filter(member => member.presence !== 'gone').map(member => member.name));
+    return use(createRoomStore({ db, now: () => new Date() }));
   } finally {
     db.close();
   }
 }
 
-/** Spawned sessions from tmux, each with its row and branch from the queue and whether its slug sits in `room`. */
+// Members still seated in the room, by name, so flock can show each one's role.
+const seatedMembers = ({ dataDir, room }: { dataDir: string; room: string }) =>
+  withStore({ dataDir }, store => {
+    const members = store.listMembers(room).filter(member => member.presence !== 'gone');
+    return new Map(members.map(member => [member.name, member]));
+  });
+
+/** Spawned rows and seats from tmux: row and branch from the queue, whether the agent sits in `room`, and its role. */
 export async function flockRun({
   dataDir,
   queue = runQueue,
@@ -148,61 +234,113 @@ export async function flockRun({
   const panes = parseFlock((await tmux(['list-panes', '-a', '-F', FLOCK_FORMAT])).stdout);
   if (!panes.length) return { code: 0, report: dim('no spawned sessions') };
   const listing = (await queue(['show', '--all'])).stdout;
-  const seated = seatedNames({ dataDir, room });
+  const seated = seatedMembers({ dataDir, room });
   const rows = panes.map(entry => {
-    const branch = parseQueueRow({ id: entry.row, listing })?.branch ?? '';
-    const sitting = branch && seated?.has(branchSlug(branch));
+    const branch = entry.kind === 'row' ? (parseQueueRow({ id: entry.row, listing })?.branch ?? '') : '';
+    const name = entry.kind === 'seat' ? entry.name : branch && branchSlug(branch);
+    const member = name ? seated?.get(name) : undefined;
     return [
       entry.session,
       entry.pane,
-      entry.row,
-      branch || '?',
+      entry.kind === 'row' ? entry.row : '-',
+      entry.kind === 'row' ? branch || '?' : '-',
       String(entry.pid),
-      sitting ? ok(`#${room}`) : seated ? bad('not seated') : dim('no db'),
+      member ? ok(`#${room} as ${member.name}`) : seated ? bad('not seated') : dim('no db'),
+      member?.role ?? '',
     ];
   });
-  return { code: 0, report: formatTable(['session', 'pane', 'row', 'branch', 'pid', 'seat'], rows) };
+  return { code: 0, report: formatTable(['session', 'pane', 'row', 'branch', 'pid', 'seat', 'role'], rows) };
 }
 
-/** Kills a row's spawn session. The row stays claimed, so the reply says how to hand it back. */
-export async function flockStop({ row, tmux = runTmux }: { row: string; tmux?: Runner }) {
-  const session = sessionName(row);
+/** Kills a row's spawn session, or a seat's by name. A row stays claimed, so the reply says how to hand it back. */
+export async function flockStop({ target, tmux = runTmux }: { target: string; tmux?: Runner }) {
+  const isRow = ROW_ID.test(target);
+  const session = isRow ? sessionName(target.toUpperCase()) : seatSessionName(target);
   const killed = await tmux(['kill-session', '-t', session]);
   if (killed.code !== 0) return { code: 1, report: bad(`no spawned session ${session}`) };
+  const hint = isRow
+    ? [dim(`the row is still claimed. hand it back with queue.py release ${target.toUpperCase()}`)]
+    : [];
+  return { code: 0, report: [ok(`stopped ${session}`), ...hint].join('\n') };
+}
+
+/** Open review requests in `room`: the latest round per PR, who asked, who is named, and answered, waiting or stale. */
+export function reviewsReport({ dataDir, now = new Date(), room }: { dataDir: string; now?: Date; room: string }) {
+  const listed = withStore({ dataDir }, store => store.listMessages({ limit: REVIEW_LOOKBACK, room }));
+  if (!listed?.ok) return { code: 1, report: bad(`no room #${room} in ${dataDir}`) };
+  const queue = reviewQueue({ messages: listed.messages, now });
+  if (!queue.length) return { code: 0, report: dim(`no review requests in #${room}`) };
+  const paint = { answered: dim, stale: bad, waiting: ok } as const;
   return {
     code: 0,
-    report: [ok(`stopped ${session}`), dim(`the row is still claimed. hand it back with queue.py release ${row}`)].join(
-      '\n',
+    report: formatTable(
+      ['id', 'from', 'url', 'round', 'reviewer', 'age', 'state'],
+      queue.map(item => [
+        String(item.id),
+        item.from,
+        item.url,
+        String(item.round),
+        item.reviewer,
+        `${item.ageMin}m`,
+        paint[item.state](item.state),
+      ]),
     ),
   };
 }
 
-/** Registers `spawn <row> [--room dev] [--model opus] [--brief <file>] [--dry-run]` and `flock [stop <row>]`. */
+const list = (value: string) =>
+  value
+    .split(',')
+    .map(name => name.trim())
+    .filter(Boolean);
+
+/** Registers `spawn <row|agent>`, `flock [stop <row|name>]` and `reviews`. */
 export function registerSpawn(program: Command) {
   program
     .command('spawn <row>')
     .description(
-      'Claim a ready queue row, make its worktree and start a seated Claude Code on it in tmux, in the real room.',
+      'Claim a ready queue row and start a seated Claude Code on it in tmux, or with `agent --as <name>` seat one with no row. Both wait for a role.',
     )
-    .option('--room <room>', 'room the agent sits in while it works', DEFAULT_ROOM)
+    .option('--room <room>', 'room the agent sits in', DEFAULT_ROOM)
     .option('--model <model>', 'claude model', DEFAULT_MODEL)
-    .option('--brief <file>', 'brief the agent reads first, else it runs the pickup skill')
+    .option('--brief <file>', 'brief a row agent reads first, else it runs the pickup skill')
+    .option(
+      '--reviewers <names>',
+      'comma list of reviewers a row agent asks, the first is named',
+      list,
+      DEFAULT_REVIEWERS,
+    )
+    .option('--as <name>', 'with `agent`: the member name to seat')
+    .option('--rubric <file>', 'with `agent`: an extra rubric to review against')
     .option('--dry-run', 'print the plan, claim and start nothing')
-    .action(async (row: string, options: { brief?: string; dryRun?: boolean; model: string; room: string }) => {
-      const result = await spawnRun({
-        ...options,
-        dataDir: defaultDataDir(),
-        dryRun: Boolean(options.dryRun),
-        id: row.toUpperCase(),
-        url: daemonUrl(),
-      });
-      console.log(result.report);
-      process.exitCode = result.code;
-    });
+    .action(
+      async (
+        row: string,
+        options: {
+          as?: string;
+          brief?: string;
+          dryRun?: boolean;
+          model: string;
+          reviewers: string[];
+          room: string;
+          rubric?: string;
+        },
+      ) => {
+        const shared = { dataDir: defaultDataDir(), dryRun: Boolean(options.dryRun), url: daemonUrl() };
+        const result =
+          row === 'agent'
+            ? options.as
+              ? await seatRun({ ...shared, ...options, name: options.as })
+              : { code: 1, report: bad('spawn agent needs --as <name>') }
+            : await spawnRun({ ...shared, ...options, id: row.toUpperCase() });
+        console.log(result.report);
+        process.exitCode = result.code;
+      },
+    );
 
   const flock = program
     .command('flock')
-    .description('List spawned sessions with tmux pane, row, branch, pid and whether the agent is seated.')
+    .description('List spawned rows and seats with tmux pane, row, branch, pid, seat and role.')
     .option('--room <room>', 'room to check seats in', DEFAULT_ROOM)
     .action(async (options: { room: string }) => {
       const result = await flockRun({ dataDir: defaultDataDir(), room: options.room });
@@ -210,10 +348,22 @@ export function registerSpawn(program: Command) {
       process.exitCode = result.code;
     });
   flock
-    .command('stop <row>')
-    .description("Kill a row's spawned session.")
-    .action(async (row: string) => {
-      const result = await flockStop({ row: row.toUpperCase() });
+    .command('stop <target>')
+    .description("Kill a row's spawned session, or a seat's by name.")
+    .action(async (target: string) => {
+      const result = await flockStop({ target });
+      console.log(result.report);
+      process.exitCode = result.code;
+    });
+
+  program
+    .command('reviews')
+    .description(
+      'Review requests in a room: latest round per PR, the named reviewer, and answered, waiting or stale (10 min).',
+    )
+    .option('--room <room>', 'room to read', DEFAULT_ROOM)
+    .action((options: { room: string }) => {
+      const result = reviewsReport({ dataDir: defaultDataDir(), room: options.room });
       console.log(result.report);
       process.exitCode = result.code;
     });

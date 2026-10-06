@@ -318,14 +318,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Sets a member's role. Only the human seat or an orchestrator in the room may, so `by` is checked first. */
+    /** Sets a member's role, even one who left, since a role outlives a leave.
+     * Only the human seat or an orchestrator in the room may, so `by` is checked first. */
     assignRole({ by, member: name, role, room: roomName }: { by: string; member: string; role: string; room: string }) {
       return transaction(emit => {
         const found = seat(roomName, by);
         if (!found.ok) return found;
         if (!canAssignRole({ by: found.member })) return { ok: false, reason: 'not_allowed' } as const;
         const target = findMember(found.room, name);
-        if (!target || target.left_at !== null) return { ok: false, reason: 'no_member' } as const;
+        if (!target) return { ok: false, reason: 'no_member' } as const;
         sql.setRole.run(role, found.room.id, name);
         const member = findMember(found.room, name)!;
         emit({ change: 'role', member, room: found.room.name, type: 'member' });

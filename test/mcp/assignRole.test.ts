@@ -12,8 +12,7 @@ afterEach(async () => {
   await harness.cleanup();
 });
 
-const roleOf = (name: string) =>
-  harness.store.listMembers('dev').find(member => member.name === name)?.role;
+const roleOf = (name: string) => harness.store.listMembers('dev').find(member => member.name === name)?.role;
 
 describe('assign_role', () => {
   it('lets the orchestrator set a role, which list_members then shows', async () => {

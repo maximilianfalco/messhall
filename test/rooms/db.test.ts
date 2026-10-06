@@ -197,7 +197,7 @@ describe('openDb', () => {
 
   it('gives members and stored member events a role, orchestrator for a member named orchestrator', () => {
     const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
-    old.function('client_label', (name: unknown) => name);
+    old.function('client_label', { varargs: true }, () => null);
     MIGRATIONS.slice(0, 6).forEach(sql => old.exec(sql));
     old.exec(`
       PRAGMA user_version = 6;
