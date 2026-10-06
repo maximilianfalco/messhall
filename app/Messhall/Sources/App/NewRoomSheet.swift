@@ -26,10 +26,27 @@ struct NewRoomSheet: View {
   private var canCreate: Bool { RoomName.isValid(name, taken: taken) && cap > 0 && !creating }
 
   var body: some View {
+    VStack(spacing: 0) {
+      Text("New Room")
+        .font(.headline)
+        .padding(.top, 20)
+      form
+    }
+    .frame(width: 420)
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") { dismiss() }
+      }
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Create Room", action: create).disabled(!canCreate)
+      }
+    }
+  }
+
+  private var form: some View {
     Form {
       Section {
         TextField("Name", text: $name, prompt: Text("release-notes"))
-          .font(.body.monospaced())
           .onSubmit(create)
       } footer: {
         Text(problem ?? "Lowercase letters, numbers and dashes, up to \(RoomName.maxLength).")
@@ -47,16 +64,7 @@ struct NewRoomSheet: View {
       }
     }
     .formStyle(.grouped)
-    .frame(width: 420)
-    .navigationTitle("New Room")
-    .toolbar {
-      ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") { dismiss() }
-      }
-      ToolbarItem(placement: .confirmationAction) {
-        Button("Create Room", action: create).disabled(!canCreate)
-      }
-    }
+    .scrollDisabled(true)
   }
 
   private func create() {

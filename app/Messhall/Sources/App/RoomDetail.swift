@@ -22,6 +22,7 @@ struct RoomDetail: View {
       MemberStrip(members: room.members)
       Divider()
       Transcript(messages: room.messages.matching(query), query: query)
+        .id(room.name)
       Divider()
       if room.isOpen {
         PostBox(room: room, store: store, client: client)
@@ -182,6 +183,8 @@ struct PresenceDot: View {
 struct Transcript: View {
   let messages: [Message]
   let query: String
+  @State private var nearBottom = true
+  @State private var showPill = false
 
   var body: some View {
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -192,18 +195,90 @@ struct Transcript: View {
         description: Text("Posts show up here as the agents talk."))
     } else {
       ScrollViewReader { proxy in
-        ScrollView {
-          LazyVStack(alignment: .leading, spacing: 6) {
-            ForEach(messages) { MessageRow(message: $0).id($0.id) }
+        GeometryReader { viewport in
+          ScrollView {
+            LazyVStack(alignment: .leading, spacing: 6) {
+              ForEach(messages) { MessageRow(message: $0).id($0.id) }
+            }
+            .padding(16)
+            .background {
+              GeometryReader { content in
+                Color.clear.preference(
+                  key: ContentBottom.self, value: content.frame(in: .named(ContentBottom.space)).maxY)
+              }
+            }
           }
-          .padding(16)
+          .coordinateSpace(name: ContentBottom.space)
+          .defaultScrollAnchor(.bottom)
+          .onPreferenceChange(ContentBottom.self) { bottom in
+            nearBottom = Follow.isNearBottom(contentBottom: bottom, viewportHeight: viewport.size.height)
+            if nearBottom { showPill = false }
+          }
         }
-        .defaultScrollAnchor(.bottom)
-        .onChange(of: messages.last?.id) { _, last in
-          withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+        .overlay(alignment: .bottom) {
+          if showPill {
+            JumpToLatest { scroll(proxy, animated: true) }
+              .padding(.bottom, 12)
+              .transition(.move(edge: .bottom).combined(with: .opacity))
+          }
+        }
+        .onAppear { start(proxy) }
+        .onChange(of: messages.last?.id) { before, after in
+          let fromHuman = messages.last?.from == humanName
+          switch Follow.action(lastBefore: before, lastAfter: after, fromHuman: fromHuman, nearBottom: nearBottom) {
+          case .scroll(let animated): scroll(proxy, animated: animated)
+          case .showPill: withAnimation(.easeOut) { showPill = true }
+          case .none: break
+          }
         }
       }
     }
+  }
+
+  private func start(_ proxy: ScrollViewProxy) {
+    #if DEBUG
+      if ShotHooks.startAtTop {
+        proxy.scrollTo(messages.first?.id, anchor: .top)
+        return
+      }
+    #endif
+    scroll(proxy, animated: false)
+  }
+
+  private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
+    showPill = false
+    guard animated else {
+      proxy.scrollTo(messages.last?.id, anchor: .bottom)
+      return
+    }
+    withAnimation(.easeOut) { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
+  }
+}
+
+private enum ContentBottom: PreferenceKey {
+  static let space = "transcript"
+  static let defaultValue = 0.0
+
+  static func reduce(value: inout Double, nextValue: () -> Double) {
+    value = nextValue()
+  }
+}
+
+struct JumpToLatest: View {
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Label("Jump to Latest", systemImage: "arrow.down")
+        .font(.callout.weight(.medium))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+    .buttonStyle(.plain)
+    .background(.regularMaterial, in: Capsule())
+    .overlay(Capsule().strokeBorder(.separator))
+    .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+    .help("Scroll to the newest message")
   }
 }
 

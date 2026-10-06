@@ -39,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     Task { await store.run(client) }
     #if DEBUG
       if let text = UserDefaults.standard.string(forKey: "shotPost") {
-        Task { await ShotHooks.post(text, store: store, client: client) }
+        Task { await ShotHooks.post(text, store: store, client: client, navigation: navigation) }
       }
       ShotHooks.navigate(
         room: UserDefaults.standard.string(forKey: "shotRoom"),

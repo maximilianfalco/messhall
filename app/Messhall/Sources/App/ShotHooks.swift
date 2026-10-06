@@ -15,10 +15,15 @@
       }
     }
 
-    /// `-shotPost <text>`: posts into the first open room through the same path as the post box.
-    static func post(_ text: String, store: FeedStore, client: FeedClient) async {
+    /// `-shotScrollTop YES`: the transcript opens at its first message, so a post shows the jump pill.
+    static let startAtTop = UserDefaults.standard.bool(forKey: "shotScrollTop")
+
+    /// `-shotPost <text>`: posts into the open room, or the first open one, through the same path as the post box.
+    static func post(_ text: String, store: FeedStore, client: FeedClient, navigation: Navigation) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }
-      guard let room = store.rooms.first(where: \.isOpen) else { return }
+      // Gives the window time to scroll to the top first.
+      if startAtTop { try? await Task.sleep(for: .seconds(1)) }
+      guard let room = store.room(named: navigation.room) ?? store.rooms.first(where: \.isOpen) else { return }
       if let refusal = await store.post(text, room: room.name, via: client) {
         FileHandle.standardError.write(Data("shotPost refused: \(refusal)\n".utf8))
       }

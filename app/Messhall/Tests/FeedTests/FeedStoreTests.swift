@@ -156,6 +156,26 @@ struct FeedStoreTests {
       createdBy: "api", standing: false, closedAt: closedAt, messageCap: 200)
   }
 
+  @Test("a snapshot after a drop clears the down phase")
+  func snapshotClearsDown() throws {
+    let store = try loaded()
+    store.setPhase(.down("Messhall is not running."))
+
+    store.apply(.snapshot(try Fixture.decode(Snapshot.self, "Snapshot")))
+
+    #expect(store.phase == .live)
+  }
+
+  @Test("an event after a drop clears the down phase")
+  func eventClearsDown() throws {
+    let store = try loaded()
+    store.setPhase(.down("Messhall is not running."))
+
+    store.apply(.event(seq: 8, try event("PresenceEvent")))
+
+    #expect(store.phase == .live)
+  }
+
   @Test("an event for an unknown room is ignored")
   func unknownRoom() throws {
     let store = try loaded()

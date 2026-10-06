@@ -49,6 +49,7 @@ describe('seedShotRooms', () => {
     const rooms = store.listRooms().map(room => [room.name, room.closed_at === null, room.created_by, room.standing]);
     const members = store.listMembers('checkout');
     const page = store.listMessages({ limit: 50, room: 'checkout' });
+    const docs = store.listMessages({ limit: 50, room: 'docs-sync' });
     db.close();
 
     expect(rooms).toStrictEqual([
@@ -64,6 +65,7 @@ describe('seedShotRooms', () => {
       'web codex waiting',
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
+    expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
   });
 });
 
@@ -95,6 +97,12 @@ describe('shotArgs', () => {
       '-shotAppearance',
       'dark',
     ]);
+  });
+
+  it('opens the transcript at the top so a post shows the jump pill', () => {
+    expect(
+      shotArgs({ appearance: 'light', name: 'pill-light', post: true, room: 'docs-sync', scrollTop: true }),
+    ).toStrictEqual(expect.arrayContaining(['-shotScrollTop', 'YES', '-shotRoom', 'docs-sync', '-shotPost']));
   });
 
   it('passes the room to open and the New Room draft', () => {

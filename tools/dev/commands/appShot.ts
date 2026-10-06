@@ -35,6 +35,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
   { appearance: 'light', name: 'closed-light', room: 'billing' },
   { appearance: 'dark', name: 'closed-dark', room: 'billing' },
+  { appearance: 'light', name: 'pill-light', post: true, room: 'docs-sync', scrollTop: true },
+  { appearance: 'dark', name: 'pill-dark', post: true, room: 'docs-sync', scrollTop: true },
   { appearance: 'light', muted: true, name: 'muted-light' },
   { appearance: 'dark', muted: true, name: 'muted-dark' },
 ] as const;
@@ -49,6 +51,8 @@ const DOWN_SHOTS = [
 const QUIT_WITHIN_MS = 5000;
 
 const run = promisify(execFile);
+// Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
+const CHANGELOG_PAGES = Array.from({ length: 24 }, (_, i) => `api reference part ${i + 1}`);
 
 /** The id of the app's main window in a `windows.swift` listing: the largest layer 0 window. */
 export function pickWindow(listing: string) {
@@ -80,6 +84,10 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
   try {
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'docs-sync' });
     store.postMessage({ from: 'writer', room: 'docs-sync', text: 'drafting the changelog for the currency change' });
+    CHANGELOG_PAGES.forEach(page => {
+      step(10_000);
+      store.postMessage({ from: 'writer', room: 'docs-sync', text: `updated the ${page} page for minor units` });
+    });
     step(5 * 60_000);
     store.joinRoom({ as: 'ledger', kind: 'claude', room: 'billing' });
     store.postMessage({ done: true, from: 'ledger', room: 'billing', text: 'invoices backfilled' });
@@ -109,7 +117,11 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     store.postMessage({ from: 'api', room: 'checkout', text: '@qa both sides are merged, over to you' });
     store.createRoom({ created_by: 'human', name: 'release-notes', topic: 'notes for the v2 launch' });
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'release-notes' });
-    store.postMessage({ from: 'writer', room: 'release-notes', text: 'first pass of the notes is up, @human take a look' });
+    store.postMessage({
+      from: 'writer',
+      room: 'release-notes',
+      text: 'first pass of the notes is up, @human take a look',
+    });
     store.postMessage({ done: true, from: 'writer', room: 'release-notes', text: 'notes drafted' });
     store.sweepPresence();
   } finally {
@@ -154,6 +166,7 @@ export function shotArgs(shot: Shot) {
     ...('muted' in shot ? MUTED_ARGS : []),
     ...('room' in shot ? ['-shotRoom', shot.room] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom] : []),
+    ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
   ];
 }
 
@@ -174,6 +187,17 @@ async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS)
   if (id !== undefined || Date.now() > deadline) return id;
   await sleep(500);
   return waitWindow(pid, deadline);
+}
+
+/** `screencapture -l` fails while a sheet is still sliding in, so it gets a few tries. */
+async function capture(id: number, file: string, tries = 3): Promise<void> {
+  try {
+    await run('screencapture', ['-o', '-x', '-l', String(id), file]);
+  } catch (error) {
+    if (tries <= 1) throw error;
+    await sleep(1000);
+    await capture(id, file, tries - 1);
+  }
 }
 
 async function shoot({
@@ -197,7 +221,7 @@ async function shoot({
     if (id === undefined) return `no window within ${WINDOW_WITHIN_MS}ms`;
     await sleep(SETTLE_MS);
     const file = path.join(OUT_DIR, `${shot.name}.png`);
-    await run('screencapture', ['-o', '-x', '-l', String(id), file]);
+    await capture(id, file);
     return file;
   } finally {
     child.kill('SIGTERM');
@@ -229,7 +253,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, the jump pill, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. */
 async function appShot({ home, port }: { home: string; port: number }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -281,7 +305,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, New Room sheet, standing and closed rooms and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, jump pill, New Room sheet, standing and closed rooms and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

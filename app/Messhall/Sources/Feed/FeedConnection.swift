@@ -9,13 +9,12 @@ public enum RoomAction: Sendable {
 extension FeedStore {
   static let retryDelay = Duration.seconds(2)
 
-  /// Loads the snapshot once, then follows the event stream, retrying every 2 s while the daemon is down.
+  /// Loads the snapshot, then follows the event stream, retrying every 2 s while the daemon is down.
+  /// Each reconnect loads the snapshot again, so the down banner clears the moment the daemon answers.
   public func run(_ client: FeedClient) async {
     while !Task.isCancelled {
       do {
-        if !loaded {
-          apply(.snapshot(try await SnapshotLoader(client: client).load()))
-        }
+        apply(.snapshot(try await SnapshotLoader(client: client).load()))
         liveSince = Date()
         for try await update in EventStream(client: client).updates(after: seq) {
           setPhase(.live)

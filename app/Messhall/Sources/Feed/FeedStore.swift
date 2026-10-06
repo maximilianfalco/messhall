@@ -33,7 +33,9 @@ public final class FeedStore {
     self.phase = phase
   }
 
+  /// Applies a snapshot or an event. Either one proves the daemon answers, so it also ends a down phase.
   public func apply(_ update: FeedUpdate) {
+    phase = .live
     switch update {
     case .snapshot(let snapshot):
       rooms = snapshot.rooms.sorted { $0.name < $1.name }
