@@ -83,10 +83,11 @@ export async function spawnRun({
   const spawnDir = path.join(dataDir, 'spawn');
   const debugFile = path.join(spawnDir, `${row.id}-debug.log`);
   const mcpConfig = path.join(spawnDir, `${row.id}-mcp.json`);
-  const argv = spawnArgv({ debugFile, mcpConfig, model });
+  const checkout = await mainCheckout();
+  const argv = spawnArgv({ debugFile, mainCheckout: checkout, mcpConfig, model });
   const owner = `agent ${stamp(now())} ${row.branch}`;
   const worktreeRel = `.worktrees/${slug}`;
-  const plannedWorktree = path.join(await mainCheckout(), worktreeRel);
+  const plannedWorktree = path.join(checkout, worktreeRel);
   const prompt = (worktree: string) =>
     spawnPrompt({ branch: row.branch, brief: briefFile, id: row.id, room, worktree });
 
@@ -161,8 +162,8 @@ export async function seatRun({
   const session = seatSessionName(name);
   const debugFile = path.join(dataDir, 'spawn', `seat-${name}-debug.log`);
   const mcpConfig = path.join(dataDir, 'spawn', `seat-${name}-mcp.json`);
-  const argv = spawnArgv({ debugFile, mcpConfig, model });
   const cwd = await mainCheckout();
+  const argv = spawnArgv({ debugFile, mainCheckout: cwd, mcpConfig, model });
   const prompt = seatPrompt({ name, room });
   if (dryRun) {
     return {
