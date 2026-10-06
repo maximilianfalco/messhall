@@ -9,6 +9,7 @@ import { registerStart } from './cli/start.js';
 import { registerStatus } from './cli/status.js';
 import { registerStop } from './cli/stop.js';
 import { registerUninstall } from './cli/uninstall.js';
+import { registerWatch } from './cli/watch.js';
 import { CLI_VERSION } from './config.js';
 
 const program = new Command()
@@ -23,6 +24,7 @@ const program = new Command()
   registerStatus,
   registerLogs,
   registerSay,
+  registerWatch,
   registerDaemon,
   registerUninstall,
 ].forEach(register => register(program));

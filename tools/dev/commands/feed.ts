@@ -89,9 +89,10 @@ export async function tailFeed({
   let printed = 0;
   for await (const frame of readFrames(response.body)) {
     const line = frameLine(frame, room);
-    if (!line) continue;
-    print(line);
-    printed += 1;
+    if (line) {
+      print(line);
+      printed += 1;
+    }
     if (count !== undefined && printed >= count) break;
   }
   controller.abort();

@@ -57,7 +57,11 @@ afterEach(() => {
 
 describe('renderEvent', () => {
   it.each([
-    ['a chat line with its mentions', message({ mentions: ['web'], text: '@web schema is ready' }), '10:04  api → @web  @web schema is ready'],
+    [
+      'a chat line with its mentions',
+      message({ mentions: ['web'], text: '@web schema is ready' }),
+      '10:04  api → @web  @web schema is ready',
+    ],
     ['a human line', message({ from: 'human', text: 'api, bump the version' }), '10:04  human  api, bump the version'],
     ['a system line', message({ from: 'messhall', kind: 'system', text: 'web joined' }), '10:04  web joined'],
     ['a done line with a check', message({ kind: 'done', text: 'shipped' }), '10:04  api  ✓ shipped'],
@@ -107,7 +111,11 @@ const snapshot: Snapshot = {
   rooms: [
     {
       ...room({ topic: 'ship the cart' }),
-      members: [member(), member({ kind: 'codex', name: 'web', presence: 'waiting' }), member({ kind: 'human', name: 'human', presence: 'idle' })],
+      members: [
+        member(),
+        member({ kind: 'codex', name: 'web', presence: 'waiting' }),
+        member({ kind: 'human', name: 'human', presence: 'idle' }),
+      ],
       message_count: 2,
       messages: [message(), message({ from: 'human', id: 2, text: 'nice' })],
     },
