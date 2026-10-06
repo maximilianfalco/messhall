@@ -5,3 +5,6 @@ coverage/
 *.db-*
 .DS_Store
 .env
+.worktrees
+personal-dev-notes.md
+demo/out

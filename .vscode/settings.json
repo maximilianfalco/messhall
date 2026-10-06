@@ -1,0 +1,16 @@
+{
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": { "source.fixAll": "explicit" },
+  "[javascript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[typescript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "biome.enabled": false,
+  "eslint.enable": false,
+  "prettier.enable": false,
+  "oxc.enable.oxfmt": true,
+  "oxc.enable.oxlint": true,
+  "oxc.configPath": "./oxlint.config.ts",
+  "oxc.fmt.configPath": "./oxfmt.config.ts",
+  "js/ts.tsdk.path": "./node_modules/typescript/lib"
+}

@@ -1,0 +1,60 @@
+name: Critical paths
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  label:
+    name: Human veto label
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Find critical files in the diff
+        id: diff
+        run: |
+          files="$(.github/scripts/critical-paths.sh "origin/${{ github.base_ref }}" HEAD)"
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$files" ]; then echo "critical=true" >> "$GITHUB_OUTPUT"; else echo "critical=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Ensure the label exists
+        run: gh label create "human veto" --color B60205 --description "Touches a CRITICAL.md tree. A human merges this, never an agent." --force
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+      - name: Add the label and explain once
+        if: steps.diff.outputs.critical == 'true'
+        run: |
+          gh pr edit "$PR" --add-label "human veto"
+          marker="<!-- critical-paths -->"
+          if ! gh pr view "$PR" --json comments --jq '.comments[].body' | grep -q "$marker"; then
+            {
+              echo "$marker"
+              echo "this pr touches a tree listed in \`CRITICAL.md\`, so it carries the **human veto** label: an agent must not merge it, a human does."
+              echo
+              echo "critical files in the diff:"
+              echo
+              echo '```'
+              echo "${{ steps.diff.outputs.files }}"
+              echo '```'
+            } | gh pr comment "$PR" --body-file -
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+      - name: Remove the label when nothing critical is left
+        if: steps.diff.outputs.critical == 'false'
+        run: gh pr edit "$PR" --remove-label "human veto" || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}

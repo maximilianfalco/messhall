@@ -1,0 +1,7 @@
+{
+  "languages": {
+    "TypeScript": { "formatter": { "external": { "command": "pnpm", "arguments": ["exec", "oxfmt", "--config", "oxfmt.config.ts", "--stdin-filepath", "{buffer_path}"] } }, "format_on_save": "on" },
+    "TSX": { "formatter": { "external": { "command": "pnpm", "arguments": ["exec", "oxfmt", "--config", "oxfmt.config.ts", "--stdin-filepath", "{buffer_path}"] } }, "format_on_save": "on" },
+    "JavaScript": { "formatter": { "external": { "command": "pnpm", "arguments": ["exec", "oxfmt", "--config", "oxfmt.config.ts", "--stdin-filepath", "{buffer_path}"] } }, "format_on_save": "on" }
+  }
+}
