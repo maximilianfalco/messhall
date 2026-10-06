@@ -8,20 +8,11 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { DB_FILE } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
+import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 import { connectHttp } from '../../../src/mcp/testing.js';
 import { NOTHING_YET } from '../../../src/mcp/tools/wait.js';
-import {
-  claudeArgv,
-  launchClaude,
-  pane,
-  readText,
-  stuckLine,
-  tmux,
-  typePrompt,
-  until,
-  writeMcpConfig,
-} from '../lib/claudeTmux.js';
+import { claudeArgv, launchClaude, pane, readText, tmux, writeMcpConfig } from '../lib/claudeTmux.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 
 import { spawnDaemon } from './daemon.js';

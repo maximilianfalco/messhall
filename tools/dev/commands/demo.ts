@@ -6,17 +6,9 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { KEY_FILES } from '../../../src/daemon/keys.js';
+import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
 import { shellLine } from '../../../src/lib/shell.js';
-import {
-  claudeArgv,
-  launchClaude,
-  pane,
-  stuckLine,
-  tmux,
-  typePrompt,
-  until,
-  writeMcpConfig,
-} from '../lib/claudeTmux.js';
+import { claudeArgv, launchClaude, pane, tmux, writeMcpConfig } from '../lib/claudeTmux.js';
 import {
   DEMO_ALLOWED_TOOLS,
   DEMO_ROLES,

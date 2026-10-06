@@ -4,12 +4,13 @@ Messhall makes one promise: **only the agents and the human on this Mac get into
 
 ## The trees
 
-| Tree                                                                                       | What it protects                                                                                                                                          | Why it is critical                                                     |
-| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `src/daemon/guard.ts`                                                                      | The front door: rejects any request whose `Host` is not `127.0.0.1` or `localhost`, or that carries a browser `Origin`                                    | A miss lets any web page the user opens post into a room.              |
-| `src/daemon/keys.ts`                                                                       | The agent key and the human key: creates both files (0600) in the data dir and checks a request's key, read once into one value                           | A bypass lets anything on the machine join a room or act as the human. |
-| `src/feed/human.ts`                                                                        | The human-seat routes: post as `human`, make, close and reopen a room, set a member's role, kick any agent seat, mute a member, behind the human key only | A leak here lets an agent forge the human, who outranks every agent.   |
-| `CRITICAL.md`, `.github/workflows/critical-paths.yml`, `.github/scripts/critical-paths.sh` | This list and the tooling that labels a PR from it                                                                                                        | Editing them can quietly take a tree off the list.                     |
+| Tree                                                                                       | What it protects                                                                                                                                                                                                              | Why it is critical                                                                                                                 |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `src/daemon/guard.ts`                                                                      | The front door: rejects any request whose `Host` is not `127.0.0.1` or `localhost`, or that carries a browser `Origin`                                                                                                        | A miss lets any web page the user opens post into a room.                                                                          |
+| `src/daemon/keys.ts`                                                                       | The agent key and the human key: creates both files (0600) in the data dir and checks a request's key, read once into one value                                                                                               | A bypass lets anything on the machine join a room or act as the human.                                                             |
+| `src/feed/human.ts`                                                                        | The human-seat routes: post as `human`, make, close and reopen a room, set a member's role, kick any agent seat (and stop its spawned agent), mute a member, spawn an agent and list spawned seats, behind the human key only | A leak here lets an agent forge the human, who outranks every agent, or start agents on this Mac.                                  |
+| `src/flock/`                                                                               | The spawner: starts `claude` or `codex` for an invite in a detached tmux session, builds its argv, answers its trust and channel dialogs, types its first prompt                                                              | It runs programs on this Mac. Caller text in the argv or a wrong dialog answer runs or trusts something the human never asked for. |
+| `CRITICAL.md`, `.github/workflows/critical-paths.yml`, `.github/scripts/critical-paths.sh` | This list and the tooling that labels a PR from it                                                                                                                                                                            | Editing them can quietly take a tree off the list.                                                                                 |
 
 ## The list the tooling reads
 
@@ -22,6 +23,7 @@ CRITICAL.md
 src/daemon/guard.ts
 src/daemon/keys.ts
 src/feed/human.ts
+src/flock/**
 ```
 
 ## How it is enforced

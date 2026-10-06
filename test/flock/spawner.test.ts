@@ -1,0 +1,327 @@
+import type { Tmux } from '../../src/flock/tmux.js';
+
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { loadKeys } from '../../src/daemon/keys.js';
+import { agentArgv, createSpawner, sessionName, tmuxStartArgs } from '../../src/flock/spawner.js';
+import { parseStoredJson } from '../../src/lib/json.js';
+import { shellLine } from '../../src/lib/shell.js';
+import { scratchStore } from '../rooms/scratch.js';
+
+const CHANNELS = `WARNING: Loading development channels
+ ❯ 1. Exit
+   2. I am using this for local development`;
+const LOGIN = 'Select login method:\n ❯ 1. Claude account with subscription';
+const HOSTILE = "$(touch /tmp/pwned) `id` ' ; rm -rf ~";
+
+let scratch: ReturnType<typeof scratchStore>;
+let cwd: string;
+
+beforeEach(() => {
+  scratch = scratchStore();
+  scratch.store.createRoom({ created_by: 'human', name: 'demo' });
+  loadKeys({ dataDir: scratch.dataDir });
+  cwd = mkdtempSync(path.join(tmpdir(), 'messhall-spawn-cwd-'));
+});
+
+afterEach(() => {
+  scratch.cleanup();
+});
+
+const store = () => scratch.store;
+const result = (stdout = '', code = 0) => ({ code, stderr: code ? 'tmux said no' : '', stdout });
+const memberOf = (name: string) =>
+  store()
+    .listMembers('demo')
+    .find(member => member.name === name);
+const configFile = () => path.join(scratch.dataDir, 'spawn', 'demo_api-mcp.json');
+const seatKeyInConfig = () =>
+  (
+    parseStoredJson(readFileSync(configFile(), 'utf8')) as {
+      mcpServers: { messhall: { headers: Record<string, string>; url: string } };
+    }
+  ).mcpServers.messhall;
+const calls = (tmux: ReturnType<typeof vi.fn<Tmux>>) => tmux.mock.calls.map(([args]) => args);
+
+function fakeTmux({
+  onAnswer,
+  onStart,
+  pane = '',
+  started = 0,
+}: {
+  onAnswer?: () => void;
+  onStart?: (args: string[]) => void;
+  pane?: string;
+  started?: number;
+}) {
+  let screen = pane;
+  return vi.fn<Tmux>(args => {
+    if (args[0] === 'new-session') {
+      onStart?.(args);
+      return Promise.resolve(result('', started));
+    }
+    if (args[0] === 'capture-pane') return Promise.resolve(result(args.includes('-e') ? '' : screen));
+    if (args[0] === 'send-keys' && !args.includes('-l')) {
+      screen = '';
+      onAnswer?.();
+    }
+    return Promise.resolve(result());
+  });
+}
+
+const spawner = (tmux: Tmux) =>
+  createSpawner({
+    dataDir: scratch.dataDir,
+    pollMs: 1,
+    readyWithinMs: 50,
+    settleMs: 0,
+    shell: '/bin/zsh',
+    store: store(),
+    tmux,
+    url: 'http://127.0.0.1:7791',
+  });
+const seatFromConfig = () =>
+  store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: seatKeyInConfig().headers['x-messhall-seat'] });
+
+const spawnApi = (tmux: Tmux, input: { agent?: 'claude' | 'codex'; cwd?: string; instructions?: string } = {}) =>
+  spawner(tmux).spawn({
+    by: 'human',
+    instructions: input.instructions,
+    launch: { agent: input.agent ?? 'claude', cwd: input.cwd ?? cwd, model: 'opus' },
+    name: 'api',
+    role: 'worker',
+    room: 'demo',
+  });
+
+describe('agentArgv', () => {
+  it('starts claude on its own mcp config with the messhall channel, its tools allowed and the model', () => {
+    expect(
+      agentArgv({
+        agent: 'claude',
+        invite: 'key-1',
+        mcpConfig: '/d/spawn/demo_api-mcp.json',
+        model: 'opus',
+        name: 'api',
+        room: 'demo',
+      }),
+    ).toStrictEqual([
+      'claude',
+      '--mcp-config',
+      '/d/spawn/demo_api-mcp.json',
+      '--dangerously-load-development-channels',
+      'server:messhall',
+      '--allowedTools',
+      'mcp__messhall',
+      '--model',
+      'opus',
+    ]);
+  });
+
+  it('keeps the seat key out of the claude argv, since claude sends it from its mcp config', () => {
+    const argv = agentArgv({ agent: 'claude', invite: 'key-1', mcpConfig: '/d/c.json', name: 'api', room: 'demo' });
+
+    expect(argv.join(' ')).not.toContain('key-1');
+  });
+
+  it('starts codex with a first prompt that joins with the invite and reads the role', () => {
+    const argv = agentArgv({
+      agent: 'codex',
+      invite: 'key-1',
+      mcpConfig: '/d/c.json',
+      model: 'gpt-6',
+      name: 'api',
+      room: 'demo',
+    });
+
+    expect(argv.slice(0, 3)).toStrictEqual(['codex', '--model', 'gpt-6']);
+    expect(argv[3]).toContain('join #demo as api');
+    expect(argv[3]).toContain('invite set to key-1');
+    expect(argv[3]).toContain('my_role');
+  });
+});
+
+describe('tmuxStartArgs', () => {
+  it('runs the argv in a login shell in a detached session in cwd', () => {
+    const argv = ['claude', '--model', 'opus'];
+
+    expect(tmuxStartArgs({ argv, cwd: '/work/api', session: 'messhall_demo_api', shell: '/bin/zsh' })).toStrictEqual([
+      'new-session',
+      '-d',
+      '-s',
+      'messhall_demo_api',
+      '-x',
+      '200',
+      '-y',
+      '50',
+      '-c',
+      '/work/api',
+      shellLine(['/bin/zsh', '-lic', shellLine(argv)]),
+    ]);
+  });
+});
+
+describe('createSpawner', () => {
+  it('names the session after the room and the seat', () => {
+    expect(sessionName({ name: 'api', room: 'demo' })).toBe('messhall_demo_api');
+  });
+
+  it('gives two rooms whose names run together their own sessions', () => {
+    expect(sessionName({ name: 'c', room: 'a-b' })).not.toBe(sessionName({ name: 'b-c', room: 'a' }));
+  });
+
+  it('targets its own session exactly in every tmux call after the start, never a prefix match', async () => {
+    const tmux = fakeTmux({ onAnswer: seatFromConfig, pane: CHANNELS });
+
+    await spawnApi(tmux);
+    await spawner(tmux).stop({ name: 'api', room: 'demo' });
+
+    const targets = calls(tmux)
+      .filter(args => args[0] !== 'new-session')
+      .map(args => args[args.indexOf('-t') + 1]);
+    expect(new Set(targets)).toStrictEqual(new Set(['=messhall_demo_api:']));
+  });
+
+  it('refuses a cwd that is not a folder before any invite or tmux call', async () => {
+    const tmux = fakeTmux({});
+
+    const outcome = await spawnApi(tmux, { cwd: path.join(cwd, 'missing') });
+
+    expect(outcome).toStrictEqual({ ok: false, reason: 'no_cwd' });
+    expect(memberOf('api')).toBeUndefined();
+    expect(tmux).not.toHaveBeenCalled();
+  });
+
+  it('refuses a relative cwd', async () => {
+    const outcome = await spawnApi(fakeTmux({}), { cwd: 'api' });
+
+    expect(outcome).toStrictEqual({ ok: false, reason: 'no_cwd' });
+  });
+
+  it('answers the dialog, waits for the seat to be taken, then types the first prompt', async () => {
+    const tmux = fakeTmux({ onAnswer: seatFromConfig, pane: CHANNELS });
+
+    const outcome = await spawnApi(tmux);
+
+    expect(outcome).toMatchObject({ ok: true, session: 'messhall_demo_api' });
+    expect(memberOf('api')).toMatchObject({ presence: 'active', role: 'worker' });
+    const sent = calls(tmux).filter(args => args[0] === 'send-keys');
+    expect(sent[0]).toStrictEqual(['send-keys', '-t', '=messhall_demo_api:', 'Down', 'Enter']);
+    expect(sent[1]?.slice(0, 4)).toStrictEqual(['send-keys', '-t', '=messhall_demo_api:', '-l']);
+    expect(sent[1]?.[4]).toContain('call my_role');
+  });
+
+  it('writes the seat mcp config 0600 with this daemon url, the agent key and the seat key', async () => {
+    await spawnApi(fakeTmux({ onStart: seatFromConfig }));
+
+    const server = seatKeyInConfig();
+    expect(statSync(configFile()).mode.toString(8).slice(-3)).toBe('600');
+    expect(server.url).toBe('http://127.0.0.1:7791/mcp');
+    expect(server.headers['x-messhall-key']).toBe(readFileSync(path.join(scratch.dataDir, 'agent-key'), 'utf8').trim());
+    expect(store().seatsOf(server.headers['x-messhall-seat']!)).toMatchObject([{ name: 'api', room: 'demo' }]);
+  });
+
+  it('starts codex with no mcp config file and waits for its join with the invite', async () => {
+    const tmux = fakeTmux({
+      onStart: args => {
+        const invite = /invite set to (\S+?)\./.exec(args.at(-1) ?? '')?.[1];
+        store().joinRoom({ as: 'api', invite, kind: 'codex', room: 'demo', seatKey: 'thread-1' });
+      },
+    });
+
+    const outcome = await spawnApi(tmux, { agent: 'codex' });
+
+    expect(outcome).toMatchObject({ ok: true });
+    expect(existsSync(configFile())).toBe(false);
+    expect(calls(tmux).some(args => args.includes('-l'))).toBe(false);
+  });
+
+  it('never puts the instructions in any tmux call', async () => {
+    const tmux = fakeTmux({ onStart: seatFromConfig });
+
+    await spawnApi(tmux, { instructions: HOSTILE });
+
+    expect(calls(tmux).flat().join('\n')).not.toContain('touch /tmp/pwned');
+    expect(store().roleOf({ name: 'api', room: 'demo' })).toMatchObject({ instructions: HOSTILE });
+  });
+
+  it('kills the session, removes the config and drops the invite when the seat is never taken', async () => {
+    const tmux = fakeTmux({});
+
+    const outcome = await spawnApi(tmux);
+
+    expect(outcome).toStrictEqual({ ok: false, reason: 'timeout' });
+    expect(calls(tmux).at(-1)).toStrictEqual(['kill-session', '-t', '=messhall_demo_api:']);
+    expect(existsSync(configFile())).toBe(false);
+    expect(memberOf('api')).toBeUndefined();
+  });
+
+  it('stops on a login screen and drops the invite', async () => {
+    const outcome = await spawnApi(fakeTmux({ pane: LOGIN }));
+
+    expect(outcome).toStrictEqual({ ok: false, reason: 'login' });
+    expect(memberOf('api')).toBeUndefined();
+  });
+
+  it('drops the invite when tmux cannot start the session', async () => {
+    const outcome = await spawnApi(fakeTmux({ started: 1 }));
+
+    expect(outcome).toStrictEqual({ detail: 'tmux said no', ok: false, reason: 'tmux' });
+    expect(memberOf('api')).toBeUndefined();
+  });
+
+  it('passes a taken name back from the invite without starting anything', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    const tmux = fakeTmux({});
+
+    const outcome = await spawnApi(tmux);
+
+    expect(outcome).toMatchObject({ ok: false, reason: 'name_taken', suggestion: 'api-2' });
+    expect(tmux).not.toHaveBeenCalled();
+  });
+
+  it('stops a seat by killing its session', async () => {
+    const tmux = fakeTmux({});
+
+    await spawner(tmux).stop({ name: 'api', room: 'demo' });
+
+    expect(calls(tmux)).toStrictEqual([['kill-session', '-t', '=messhall_demo_api:']]);
+  });
+
+  it('lists spawned seats with their session and whether it still runs', async () => {
+    store().invite({ by: 'human', launch: { agent: 'claude', cwd }, name: 'api', role: 'worker', room: 'demo' });
+    store().invite({ by: 'human', launch: { agent: 'codex', cwd }, name: 'web', role: 'reviewer', room: 'demo' });
+    store().joinRoom({ as: 'loose', kind: 'claude', room: 'demo' });
+    const tmux = vi.fn<Tmux>(() => Promise.resolve(result('messhall_demo_api\t4242\nother\t1\n')));
+
+    const seats = await spawner(tmux).list({});
+
+    expect(seats).toStrictEqual([
+      {
+        agent: 'claude',
+        cwd,
+        name: 'api',
+        pid: 4242,
+        presence: 'invited',
+        process: 'running',
+        role: 'worker',
+        room: 'demo',
+        session: 'messhall_demo_api',
+      },
+      {
+        agent: 'codex',
+        cwd,
+        name: 'web',
+        pid: null,
+        presence: 'invited',
+        process: 'gone',
+        role: 'reviewer',
+        room: 'demo',
+        session: 'messhall_demo_web',
+      },
+    ]);
+  });
+});

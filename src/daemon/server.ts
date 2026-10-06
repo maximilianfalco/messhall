@@ -12,6 +12,7 @@ import { createRingers } from '../doorbell/ringer.js';
 import { createChannelRinger } from '../doorbell/ringers/channel.js';
 import { createCodexRinger } from '../doorbell/ringers/codex.js';
 import { feedRoutes } from '../feed/routes.js';
+import { createSpawner } from '../flock/spawner.js';
 import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
@@ -109,12 +110,13 @@ export async function startDaemon({
   const claude = claudeBin();
   const stopSummaries = startSummaries({ claude: options => askClaude({ ...options, bin: claude }), store });
   const startedAt = now().getTime();
+  const url = `http://${DAEMON_HOST}:${bound.port}`;
 
   // MCP mounts at /mcp and the feed under /api here.
   const routes: Route[] = [
     { handle: (_req, res) => sendJson(res, 200, health({ now, startedAt, store })), method: 'GET', path: '/health' },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ keys, now, store }),
+    ...feedRoutes({ keys, now, spawner: createSpawner({ dataDir, store, url }), store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
@@ -129,7 +131,6 @@ export async function startDaemon({
     mcp.sweep().catch((error: unknown) => logger.error(asError(error), { message: 'mcp session sweep failed' }));
   }, sweepEveryMs);
 
-  const url = `http://${DAEMON_HOST}:${bound.port}`;
   logger.info('daemon up', {
     claude,
     data_dir: dataDir,

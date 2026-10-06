@@ -59,23 +59,25 @@ export function logDir() {
   return home ? path.join(home, 'logs') : path.join(homedir(), 'Library', 'Logs', 'messhall');
 }
 
-/**
- * The claude binary: the first on PATH, then the usual install spots, since launchd gives the daemon
- * a bare PATH. The bare name when none is found, so the spawn error names it.
- */
-export function claudeBin({ exists = existsSync }: { exists?: (file: string) => boolean } = {}) {
+/** A binary: the first on PATH, then the usual install spots, since launchd gives the daemon a bare PATH.
+ * The bare name when none is found, so the spawn error names it. */
+export function findBin(name: string, { exists = existsSync }: { exists?: (file: string) => boolean } = {}) {
   const home = homedir();
   const onPath = (process.env.PATH ?? '')
     .split(path.delimiter)
     .filter(Boolean)
-    .map(dir => path.join(dir, 'claude'));
+    .map(dir => path.join(dir, name));
   const spots = [
-    path.join(home, '.local', 'bin', 'claude'),
-    '/opt/homebrew/bin/claude',
-    path.join(home, '.claude', 'local', 'claude'),
+    path.join(home, '.local', 'bin', name),
+    path.join('/opt/homebrew/bin', name),
+    path.join('/usr/local/bin', name),
+    path.join(home, '.claude', 'local', name),
   ];
-  return [...onPath, ...spots].find(file => exists(file)) ?? 'claude';
+  return [...onPath, ...spots].find(file => exists(file)) ?? name;
 }
+
+/** The claude binary, found as `findBin` does. */
+export const claudeBin = (options: { exists?: (file: string) => boolean } = {}) => findBin('claude', options);
 
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
@@ -84,6 +86,8 @@ export const AWAY_AFTER_MS = 30 * 60_000;
 export const STALE_AFTER_MS = 5 * 60_000;
 // An invite whose agent never made a call this long drops, so a failed launch does not hold the name.
 export const INVITE_TTL_MS = 10 * 60_000;
+// Codex reads its first prompt and joins before its seat is taken, which is slower than a claude connect.
+export const SPAWN_READY_MS = 2 * 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.
 export const SESSION_DEAD_MS = 60_000;
 export const EVENT_KEEP_MS = 7 * 24 * 60 * 60_000;

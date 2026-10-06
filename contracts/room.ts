@@ -6,6 +6,8 @@ export const MEMBER_KINDS = ['claude', 'codex', 'other', 'human'] as const;
 export const LAUNCH_AGENTS = ['claude', 'codex'] as const;
 
 export const NAME_PATTERN = /^[a-z0-9-]{1,40}$/;
+// A model name goes into the agent's argv, so it starts with a letter or digit and can never read as a flag.
+export const MODEL_PATTERN = /^[a-z0-9][a-z0-9.[\]-]{0,63}$/i;
 export const TEXT_MAX_CHARS = 4000;
 export const INSTRUCTIONS_MAX_CHARS = 4000;
 export const HUMAN_NAME = 'human';
@@ -64,7 +66,11 @@ export const launchSchema = z.object({
   agent: z.enum(LAUNCH_AGENTS).describe('Which agent to start: claude or codex.'),
   brief: z.string().optional().describe('Path to a brief the agent reads first.'),
   cwd: z.string().min(1).describe('Folder the agent starts in.'),
-  model: z.string().optional().describe('Model the agent runs on, its default when left out.'),
+  model: z
+    .string()
+    .regex(MODEL_PATTERN)
+    .optional()
+    .describe('Model the agent runs on, like opus or claude-opus-5-5, its default when left out.'),
 });
 
 export const memberSchema = z.object({

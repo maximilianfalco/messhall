@@ -13,6 +13,7 @@ import { registerRole } from './cli/role.js';
 import { registerRoom } from './cli/room.js';
 import { registerSay } from './cli/say.js';
 import { registerSearch } from './cli/search.js';
+import { registerSpawn } from './cli/spawn.js';
 import { registerStart } from './cli/start.js';
 import { registerStatus } from './cli/status.js';
 import { registerStop } from './cli/stop.js';
@@ -34,6 +35,7 @@ const program = new Command()
   registerSay,
   registerRoom,
   registerRole,
+  registerSpawn,
   registerPost,
   registerWatch,
   registerExport,

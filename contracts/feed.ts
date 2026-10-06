@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   INSTRUCTIONS_MAX_CHARS,
+  launchSchema,
   memberSchema,
   messageSchema,
   nameSchema,
@@ -81,6 +82,36 @@ export const humanRoleResultSchema = z.object({
   message: messageSchema.describe('The line from human that mentions the member, so it reads its role.'),
 });
 
+export const humanSpawnSchema = z.object({
+  agent: launchSchema.shape.agent.default('claude'),
+  cwd: z.string().min(1).describe('Full path of the folder the agent starts in. It must exist.'),
+  instructions: humanRoleSchema.shape.instructions,
+  model: launchSchema.shape.model,
+  name: nameSchema.describe('Name of the new seat in the room.'),
+  role: roleSchema.describe('The role the agent holds from its first call.'),
+});
+
+export const spawnResultSchema = z.object({
+  member: memberSchema.describe('The seat its agent now sits in.'),
+  session: z.string().describe('The detached tmux session the agent runs in.'),
+});
+
+export const flockSeatSchema = z.object({
+  agent: launchSchema.shape.agent,
+  cwd: z.string().describe('Folder the agent started in.'),
+  name: nameSchema.describe('The seat name.'),
+  pid: z.number().int().nullable().describe('Pid of the shell in the tmux pane, null when the session is gone.'),
+  presence: memberSchema.shape.presence,
+  process: z.enum(['running', 'gone']).describe('Whether the tmux session still runs the agent.'),
+  role: roleSchema.describe('The seat role.'),
+  room: nameSchema.describe('The room the seat is in.'),
+  session: z.string().describe('The tmux session name, to attach to.'),
+});
+
+export const flockSchema = z.object({
+  seats: z.array(flockSeatSchema).describe('Every seat the spawner started, by room then name.'),
+});
+
 export const removeMemberResultSchema = z.object({
   member: memberSchema.describe('The member as it was when it was removed.'),
 });
@@ -102,5 +133,9 @@ export type NewRoomResult = z.infer<typeof newRoomResultSchema>;
 export type CloseResult = z.infer<typeof closeResultSchema>;
 export type HumanRole = z.infer<typeof humanRoleSchema>;
 export type HumanRoleResult = z.infer<typeof humanRoleResultSchema>;
+export type HumanSpawn = z.infer<typeof humanSpawnSchema>;
+export type SpawnResult = z.infer<typeof spawnResultSchema>;
+export type FlockSeat = z.infer<typeof flockSeatSchema>;
+export type Flock = z.infer<typeof flockSchema>;
 export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
 export type MuteResult = z.infer<typeof muteResultSchema>;
