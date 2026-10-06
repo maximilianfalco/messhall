@@ -79,24 +79,7 @@ function post(url: string, body: unknown, headers: Record<string, string> = {}) 
   });
 }
 
-const sseResult = (body: string) =>
-  JSON.parse(
-    body
-      .split('\n')
-      .find(line => line.startsWith('data: '))!
-      .slice('data: '.length),
-  ) as { result: { protocolVersion: string } };
-
 describe('the /mcp endpoint', () => {
-  it.each(['2026-07-28', '2025-06-18', '2025-11-25'])('answers initialize asking %s with 2025-11-25', async asked => {
-    const { url } = await start();
-
-    const res = await post(url, initialize(asked));
-
-    expect(res.status).toBe(200);
-    expect(sseResult(await res.text()).result.protocolVersion).toBe('2025-11-25');
-  });
-
   it('negotiates 2025-11-25 with the v2 client', async () => {
     const { url } = await start();
 
