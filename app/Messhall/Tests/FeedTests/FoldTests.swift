@@ -1,0 +1,88 @@
+import Testing
+
+@testable import Feed
+
+@Suite("Fold")
+struct FoldTests {
+  private func line(_ id: Int, _ text: String, kind: MessageKind = .system) -> Message {
+    Message(
+      id: id, roomId: "r1", from: kind == .system ? "messhall" : "api", kind: kind, text: text, mentions: [],
+      createdAt: "2026-01-01T09:00:00.000Z")
+  }
+
+  private func shape(_ items: [TranscriptItem]) -> [String] {
+    items.map {
+      switch $0 {
+      case .message(let message): "m\(message.id)"
+      case .fold(let fold):
+        "f" + fold.messages.map { String($0.id) }.joined(separator: ",") + (fold.startsOpen ? "+" : "")
+      }
+    }
+  }
+
+  @Test("a run of presence lines folds into one item")
+  func run() {
+    let messages = [
+      line(1, "api joined"), line(2, "web joined"), line(3, "qa reconnected"), line(4, "hi", kind: .chat),
+    ]
+    #expect(shape(messages.folded()) == ["f1,2,3", "m4"])
+  }
+
+  @Test("chat, done and summary lines break a run", arguments: [MessageKind.chat, .done, .summary])
+  func breaks(kind: MessageKind) {
+    let messages = [
+      line(1, "api joined"), line(2, "web left"), line(3, "x", kind: kind), line(4, "web is gone"),
+      line(5, "qa left: lunch"), line(6, "api reconnected"), line(7, "y", kind: kind),
+    ]
+    #expect(shape(messages.folded()) == ["f1,2", "m3", "f4,5,6", "m7"])
+  }
+
+  @Test("a lone presence line stays a plain message")
+  func lone() {
+    let messages = [line(1, "hi", kind: .chat), line(2, "api joined"), line(3, "ok", kind: .chat)]
+    #expect(shape(messages.folded()) == ["m1", "m2", "m3"])
+  }
+
+  @Test("the newest run starts open only when it has fewer than 3 lines")
+  func newestShort() {
+    let short = [
+      line(1, "a joined"), line(2, "b joined"), line(3, "x", kind: .chat), line(4, "a left"), line(5, "b left"),
+    ]
+    #expect(shape(short.folded()) == ["f1,2", "m3", "f4,5+"])
+    let long = short + [line(6, "c joined")]
+    #expect(shape(long.folded()) == ["f1,2", "m3", "f4,5,6"])
+  }
+
+  @Test("a short run is not the newest once a chat line follows it")
+  func shortThenChat() {
+    let messages = [line(1, "a joined"), line(2, "b joined"), line(3, "x", kind: .chat)]
+    #expect(shape(messages.folded()) == ["f1,2", "m3"])
+  }
+
+  @Test(
+    "cap warnings and room lines are never folded and break the run",
+    arguments: [
+      "#checkout is at 160/200, wrap up", "#checkout reached its cap of 200 and is closed. ask the human to reopen",
+      "all done, room closed", "#checkout closed by the human", "#checkout reopened, 200 more posts",
+    ])
+  func keptOut(text: String) {
+    let messages = [
+      line(1, "a joined"), line(2, "b joined"), line(3, text), line(4, "a left"), line(5, "b left"),
+      line(6, "c left"),
+    ]
+    #expect(shape(messages.folded()) == ["f1,2", "m3", "f4,5,6"])
+  }
+
+  @Test("a fold keeps the id of its first line as the run grows")
+  func stableIds() {
+    let start = [line(1, "x", kind: .chat), line(7, "a joined"), line(9, "b joined"), line(12, "c joined")]
+    let grown = start + [line(13, "d joined")]
+    #expect(start.folded().map(\.id) == [1, 7])
+    #expect(grown.folded().map(\.id) == [1, 7])
+  }
+
+  @Test("an empty transcript has no items")
+  func empty() {
+    #expect([Message]().folded().isEmpty)
+  }
+}
