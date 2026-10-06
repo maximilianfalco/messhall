@@ -70,7 +70,7 @@ describe('list_members', () => {
 });
 
 describe('list_rooms', () => {
-  it('lists every room with state, members, posts against the cap and last activity', async () => {
+  it('lists every room with state, members, posts and last activity', async () => {
     const api = await harness.joined('checkout', 'api');
     await api.call('post', { room: 'checkout', text: 'hello' });
     harness.clock.advance(60_000);
@@ -81,9 +81,9 @@ describe('list_rooms', () => {
 
     expect(result.text.split('\n')).toStrictEqual([
       '2 rooms:',
-      '#billing open, made by web, topic none, 0/200 posts, last activity 2026-01-01T10:01:00.000Z',
+      '#billing open, made by web, topic none, 0 posts, last activity 2026-01-01T10:01:00.000Z',
       '  members: human (human, idle), web (messhall-in-memory 0.1.0, active)',
-      '#checkout open, made by api, topic none, 1/200 posts, last activity 2026-01-01T10:00:00.000Z',
+      '#checkout open, made by api, topic none, 1 posts, last activity 2026-01-01T10:00:00.000Z',
       '  members: api (messhall-in-memory 0.1.0, active), human (human, idle)',
     ]);
   });
@@ -97,7 +97,7 @@ describe('list_rooms', () => {
 
     expect(result.text.split('\n')).toStrictEqual([
       '1 rooms:',
-      '#planning closed, standing (made by human), topic q4, 0/200 posts, last activity 2026-01-01T10:00:00.000Z',
+      '#planning closed, standing (made by human), topic q4, 0 posts, last activity 2026-01-01T10:00:00.000Z',
       '  members: human (human, idle)',
     ]);
   });

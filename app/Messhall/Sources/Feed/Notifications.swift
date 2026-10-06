@@ -1,8 +1,6 @@
 import Foundation
 
 let systemName = "messhall"
-// Matches the daemon's 80 percent line, "#room is at 160/200, wrap up".
-let capWarningSuffix = ", wrap up"
 // Matches the daemon's line when the human closes a room, so your own close stays quiet.
 let humanCloseSuffix = "closed by the human"
 let bodyLimit = 120
@@ -37,7 +35,7 @@ public func parseStamp(_ stamp: String) -> Date? {
 }
 
 /// The banner a live event earns, or nil: a mention of the human or all, a question from the
-/// only agent in the room, a room that closes, or the cap warning. Never for the human's own posts.
+/// only agent in the room, or a room that closes. Never for the human's own posts.
 public func notificationFor(event: BusEvent, state: NotifyState) -> NotificationContent? {
   guard state.enabled else { return nil }
   switch event {
@@ -63,7 +61,7 @@ private func isLive(_ stamp: String, since: Date) -> Bool {
 
 private func wants(_ message: Message, in room: SnapshotRoom?) -> Bool {
   if message.from == humanName { return false }
-  if message.kind == .system { return message.text.hasSuffix(capWarningSuffix) }
+  if message.kind == .system { return false }
   if message.mentions.contains(humanName) || message.mentions.contains(allMention) { return true }
   guard message.kind == .chat, message.text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") else {
     return false

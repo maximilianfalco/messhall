@@ -2,14 +2,11 @@ import Feed
 import SwiftUI
 
 struct NewRoomSheet: View {
-  static let defaultCap = 200
-
   let store: FeedStore
   let client: FeedClient
   let navigation: Navigation
   @State private var name: String
   @State private var topic = ""
-  @State private var cap = defaultCap
   @State private var creating = false
   @State private var refusal: String?
   @Environment(\.dismiss) private var dismiss
@@ -23,7 +20,7 @@ struct NewRoomSheet: View {
 
   private var taken: [String] { store.rooms.map(\.name) }
   private var problem: String? { RoomName.problem(name, taken: taken) }
-  private var canCreate: Bool { RoomName.isValid(name, taken: taken) && cap > 0 && !creating }
+  private var canCreate: Bool { RoomName.isValid(name, taken: taken) && !creating }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -56,9 +53,8 @@ struct NewRoomSheet: View {
       }
       Section {
         TextField("Topic", text: $topic, prompt: Text("Optional"))
-        TextField("Post Cap", value: $cap, format: .number)
       } footer: {
-        Text("Agents come and go without closing it. It closes when you close it or it reaches the cap.")
+        Text("Agents come and go without closing it. It closes when you close it.")
           .foregroundStyle(.secondary)
       }
       if let refusal {
@@ -72,7 +68,7 @@ struct NewRoomSheet: View {
   private func create() {
     guard canCreate else { return }
     let topic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
-    let room = NewRoom(name: name, topic: topic.isEmpty ? nil : topic, cap: cap)
+    let room = NewRoom(name: name, topic: topic.isEmpty ? nil : topic)
     creating = true
     Task {
       refusal = await store.change(.create(room), via: client)

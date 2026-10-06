@@ -16,12 +16,12 @@ import {
   TEXT_MAX_CHARS,
   UNASSIGNED_ROLE,
 } from '../../contracts/room.ts';
-import { DEFAULT_MESSAGE_CAP, READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
+import { READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
 import { createEventBus } from './events.js';
-import { canAssignRole, capState, nextPresence, parseMentions } from './rules.js';
+import { canAssignRole, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -35,7 +35,6 @@ export interface PresenceChange {
 type Emit = (event: BusEvent) => void;
 
 interface NewRoom {
-  cap?: number;
   createdBy: string;
   name: string;
   topic?: string;
@@ -43,7 +42,7 @@ interface NewRoom {
 type Row = Record<string, unknown>;
 
 const NAME_MAX = 40;
-// Only member posts count toward the cap and the summary schedule. Daemon lines and summaries do not.
+// Only member posts count toward the summary schedule. Daemon lines and summaries do not.
 const IS_POST = "kind IN ('chat', 'done')";
 
 const withStanding = (row: Row) => ({ ...row, standing: row.standing === 1 });
@@ -90,7 +89,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       "INSERT INTO messages (room_id, from_name, kind, text, created_at, covers_id) VALUES (?, ?, 'summary', ?, ?, ?) RETURNING *",
     ),
     insertRoom: db.prepare(
-      'INSERT INTO rooms (id, name, topic, created_at, message_cap, created_by, standing) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO rooms (id, name, topic, created_at, created_by, standing) VALUES (?, ?, ?, ?, ?, ?)',
     ),
     latest: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id'),
     latestSummary: db.prepare("SELECT * FROM messages WHERE room_id = ? AND kind = 'summary' ORDER BY id DESC LIMIT 1"),
@@ -107,7 +106,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     rejoin: db.prepare(
       "UPDATE members SET kind = ?, client_name = ?, client_version = ?, left_at = NULL, gone_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
     ),
-    reopen: db.prepare('UPDATE rooms SET closed_at = NULL, message_cap = ? WHERE id = ?'),
+    reopen: db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
     roomById: db.prepare('SELECT * FROM rooms WHERE id = ?'),
     rooms: db.prepare(
@@ -189,17 +188,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   }
 
   // Only a room the human makes is standing.
-  function makeRoom({ cap, createdBy, name, topic }: NewRoom, emit: Emit) {
+  function makeRoom({ createdBy, name, topic }: NewRoom, emit: Emit) {
     const standing = createdBy === HUMAN_NAME;
-    sql.insertRoom.run(
-      randomUUID(),
-      name,
-      topic ?? null,
-      stamp(),
-      cap ?? DEFAULT_MESSAGE_CAP,
-      createdBy,
-      standing ? 1 : 0,
-    );
+    sql.insertRoom.run(randomUUID(), name, topic ?? null, stamp(), createdBy, standing ? 1 : 0);
     const room = findRoom(name)!;
     emit({ change: 'created', room, type: 'room' });
     addHuman(room, emit);
@@ -213,9 +204,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   }
 
   function reopen(room: Room, emit: Emit) {
-    sql.reopen.run(countPosts(room) + DEFAULT_MESSAGE_CAP, room.id);
+    sql.reopen.run(room.id);
     const reopened = roomById(room.id);
-    systemLine(reopened, `#${room.name} reopened, ${DEFAULT_MESSAGE_CAP} more posts`, emit);
+    systemLine(reopened, `#${room.name} reopened`, emit);
     emit({ change: 'reopened', room: reopened, type: 'room' });
     return reopened;
   }
@@ -251,25 +242,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Makes a room with the human seat. A room the human makes is standing: only its cap or the human closes it. */
-    createRoom({
-      cap,
-      created_by: createdBy,
-      name,
-      topic,
-    }: {
-      cap?: number;
-      created_by: string;
-      name: string;
-      topic?: string;
-    }) {
+    /** Makes a room with the human seat. A room the human makes is standing: only the human closes it. */
+    createRoom({ created_by: createdBy, name, topic }: { created_by: string; name: string; topic?: string }) {
       return transaction(emit => {
         if (findRoom(name)) return { ok: false, reason: 'exists' } as const;
-        return { ok: true, room: makeRoom({ cap, createdBy, name, topic }, emit) } as const;
+        return { ok: true, room: makeRoom({ createdBy, name, topic }, emit) } as const;
       });
     },
 
-    /** Stores a summary from messhall that covers posts up to `coversId`. It never counts toward the cap. */
+    /** Stores a summary from messhall that covers posts up to `coversId`. It never counts as a post. */
     addSummary({ coversId, room: roomName, text }: { coversId: number; room: string; text: string }) {
       return transaction(emit => {
         const room = findRoom(roomName);
@@ -418,14 +399,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return row ? toMessage(row) : undefined;
     },
 
-    /** Every room by name, closed ones too, with how many posts count toward its cap. */
+    /** Every room by name, closed ones too, with how many member posts it holds. */
     listRooms() {
       return sql.rooms.all().map(row => roomSummarySchema.parse(withStanding(row)));
     },
 
     /**
-     * Posts as a member. Mentions are read against current members. Closes the room at its cap, or
-     * when every agent is done unless the room is standing. Only the human can post into a closed room, and that reopens it.
+     * Posts as a member. Mentions are read against current members. Closes the room when every agent is done
+     * unless the room is standing. Only the human can post into a closed room, and that reopens it.
      */
     postMessage({
       done = false,
@@ -446,9 +427,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const human = member.kind === 'human';
         let { room } = found;
         if (room.closed_at !== null) {
-          if (!human) {
-            return { ok: false, reason: countPosts(room) >= room.message_cap ? 'room_full' : 'room_closed' } as const;
-          }
+          if (!human) return { ok: false, reason: 'room_closed' } as const;
           room = reopen(room, emit);
         }
         const names = sql.liveMembers.all(room.id).map(row => String(row.name));
@@ -456,19 +435,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const message = post(room, member, kind, text, parseMentions({ names, text }), emit);
         sql.setDone.run(kind === 'done' ? 1 : 0, room.id, from);
         setPresence(room, member, 'active', emit, true);
-
-        const count = countPosts(room);
-        const cap = capState({ cap: room.message_cap, count });
-        if (cap === 'full') {
-          close(
-            room,
-            `#${room.name} reached its cap of ${room.message_cap} and is closed. ask the human to reopen`,
-            emit,
-          );
-        } else if (cap === 'warn') {
-          systemLine(room, `#${room.name} is at ${count}/${room.message_cap}, wrap up`, emit);
-        }
-        if (cap !== 'full' && !room.standing && kind === 'done' && Number(sql.agentsNotDone.get(room.id)?.n) === 0) {
+        if (!room.standing && kind === 'done' && Number(sql.agentsNotDone.get(room.id)?.n) === 0) {
           close(room, 'all done, room closed', emit);
         }
         return { message, ok: true } as const;
@@ -517,7 +484,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return { messages: rows.map(row => ({ ...toMessage(row), room: String(row.room) })), ok: true } as const;
     },
 
-    /** Reopens a closed room with a full cap from where it stands. */
+    /** Reopens a closed room. */
     reopenRoom(roomName: string) {
       return transaction(emit => {
         const room = findRoom(roomName);

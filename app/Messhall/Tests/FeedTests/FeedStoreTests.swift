@@ -26,7 +26,7 @@ struct FeedStoreTests {
     #expect(store.anyActive)
   }
 
-  @Test("a message event appends once, counts toward the cap and moves the sequence")
+  @Test("a message event appends once, counts as a post and moves the sequence")
   func message() throws {
     let store = try loaded()
 
@@ -38,7 +38,7 @@ struct FeedStoreTests {
     #expect(store.seq == 9)
   }
 
-  @Test("a system message or a summary does not count toward the cap", arguments: [MessageKind.system, .summary])
+  @Test("a system message or a summary does not count as a post", arguments: [MessageKind.system, .summary])
   func daemonMessage(kind: MessageKind) throws {
     let store = try loaded()
     let line = Message(
@@ -190,13 +190,13 @@ struct FeedStoreTests {
   private func humanRoom(closedAt: String?) -> Room {
     Room(
       id: "r9", name: "ops", topic: nil, createdAt: "2026-01-01T10:00:00.000Z", createdBy: "human", standing: true,
-      closedAt: closedAt, messageCap: 200)
+      closedAt: closedAt)
   }
 
   private func checkout(closedAt: String?) -> Room {
     Room(
       id: "r1", name: "checkout", topic: "order schema change", createdAt: "2026-01-01T09:00:00.000Z",
-      createdBy: "api", standing: false, closedAt: closedAt, messageCap: 200)
+      createdBy: "api", standing: false, closedAt: closedAt)
   }
 
   @Test("a snapshot after a drop clears the down phase")

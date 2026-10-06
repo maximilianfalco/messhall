@@ -34,7 +34,7 @@ struct NotificationsTests {
         change: .closed,
         room: Room(
           id: "r1", name: "checkout", topic: nil, createdAt: Self.before, createdBy: "api", standing: false,
-          closedAt: at, messageCap: 200)))
+          closedAt: at)))
   }
 
   private func joined(_ name: String, to room: SnapshotRoom) throws -> SnapshotRoom {
@@ -158,18 +158,9 @@ struct NotificationsTests {
     #expect(notificationFor(event: .room(payload), state: try state(room: room())) == nil)
   }
 
-  @Test("the 80 percent cap warning posts")
-  func capWarning() throws {
-    let event = message(from: "messhall", kind: .system, text: "#checkout is at 160/200, wrap up")
-
-    #expect(
-      notificationFor(event: event, state: try state(room: room()))?.body
-        == "messhall: #checkout is at 160/200, wrap up")
-  }
-
-  @Test("other system lines do not post")
-  func otherSystemLine() throws {
-    let event = message(from: "messhall", kind: .system, text: "web left")
+  @Test("system lines do not post, an old wrap up line included", arguments: ["web left", "#checkout is at 160/200, wrap up"])
+  func systemLine(text: String) throws {
+    let event = message(from: "messhall", kind: .system, text: text)
 
     #expect(notificationFor(event: event, state: try state(room: room())) == nil)
   }

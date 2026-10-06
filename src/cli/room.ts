@@ -1,6 +1,5 @@
 import type { Command } from 'commander';
 
-import { InvalidArgumentError } from 'commander';
 import pc from 'picocolors';
 
 import { feedErrorSchema, snapshotSchema } from '../../contracts/feed.ts';
@@ -15,7 +14,7 @@ type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 type RoomAction =
   | { action: 'close' | 'reopen'; name: string }
   | { action: 'list' }
-  | { action: 'new'; cap?: number; name: string; topic?: string };
+  | { action: 'new'; name: string; topic?: string };
 
 const DONE: Record<'close' | 'new' | 'reopen', (name: string) => string> = {
   close: name => `closed #${name}`,
@@ -28,8 +27,8 @@ const fail = (text: string) => ({ code: 1, output: [pc.red(text)] }) as const;
 function request(input: RoomAction, url: string) {
   if (input.action === 'list') return { init: {}, url: `${url}/api/snapshot` };
   if (input.action === 'new') {
-    const { cap, name, topic } = input;
-    return { init: { body: JSON.stringify({ cap, name, topic }), method: 'POST' }, url: `${url}/api/rooms` };
+    const { name, topic } = input;
+    return { init: { body: JSON.stringify({ name, topic }), method: 'POST' }, url: `${url}/api/rooms` };
   }
   return { init: { method: 'POST' }, url: `${url}/api/rooms/${encodeURIComponent(input.name)}/${input.action}` };
 }
@@ -77,22 +76,15 @@ async function print(input: RoomAction) {
   process.exitCode = result.code;
 }
 
-const positive = (value: string) => {
-  const cap = Number(value);
-  if (!Number.isInteger(cap) || cap < 1) throw new InvalidArgumentError('a whole number above 0');
-  return cap;
-};
-
 /** Registers `room new | close | reopen | list`. */
 export function registerRoom(program: Command) {
   const room = program.command('room').description('Make, close, reopen and list rooms as the human.');
   room
     .command('new')
-    .description('Make a standing room. It stays open until its cap or until you close it.')
+    .description('Make a standing room. It stays open until you close it.')
     .argument('<name>', 'room name')
     .option('--topic <text>', 'what the room is for')
-    .option('--cap <n>', 'posts allowed before the room closes', positive)
-    .action((name: string, options: { cap?: number; topic?: string }) => print({ action: 'new', name, ...options }));
+    .action((name: string, options: { topic?: string }) => print({ action: 'new', name, ...options }));
   room
     .command('close')
     .description('Close a room. Agents cannot post until you reopen it.')
@@ -100,7 +92,7 @@ export function registerRoom(program: Command) {
     .action((name: string) => print({ action: 'close', name }));
   room
     .command('reopen')
-    .description('Reopen a closed room with a full cap.')
+    .description('Reopen a closed room.')
     .argument('<name>', 'room name')
     .action((name: string) => print({ action: 'reopen', name }));
   room

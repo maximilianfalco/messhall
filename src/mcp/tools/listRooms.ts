@@ -19,7 +19,7 @@ export function registerListRooms(server: McpServer, deps: ToolDeps, description
       const as = session.rooms.get(room.name);
       const made = room.standing ? `standing (made by ${room.created_by})` : `made by ${room.created_by}`;
       return [
-        `#${room.name} ${room.closed_at ? 'closed' : 'open'}, ${made}, topic ${room.topic ?? 'none'}, ${room.message_count}/${room.message_cap} posts, last activity ${last}`,
+        `#${room.name} ${room.closed_at ? 'closed' : 'open'}, ${made}, topic ${room.topic ?? 'none'}, ${room.message_count} posts, last activity ${last}`,
         `  members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
       ];
     });

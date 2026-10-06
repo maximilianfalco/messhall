@@ -2,7 +2,7 @@ import type { Member, Message } from '../../contracts/room.ts';
 
 import { describe, expect, it } from 'vitest';
 
-import { canAssignRole, capState, concerns, nextPresence, parseMentions } from '../../src/rooms/rules.js';
+import { canAssignRole, concerns, nextPresence, parseMentions } from '../../src/rooms/rules.js';
 
 const T0 = '2026-01-01T10:00:00.000Z';
 const minutes = (count: number) => new Date(Date.parse(T0) + count * 60_000);
@@ -103,20 +103,6 @@ describe('concerns', () => {
   it('counts only members still in the room', () => {
     const left = [...ROOM, member({ left_at: T0, name: 'infra' })];
     expect(concerns({ member: left[2]!, members: left, message: message({ from: 'api' }) })).toBe(true);
-  });
-});
-
-describe('capState', () => {
-  it.each([
-    [0, 200, 'open'],
-    [159, 200, 'open'],
-    [160, 200, 'warn'],
-    [161, 200, 'open'],
-    [199, 200, 'open'],
-    [200, 200, 'full'],
-    [320, 400, 'warn'],
-  ] as const)('reads %i of %i as %s', (count, cap, expected) => {
-    expect(capState({ cap, count })).toBe(expected);
   });
 });
 

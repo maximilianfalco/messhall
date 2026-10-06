@@ -25,11 +25,11 @@ const room = async (input: Parameters<typeof runRoom>[0]['input'], url = feed.ur
 const rooms = () => feed.scratch.store.listRooms();
 
 describe('runRoom', () => {
-  it('makes a standing room with a topic and a cap', async () => {
-    const result = await room({ action: 'new', cap: 50, name: 'planning', topic: 'q4' });
+  it('makes a standing room with a topic', async () => {
+    const result = await room({ action: 'new', name: 'planning', topic: 'q4' });
 
     expect(result).toStrictEqual({ code: 0, output: ['made #planning, standing until you close it'] });
-    expect(rooms()[0]).toMatchObject({ created_by: 'human', message_cap: 50, standing: true, topic: 'q4' });
+    expect(rooms()[0]).toMatchObject({ created_by: 'human', standing: true, topic: 'q4' });
   });
 
   it('passes on the refusal for a name that exists', async () => {
@@ -63,7 +63,7 @@ describe('runRoom', () => {
 
     await expect(room({ action: 'list' })).resolves.toStrictEqual({
       code: 0,
-      output: ['#checkout  open, 2 members, 0/200 posts', '#planning  closed, standing, 1 members, 0/200 posts, q4'],
+      output: ['#checkout  open, 2 members, 0 posts', '#planning  closed, standing, 1 members, 0 posts, q4'],
     });
   });
 

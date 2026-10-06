@@ -423,12 +423,6 @@
     "NewRoom": {
       "type": "object",
       "properties": {
-        "cap": {
-          "description": "Posts allowed before the room closes, 200 when left out.",
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
-        },
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
@@ -510,7 +504,7 @@
       "type": "object",
       "properties": {
         "room": {
-          "description": "The room, open again with a full cap.",
+          "description": "The room, open again.",
           "$ref": "#/$defs/Room"
         }
       },
@@ -550,12 +544,6 @@
           "type": "string",
           "description": "Room id."
         },
-        "message_cap": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Posts allowed before the room closes."
-        },
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
@@ -563,7 +551,7 @@
         },
         "standing": {
           "type": "boolean",
-          "description": "True for a room the human made. It stays open when every agent is done, until its cap or the human closes it."
+          "description": "True for a room the human made. It stays open when every agent is done, until the human closes it."
         },
         "topic": {
           "description": "What the room is for, null when unset.",
@@ -578,7 +566,6 @@
         "created_at",
         "created_by",
         "id",
-        "message_cap",
         "name",
         "standing",
         "topic"
@@ -646,12 +633,6 @@
           "type": "string",
           "description": "Room id."
         },
-        "message_cap": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Posts allowed before the room closes."
-        },
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
@@ -659,7 +640,7 @@
         },
         "standing": {
           "type": "boolean",
-          "description": "True for a room the human made. It stays open when every agent is done, until its cap or the human closes it."
+          "description": "True for a room the human made. It stays open when every agent is done, until the human closes it."
         },
         "topic": {
           "description": "What the room is for, null when unset.",
@@ -685,7 +666,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "Posts that count toward the cap."
+          "description": "Posts from members, not daemon lines or summaries."
         }
       },
       "required": [
@@ -693,7 +674,6 @@
         "created_at",
         "created_by",
         "id",
-        "message_cap",
         "name",
         "standing",
         "topic",
@@ -876,12 +856,6 @@
           "type": "string",
           "description": "Room id."
         },
-        "message_cap": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Posts allowed before the room closes."
-        },
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
@@ -889,7 +863,7 @@
         },
         "standing": {
           "type": "boolean",
-          "description": "True for a room the human made. It stays open when every agent is done, until its cap or the human closes it."
+          "description": "True for a room the human made. It stays open when every agent is done, until the human closes it."
         },
         "topic": {
           "description": "What the room is for, null when unset.",
@@ -915,7 +889,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "Posts that count toward the cap."
+          "description": "Posts from members, not daemon lines or summaries."
         },
         "members": {
           "type": "array",
@@ -937,7 +911,6 @@
         "created_at",
         "created_by",
         "id",
-        "message_cap",
         "name",
         "standing",
         "topic",

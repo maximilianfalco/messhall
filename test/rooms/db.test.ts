@@ -258,4 +258,31 @@ describe('openDb', () => {
     ]);
     db.close();
   });
+
+  it('drops the message cap from rooms and stored room events and keeps the rooms', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    old.function('client_label', { varargs: true }, () => null);
+    MIGRATIONS.slice(0, 9).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = 9;
+      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
+      INSERT INTO events (kind, payload, created_at) VALUES
+        ('room', '{"type":"room","change":"created","room":{"name":"demo","message_cap":200}}', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect(
+      db
+        .prepare('select * from rooms')
+        .all()
+        .map(row => ({ ...row })),
+    ).toMatchObject([{ id: 'r1', name: 'demo' }]);
+    expect(db.prepare('select * from rooms').get()).not.toHaveProperty('message_cap');
+    expect(JSON.parse(String(db.prepare('select payload from events').get()?.payload)).room).toStrictEqual({
+      name: 'demo',
+    });
+    db.close();
+  });
 });

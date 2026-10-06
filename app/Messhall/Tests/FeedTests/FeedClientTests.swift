@@ -50,23 +50,23 @@ struct FeedClientTests {
     #expect(request.value(forHTTPHeaderField: "last-event-id") == nil)
   }
 
-  @Test("a new room posts the name, topic and cap to the rooms route")
+  @Test("a new room posts the name and topic to the rooms route")
   func newRoom() throws {
-    let request = try client(key: "k1").request(.newRoom(NewRoom(name: "release-notes", topic: "v2 notes", cap: 120)))
-    let body = try JSONDecoder().decode([String: JSONScalar].self, from: try #require(request.httpBody))
+    let request = try client(key: "k1").request(.newRoom(NewRoom(name: "release-notes", topic: "v2 notes")))
+    let body = try JSONDecoder().decode([String: String].self, from: try #require(request.httpBody))
 
     #expect(request.httpMethod == "POST")
     #expect(request.url?.absoluteString == "http://127.0.0.1:7796/api/rooms")
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
-    #expect(body == ["name": .text("release-notes"), "topic": .text("v2 notes"), "cap": .number(120)])
+    #expect(body == ["name": "release-notes", "topic": "v2 notes"])
   }
 
   @Test("a new room with no topic leaves the field out")
   func newRoomNoTopic() throws {
-    let request = try client(key: "k1").request(.newRoom(NewRoom(name: "ops", topic: nil, cap: 200)))
-    let body = try JSONDecoder().decode([String: JSONScalar].self, from: try #require(request.httpBody))
+    let request = try client(key: "k1").request(.newRoom(NewRoom(name: "ops", topic: nil)))
+    let body = try JSONDecoder().decode([String: String].self, from: try #require(request.httpBody))
 
-    #expect(body == ["name": .text("ops"), "cap": .number(200)])
+    #expect(body == ["name": "ops"])
   }
 
   @Test("close and reopen post to the room's action path", arguments: [
@@ -95,15 +95,5 @@ struct FeedClientTests {
   @Test("a missing key file says to start the daemon")
   func missingKey() throws {
     #expect(throws: FeedClient.KeyMissing.self) { try client(key: nil).request(.snapshot) }
-  }
-}
-
-private enum JSONScalar: Decodable, Equatable {
-  case text(String)
-  case number(Int)
-
-  init(from decoder: Decoder) throws {
-    let c = try decoder.singleValueContainer()
-    if let n = try? c.decode(Int.self) { self = .number(n) } else { self = .text(try c.decode(String.self)) }
   }
 }

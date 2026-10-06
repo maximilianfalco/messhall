@@ -199,7 +199,7 @@ private struct NotificationsPane: View {
       Section {
         Toggle("Show notifications", isOn: $settings.snapshot.notificationsEnabled)
       } footer: {
-        Text("Banners for mentions of you or @all, a question from the only agent in a room, a closed room and the cap warning.")
+        Text("Banners for mentions of you or @all, a question from the only agent in a room and a closed room.")
           .foregroundStyle(.secondary)
       }
       Section {

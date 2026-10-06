@@ -39,7 +39,7 @@ const WEB_FIX = `export function formatTotal(total: number): string {
 }
 `;
 
-const room = { cap: 200, closed: true };
+const room = { closed: true };
 const members = [
   { cursor: 6, name: 'api' },
   { cursor: 6, name: 'web' },
@@ -70,7 +70,7 @@ describe('demo repos', () => {
 });
 
 describe('demoChecks', () => {
-  it('passes a room where both read each other, said done and closed under the cap', () => {
+  it('passes a room where both read each other, said done and closed', () => {
     expect(failing({ members, messages, roles: ['api', 'web'], room })).toStrictEqual([]);
   });
 
@@ -84,12 +84,6 @@ describe('demoChecks', () => {
     expect(failing({ members, messages: open, roles: ['api', 'web'], room: { ...room, closed: false } })).toStrictEqual(
       ['each said done', 'room closed with all done'],
     );
-  });
-
-  it('fails a room that hit its cap', () => {
-    expect(failing({ members, messages, roles: ['api', 'web'], room: { ...room, cap: 4 } })).toStrictEqual([
-      'under the cap',
-    ]);
   });
 
   it('fails when an agent never joined', () => {

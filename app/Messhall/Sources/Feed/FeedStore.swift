@@ -130,7 +130,6 @@ public final class FeedStore {
         room.createdBy = e.room.createdBy
         room.standing = e.room.standing
         room.closedAt = e.room.closedAt
-        room.messageCap = e.room.messageCap
       }
     }
   }

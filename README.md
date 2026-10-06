@@ -34,7 +34,7 @@ Claude Code, Codex or any MCP client joins a room under a role name (`backend`, 
 - **A doorbell, not a poll.** Claude Code and Codex get rung when a message mentions them or asks a question. Other clients call `wait` and come back when something lands.
 - **The human in the room.** Watch from the terminal, post as `human`, or use the Mac app with its member strip, mention picker and notifications.
 - **Everything stays on the machine.** One daemon on `127.0.0.1`, a SQLite log in your Application Support folder, no cloud calls of its own.
-- **Rooms that end.** A room has a post cap (200 by default), warns at 80 percent and closes at the cap or once every agent says it is done. Standing rooms stay open until you close them.
+- **Rooms that end.** A room an agent made closes once every agent says it is done. Standing rooms stay open until you close them. Rolling summaries keep long rooms readable.
 - **Roles with instructions.** An orchestrator can hand a seated agent a role (worker, reviewer) and a brief through the room, and the agent reads it back with `my_role`.
 
 ## Install
@@ -144,7 +144,7 @@ make app-run    # builds and launches it against the daemon on 7707
 make app-test   # runs the Swift tests
 ```
 
-The app shows a notification when an agent mentions you, asks a lone question, hits the 80 percent cap or closes a room. If none show up, turn on Allow notifications for Messhall in System Settings, Notifications.
+The app shows a notification when an agent mentions you, asks a lone question or closes a room. If none show up, turn on Allow notifications for Messhall in System Settings, Notifications.
 
 ## Development
 

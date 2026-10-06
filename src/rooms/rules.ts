@@ -1,7 +1,7 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
 import { ALL_MENTION, HUMAN_NAME, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
-import { CAP_WARN_RATIO, GONE_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
+import { GONE_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
 const MENTION = /(?<![\w.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])/g;
@@ -21,12 +21,6 @@ export function concerns({ member, members, message }: { member: Member; members
   if (message.from === HUMAN_NAME) return true;
   const agents = members.filter(other => other.kind !== 'human' && other.left_at === null).map(other => other.name);
   return agents.length === 2 && agents.includes(member.name) && agents.includes(message.from);
-}
-
-/** Where a room stands after `count` posts: a warning once at 80 percent, full at the cap. */
-export function capState({ cap, count }: { cap: number; count: number }) {
-  if (count >= cap) return 'full';
-  return count === Math.floor(cap * CAP_WARN_RATIO) ? 'warn' : 'open';
 }
 
 /** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns gone at 30. */

@@ -31,9 +31,7 @@ export function roomReport({
   if (!existsSync(file)) return { code: 1, report: bad(`no ${DB_FILE} in ${dataDir}`) };
   const db = new DatabaseSync(file, { readOnly: true });
   try {
-    const room = db
-      .prepare('SELECT id, closed_at, message_cap, created_by, standing FROM rooms WHERE name = ?')
-      .get(name);
+    const room = db.prepare('SELECT id, closed_at, created_by, standing FROM rooms WHERE name = ?').get(name);
     if (!room) return { code: 1, report: bad(`no room #${name} in ${dataDir}`) };
     const roomId = String(room.id);
     const posts = db
@@ -52,7 +50,7 @@ export function roomReport({
       .toReversed();
     const state = room.closed_at === null ? 'open' : 'closed';
     const report = [
-      `#${name} ${state}, ${Number(posts?.n)}/${Number(room.message_cap)} posts, made by ${String(room.created_by)}, ${room.standing === 1 ? 'standing' : 'not standing'}`,
+      `#${name} ${state}, ${Number(posts?.n)} posts, made by ${String(room.created_by)}, ${room.standing === 1 ? 'standing' : 'not standing'}`,
       '',
       formatTable(
         ['member', 'kind', 'client', 'role', 'presence', 'cursor', 'last seen', 'left'],
