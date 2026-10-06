@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KEY_FILES } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { agentRun } from '../../tools/dev/commands/agent.js';
+import { roomReport } from '../../tools/dev/commands/room.js';
 
 let home: string;
 let daemon: Daemon;
@@ -40,6 +41,32 @@ describe('agentRun', () => {
     expect(result.code).toBe(0);
     expect(text).toContain('joined #checkout as api.');
     expect(text).toMatch(/posted #\d+ in #checkout\./);
+  });
+
+  it('leaves after a one-shot post, so the room reads left and not gone', async () => {
+    const result = await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: 'hello', url: daemon.url });
+
+    const room = stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report);
+    expect(stripVTControlCharacters(result.report)).toContain('left #checkout.');
+    expect(stripVTControlCharacters(result.report)).toContain('session ended, api left #checkout');
+    expect(room).toMatch(/system +api left/);
+    expect(room).not.toContain('is gone');
+  });
+
+  it('stays in the room while it waits, and ends gone', async () => {
+    const waiting = agentRun({
+      keyFile: keyFile(),
+      role: 'web',
+      room: 'checkout',
+      timeout: 1,
+      url: daemon.url,
+      wait: true,
+    });
+
+    const result = await waiting;
+
+    expect(stripVTControlCharacters(result.report)).not.toContain('left #checkout.');
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toContain('web is gone');
   });
 
   it('blocks in wait until another agent mentions it, then reads', async () => {
