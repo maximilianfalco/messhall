@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   let navigation = Navigation()
   let settings = AppSettings.shared
   lazy var notifier = Notifier(settings: settings)
+  lazy var hotkey = GlobalHotkey { [unowned self] in show(nil) }
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
@@ -41,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     Task { await store.run(client) }
     #if DEBUG
+      // A shot app must not take the real app's keys.
+      if !ShotHooks.isShot { trackHotkey() }
       if let text = UserDefaults.standard.string(forKey: "shotPost") {
         Task { await ShotHooks.post(text, store: store, client: client) }
       }
@@ -64,7 +67,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       if let file = UserDefaults.standard.string(forKey: "shotSettings") {
         Task { await ShotHooks.openSettings(numberInto: file) }
       }
+      if UserDefaults.standard.bool(forKey: "shotMenu") { Task { await ShotHooks.openMenu() } }
+      if let file = UserDefaults.standard.string(forKey: "shotHotkey") {
+        Task { await ShotHooks.pressHotkey(hotkey, settings: settings, logTo: file) }
+      }
+    #else
+      trackHotkey()
     #endif
+  }
+
+  func applicationWillTerminate(_ notification: Notification) {
+    hotkey.unregister()
+  }
+
+  /// Holds the keys from Settings, and swaps them each time they change there.
+  private func trackHotkey() {
+    withObservationTracking {
+      hotkey.register(settings.snapshot.hotkey.registration)
+    } onChange: {
+      Task { @MainActor [weak self] in self?.trackHotkey() }
+    }
   }
 
   nonisolated func userNotificationCenter(

@@ -10,6 +10,7 @@ import {
   checkShotHome,
   isAccessory,
   leftoverApps,
+  MENU_LAYERS,
   pickWindow,
   seedShotRooms,
   shotArgs,
@@ -25,6 +26,10 @@ describe('pickWindow', () => {
 
   it('picks a window floated for a recording but never the menu bar label', () => {
     expect(pickWindow(['10 25 48 24', '12 3 980 640'].join('\n'))).toBe(12);
+  });
+
+  it('picks the open menu bar menu when asked for the menu layer', () => {
+    expect(pickWindow(['10 25 48 24', '11 101 207 128', '12 0 980 640'].join('\n'), MENU_LAYERS)).toBe(11);
   });
 
   it('gives undefined when the app has no window yet', () => {
@@ -240,6 +245,21 @@ describe('shotArgs', () => {
     expect(shotArgs({ appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' })).toStrictEqual(
       expect.arrayContaining(['-shotDraft', 'thanks @', '-shotRoom', 'checkout']),
     );
+  });
+
+  it('opens the menu bar menu for the menu shot', () => {
+    expect(shotArgs({ appearance: 'light', menuOpen: true, name: 'menu-open-light' })).toStrictEqual(
+      expect.arrayContaining(['-shotMenu', 'YES']),
+    );
+  });
+
+  it('presses a hotkey the real app never holds and has the app log the steps', () => {
+    const args = shotArgs({ appearance: 'light', hotkey: true, name: 'hotkey-light' });
+
+    expect(args[args.indexOf('-shotHotkey') + 1]).toMatch(/demo\/out\/shots\/hotkey-light\.hotkey$/);
+    expect(JSON.parse(JSON.parse(args[args.indexOf('-appSettings') + 1] ?? ''))).toStrictEqual({
+      hotkey: { key: '9', modifiers: 'controlOptionCommand' },
+    });
   });
 
   it('has the app draw the sheet into the shot file itself', () => {

@@ -1,5 +1,6 @@
 import Carbon.HIToolbox
 import Foundation
+import SwiftUI
 
 /// The modifier sets the hotkey can use. Each holds control, option or command, so it never eats plain typing.
 public enum HotkeyModifiers: String, Codable, CaseIterable, Sendable {
@@ -13,6 +14,16 @@ public enum HotkeyModifiers: String, Codable, CaseIterable, Sendable {
     case .optionCommand: "⌥⌘"
     case .shiftCommand: "⇧⌘"
     case .controlOptionCommand: "⌃⌥⌘"
+    }
+  }
+
+  var eventModifiers: SwiftUI.EventModifiers {
+    switch self {
+    case .controlOption: [.control, .option]
+    case .controlCommand: [.control, .command]
+    case .optionCommand: [.option, .command]
+    case .shiftCommand: [.shift, .command]
+    case .controlOptionCommand: [.control, .option, .command]
     }
   }
 
@@ -64,6 +75,12 @@ public struct Hotkey: Codable, Equatable, Sendable {
   }
 
   public var label: String { modifiers.symbols + key }
+
+  /// The same keys drawn beside Open Messhall in the menu bar menu.
+  public var shortcut: KeyboardShortcut? {
+    guard registration != nil, let character = key.lowercased().first else { return nil }
+    return KeyboardShortcut(KeyEquivalent(character), modifiers: modifiers.eventModifiers)
+  }
 
   /// Nil when off or when the key is not one Settings offers.
   public var registration: HotkeyRegistration? {

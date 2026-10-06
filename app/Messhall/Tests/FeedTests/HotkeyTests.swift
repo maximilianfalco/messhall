@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import Feed
@@ -68,6 +69,19 @@ struct HotkeyTests {
 
     #expect(hotkey.registration?.modifiers == flags)
     #expect(hotkey.label == "\(symbols)K")
+  }
+
+  @Test("the menu shows the same keys, and none while off")
+  func menuShortcut() {
+    var hotkey = Hotkey()
+    #expect(hotkey.shortcut == KeyboardShortcut("m", modifiers: [.control, .option]))
+
+    hotkey.modifiers = .shiftCommand
+    hotkey.key = "7"
+    #expect(hotkey.shortcut == KeyboardShortcut("7", modifiers: [.shift, .command]))
+
+    hotkey.enabled = false
+    #expect(hotkey.shortcut == nil)
   }
 
   @Test("a stored blob keeps the hotkey turned off")
