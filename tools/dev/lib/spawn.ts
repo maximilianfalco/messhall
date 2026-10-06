@@ -81,6 +81,7 @@ export function spawnPlan({ id, listing }: { id: string; listing: string }) {
 // Every seated agent joins, says hello and waits for the orchestrator or the human to give it a role.
 function seatLines({ name, room, until = '' }: { name: string; room: string; until?: string }) {
   return [
+    `Read the using-messhall skill first.`,
     `Use the messhall tools for your seat, not a fifo or a script: join #${room} as ${name} now, post one line saying who you are, and keep the seat, never call leave${until}.`,
     `Then do nothing else until orchestrator or human posts "@${name} your role: ...", and check it with list_members (assign_role sets it there).`,
     `If no role comes in ${ROLE_WAIT_MIN} minutes, post "@orchestrator what is my role?" and wait again.`,

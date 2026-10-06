@@ -121,6 +121,7 @@ describe('spawnPrompt', () => {
 describe('seatPrompt', () => {
   it('seats a named agent that waits for its role, then follows the agent brief', () => {
     const prompt = seatPrompt({ name: 'reviewer-1', room: 'dev' });
+    expect(prompt).toContain('Read the using-messhall skill first.');
     expect(prompt).toContain('join #dev as reviewer-1');
     expect(prompt).toContain('never call leave');
     expect(prompt).toContain('do nothing else until orchestrator or human posts "@reviewer-1 your role: ..."');
