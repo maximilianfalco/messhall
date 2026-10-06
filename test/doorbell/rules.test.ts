@@ -2,7 +2,7 @@ import type { Member, Message } from '../../contracts/room.ts';
 
 import { describe, expect, it } from 'vitest';
 
-import { ringsFor, ringText } from '../../src/doorbell/rules.js';
+import { activeLately, ringsFor, ringText } from '../../src/doorbell/rules.js';
 
 const T0 = Date.parse('2026-01-01T10:00:00.000Z');
 const at = (ms: number) => new Date(T0 + ms).toISOString();
@@ -77,13 +77,8 @@ describe('ringsFor', () => {
     expect(rung({ message: message({ from: 'api', mentions: ['human', 'web'] }) })).toStrictEqual(['web']);
   });
 
-  it('skips a member active in the last 5 s', () => {
+  it('still rings a member active in the last 5 s, the batcher holds it', () => {
     const members = [member({ name: 'api' }), member({ last_seen_at: at(56_000), name: 'web', presence: 'active' })];
-    expect(rung({ members, message: message({ from: 'api', mentions: ['web'] }) })).toStrictEqual([]);
-  });
-
-  it('rings a member active 5 s ago or more', () => {
-    const members = [member({ name: 'api' }), member({ last_seen_at: at(55_000), name: 'web', presence: 'active' })];
     expect(rung({ members, message: message({ from: 'api', mentions: ['web'] }) })).toStrictEqual(['web']);
   });
 
@@ -140,5 +135,15 @@ describe('ringText', () => {
     ],
   ])('writes %j as one line', (rooms, expected) => {
     expect(ringText({ rooms })).toBe(expected);
+  });
+});
+
+describe('activeLately', () => {
+  it.each([
+    ['active 4 s ago', member({ last_seen_at: at(56_000), name: 'web', presence: 'active' }), true],
+    ['active 5 s ago', member({ last_seen_at: at(55_000), name: 'web', presence: 'active' }), false],
+    ['idle', member({ last_seen_at: at(59_000), name: 'web' }), false],
+  ])('%s', (_label, seat, expected) => {
+    expect(activeLately({ member: seat, now: NOW })).toBe(expected);
   });
 });

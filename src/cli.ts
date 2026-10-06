@@ -1,6 +1,8 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 import { Command } from 'commander';
 
+import { registerClaude } from './cli/claude.js';
+import { registerCodex } from './cli/codex.js';
 import { registerDaemon } from './cli/daemon.js';
 import { registerInstall } from './cli/install.js';
 import { registerLogs } from './cli/logs.js';
@@ -31,6 +33,8 @@ const program = new Command()
   registerDaemon,
   registerUninstall,
   registerMcp,
+  registerClaude,
+  registerCodex,
 ].forEach(register => register(program));
 
 await program.parseAsync(process.argv);
