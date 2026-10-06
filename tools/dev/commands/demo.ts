@@ -7,7 +7,16 @@ import path from 'node:path';
 
 import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { shellLine } from '../../../src/lib/shell.js';
-import { claudeArgv, launchClaude, pane, tmux, typePrompt, until, writeMcpConfig } from '../lib/claudeTmux.js';
+import {
+  claudeArgv,
+  launchClaude,
+  pane,
+  stuckLine,
+  tmux,
+  typePrompt,
+  until,
+  writeMcpConfig,
+} from '../lib/claudeTmux.js';
 import {
   DEMO_ALLOWED_TOOLS,
   DEMO_ROLES,
@@ -111,7 +120,16 @@ async function liveRun({ argv, debugFile, home, launch, note, repo, session, tim
 
   const prompted = Date.now();
   const deadline = prompted + timeoutS * 1000;
-  await Promise.all(DEMO_ROLES.map(role => typePrompt(session(role), demoPrompt(role))));
+  const typed = await Promise.all(
+    DEMO_ROLES.map(role =>
+      timed(`${role} prompt sent`, async () => {
+        const sent = (await typePrompt(session(role), demoPrompt(role))) === 'sent';
+        return { detail: sent ? 'input box empty' : stuckLine(session(role)), pass: sent };
+      }),
+    ),
+  );
+  steps.push(...typed);
+  if (typed.some(step => !step.pass)) return steps;
   note('both prompts typed');
 
   const joined = await until(deadline, () => {

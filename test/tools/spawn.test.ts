@@ -2,8 +2,13 @@ import type { Runner } from '../../tools/dev/commands/spawn.js';
 import type { launchClaude } from '../../tools/dev/lib/claudeTmux.js';
 import type { RunResult } from '../../tools/dev/lib/run.js';
 
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
+import { KEY_FILES } from '../../src/daemon/keys.js';
 import { flockStop, nudgeRun, seatRun, seatThenAssign, spawnRun } from '../../tools/dev/commands/spawn.js';
 import { claudeArgv } from '../../tools/dev/lib/claudeTmux.js';
 import {
@@ -317,6 +322,26 @@ describe('seatRun', () => {
     expect(outcome.report).toContain('tmux session messhall-seat-reviewer-1');
     expect(outcome.report).toContain('join #dev as reviewer-1');
     expect(launch).not.toHaveBeenCalled();
+  });
+
+  it('stops the session and fails when the seat prompt is stuck in the box', async () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-seat-'));
+    writeFileSync(path.join(dataDir, KEY_FILES.agent), 'scratch-key');
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('')));
+    const outcome = await seatRun({
+      dataDir,
+      dryRun: false,
+      launch: () => Promise.resolve('registered'),
+      model: 'opus',
+      name: 'scratch-seat',
+      room: 'dev',
+      tmux,
+      type: () => Promise.resolve('stuck'),
+      url: 'http://127.0.0.1:1',
+    });
+    expect(outcome.code).toBe(1);
+    expect(outcome.report).toContain('stuck');
+    expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-seat-scratch-seat']);
   });
 
   it.each([['Reviewer 1'], ['human'], ['orchestrator-but-way-too-long-for-a-member-name']])(

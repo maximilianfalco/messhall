@@ -10,7 +10,7 @@ import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
-import { launchClaude, tmux as runTmux, typePrompt, until, writeMcpConfig } from '../lib/claudeTmux.js';
+import { launchClaude, tmux as runTmux, stuckLine, typePrompt, until, writeMcpConfig } from '../lib/claudeTmux.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 import { reviewQueue } from '../lib/review.js';
@@ -213,7 +213,10 @@ export async function spawnRun({
     await runTmux(['kill-session', '-t', session]);
     return giveBack(`claude did not come up (${ready})`);
   }
-  await typePrompt(session, prompt);
+  if ((await typePrompt(session, prompt)) === 'stuck') {
+    await runTmux(['kill-session', '-t', session]);
+    return giveBack(stuckLine(session));
+  }
   lines.push(
     ok(`claude on ${model} in tmux session ${session}, prompt typed`),
     dim(`it joins #${room} as ${slug}. watch: tmux attach -t ${session}, list: pnpm messhall-dev flock`),
@@ -247,6 +250,8 @@ export async function seatRun({
   model,
   name,
   room,
+  tmux = runTmux,
+  type = typePrompt,
   url,
 }: {
   dataDir: string;
@@ -255,6 +260,8 @@ export async function seatRun({
   model: string;
   name: string;
   room: string;
+  tmux?: Runner;
+  type?: typeof typePrompt;
   url: string;
 }) {
   if (!NAME_PATTERN.test(name) || (RESERVED_NAMES as readonly string[]).includes(name)) {
@@ -284,10 +291,13 @@ export async function seatRun({
   writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), url });
   const ready = await launch({ argv, cwd, debugFile, note: line => console.error(dim(line)), session });
   if (ready !== 'registered') {
-    await runTmux(['kill-session', '-t', session]);
+    await tmux(['kill-session', '-t', session]);
     return { code: 1, report: bad(`claude did not come up (${ready})`) };
   }
-  await typePrompt(session, prompt);
+  if ((await type(session, prompt)) === 'stuck') {
+    await tmux(['kill-session', '-t', session]);
+    return { code: 1, report: bad(stuckLine(session)) };
+  }
   return {
     code: 0,
     report: [
@@ -356,12 +366,10 @@ export async function nudgeRun({
 }) {
   const found = await tmux(['has-session', '-t', session]);
   if (found.code !== 0) return { code: 1, report: bad(`no tmux session ${session}`) };
-  try {
-    await typePrompt(session, text, { run: tmux, settleMs });
-    return { code: 0, report: ok(`sent to ${session}`) };
-  } catch (error) {
-    return { code: 1, report: bad(error instanceof Error ? error.message : String(error)) };
-  }
+  const typed = await typePrompt(session, text, { run: tmux, settleMs });
+  return typed === 'sent'
+    ? { code: 0, report: ok(`sent to ${session}`) }
+    : { code: 1, report: bad(stuckLine(session)) };
 }
 
 /** Open review requests in `room`: the latest round per PR, who asked, who is named, and answered, waiting or stale. */

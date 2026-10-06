@@ -109,26 +109,29 @@ export function inputText(screen: string) {
 }
 
 /**
- * Types `text` into the session, then sends a lone Enter until the input box is empty.
+ * Types `text` into the session, then sends a lone Enter until the input box is empty, at most 5 times.
  * Text and Enter in one burst read as a paste, so the Enter turns into a newline and the prompt sits unsent.
  */
 export async function typePrompt(
   session: string,
   text: string,
   { run: send = tmux, settleMs = SETTLE_MS }: { run?: typeof tmux; settleMs?: number } = {},
-) {
+): Promise<'sent' | 'stuck'> {
   await send(['send-keys', '-t', session, '-l', text]);
-  const submit = async (triesLeft: number): Promise<void> => {
-    if (!triesLeft) {
-      throw new Error(`the prompt is stuck in the input box of tmux session ${session} after ${SUBMIT_TRIES} enters`);
-    }
+  const submit = async (triesLeft: number): Promise<'sent' | 'stuck'> => {
+    if (!triesLeft) return 'stuck';
     await sleep(settleMs);
     await send(['send-keys', '-t', session, 'Enter']);
     await sleep(settleMs);
-    if (inputText((await send(['capture-pane', '-p', '-e', '-t', session])).stdout)) await submit(triesLeft - 1);
+    const left = inputText((await send(['capture-pane', '-p', '-e', '-t', session])).stdout);
+    return left ? submit(triesLeft - 1) : 'sent';
   };
-  await submit(SUBMIT_TRIES);
+  return submit(SUBMIT_TRIES);
 }
+
+/** The error line for a prompt that is still in the input box after every Enter. */
+export const stuckLine = (session: string) =>
+  `the prompt is stuck in the input box of tmux session ${session} after ${SUBMIT_TRIES} enters`;
 
 /** Starts `argv` in tmux in `cwd`, answers the trust and dev channel dialogs, waits for the channel to register. */
 export async function launchClaude({

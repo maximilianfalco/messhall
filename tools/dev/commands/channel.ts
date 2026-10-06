@@ -16,6 +16,7 @@ import {
   launchClaude,
   pane,
   readText,
+  stuckLine,
   tmux,
   typePrompt,
   until,
@@ -102,7 +103,7 @@ export async function channelRun({ as, keep, quiet, room }: ChannelOptions) {
     note('channel registered');
 
     const prompt = `Join #${room} on messhall as ${as}, then end your turn. Do not call wait. When a messhall doorbell arrives, call read_since and reply to the mention with one short post.`;
-    await typePrompt(session, prompt);
+    if ((await typePrompt(session, prompt)) === 'stuck') throw new Error(stuckLine(session));
 
     const joined = await until(Date.now() + JOIN_WITHIN_MS, () => {
       const state = memberState({ home, name: as, room });
