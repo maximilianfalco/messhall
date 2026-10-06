@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { joinInputSchema } from '../../../contracts/mcp.ts';
 import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
-import { ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
+import { clientType, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
 import { memberLabel } from '../render.js';
 
 import { refuse, registerRoomTool, reply } from './registry.js';
@@ -25,20 +25,9 @@ export function roleFromFolder(folder: string) {
   return NAME_PATTERN.test(name) ? name : undefined;
 }
 
-/** The agent kind a client name points at, so the doorbell knows how to ring it. */
-export function kindFromClient(name: string | undefined): AgentKind {
-  const lower = name?.toLowerCase() ?? '';
-  if (lower.includes('claude')) return 'claude';
-  if (lower.includes('codex')) return 'codex';
-  return 'other';
-}
-
-// Clients past Claude Code that take Claude Channels. A bridge like mcp-remote adds a suffix to the name.
-const CHANNEL_CLIENTS = ['crush'];
-
-/** True when the doorbell can ring this session over the Claude channel. */
+/** True when the doorbell can ring this session over the Claude channel. A bridge suffix on the name is fine. */
 export function ringsByChannel({ client, kind }: { client: string | undefined; kind: AgentKind }) {
-  return kind === 'claude' || CHANNEL_CLIENTS.includes(client?.toLowerCase().split(' ')[0] ?? '');
+  return kind === 'claude' || (client ? clientType(client).channel : false);
 }
 
 // Asks the client for its roots on the call's own stream. Any failure means no default name.
@@ -67,15 +56,15 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
     if (held && held !== as) {
       return refuse(`you are already in #${input.room} as ${held}. call leave first to join under another name.`);
     }
-    const client = server.server.getClientVersion()?.name;
-    const kind = input.kind ?? kindFromClient(client);
+    const client = server.server.getClientVersion();
+    const kind = input.kind ?? (client ? clientType(client.name).kind : 'other');
     // A thread codex has not loaded is a closed TUI, so it cannot be rung.
     const read = input.thread_id ? await codex.request('thread/read', { threadId: input.thread_id }) : undefined;
     const threadId = read?.ok && read.result.thread.status.type !== 'notLoaded' ? input.thread_id : undefined;
 
     let reconnected = false;
     if (!held) {
-      const joined = store.joinRoom({ as, kind, room: input.room });
+      const joined = store.joinRoom({ as, client, kind, room: input.room });
       if (!joined.ok && joined.reason === 'name_reserved') {
         return refuse(`${RESERVED_NAMES.join(', ')} are reserved. pick another name.`);
       }
@@ -87,7 +76,14 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
     }
     const newest = store.listMessages({ limit: 1, room: input.room });
     const mark = newest.ok ? (newest.messages.at(-1)?.id ?? 0) : 0;
-    session.bind({ channel: ringsByChannel({ client, kind }), kind, mark, name: as, room: input.room, threadId });
+    session.bind({
+      channel: ringsByChannel({ client: client?.name, kind }),
+      kind,
+      mark,
+      name: as,
+      room: input.room,
+      threadId,
+    });
 
     const members = store.listMembers(input.room);
     const me = members.find(member => member.name === as)!;

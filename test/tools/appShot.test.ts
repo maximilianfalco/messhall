@@ -63,11 +63,13 @@ describe('seedShotRooms', () => {
       ['docs-sync', true, 'writer', false],
       ['release-notes', true, 'human', true],
     ]);
-    expect(members.map(member => `${member.name} ${member.kind} ${member.presence}`)).toStrictEqual([
-      'api claude active',
-      'human human idle',
-      'qa other idle',
-      'web codex waiting',
+    expect(
+      members.map(member => `${member.name} ${member.kind} ${member.presence} ${member.client_label}`),
+    ).toStrictEqual([
+      'api claude active claude',
+      'human human idle null',
+      'qa other idle opencode',
+      'web codex waiting codex',
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
     expect(docs.ok && docs.messages.length).toBeGreaterThan(20);

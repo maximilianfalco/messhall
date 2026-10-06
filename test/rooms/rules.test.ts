@@ -8,6 +8,9 @@ const T0 = '2026-01-01T10:00:00.000Z';
 const minutes = (count: number) => new Date(Date.parse(T0) + count * 60_000);
 
 const member = (fields: Partial<Member> & Pick<Member, 'name'>): Member => ({
+  client_label: null,
+  client_name: null,
+  client_version: null,
   cursor: 0,
   done: false,
   joined_at: T0,

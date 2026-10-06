@@ -22,21 +22,39 @@ describe('list_members', () => {
     expect(result.isError).toBe(false);
     expect(result.text.split('\n')).toStrictEqual([
       '#checkout, 2 members:',
-      '- api (other, active), last seen 2026-01-01T10:00:00.000Z',
+      '- api (messhall-in-memory 0.1.0, active), last seen 2026-01-01T10:00:00.000Z',
       '- human (human, idle), last seen 2026-01-01T10:00:00.000Z',
     ]);
   });
 
   it('marks a codex member without a working thread as having no doorbell', async () => {
-    const rung = await harness.agent();
+    const rung = await harness.agent({ name: 'codex' });
     await rung.call('join', { as: 'api', kind: 'codex', room: 'checkout', thread_id: LIVE_THREAD });
-    const unrung = await harness.agent();
+    const unrung = await harness.agent({ name: 'codex' });
     await unrung.call('join', { as: 'web', kind: 'codex', room: 'checkout' });
 
     const result = await unrung.call('list_members', { room: 'checkout' });
 
-    expect(result.text).toContain('- api (codex, active), last seen');
-    expect(result.text).toContain('- web (codex (no doorbell), active, you), last seen');
+    expect(result.text).toContain('- api (codex 0.1.0, active), last seen');
+    expect(result.text).toContain('- web (codex 0.1.0 (no doorbell), active, you), last seen');
+  });
+
+  it('shows the client label and version each agent sent at initialize', async () => {
+    const web = await harness.agent({ name: 'opencode', version: '1.18.34' });
+    await web.call('join', { as: 'web', room: 'checkout' });
+
+    const result = await web.call('list_members', { room: 'checkout' });
+
+    expect(result.text).toContain('- web (opencode 1.18.34, active, you), last seen');
+  });
+
+  it('shows the first word of an unknown client', async () => {
+    const web = await harness.agent({ name: 'Cursor Agent', version: '2.0' });
+    await web.call('join', { as: 'web', room: 'checkout' });
+
+    const result = await web.call('list_members', { room: 'checkout' });
+
+    expect(result.text).toContain('- web (Cursor 2.0, active, you), last seen');
   });
 
   it('says when the room does not exist', async () => {
@@ -64,9 +82,9 @@ describe('list_rooms', () => {
     expect(result.text.split('\n')).toStrictEqual([
       '2 rooms:',
       '#billing open, made by web, topic none, 0/200 posts, last activity 2026-01-01T10:01:00.000Z',
-      '  members: human (human, idle), web (other, active)',
+      '  members: human (human, idle), web (messhall-in-memory 0.1.0, active)',
       '#checkout open, made by api, topic none, 1/200 posts, last activity 2026-01-01T10:00:00.000Z',
-      '  members: api (other, active), human (human, idle)',
+      '  members: api (messhall-in-memory 0.1.0, active), human (human, idle)',
     ]);
   });
 

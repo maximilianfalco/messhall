@@ -25,12 +25,16 @@ export function mcpHarness() {
   const clients: Client[] = [];
   const codex = fakeCodexRpc({ threads: { [CLOSED_THREAD]: 'notLoaded', [LIVE_THREAD]: 'idle' } });
 
-  async function agent({ name: clientName, roots }: { name?: string; roots?: string[] } = {}) {
+  async function agent({
+    name: clientName,
+    roots,
+    version,
+  }: { name?: string; roots?: string[]; version?: string } = {}) {
     const session = createSession({ id: `session-${clients.length + 1}`, now: scratch.clock.now });
     sessions.add({ session });
     const client = await connectInMemory(
       () => createMesshallServer({ codex, now: scratch.clock.now, session, sessions, store: scratch.store }),
-      { name: clientName, roots },
+      { name: clientName, roots, version },
     );
     clients.push(client);
     const call = async (name: string, args: Record<string, unknown> = {}, options?: RequestOptions) => {

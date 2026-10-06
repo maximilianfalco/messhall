@@ -123,4 +123,39 @@ describe('openDb', () => {
     ]);
     db.close();
   });
+  it('gives members and stored member events an empty client when it adds the client columns', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    MIGRATIONS.slice(0, 4).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = 4;
+      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
+      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence) VALUES ('r1', 'api', 'claude', 't0', 't0', 'active');
+      INSERT INTO events (kind, payload, created_at) VALUES
+        ('member', '{"type":"member","change":"joined","room":"demo","member":{"name":"api"}}', 't0'),
+        ('presence', '{"type":"presence","name":"api"}', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect({ ...db.prepare('select client_name, client_version from members').get() }).toStrictEqual({
+      client_name: null,
+      client_version: null,
+    });
+    expect(
+      db
+        .prepare('select payload from events order by seq')
+        .all()
+        .map(row => JSON.parse(String(row.payload))),
+    ).toStrictEqual([
+      {
+        change: 'joined',
+        member: { client_label: null, client_name: null, client_version: null, name: 'api' },
+        room: 'demo',
+        type: 'member',
+      },
+      { name: 'api', type: 'presence' },
+    ]);
+    db.close();
+  });
 });

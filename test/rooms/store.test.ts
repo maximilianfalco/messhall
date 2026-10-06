@@ -56,6 +56,30 @@ describe('joinRoom', () => {
     expect(texts('demo')).toStrictEqual(['messhall: api joined']);
   });
 
+  it('keeps the client name and version, labeled from the known clients', () => {
+    store().joinRoom({ as: 'web', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'demo' });
+
+    expect(store().listMembers('demo')).toMatchObject([
+      { client_label: null, client_name: null, client_version: null, name: 'human' },
+      { client_label: 'opencode', client_name: 'opencode', client_version: '1.18.34', name: 'web' },
+    ]);
+  });
+
+  it('labels an unknown client with the first word of its name', () => {
+    store().joinRoom({ as: 'web', client: { name: 'Cursor Agent', version: '2.0' }, kind: 'other', room: 'demo' });
+
+    expect(store().listMembers('demo')[1]).toMatchObject({ client_label: 'Cursor', client_name: 'Cursor Agent' });
+  });
+
+  it('takes the new client on a rejoin', () => {
+    store().joinRoom({ as: 'web', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'demo' });
+    store().leaveRoom({ as: 'web', room: 'demo' });
+
+    store().joinRoom({ as: 'web', client: { name: 'crush', version: '0.97.1' }, kind: 'other', room: 'demo' });
+
+    expect(store().listMembers('demo')[1]).toMatchObject({ client_name: 'crush', client_version: '0.97.1' });
+  });
+
   it('rejects a second live member with the same name and suggests another', () => {
     store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
 

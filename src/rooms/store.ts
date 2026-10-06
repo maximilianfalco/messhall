@@ -16,6 +16,7 @@ import {
 } from '../../contracts/room.ts';
 import { DEFAULT_MESSAGE_CAP, READ_LIMIT, SEARCH_LIMIT } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
+import { clientType } from '../mcp/constants.js';
 
 import { createEventBus } from './events.js';
 import { capState, nextPresence, parseMentions } from './rules.js';
@@ -45,7 +46,12 @@ const IS_POST = "kind IN ('chat', 'done')";
 
 const withStanding = (row: Row) => ({ ...row, standing: row.standing === 1 });
 const toRoom = (row: Row) => roomSchema.parse(withStanding(row));
-const toMember = (row: Row) => memberSchema.parse({ ...row, done: row.done === 1 });
+const toMember = (row: Row) =>
+  memberSchema.parse({
+    ...row,
+    client_label: row.client_name ? clientType(String(row.client_name)).label : null,
+    done: row.done === 1,
+  });
 const toMessage = (row: Row) =>
   messageSchema.parse({ ...row, from: row.from_name, mentions: parseStoredJson(String(row.mentions)) });
 
@@ -70,7 +76,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     countPosts: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST}`),
     countPostsUpTo: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST} AND id <= ?`),
     insertMember: db.prepare(
-      'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, client_name, client_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ),
     insertMessage: db.prepare(
       'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
@@ -91,7 +97,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
-      "UPDATE members SET kind = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
+      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
     ),
     reopen: db.prepare('UPDATE rooms SET closed_at = NULL, message_cap = ? WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
@@ -155,7 +161,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   function addHuman(room: Room, emit: Emit) {
     const existing = findMember(room, HUMAN_NAME);
     if (existing) return existing;
-    sql.insertMember.run(room.id, HUMAN_NAME, 'human', stamp(), stamp(), 'idle', 0);
+    sql.insertMember.run(room.id, HUMAN_NAME, 'human', stamp(), stamp(), 'idle', 0, null, null);
     const member = findMember(room, HUMAN_NAME)!;
     emit({ change: 'joined', member, room: room.name, type: 'member' });
     return member;
@@ -267,7 +273,17 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
      * cursor ("reconnected"), a live holder gives `name_taken` with a free name to try. A closed
      * standing room waits for the human to reopen it.
      */
-    joinRoom({ as, kind, room: roomName }: { as: string; kind: AgentKind; room: string }) {
+    joinRoom({
+      as,
+      client,
+      kind,
+      room: roomName,
+    }: {
+      as: string;
+      client?: { name: string; version: string };
+      kind: AgentKind;
+      room: string;
+    }) {
       if (isReserved(as)) return { ok: false, reason: 'name_reserved' } as const;
       return transaction(emit => {
         const room = findRoom(roomName) ?? makeRoom({ createdBy: as, name: roomName }, emit);
@@ -279,8 +295,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const change: MemberChange = existing?.left_at === null ? 'reconnected' : 'joined';
         // A new member starts where the latest summary stands, so its first read is that summary.
         const cursor = Number(latestSummaryRow(room)?.covers_id ?? 0);
-        if (existing) sql.rejoin.run(kind, stamp(), room.id, as);
-        else sql.insertMember.run(room.id, as, kind, stamp(), stamp(), 'active', cursor);
+        const [name, version] = [client?.name ?? null, client?.version ?? null];
+        if (existing) sql.rejoin.run(kind, name, version, stamp(), room.id, as);
+        else sql.insertMember.run(room.id, as, kind, stamp(), stamp(), 'active', cursor, name, version);
         const member = findMember(room, as)!;
         emit({ change, member, room: room.name, type: 'member' });
         systemLine(room, `${as} ${change}`, emit);

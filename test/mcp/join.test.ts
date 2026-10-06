@@ -17,16 +17,16 @@ afterEach(async () => {
 describe('join', () => {
   it('binds the name to the session and returns members, unseen count and the two rule lines', async () => {
     await harness.joined('checkout', 'web');
-    const api = await harness.agent();
+    const api = await harness.agent({ name: 'claude-code', version: '2.1.289' });
 
-    const result = await api.call('join', { as: 'api', kind: 'claude', room: 'checkout' });
+    const result = await api.call('join', { as: 'api', room: 'checkout' });
 
     expect(result.isError).toBe(false);
     expect(api.session.rooms.get('checkout')).toBe('api');
     expect(api.session.kind).toBe('claude');
     expect(result.text).toContain('joined #checkout as api');
-    expect(result.text).toContain('api (claude, active, you)');
-    expect(result.text).toContain('web (other, active)');
+    expect(result.text).toContain('api (claude 2.1.289, active, you)');
+    expect(result.text).toContain('web (messhall-in-memory 0.1.0, active)');
     expect(result.text).toContain('human (human, idle)');
     expect(result.text).toContain('0 unseen. call read_since to read them.');
     expect(result.text.split('\n').filter(line => line.startsWith('rules: '))).toHaveLength(2);
@@ -205,6 +205,27 @@ describe('join', () => {
     await other.call('join', { as: 'web', room: 'checkout' });
 
     expect(other.session.channel).toBe(false);
+  });
+
+  it('stores the client name and version the agent sent at initialize', async () => {
+    const crush = await harness.agent({ name: 'crush (via mcp-remote 0.14.3)', version: '0.97.1' });
+
+    await crush.call('join', { as: 'web', room: 'checkout' });
+
+    expect(harness.store.listMembers('checkout').find(member => member.name === 'web')).toMatchObject({
+      client_label: 'crush',
+      client_name: 'crush (via mcp-remote 0.14.3)',
+      client_version: '0.97.1',
+      kind: 'other',
+    });
+  });
+
+  it('reads the kind from the known clients when the agent passes none', async () => {
+    const codex = await harness.agent({ name: 'codex-mcp-client' });
+
+    await codex.call('join', { as: 'web', room: 'checkout' });
+
+    expect(codex.session.kind).toBe('codex');
   });
 
   it('leaves the doorbell line out for other kinds', async () => {

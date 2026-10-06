@@ -8,10 +8,14 @@ import { KEY_HEADER } from '../daemon/keys.js';
 /** Links a server to a client in the same process. With `roots`, the client answers roots/list with them. */
 export async function connectInMemory(
   createServer: () => McpServer,
-  { name = 'messhall-in-memory', roots }: { name?: string; roots?: string[] } = {},
+  {
+    name = 'messhall-in-memory',
+    roots,
+    version = CLI_VERSION,
+  }: { name?: string; roots?: string[]; version?: string } = {},
 ) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name, version: CLI_VERSION }, roots ? { capabilities: { roots: {} } } : {});
+  const client = new Client({ name, version }, roots ? { capabilities: { roots: {} } } : {});
   if (roots) client.setRequestHandler('roots/list', () => ({ roots: roots.map(uri => ({ uri })) }));
   await createServer().connect(serverTransport);
   await client.connect(clientTransport);

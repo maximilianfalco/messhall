@@ -16,7 +16,7 @@ const clip = (text: string) => {
   return flat.length > TEXT_MAX ? `${flat.slice(0, TEXT_MAX - 1)}…` : flat;
 };
 
-/** A room's state and who made it, its members with presence and cursor, then its last messages.
+/** A room's state and who made it, its members with client, presence and cursor, then its last messages.
  * Read only from `<dataDir>/messhall.db`. */
 export function roomReport({
   dataDir,
@@ -41,7 +41,7 @@ export function roomReport({
       .get(roomId);
     const members = db
       .prepare(
-        'SELECT name, kind, presence, cursor, last_seen_at, left_at FROM members WHERE room_id = ? ORDER BY name',
+        'SELECT name, kind, client_name, client_version, presence, cursor, last_seen_at, left_at FROM members WHERE room_id = ? ORDER BY name',
       )
       .all(roomId);
     const messages = db
@@ -53,10 +53,11 @@ export function roomReport({
       `#${name} ${state}, ${Number(posts?.n)}/${Number(room.message_cap)} posts, made by ${String(room.created_by)}, ${room.standing === 1 ? 'standing' : 'not standing'}`,
       '',
       formatTable(
-        ['member', 'kind', 'presence', 'cursor', 'last seen', 'left'],
+        ['member', 'kind', 'client', 'presence', 'cursor', 'last seen', 'left'],
         members.map(row => [
           String(row.name),
           String(row.kind),
+          [row.client_name, row.client_version].filter(part => part !== null).join(' '),
           String(row.presence),
           String(row.cursor),
           String(row.last_seen_at),
@@ -81,7 +82,7 @@ export function roomReport({
 export function registerRoom(program: Command) {
   program
     .command('room <name>')
-    .description("Show a room's members with presence and cursor, and its last messages.")
+    .description("Show a room's members with client, presence and cursor, and its last messages.")
     .option('--url <url>', 'daemon to check is up', daemonUrl())
     .option('--data-dir <dir>', "the daemon's data dir, read only until the feed has a read route", defaultDataDir())
     .option('--limit <n>', 'how many messages to show', String(LAST_MESSAGES))
