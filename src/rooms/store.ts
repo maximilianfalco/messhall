@@ -133,6 +133,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'SELECT name, paused_with, paused_at FROM members WHERE room_id = ? AND paused_with IS NOT NULL',
     ),
     pause: db.prepare('UPDATE members SET paused_with = ?, paused_at = ? WHERE room_id = ? AND name = ?'),
+    duePauses: db.prepare(
+      'SELECT members.*, rooms.name AS room_name FROM members JOIN rooms ON rooms.id = members.room_id WHERE paused_with IS NOT NULL AND (paused_at IS NULL OR paused_at <= ?) ORDER BY rooms.name, members.name',
+    ),
+    endPause: db.prepare('UPDATE members SET paused_with = NULL WHERE room_id = ? AND name = ?'),
+    lastUnreadFrom: db.prepare(
+      `SELECT * FROM messages WHERE room_id = ? AND from_name = ? AND id > ? AND ${IS_POST} ORDER BY id DESC LIMIT 1`,
+    ),
+    pausedAt: db.prepare('SELECT paused_at FROM members WHERE room_id = ? AND name = ?'),
     unpause: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ? AND name IN (?, ?)'),
     unpauseAll: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ?'),
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
@@ -303,7 +311,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   // Two agents trading lines alone pause each other once, and the human hears about it in the same write.
   // A run counts only lines after the poster's last pause began, so an ended pause does not fire again at once.
   function guardLoop(room: Room, from: string, emit: Emit) {
-    const since = pauses(room).find(pause => pause.name === from)?.at ?? '';
+    const since = String(sql.pausedAt.get(room.id, from)?.paused_at ?? '');
     const posts = sql.lastPosts
       .all(room.id, LOOP_GUARD_BACKSTOP)
       .map(toMessage)
@@ -660,6 +668,22 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       const room = findRoom(roomName);
       const row = room && latestSummaryRow(room);
       return row ? toMessage(row) : undefined;
+    },
+
+    /**
+     * Ends every pause older than 5 minutes. Returns, for each member of a pair, the latest line from its partner it
+     * has not read, since lines posted during the pause rang nobody. The pause start stays, so the next run counts from it.
+     */
+    endPauses() {
+      return transaction(() => {
+        const cutoff = new Date(now().getTime() - LOOP_GUARD_PAUSE_MS).toISOString();
+        return sql.duePauses.all(cutoff).flatMap(row => {
+          const roomId = String(row.room_id);
+          sql.endPause.run(roomId, String(row.name));
+          const missed = sql.lastUnreadFrom.get(roomId, String(row.paused_with), Number(row.cursor));
+          return missed ? [{ message: toMessage(missed), room: String(row.room_name) }] : [];
+        });
+      });
     },
 
     /** Who each paused member is paused with in a room. Lines between them ring nobody until the pause ends. */

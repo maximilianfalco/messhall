@@ -1,3 +1,4 @@
+import type { Message } from '../../contracts/room.ts';
 import type { RoomStore } from '../rooms/store.js';
 import type { RingBatch, SetTimer } from './batch.js';
 import type { Ringers } from './ringer.js';
@@ -6,7 +7,7 @@ import { logger } from '../lib/logger.js';
 
 import { createBatcher, realTimer } from './batch.js';
 
-/** Rings members as messages land in the store. Returns a function that stops it. */
+/** Rings members as messages land in the store, and for lines a loop guard pause held back once it ends. */
 export function startDoorbell({
   now,
   ringers,
@@ -28,18 +29,22 @@ export function startDoorbell({
     );
   };
   const batcher = createBatcher({ deliver, members: room => store.listMembers(room), now, setTimer });
-  const off = store.events.on(({ event }) => {
-    if (event.type !== 'message') return;
-    const room = store.listRooms().find(item => item.name === event.room);
+  const add = ({ message, room }: { message: Message; room: string }) =>
     batcher.add({
-      closed: room?.closed_at !== null,
-      message: event.message,
-      pausedWith: store.pausedWith(event.room),
-      room: event.room,
+      closed: store.listRooms().find(item => item.name === room)?.closed_at !== null,
+      message,
+      pausedWith: store.pausedWith(room),
+      room,
     });
+  const off = store.events.on(({ event }) => {
+    if (event.type === 'message') add(event);
   });
-  return () => {
-    off();
-    batcher.stop();
+  return {
+    /** Ends due loop guard pauses and rings each of the pair for the partner line it missed. Called on the sweep. */
+    endPauses: () => store.endPauses().forEach(add),
+    stop: () => {
+      off();
+      batcher.stop();
+    },
   };
 }

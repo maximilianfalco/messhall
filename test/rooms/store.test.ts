@@ -1278,6 +1278,23 @@ describe('the loop guard', () => {
     expect(loopLines()).toHaveLength(1);
   });
 
+  it('ends due pauses on the sweep and hands back the partner line each of the pair has not read', () => {
+    joinBoth();
+    trade(12);
+    store().readUnseen({ as: 'api', room: 'demo' });
+    const missed = post('web', '@api your turn');
+
+    scratch.clock.advance(5 * 60_000 - 1);
+    expect(store().endPauses()).toStrictEqual([]);
+    scratch.clock.advance(1);
+    expect(store().endPauses()).toStrictEqual([
+      { message: missed, room: 'demo' },
+      { message: expect.objectContaining({ from: 'api', text: 'line 11' }), room: 'demo' },
+    ]);
+    expect(store().endPauses()).toStrictEqual([]);
+    expect(store().pausedWith('demo')).toStrictEqual({});
+  });
+
   it('ends the pause by itself after 5 minutes, and counts afresh after it', () => {
     joinBoth();
     trade(12);
