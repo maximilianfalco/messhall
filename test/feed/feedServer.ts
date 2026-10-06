@@ -12,6 +12,7 @@ import { KEY_FILES, KEY_HEADER, loadKeys } from '../../src/daemon/keys.js';
 import { createRouter } from '../../src/daemon/router.js';
 import { feedRoutes } from '../../src/feed/routes.js';
 import { createSpawner } from '../../src/flock/spawner.js';
+import { parseStoredJson } from '../../src/lib/json.js';
 import { scratchStore } from '../rooms/scratch.js';
 
 /** A timer the test moves by hand. Ticks fire when the elapsed time crosses their interval. */
@@ -53,13 +54,28 @@ export async function feedServer() {
   const timer = fakeEvery();
   const tmux = vi.fn<Tmux>(() => Promise.resolve({ code: 0, stderr: '', stdout: '' }));
   const spawner = createSpawner({
+    dataDir: scratch.dataDir,
     pollMs: 1,
     readyWithinMs: 50,
     settleMs: 0,
     shell: '/bin/zsh',
     store: scratch.store,
     tmux,
+    url: 'http://127.0.0.1:7791',
   });
+  // Plays the spawned claude: its first call carries the seat key from the mcp config the spawner wrote.
+  const seatOnStart = () =>
+    tmux.mockImplementation(args => {
+      if (args[0] === 'new-session') {
+        const file = path.join(scratch.dataDir, 'spawn', 'demo-api-mcp.json');
+        const config = parseStoredJson(readFileSync(file, 'utf8')) as {
+          mcpServers: { messhall: { headers: Record<string, string> } };
+        };
+        const seatKey = config.mcpServers.messhall.headers['x-messhall-seat'];
+        scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey });
+      }
+      return Promise.resolve({ code: 0, stderr: '', stdout: '' });
+    });
   const server: Server = createServer(
     createRouter(feedRoutes({ every: timer.every, keys, now: scratch.clock.now, spawner, store: scratch.store })),
   );
@@ -79,6 +95,7 @@ export async function feedServer() {
     },
     headers: (kind: KeyKind) => ({ [KEY_HEADER]: keyOf(kind) }),
     scratch,
+    seatOnStart,
     timer,
     tmux,
     url: `http://127.0.0.1:${port}`,

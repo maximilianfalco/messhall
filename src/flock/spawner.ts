@@ -3,18 +3,20 @@ import type { Launch } from '../../contracts/room.ts';
 import type { RoomStore } from '../rooms/store.js';
 import type { Tmux } from './tmux.js';
 
-import { statSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { SPAWN_READY_MS } from '../config.js';
+import { KEY_FILES, KEY_HEADER } from '../daemon/keys.js';
 import { shellLine } from '../lib/shell.js';
-import { SEAT_ENV, SERVER_NAME } from '../mcp/constants.js';
+import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
 import { dialogKeys, typePrompt, until, tmux as runTmux } from './tmux.js';
 
 export const SESSION_PREFIX = 'messhall-';
+export const SPAWN_DIR = 'spawn';
 const SETTLE_MS = 1000;
 const PANE_FORMAT = '#{session_name}\t#{pane_pid}';
 
@@ -45,19 +47,22 @@ const codexPrompt = ({ invite, name, room }: Seat & { invite: string }) =>
     `Then call my_role for #${room} and follow the instructions it returns. Keep your seat, never call leave.`,
   ].join(' ');
 
-/** The agent argv, built only from fixed parts, the checked model and daemon-made names.
- * Codex has no per-process header, so its invite rides in its first prompt; claude sends its seat key from env. */
+/** The agent argv, built only from fixed parts, the checked model and daemon-made names and paths.
+ * Codex has no per-process header, so its invite rides in its first prompt; claude reads its seat from `mcpConfig`. */
 export function agentArgv({
   agent,
   invite,
+  mcpConfig,
   model,
   name,
   room,
-}: Seat & { agent: Launch['agent']; invite: string; model?: string }) {
+}: Seat & { agent: Launch['agent']; invite: string; mcpConfig: string; model?: string }) {
   const modelArgs = model ? ['--model', model] : [];
   if (agent === 'codex') return ['codex', ...modelArgs, codexPrompt({ invite, name, room })];
   return [
     'claude',
+    '--mcp-config',
+    mcpConfig,
     '--dangerously-load-development-channels',
     `server:${SERVER_NAME}`,
     '--allowedTools',
@@ -70,40 +75,60 @@ export function agentArgv({
 export function tmuxStartArgs({
   argv,
   cwd,
-  seatKey,
   session,
   shell,
 }: {
   argv: string[];
   cwd: string;
-  seatKey?: string;
   session: string;
   shell: string;
 }) {
-  const env = seatKey ? ['-e', `${SEAT_ENV}=${seatKey}`] : [];
   const size = ['-x', '200', '-y', '50'];
-  return ['new-session', '-d', '-s', session, ...size, '-c', cwd, ...env, shellLine([shell, '-lic', shellLine(argv)])];
+  return ['new-session', '-d', '-s', session, ...size, '-c', cwd, shellLine([shell, '-lic', shellLine(argv)])];
 }
+
+/** The `--mcp-config` json for a spawned claude: this daemon's url, the agent key and the seat key.
+ * It beats the user's own messhall entry, so the seat works on any port and with an older install. */
+export const mcpConfigJson = ({ key, seatKey, url }: { key: string; seatKey: string; url: string }) =>
+  JSON.stringify({
+    mcpServers: {
+      [SERVER_NAME]: { headers: { [KEY_HEADER]: key, [SEAT_HEADER]: seatKey }, type: 'http', url: `${url}/mcp` },
+    },
+  });
 
 const isFolder = (dir: string) =>
   path.isAbsolute(dir) && Boolean(statSync(dir, { throwIfNoEntry: false })?.isDirectory());
 
 /** Starts agents for invites in detached tmux sessions, answers their known dialogs and lists or stops them. */
 export function createSpawner({
+  dataDir,
   pollMs,
   readyWithinMs = SPAWN_READY_MS,
   settleMs = SETTLE_MS,
   shell = userInfo().shell ?? '/bin/zsh',
   store,
   tmux = runTmux,
+  url,
 }: {
+  dataDir: string;
   pollMs?: number;
   readyWithinMs?: number;
   settleMs?: number;
   shell?: string;
   store: RoomStore;
   tmux?: Tmux;
+  url: string;
 }) {
+  const spawnDir = path.join(dataDir, SPAWN_DIR);
+  const configFile = ({ name, room }: Seat) => path.join(spawnDir, `${room}-${name}-mcp.json`);
+
+  // 0600, since it holds the agent key.
+  const writeConfig = (seat: Seat, seatKey: string) => {
+    const key = readFileSync(path.join(dataDir, KEY_FILES.agent), 'utf8').trim();
+    mkdirSync(spawnDir, { recursive: true });
+    writeFileSync(configFile(seat), mcpConfigJson({ key, seatKey, url }), { mode: 0o600 });
+  };
+
   const presenceOf = ({ name, room }: Seat) => store.listMembers(room).find(member => member.name === name)?.presence;
 
   // Answers dialogs until the agent's first call takes the seat, or a login screen or the deadline stops it.
@@ -126,8 +151,14 @@ export function createSpawner({
     return ready ?? 'timeout';
   };
 
+  const stop = async (seat: Seat) => {
+    const killed = await tmux(['kill-session', '-t', sessionName(seat)]);
+    rmSync(configFile(seat), { force: true });
+    return killed.code === 0;
+  };
+
   const giveUp = async (seat: Seat) => {
-    await tmux(['kill-session', '-t', sessionName(seat)]);
+    await stop(seat);
     store.removeMember({ member: seat.name, room: seat.room });
   };
 
@@ -147,12 +178,13 @@ export function createSpawner({
       if (!invited.ok) return invited;
       const seat = { name, room };
       const session = sessionName(seat);
-      const argv = agentArgv({ ...seat, agent: launch.agent, invite: invited.seatKey, model: launch.model });
-      const seatKey = launch.agent === 'claude' ? invited.seatKey : undefined;
-      await tmux(['kill-session', '-t', session]);
-      const started = await tmux(tmuxStartArgs({ argv, cwd: launch.cwd, seatKey, session, shell }));
+      const { agent, cwd, model } = launch;
+      const argv = agentArgv({ ...seat, agent, invite: invited.seatKey, mcpConfig: configFile(seat), model });
+      await stop(seat);
+      if (agent === 'claude') writeConfig(seat, invited.seatKey);
+      const started = await tmux(tmuxStartArgs({ argv, cwd, session, shell }));
       if (started.code !== 0) {
-        store.removeMember({ member: name, room });
+        await giveUp(seat);
         return { detail: started.stderr.trim(), ok: false, reason: 'tmux' } as const;
       }
       const ready = await waitSeated(seat);
@@ -160,7 +192,7 @@ export function createSpawner({
         await giveUp(seat);
         return { ok: false, reason: ready } as const;
       }
-      if (launch.agent === 'claude') {
+      if (agent === 'claude') {
         const typed = await typePrompt(session, seatedPrompt({ ...seat, role }), { run: tmux, settleMs });
         if (typed === 'stuck') {
           await giveUp(seat);
@@ -172,11 +204,8 @@ export function createSpawner({
       return { member, ok: true, session } as const;
     },
 
-    /** Kills the seat's tmux session, if it has one. */
-    async stop(seat: Seat) {
-      const killed = await tmux(['kill-session', '-t', sessionName(seat)]);
-      return killed.code === 0;
-    },
+    /** Kills the seat's tmux session, if it has one, and removes its mcp config. */
+    stop,
 
     /** Every seat started from an invite, in `room` or in every room, with its session and whether it runs. */
     async list({ room }: { room?: string }) {

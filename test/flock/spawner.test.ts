@@ -1,12 +1,14 @@
 import type { Tmux } from '../../src/flock/tmux.js';
 
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { loadKeys } from '../../src/daemon/keys.js';
 import { agentArgv, createSpawner, sessionName, tmuxStartArgs } from '../../src/flock/spawner.js';
+import { parseStoredJson } from '../../src/lib/json.js';
 import { shellLine } from '../../src/lib/shell.js';
 import { scratchStore } from '../rooms/scratch.js';
 
@@ -22,6 +24,7 @@ let cwd: string;
 beforeEach(() => {
   scratch = scratchStore();
   scratch.store.createRoom({ created_by: 'human', name: 'demo' });
+  loadKeys({ dataDir: scratch.dataDir });
   cwd = mkdtempSync(path.join(tmpdir(), 'messhall-spawn-cwd-'));
 });
 
@@ -35,7 +38,13 @@ const memberOf = (name: string) =>
   store()
     .listMembers('demo')
     .find(member => member.name === name);
-const seatKeyIn = (args: string[]) => args[args.indexOf('-e') + 1]?.replace('MESSHALL_SEAT=', '');
+const configFile = () => path.join(scratch.dataDir, 'spawn', 'demo-api-mcp.json');
+const seatKeyInConfig = () =>
+  (
+    parseStoredJson(readFileSync(configFile(), 'utf8')) as {
+      mcpServers: { messhall: { headers: Record<string, string>; url: string } };
+    }
+  ).mcpServers.messhall;
 const calls = (tmux: ReturnType<typeof vi.fn<Tmux>>) => tmux.mock.calls.map(([args]) => args);
 
 function fakeTmux({
@@ -65,7 +74,18 @@ function fakeTmux({
 }
 
 const spawner = (tmux: Tmux) =>
-  createSpawner({ pollMs: 1, readyWithinMs: 50, settleMs: 0, shell: '/bin/zsh', store: store(), tmux });
+  createSpawner({
+    dataDir: scratch.dataDir,
+    pollMs: 1,
+    readyWithinMs: 50,
+    settleMs: 0,
+    shell: '/bin/zsh',
+    store: store(),
+    tmux,
+    url: 'http://127.0.0.1:7791',
+  });
+const seatFromConfig = () =>
+  store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: seatKeyInConfig().headers['x-messhall-seat'] });
 
 const spawnApi = (tmux: Tmux, input: { agent?: 'claude' | 'codex'; cwd?: string; instructions?: string } = {}) =>
   spawner(tmux).spawn({
@@ -78,9 +98,20 @@ const spawnApi = (tmux: Tmux, input: { agent?: 'claude' | 'codex'; cwd?: string;
   });
 
 describe('agentArgv', () => {
-  it('starts claude with the messhall channel, its tools allowed and the model', () => {
-    expect(agentArgv({ agent: 'claude', invite: 'key-1', model: 'opus', name: 'api', room: 'demo' })).toStrictEqual([
+  it('starts claude on its own mcp config with the messhall channel, its tools allowed and the model', () => {
+    expect(
+      agentArgv({
+        agent: 'claude',
+        invite: 'key-1',
+        mcpConfig: '/d/spawn/demo-api-mcp.json',
+        model: 'opus',
+        name: 'api',
+        room: 'demo',
+      }),
+    ).toStrictEqual([
       'claude',
+      '--mcp-config',
+      '/d/spawn/demo-api-mcp.json',
       '--dangerously-load-development-channels',
       'server:messhall',
       '--allowedTools',
@@ -90,12 +121,21 @@ describe('agentArgv', () => {
     ]);
   });
 
-  it('keeps the seat key out of the claude argv, since claude sends it from its env', () => {
-    expect(agentArgv({ agent: 'claude', invite: 'key-1', name: 'api', room: 'demo' }).join(' ')).not.toContain('key-1');
+  it('keeps the seat key out of the claude argv, since claude sends it from its mcp config', () => {
+    const argv = agentArgv({ agent: 'claude', invite: 'key-1', mcpConfig: '/d/c.json', name: 'api', room: 'demo' });
+
+    expect(argv.join(' ')).not.toContain('key-1');
   });
 
   it('starts codex with a first prompt that joins with the invite and reads the role', () => {
-    const argv = agentArgv({ agent: 'codex', invite: 'key-1', model: 'gpt-6', name: 'api', room: 'demo' });
+    const argv = agentArgv({
+      agent: 'codex',
+      invite: 'key-1',
+      mcpConfig: '/d/c.json',
+      model: 'gpt-6',
+      name: 'api',
+      room: 'demo',
+    });
 
     expect(argv.slice(0, 3)).toStrictEqual(['codex', '--model', 'gpt-6']);
     expect(argv[3]).toContain('join #demo as api');
@@ -105,12 +145,10 @@ describe('agentArgv', () => {
 });
 
 describe('tmuxStartArgs', () => {
-  it('runs the argv in a login shell in a detached session in cwd, with the seat key in its env', () => {
+  it('runs the argv in a login shell in a detached session in cwd', () => {
     const argv = ['claude', '--model', 'opus'];
 
-    expect(
-      tmuxStartArgs({ argv, cwd: '/work/api', seatKey: 'key-1', session: 'messhall-demo-api', shell: '/bin/zsh' }),
-    ).toStrictEqual([
+    expect(tmuxStartArgs({ argv, cwd: '/work/api', session: 'messhall-demo-api', shell: '/bin/zsh' })).toStrictEqual([
       'new-session',
       '-d',
       '-s',
@@ -121,8 +159,6 @@ describe('tmuxStartArgs', () => {
       '50',
       '-c',
       '/work/api',
-      '-e',
-      'MESSHALL_SEAT=key-1',
       shellLine(['/bin/zsh', '-lic', shellLine(argv)]),
     ]);
   });
@@ -150,14 +186,7 @@ describe('createSpawner', () => {
   });
 
   it('answers the dialog, waits for the seat to be taken, then types the first prompt', async () => {
-    let key: string | undefined;
-    const tmux = fakeTmux({
-      onAnswer: () => store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: key }),
-      onStart: args => {
-        key = seatKeyIn(args);
-      },
-      pane: CHANNELS,
-    });
+    const tmux = fakeTmux({ onAnswer: seatFromConfig, pane: CHANNELS });
 
     const outcome = await spawnApi(tmux);
 
@@ -169,7 +198,17 @@ describe('createSpawner', () => {
     expect(sent[1]?.[4]).toContain('call my_role');
   });
 
-  it('starts codex with no seat key in its env and waits for its join with the invite', async () => {
+  it('writes the seat mcp config 0600 with this daemon url, the agent key and the seat key', async () => {
+    await spawnApi(fakeTmux({ onStart: seatFromConfig }));
+
+    const server = seatKeyInConfig();
+    expect(statSync(configFile()).mode.toString(8).slice(-3)).toBe('600');
+    expect(server.url).toBe('http://127.0.0.1:7791/mcp');
+    expect(server.headers['x-messhall-key']).toBe(readFileSync(path.join(scratch.dataDir, 'agent-key'), 'utf8').trim());
+    expect(store().seatsOf(server.headers['x-messhall-seat']!)).toMatchObject([{ name: 'api', room: 'demo' }]);
+  });
+
+  it('starts codex with no mcp config file and waits for its join with the invite', async () => {
     const tmux = fakeTmux({
       onStart: args => {
         const invite = /invite set to (\S+?)\./.exec(args.at(-1) ?? '')?.[1];
@@ -180,18 +219,12 @@ describe('createSpawner', () => {
     const outcome = await spawnApi(tmux, { agent: 'codex' });
 
     expect(outcome).toMatchObject({ ok: true });
-    expect(calls(tmux).find(args => args[0] === 'new-session')).not.toContain('-e');
+    expect(existsSync(configFile())).toBe(false);
     expect(calls(tmux).some(args => args.includes('-l'))).toBe(false);
   });
 
   it('never puts the instructions in any tmux call', async () => {
-    let key: string | undefined;
-    const tmux = fakeTmux({
-      onStart: args => {
-        key = seatKeyIn(args);
-        store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: key });
-      },
-    });
+    const tmux = fakeTmux({ onStart: seatFromConfig });
 
     await spawnApi(tmux, { instructions: HOSTILE });
 
@@ -199,13 +232,14 @@ describe('createSpawner', () => {
     expect(store().roleOf({ name: 'api', room: 'demo' })).toMatchObject({ instructions: HOSTILE });
   });
 
-  it('kills the session and drops the invite when the seat is never taken', async () => {
+  it('kills the session, removes the config and drops the invite when the seat is never taken', async () => {
     const tmux = fakeTmux({});
 
     const outcome = await spawnApi(tmux);
 
     expect(outcome).toStrictEqual({ ok: false, reason: 'timeout' });
     expect(calls(tmux).at(-1)).toStrictEqual(['kill-session', '-t', 'messhall-demo-api']);
+    expect(existsSync(configFile())).toBe(false);
     expect(memberOf('api')).toBeUndefined();
   });
 

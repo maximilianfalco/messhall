@@ -26,22 +26,12 @@ const store = () => feed.scratch.store;
 const plain = (result: { output: string }) => stripVTControlCharacters(result.output);
 const shared = () => ({ dataDir: feed.scratch.dataDir, fetch, url: feed.url });
 
-function seatOnStart() {
-  feed.tmux.mockImplementation(args => {
-    if (args[0] === 'new-session') {
-      const seatKey = args[args.indexOf('-e') + 1]?.replace('MESSHALL_SEAT=', '');
-      store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey });
-    }
-    return Promise.resolve({ code: 0, stderr: '', stdout: '' });
-  });
-}
-
 const spawn = (overrides: Partial<Parameters<typeof runSpawn>[0]> = {}) =>
   runSpawn({ ...shared(), cwd, name: 'api', role: 'worker', room: 'demo', ...overrides });
 
 describe('runSpawn', () => {
   it('seats the agent with its role and names the session to attach to', async () => {
-    seatOnStart();
+    feed.seatOnStart();
 
     const result = await spawn();
 
@@ -51,7 +41,7 @@ describe('runSpawn', () => {
   });
 
   it('reads instructions from a file when the value is a path', async () => {
-    seatOnStart();
+    feed.seatOnStart();
     const file = path.join(cwd, 'worker.md');
     writeFileSync(file, 'build the api\n');
 

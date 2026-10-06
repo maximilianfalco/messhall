@@ -464,17 +464,9 @@ describe('POST /api/rooms/:name/spawn', () => {
   });
 
   const spawnBody = (body: Record<string, unknown> = {}) => ({ cwd, name: 'api', role: 'worker', ...body });
-  const seatOnStart = () =>
-    feed.tmux.mockImplementation(args => {
-      if (args[0] === 'new-session') {
-        const seatKey = args[args.indexOf('-e') + 1]?.replace('MESSHALL_SEAT=', '');
-        store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey });
-      }
-      return Promise.resolve({ code: 0, stderr: '', stdout: '' });
-    });
 
   it('starts the agent in tmux and answers 201 with its seat and session', async () => {
-    seatOnStart();
+    feed.seatOnStart();
 
     const res = await human('/api/rooms/demo/spawn', spawnBody({ instructions: 'build the api', model: 'opus' }));
 
