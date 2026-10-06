@@ -9,6 +9,7 @@ import { CLI_VERSION, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
 import { feedRoutes } from '../feed/routes.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
+import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 
@@ -89,11 +90,13 @@ export async function startDaemon({
   const keys = loadKeys({ dataDir });
   const db = openDb({ dataDir });
   const store = createRoomStore({ db, now });
+  const mcp = createMcpEndpoint({ now, store });
   const startedAt = now().getTime();
 
-  // MCP mounts at /mcp here.
+  // MCP mounts at /mcp and the feed under /api here.
   const routes: Route[] = [
     { handle: (_req, res) => sendJson(res, 200, health({ now, startedAt, store })), method: 'GET', path: '/health' },
+    ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
     ...feedRoutes({ keys, now, store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
@@ -104,15 +107,17 @@ export async function startDaemon({
     } catch (error) {
       logger.error(asError(error), { message: 'presence sweep failed' });
     }
+    mcp.sweep().catch((error: unknown) => logger.error(asError(error), { message: 'mcp session sweep failed' }));
   }, sweepEveryMs);
 
   const url = `http://${DAEMON_HOST}:${bound.port}`;
   logger.info('daemon up', { data_dir: dataDir, pid: process.pid, port: bound.port, url, version: CLI_VERSION });
 
   const daemon = {
-    /** Stops the sweep, drops open connections and closes the db. */
+    /** Stops the sweep, ends every MCP session, drops open connections and closes the db. */
     async close() {
       clearInterval(sweep);
+      await mcp.close();
       await new Promise<void>(resolve => {
         server.close(() => resolve());
         server.closeAllConnections();
@@ -120,6 +125,8 @@ export async function startDaemon({
       db.close();
     },
     port: bound.port,
+    /** The live MCP sessions holding a name in a room, for the doorbell. */
+    sessionsFor: mcp.sessionsFor,
     url,
   };
   return { daemon, ok: true } as const;
