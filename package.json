@@ -14,7 +14,7 @@
     "lint:types": "tsc --noEmit",
     "format": "oxlint --config oxlint.config.ts --fix; oxfmt --config oxfmt.config.ts --write",
     "format:check": "oxfmt --config oxfmt.config.ts --check",
-    "messhall-dev": "tsx tools/dev/cli.ts"
+    "messhall-dev": "tsx --disable-warning=ExperimentalWarning tools/dev/cli.ts"
   },
   "packageManager": "pnpm@10.15.0",
   "engines": {

@@ -1,0 +1,120 @@
+import type { Member, Message } from '../../contracts/room.ts';
+
+import { describe, expect, it } from 'vitest';
+
+import { capState, concerns, nextPresence, parseMentions } from '../../src/rooms/rules.js';
+
+const T0 = '2026-01-01T10:00:00.000Z';
+const minutes = (count: number) => new Date(Date.parse(T0) + count * 60_000);
+
+const member = (fields: Partial<Member> & Pick<Member, 'name'>): Member => ({
+  cursor: 0,
+  done: false,
+  joined_at: T0,
+  kind: 'claude',
+  last_seen_at: T0,
+  left_at: null,
+  presence: 'active',
+  room_id: 'r1',
+  ...fields,
+});
+
+const message = (fields: Partial<Message> & Pick<Message, 'from'>): Message => ({
+  created_at: T0,
+  id: 1,
+  kind: 'chat',
+  mentions: [],
+  room_id: 'r1',
+  text: 'hi',
+  ...fields,
+});
+
+const ROOM = [member({ kind: 'human', name: 'human' }), member({ name: 'api' }), member({ name: 'web' })];
+
+describe('parseMentions', () => {
+  it.each([
+    ['@web the schema moved', ['web']],
+    ['@web, @api: look', ['web', 'api']],
+    ['ping @web and @web again', ['web']],
+    ['@all wrap up', ['all']],
+    ['mail a@b.com or x@web.io', []],
+    ['@ghost is not here', []],
+    ['@WEB is not a name', []],
+  ])('reads %j as %j', (text, expected) => {
+    expect(parseMentions({ names: ['api', 'web', 'human'], text })).toStrictEqual(expected);
+  });
+});
+
+describe('concerns', () => {
+  const three = [...ROOM, member({ name: 'infra' })];
+
+  it('concerns a mentioned member', () => {
+    expect(concerns({ member: three[2]!, members: three, message: message({ from: 'api', mentions: ['web'] }) })).toBe(
+      true,
+    );
+  });
+
+  it('concerns everyone on @all', () => {
+    const msg = message({ from: 'api', mentions: ['all'] });
+    expect(
+      three.filter(m => m.name !== 'api').map(m => concerns({ member: m, members: three, message: msg })),
+    ).toStrictEqual([true, true, true]);
+  });
+
+  it('concerns everyone when the human posts', () => {
+    expect(concerns({ member: three[1]!, members: three, message: message({ from: 'human' }) })).toBe(true);
+  });
+
+  it('concerns the only other agent in a room of two', () => {
+    expect(concerns({ member: ROOM[2]!, members: ROOM, message: message({ from: 'api' }) })).toBe(true);
+  });
+
+  it('skips an unmentioned agent in a room of three', () => {
+    expect(concerns({ member: three[2]!, members: three, message: message({ from: 'api' }) })).toBe(false);
+  });
+
+  it('skips the poster', () => {
+    expect(concerns({ member: ROOM[1]!, members: ROOM, message: message({ from: 'api', mentions: ['all'] }) })).toBe(
+      false,
+    );
+  });
+
+  it('skips daemon lines', () => {
+    expect(concerns({ member: ROOM[1]!, members: ROOM, message: message({ from: 'messhall', kind: 'system' }) })).toBe(
+      false,
+    );
+  });
+
+  it('counts only members still in the room', () => {
+    const left = [...ROOM, member({ left_at: T0, name: 'infra' })];
+    expect(concerns({ member: left[2]!, members: left, message: message({ from: 'api' }) })).toBe(true);
+  });
+});
+
+describe('capState', () => {
+  it.each([
+    [0, 200, 'open'],
+    [159, 200, 'open'],
+    [160, 200, 'warn'],
+    [161, 200, 'open'],
+    [199, 200, 'open'],
+    [200, 200, 'full'],
+    [320, 400, 'warn'],
+  ] as const)('reads %i of %i as %s', (count, cap, expected) => {
+    expect(capState({ cap, count })).toBe(expected);
+  });
+});
+
+describe('nextPresence', () => {
+  it.each([
+    ['active', 1, 'active'],
+    ['active', 2, 'idle'],
+    ['waiting', 10, 'waiting'],
+    ['idle', 29, 'idle'],
+    ['idle', 30, 'gone'],
+    ['waiting', 30, 'gone'],
+    ['gone', 1, 'gone'],
+  ] as const)('moves %s after %i minutes to %s', (presence, after, expected) => {
+    expect(nextPresence({ member: member({ name: 'api', presence }), now: minutes(after) })).toBe(expected);
+  });
+});
