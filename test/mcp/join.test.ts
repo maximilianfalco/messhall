@@ -68,6 +68,17 @@ describe('join', () => {
     expect(harness.store.listMembers('checkout').find(member => member.name === 'api')?.cursor).toBe(summary.id - 1);
   });
 
+  it('seats an observer with observe and shows the role in the members line', async () => {
+    const agent = await harness.agent({ name: 'claude-code', version: '2.1.289' });
+
+    const result = await agent.call('join', { as: 'watch', observe: true, room: 'checkout' });
+
+    expect(result.text).toContain('watch (claude 2.1.289, observer, active, you)');
+    expect(result.text).toContain(
+      'your role in #checkout: observer. you read and a mention rings you, but you never count as one of the agents here.',
+    );
+  });
+
   it('defaults the name to the basename of the first root', async () => {
     const agent = await harness.agent({ roots: ['file:///Users/me/Code/Payments_API'] });
 

@@ -393,7 +393,7 @@ struct MemberChip: View {
     .padding(.horizontal, 10)
     .padding(.vertical, 6)
     .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-    .opacity(member.presence.isAway ? 0.6 : 1)
+    .opacity(member.presence.isAway || member.isObserver ? 0.6 : 1)
     .help(member.help(as: member.displayName))
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(member.spokenLabel(as: member.displayName))

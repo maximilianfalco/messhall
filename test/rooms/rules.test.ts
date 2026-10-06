@@ -96,6 +96,43 @@ describe('concerns', () => {
     expect(concerns({ pausedWith: {}, member: ROOM[2]!, members: ROOM, message: message({ from: 'api' }) })).toBe(true);
   });
 
+  it('concerns the other agent and never the observer in a room of two agents and an observer', () => {
+    const members = [...ROOM, member({ name: 'watch', role: 'observer' })];
+    const line = message({ from: 'api' });
+
+    expect(members.map(m => concerns({ member: m, members, message: line, pausedWith: {} }))).toStrictEqual([
+      false,
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it('concerns no agent on an unmentioned observer line', () => {
+    const members = [...ROOM, member({ name: 'watch', role: 'observer' })];
+    const line = message({ from: 'watch' });
+
+    expect(members.map(m => concerns({ member: m, members, message: line, pausedWith: {} }))).toStrictEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('concerns an observer when mentioned', () => {
+    const members = [...ROOM, member({ name: 'watch', role: 'observer' })];
+
+    expect(
+      concerns({
+        member: members[3]!,
+        members,
+        message: message({ from: 'api', mentions: ['watch'] }),
+        pausedWith: {},
+      }),
+    ).toBe(true);
+  });
+
   it('skips an unmentioned agent in a room of three', () => {
     expect(concerns({ pausedWith: {}, member: three[2]!, members: three, message: message({ from: 'api' }) })).toBe(
       false,

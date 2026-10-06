@@ -30,6 +30,12 @@ export const joinInputSchema = z.object({
     .enum(AGENT_KINDS)
     .optional()
     .describe('Which agent you are: claude, codex or other. Guessed from the client when left out.'),
+  observe: z
+    .boolean()
+    .optional()
+    .describe(
+      'True to sit as an observer: you read and get rung by a mention, but never count as one of the two agents or in the all done close.',
+    ),
   room: roomField.describe('Room to join. It is made on first join.'),
   thread_id: z
     .string()
