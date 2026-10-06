@@ -165,18 +165,20 @@ struct MemberChip: View {
 
   var body: some View {
     HStack(spacing: 8) {
-      Image(systemName: member.kind.symbol)
-        .foregroundStyle(.secondary)
-        .frame(width: 16)
+      AvatarView(name: member.name, size: 26)
       VStack(alignment: .leading, spacing: 1) {
         Text(member.displayName)
           .font(.callout.weight(.medium))
         HStack(spacing: 4) {
           PresenceDot(presence: member.presence)
           Text(member.presence.label)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+          if member.kind != .human {
+            Image(systemName: member.kind.symbol)
+              .imageScale(.small)
+          }
         }
+        .font(.caption)
+        .foregroundStyle(.secondary)
       }
     }
     .padding(.horizontal, 10)
@@ -351,18 +353,20 @@ struct ChatRow: View {
   private var isHuman: Bool { message.from == humanName }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 3) {
-      HStack(spacing: 6) {
-        if isHuman { Image(systemName: MemberKind.human.symbol) }
-        Text(isHuman ? youLabel : message.from).fontWeight(.semibold)
-        Text(message.time)
-          .font(.caption)
-          .foregroundStyle(.secondary)
+    HStack(alignment: .top, spacing: 10) {
+      AvatarView(name: message.from)
+      VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 6) {
+          Text(isHuman ? youLabel : message.from).fontWeight(.semibold)
+          Text(message.time)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .foregroundStyle(isHuman ? Color.accentColor : .primary)
+        Text(message.text)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
       }
-      .foregroundStyle(isHuman ? Color.accentColor : .primary)
-      Text(message.text)
-        .textSelection(.enabled)
-        .fixedSize(horizontal: false, vertical: true)
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
