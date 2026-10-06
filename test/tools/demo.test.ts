@@ -7,9 +7,10 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { KEY_HEADER } from '../../src/daemon/keys.js';
+import { shellLine } from '../../src/lib/shell.js';
 import { scratchPort } from '../../tools/dev/commands/daemon.js';
 import { demoRun } from '../../tools/dev/commands/demo.js';
-import { claudeArgv, mcpConfigJson, shellLine } from '../../tools/dev/lib/claudeTmux.js';
+import { claudeArgv, mcpConfigJson } from '../../tools/dev/lib/claudeTmux.js';
 import { demoChecks, repoTest, tokenUsage, writeDemoRepo } from '../../tools/dev/lib/demoCheck.js';
 
 const dirs: string[] = [];

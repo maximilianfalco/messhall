@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { KEY_HEADER } from '../../../src/daemon/keys.js';
+import { shellLine } from '../../../src/lib/shell.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 
 import { run } from './run.js';
@@ -67,11 +68,6 @@ export function claudeArgv({
     '--debug-file',
     debugFile,
   ];
-}
-
-/** Joins argv into one shell line for tmux, single quoting any arg that is not a plain word. */
-export function shellLine(argv: string[]) {
-  return argv.map(arg => (/^[\w./:=@-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`)).join(' ');
 }
 
 export const tmux = (args: string[]) => run('tmux', args, tmpdir());
