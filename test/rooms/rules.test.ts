@@ -223,42 +223,76 @@ describe('concerns with a paused pair', () => {
 });
 
 describe('loopPair', () => {
-  const run = (froms: string[]) => froms.map((from, index) => message({ from, id: index + 1 }));
-  const traded = (count: number) => run(Array.from({ length: count }, (_, index) => (index % 2 ? 'web' : 'api')));
+  const GUARD = { backstop: 40, lines: 12, withinMs: 2 * 60_000 };
+  const run = (froms: string[], gapMs = 1000) =>
+    froms.map((from, index) =>
+      message({ created_at: new Date(Date.parse(T0) + index * gapMs).toISOString(), from, id: index + 1 }),
+    );
+  const traded = (count: number, gapMs?: number) =>
+    run(
+      Array.from({ length: count }, (_, index) => (index % 2 ? 'web' : 'api')),
+      gapMs,
+    );
+  const loop = (posts: Message[]) => loopPair({ ...GUARD, posts });
 
-  it('names the two agents when the last lines are only theirs', () => {
-    expect(loopPair({ lines: 12, posts: traded(12) })).toStrictEqual(['api', 'web']);
+  it('names the two agents when they trade 12 lines alone within 2 minutes', () => {
+    expect(loop(traded(12, 5000))).toStrictEqual({ fast: true, lines: 12, pair: ['api', 'web'] });
+  });
+
+  it('leaves 12 lines over 20 minutes alone', () => {
+    expect(loop(traded(12, 100_000))).toBeNull();
+  });
+
+  it('times only the last 12 lines of a longer run', () => {
+    const slow = traded(20, 100_000);
+    const fast = traded(12, 1000).map((post, index) => ({
+      ...post,
+      created_at: new Date(Date.parse(slow.at(-1)!.created_at) + (index + 1) * 1000).toISOString(),
+      id: 21 + index,
+    }));
+    expect(loop([...slow, ...fast])).toMatchObject({ fast: true, pair: ['api', 'web'] });
+  });
+
+  it('fires on 40 slow lines alone as a backstop', () => {
+    expect(loop(traded(39, 100_000))).toBeNull();
+    expect(loop(traded(40, 100_000))).toStrictEqual({ fast: false, lines: 40, pair: ['api', 'web'] });
   });
 
   it('waits for the full run', () => {
-    expect(loopPair({ lines: 12, posts: traded(11) })).toBeNull();
+    expect(loop(traded(11))).toBeNull();
   });
 
   it('looks only at the last lines', () => {
-    expect(loopPair({ lines: 12, posts: [...run(['infra']), ...traded(11)] })).toBeNull();
-    expect(loopPair({ lines: 12, posts: [...run(['infra']), ...traded(12)] })).toStrictEqual(['api', 'web']);
+    expect(loop([...run(['infra']), ...traded(11)])).toBeNull();
+    expect(loop([...run(['infra']), ...traded(12)])).toMatchObject({ pair: ['api', 'web'] });
   });
 
   it('resets on a third agent in the run', () => {
     const posts = traded(12);
-    posts[6] = message({ from: 'infra', id: 7 });
-    expect(loopPair({ lines: 12, posts })).toBeNull();
+    posts[6] = message({ created_at: posts[6]!.created_at, from: 'infra', id: 7 });
+    expect(loop(posts)).toBeNull();
   });
 
   it('resets on a human line in the run', () => {
     const posts = traded(12);
-    posts[6] = message({ from: 'human', id: 7 });
-    expect(loopPair({ lines: 12, posts })).toBeNull();
+    posts[6] = message({ created_at: posts[6]!.created_at, from: 'human', id: 7 });
+    expect(loop(posts)).toBeNull();
+  });
+
+  it('resets on a line from the pair to the human', () => {
+    const posts = traded(12);
+    posts[6] = { ...posts[6]!, mentions: ['human'] };
+    expect(loop(posts)).toBeNull();
   });
 
   it('resets on a done in the run', () => {
     const posts = traded(12);
-    posts[6] = message({ from: 'api', id: 7, kind: 'done' });
-    expect(loopPair({ lines: 12, posts })).toBeNull();
+    posts[6] = { ...posts[6]!, kind: 'done' };
+    expect(loop(posts)).toBeNull();
   });
 
   it('leaves one agent talking to itself alone', () => {
-    expect(loopPair({ lines: 12, posts: run(Array.from({ length: 12 }, () => 'api')) })).toBeNull();
+    expect(loop(run(Array.from({ length: 12 }, () => 'api')))).toBeNull();
   });
 });
 

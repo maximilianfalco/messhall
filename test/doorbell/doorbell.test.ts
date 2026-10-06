@@ -33,13 +33,13 @@ function setup(scratch: Scratch) {
     due.forEach(timer => timer.fire());
     await Promise.resolve();
   };
-  const stop = startDoorbell({
+  const doorbell = startDoorbell({
     now: scratch.clock.now,
     ringers: createRingers([ringer]),
     setTimer,
     store: scratch.store,
   });
-  return { advance, rung, stop };
+  return { advance, doorbell, rung, stop: doorbell.stop };
 }
 
 describe('createRingers', () => {
@@ -103,6 +103,24 @@ describe('startDoorbell', () => {
     scratch.store.postMessage({ from: 'human', room: 'checkout', text: 'wrap up' });
     await advance(3000);
     expect(rung.map(ring => ring.member.name)).toStrictEqual(['infra', 'web']);
+    stop();
+  });
+
+  it('rings a paused partner for the lines it missed once the pause ends', async () => {
+    Array.from({ length: 12 }, (_, index) =>
+      scratch.store.postMessage({ from: index % 2 ? 'web' : 'api', room: 'checkout', text: 'hi' }),
+    );
+    const { advance, doorbell, rung, stop } = setup(scratch);
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web your turn' });
+    await advance(3000);
+    expect(rung).toStrictEqual([]);
+
+    await advance(5 * 60_000);
+    doorbell.endPauses();
+    await advance(3000);
+    expect(rung.map(ring => [ring.member.name, ring.text])).toStrictEqual([
+      ['web', 'messhall: 1 new in #checkout, api mentioned you. Call read_since.'],
+    ]);
     stop();
   });
 

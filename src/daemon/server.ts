@@ -106,7 +106,7 @@ export async function startDaemon({
     createChannelRinger({ sessionsFor: mcp.sessionsFor }),
     createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),
   ]);
-  const stopDoorbell = startDoorbell({ now, ringers, store });
+  const doorbell = startDoorbell({ now, ringers, store });
   const claude = claudeBin();
   const stopSummaries = startSummaries({ claude: options => askClaude({ ...options, bin: claude }), store });
   const startedAt = now().getTime();
@@ -125,6 +125,7 @@ export async function startDaemon({
       store.sweepPresence();
       store.clearStale();
       store.expireInvites();
+      doorbell.endPauses();
     } catch (error) {
       logger.error(asError(error), { message: 'presence sweep failed' });
     }
@@ -144,7 +145,7 @@ export async function startDaemon({
     /** Stops the sweep, the doorbell and summaries, ends every MCP session, drops open connections and closes the db. */
     async close() {
       clearInterval(sweep);
-      stopDoorbell();
+      doorbell.stop();
       stopSummaries();
       codex.close();
       await mcp.close();

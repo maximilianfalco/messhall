@@ -19,7 +19,16 @@ import {
   TEXT_MAX_CHARS,
   UNASSIGNED_ROLE,
 } from '../../contracts/room.ts';
-import { INVITE_TTL_MS, LOOP_GUARD_LINES, READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
+import {
+  INVITE_TTL_MS,
+  LOOP_GUARD_BACKSTOP,
+  LOOP_GUARD_LINES,
+  LOOP_GUARD_PAUSE_MS,
+  LOOP_GUARD_WITHIN_MS,
+  READ_LIMIT,
+  SEARCH_LIMIT,
+  STALE_AFTER_MS,
+} from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
@@ -120,9 +129,20 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     messagesBefore: db.prepare(
       'SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND id < ? ORDER BY id DESC LIMIT ?) ORDER BY id',
     ),
-    paused: db.prepare('SELECT name, paused_with FROM members WHERE room_id = ? AND paused_with IS NOT NULL'),
-    pause: db.prepare('UPDATE members SET paused_with = ? WHERE room_id = ? AND name = ?'),
-    unpauseAll: db.prepare('UPDATE members SET paused_with = NULL WHERE room_id = ?'),
+    paused: db.prepare(
+      'SELECT name, paused_with, paused_at FROM members WHERE room_id = ? AND paused_with IS NOT NULL',
+    ),
+    pause: db.prepare('UPDATE members SET paused_with = ?, paused_at = ? WHERE room_id = ? AND name = ?'),
+    duePauses: db.prepare(
+      'SELECT members.*, rooms.name AS room_name FROM members JOIN rooms ON rooms.id = members.room_id WHERE paused_with IS NOT NULL AND (paused_at IS NULL OR paused_at <= ?) ORDER BY rooms.name, members.name',
+    ),
+    endPause: db.prepare('UPDATE members SET paused_with = NULL WHERE room_id = ? AND name = ?'),
+    lastUnreadFrom: db.prepare(
+      `SELECT * FROM messages WHERE room_id = ? AND from_name = ? AND id > ? AND ${IS_POST} ORDER BY id DESC LIMIT 1`,
+    ),
+    pausedAt: db.prepare('SELECT paused_at FROM members WHERE room_id = ? AND name = ?'),
+    unpause: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ? AND name IN (?, ?)'),
+    unpauseAll: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ?'),
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
@@ -274,23 +294,49 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     return { member, ok: true } as const;
   }
 
-  const pausedIn = (room: Room) =>
-    Object.fromEntries(sql.paused.all(room.id).map(row => [String(row.name), String(row.paused_with)]));
+  const pauses = (room: Room) =>
+    sql.paused
+      .all(room.id)
+      .map(row => ({ at: String(row.paused_at ?? ''), name: String(row.name), with: String(row.paused_with) }));
+
+  const pausedIn = (room: Room) => {
+    const cutoff = new Date(now().getTime() - LOOP_GUARD_PAUSE_MS).toISOString();
+    return Object.fromEntries(
+      pauses(room)
+        .filter(pause => pause.at > cutoff)
+        .map(pause => [pause.name, pause.with]),
+    );
+  };
 
   // Two agents trading lines alone pause each other once, and the human hears about it in the same write.
-  function guardLoop(room: Room, emit: Emit) {
-    const pair = loopPair({
+  // A run counts only lines after the poster's last pause began, so an ended pause does not fire again at once.
+  function guardLoop(room: Room, from: string, emit: Emit) {
+    const since = String(sql.pausedAt.get(room.id, from)?.paused_at ?? '');
+    const posts = sql.lastPosts
+      .all(room.id, LOOP_GUARD_BACKSTOP)
+      .map(toMessage)
+      .filter(message => message.created_at > since);
+    const found = loopPair({
+      backstop: LOOP_GUARD_BACKSTOP,
       lines: LOOP_GUARD_LINES,
-      posts: sql.lastPosts.all(room.id, LOOP_GUARD_LINES).map(toMessage),
+      posts,
+      withinMs: LOOP_GUARD_WITHIN_MS,
     });
-    if (!pair) return;
-    const [a, b] = pair;
+    if (!found) return;
+    const [a, b] = found.pair;
     const paused = pausedIn(room);
     if (paused[a] === b && paused[b] === a) return;
-    sql.pause.run(b, room.id, a);
-    sql.pause.run(a, room.id, b);
-    const text = `@${HUMAN_NAME} ${a} and ${b} have traded ${LOOP_GUARD_LINES} lines with no one else, their doorbells are paused`;
+    sql.pause.run(b, stamp(), room.id, a);
+    sql.pause.run(a, stamp(), room.id, b);
+    const pace = found.fast ? ` in ${LOOP_GUARD_WITHIN_MS / 60_000} minutes` : '';
+    const text = `@${HUMAN_NAME} ${a} and ${b} have traded ${found.lines} lines${pace} with no one else, their doorbells are paused for ${LOOP_GUARD_PAUSE_MS / 60_000} minutes or until one of them posts to @${HUMAN_NAME}`;
     post(room, SYSTEM_NAME, 'system', text, [HUMAN_NAME], emit);
+  }
+
+  // A paused agent explaining itself to the human lifts its pair's pause.
+  function liftPause(room: Room, from: string) {
+    const partner = pausedIn(room)[from];
+    if (partner) sql.unpause.run(room.id, from, partner);
   }
 
   // Finds the room and a member still in it, the gate every member call goes through.
@@ -624,7 +670,23 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return row ? toMessage(row) : undefined;
     },
 
-    /** Who each paused member is paused with in a room. Lines between them ring nobody until the human posts. */
+    /**
+     * Ends every pause older than 5 minutes. Returns, for each member of a pair, the latest line from its partner it
+     * has not read, since lines posted during the pause rang nobody. The pause start stays, so the next run counts from it.
+     */
+    endPauses() {
+      return transaction(() => {
+        const cutoff = new Date(now().getTime() - LOOP_GUARD_PAUSE_MS).toISOString();
+        return sql.duePauses.all(cutoff).flatMap(row => {
+          const roomId = String(row.room_id);
+          sql.endPause.run(roomId, String(row.name));
+          const missed = sql.lastUnreadFrom.get(roomId, String(row.paused_with), Number(row.cursor));
+          return missed ? [{ message: toMessage(missed), room: String(row.room_name) }] : [];
+        });
+      });
+    },
+
+    /** Who each paused member is paused with in a room. Lines between them ring nobody until the pause ends. */
     pausedWith(roomName: string) {
       const room = findRoom(roomName);
       return room ? pausedIn(room) : {};
@@ -669,7 +731,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         sql.setDone.run(kind === 'done' ? 1 : 0, room.id, from);
         setPresence(room, member, 'active', emit, true);
         if (human) sql.unpauseAll.run(room.id);
-        else guardLoop(room, emit);
+        else {
+          if (message.mentions.includes(HUMAN_NAME)) liftPause(room, from);
+          guardLoop(room, from, emit);
+        }
         if (kind === 'done') closeIfAllDone(room, emit);
         return { message, missing: missingMentions({ names, text }), ok: true } as const;
       });
