@@ -42,6 +42,7 @@ A subagent with no messhall tools works out of sight. `pnpm messhall-dev spawn` 
 ```bash
 pnpm messhall-dev spawn <id> --dry-run                 # print the claim, worktree, claude line and prompt
 pnpm messhall-dev spawn <id> --brief <file>            # claim, worktree, claude in tmux session messhall-<id>
+pnpm messhall-dev spawn <id> --assign worker --instructions docs/briefs/worker.md  # and give it the role once it joins
 pnpm messhall-dev spawn agent --as reviewer-1          # a seat with no row, tmux session messhall-seat-reviewer-1
 pnpm messhall-dev flock                                # sessions, panes, rows, branches, pids, seated or not, role
 pnpm messhall-dev flock stop <id or name>              # kill one, then queue.py release <id> if a row is unfinished
@@ -52,6 +53,7 @@ pnpm messhall-dev agent orchestrator --room dev --say '@reviewer-1 your role: re
 - `spawn <id>` refuses a row that is not `open` or still waits on a need, so it follows the same rules as `claim`. It claims the row and makes the worktree before claude starts, so the agent skips those steps.
 - Flags: `--room dev` (where the agent sits), `--model opus`, `--brief <file>` (the row's brief, else the pickup skill), `--dry-run`. A seat takes `--as <name>`.
 - **Roles come after the join, with their instructions.** Every seated agent joins as its branch slug (`f8/spawn` sits as `f8-spawn`) or its `--as` name, posts a hello line and waits for a role from `orchestrator` or `human`. It reads the role and its instructions with `my_role` and follows them, asks `@orchestrator what is my role?` after 2 minutes, and calls `my_role` again whenever a role line mentions it. Only the human seat or a member whose role is `orchestrator` can set roles, and a member named `orchestrator` gets that role on join.
+- The spawn prompt only seats the agent: no row id, branch or job words. The row, branch and worktree reach it only through its role instructions, which spawn writes to `<data dir>/spawn/<id>-role.md`. With `--assign <role>` spawn sets the role after the join, otherwise it prints the `messhall-dev agent orchestrator --assign` line to run. An agent that has not joined in 2 minutes is reported.
 - The spawn prompt holds no role behaviour. `docs/briefs/worker.md` (the review gate), `reviewer.md` and `orchestrator.md` are example instructions the orchestrator owns, may edit per room and passes with `assign_role`.
 - It targets the real daemon and room on purpose. Watch one with `tmux attach -t messhall-<id>`. Mention it from the room to steer it.
 - If claude never comes up (login screen, timeout), `spawn` kills the session and releases the row.

@@ -4,7 +4,7 @@ import type { RunResult } from '../../tools/dev/lib/run.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { flockStop, seatRun, spawnRun } from '../../tools/dev/commands/spawn.js';
+import { flockStop, seatRun, seatThenAssign, spawnRun } from '../../tools/dev/commands/spawn.js';
 import { claudeArgv } from '../../tools/dev/lib/claudeTmux.js';
 import {
   parseFlock,
@@ -12,8 +12,9 @@ import {
   seatPrompt,
   SPAWN_ALLOWED_TOOLS,
   spawnArgv,
+  assignLine,
+  rowInstructions,
   spawnPlan,
-  spawnPrompt,
 } from '../../tools/dev/lib/spawn.js';
 
 const LISTING = [
@@ -65,49 +66,59 @@ describe('spawnPlan', () => {
   });
 });
 
-describe('spawnPrompt', () => {
-  const base = { branch: 'f8/thing', id: 'B82', room: 'dev', worktree: '/repo/.worktrees/f8-thing' };
+describe('row seat prompt', () => {
+  const prompt = seatPrompt({ name: 'f8-thing', room: 'dev' });
 
-  it('seats the agent, then waits for a role before it touches the row', () => {
-    const prompt = spawnPrompt({ ...base, brief: '/notes/brief.md' });
+  it('only seats the agent and waits for a role', () => {
     expect(prompt).toContain('join #dev as f8-thing');
-    expect(prompt).toContain('never call leave until your work is finished');
     expect(prompt).toContain('do nothing else until orchestrator or human gives you a role');
-    expect(prompt).toContain('call my_role');
     expect(prompt).toContain('follow the instructions it returns');
     expect(prompt).toContain('post "@orchestrator what is my role?"');
     expect(prompt).not.toContain('\n');
   });
 
-  it('gives the row as context: id, branch, claimed worktree and brief', () => {
-    const prompt = spawnPrompt({ ...base, brief: '/notes/brief.md' });
-    expect(prompt).toContain('row B82 of the job queue, branch f8/thing');
-    expect(prompt).toContain('your worktree is /repo/.worktrees/f8-thing');
-    expect(prompt).toContain('its brief is /notes/brief.md');
-    expect(prompt.indexOf('my_role')).toBeLessThan(prompt.indexOf('row B82'));
+  it('carries no row id, branch or job words', () => {
+    expect(prompt).not.toMatch(/B82|f8\/thing|worktree|queue|row|brief|pickup|job|claim/i);
+  });
+
+  it('keeps the agent off the human seat and off scripted clients', () => {
+    expect(prompt).toContain('Never speak as the human: no messhall say, no human key, no human-seat routes.');
+    expect(prompt).toContain('test with your own name or a scratch daemon (pnpm messhall-dev daemon)');
+    expect(prompt).toContain('never through messhall post or messhall-dev agent');
+  });
+});
+
+describe('rowInstructions', () => {
+  const base = { branch: 'f8/thing', id: 'B82', worktree: '/repo/.worktrees/f8-thing' };
+
+  it('names the row, branch, claimed worktree and brief', () => {
+    const text = rowInstructions({ ...base, brief: '/notes/brief.md' });
+    expect(text).toContain('row B82 of the job queue, branch f8/thing');
+    expect(text).toContain('your worktree is /repo/.worktrees/f8-thing');
+    expect(text).toContain('its brief is /notes/brief.md');
   });
 
   it('points at the pickup skill without a brief', () => {
-    expect(spawnPrompt(base)).toContain('/messhall-pickup-any-work B82');
-  });
-
-  it('holds no reviewer or worker policy', () => {
-    const prompt = spawnPrompt(base);
-    expect(prompt).not.toMatch(/ready for review|approved|merge|reviewer/i);
+    expect(rowInstructions(base)).toContain('/messhall-pickup-any-work B82');
   });
 
   it('lets the agent close its own row', () => {
-    expect(spawnPrompt(base)).toContain('you may run queue.py done B82 yourself');
+    expect(rowInstructions(base)).toContain('you may run queue.py done B82 yourself');
   });
 
-  it.each([spawnPrompt(base), seatPrompt({ name: 'web', room: 'dev' })])(
-    'keeps the agent off the human seat and off scripted clients',
-    prompt => {
-      expect(prompt).toContain('Never speak as the human: no messhall say, no human key, no human-seat routes.');
-      expect(prompt).toContain('test with your own name or a scratch daemon (pnpm messhall-dev daemon)');
-      expect(prompt).toContain('never through messhall post or messhall-dev agent');
-    },
-  );
+  it('puts the role text first and the row after it', () => {
+    const text = rowInstructions({ ...base, role: 'You are a worker.' });
+    expect(text.startsWith('You are a worker.')).toBe(true);
+    expect(text.indexOf('row B82')).toBeGreaterThan(0);
+  });
+});
+
+describe('assignLine', () => {
+  it('is the orchestrator line that sets the role with the instructions file', () => {
+    expect(assignLine({ file: '/data/spawn/B82-role.md', member: 'f8-thing', role: 'worker', room: 'dev' })).toBe(
+      "pnpm messhall-dev agent orchestrator --room dev --say '@f8-thing your role: worker' --assign f8-thing=worker --instructions /data/spawn/B82-role.md",
+    );
+  });
 });
 
 describe('seatPrompt', () => {
@@ -118,6 +129,7 @@ describe('seatPrompt', () => {
     expect(prompt).toContain('never call leave.');
     expect(prompt).toContain('call my_role');
     expect(prompt).toContain('a role line mentions you later, call my_role again');
+    expect(prompt).not.toContain('until your work is finished');
     expect(seatPrompt({ name: 'web', room: 'dev' })).not.toMatch(/ready for review|approved|merge|review/i);
     expect(prompt).not.toContain('\n');
   });
@@ -191,8 +203,49 @@ describe('spawnRun', () => {
     expect(outcome.report).toContain('tmux session messhall-B82');
     expect(outcome.report).toContain('--model opus');
     expect(outcome.report).toContain('join #dev as f8-thing');
+    expect(outcome.report).not.toMatch(/prompt: .*B82/);
+    expect(outcome.report).toContain('row B82 of the job queue');
+    expect(outcome.report).toContain('--assign f8-thing=worker');
     expect(queue.mock.calls.map(([args]) => args[0])).toStrictEqual(['show']);
     expect(launch).not.toHaveBeenCalled();
+  });
+});
+
+type Assign = Parameters<typeof seatThenAssign>[0]['assign'];
+
+describe('seatThenAssign', () => {
+  const base = { file: '/data/spawn/B82-role.md', member: 'f8-thing', room: 'dev' };
+
+  it('assigns the role once the agent has joined', async () => {
+    const joined = vi.fn<(member: string) => boolean>().mockReturnValueOnce(false).mockReturnValue(true);
+    const assign = vi.fn<Assign>(() => Promise.resolve({ code: 0, report: 'assigned' }));
+    const outcome = await seatThenAssign({ ...base, assign, joined, role: 'worker' });
+    expect(outcome.code).toBe(0);
+    expect(outcome.lines.join('\n')).toContain('f8-thing joined #dev');
+    expect(assign).toHaveBeenCalledWith({ file: base.file, member: 'f8-thing', role: 'worker', room: 'dev' });
+  });
+
+  it('prints the assign line to run when no role is given', async () => {
+    const assign = vi.fn<Assign>();
+    const outcome = await seatThenAssign({ ...base, assign, joined: () => true });
+    expect(outcome.code).toBe(0);
+    expect(outcome.lines.join('\n')).toContain('--assign f8-thing=worker --instructions /data/spawn/B82-role.md');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('says so when the agent has not joined within 2 minutes, and assigns nothing', async () => {
+    const assign = vi.fn<Assign>();
+    const outcome = await seatThenAssign({ ...base, assign, joined: () => false, role: 'worker', waitMs: 0 });
+    expect(outcome.code).toBe(1);
+    expect(outcome.lines.join('\n')).toContain('f8-thing has not joined #dev after 2 minutes');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('fails when the assign is refused', async () => {
+    const assign = vi.fn<Assign>(() => Promise.resolve({ code: 1, report: 'name taken' }));
+    const outcome = await seatThenAssign({ ...base, assign, joined: () => true, role: 'worker' });
+    expect(outcome.code).toBe(1);
+    expect(outcome.lines.join('\n')).toContain('name taken');
   });
 });
 
