@@ -28,7 +28,11 @@ struct RoomDetail: View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       RoomHeader(room: room, subtitle: subtitle)
-      MemberStrip(members: room.present, mention: room.isOpen ? { mention($0) } : nil, setRole: room.isOpen ? { setRole($0, member: $1) } : nil)
+      MemberStrip(
+        live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil,
+        setRole: room.isOpen ? { setRole($0, member: $1) } : nil
+      )
+      .id(room.name)
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
@@ -205,28 +209,25 @@ struct ReconnectBanner: View {
 }
 
 struct MemberStrip: View {
-  let members: [Member]
+  let live: [Member]
+  let away: [Member]
   let mention: ((String) -> Void)?
   let setRole: ((_ role: String, _ member: String) -> Void)?
+  @State private var showsAway = Self.startsOpen
 
-  private var ordered: [Member] {
-    members.filter { $0.kind != .human } + members.filter { $0.kind == .human }
-  }
+  #if DEBUG
+    private static let startsOpen = ShotHooks.openFolds
+  #else
+    private static let startsOpen = false
+  #endif
 
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
-        ForEach(ordered, id: \.name) { member in
-          chip(member)
-            .contextMenu {
-              if let setRole, !member.roleChoices.isEmpty {
-                Menu("Role") {
-                  ForEach(member.roleChoices, id: \.self) { role in
-                    Button(role.capitalized) { setRole(role, member.name) }
-                  }
-                }
-              }
-            }
+        ForEach(live, id: \.name, content: chip)
+        if !away.isEmpty {
+          AwayChip(members: away, open: showsAway) { withAnimation(.snappy) { showsAway.toggle() } }
+          if showsAway { ForEach(away, id: \.name, content: chip) }
         }
       }
       .padding(.horizontal, 16)
@@ -234,15 +235,70 @@ struct MemberStrip: View {
     }
   }
 
-  @ViewBuilder
   private func chip(_ member: Member) -> some View {
-    if let mention, member.kind != .human {
+    mentionable(member)
+      .contextMenu {
+        if let setRole, !member.roleChoices.isEmpty {
+          Menu("Role") {
+            ForEach(member.roleChoices, id: \.self) { role in
+              Button(role.capitalized) { setRole(role, member.name) }
+            }
+          }
+        }
+      }
+  }
+
+  @ViewBuilder private func mentionable(_ member: Member) -> some View {
+    if let mention, member.kind != .human, member.presence != .left {
       Button { mention(member.name) } label: { MemberChip(member: member) }
         .buttonStyle(.plain)
         .accessibilityHint("Mentions \(member.name) in your message")
     } else {
       MemberChip(member: member)
     }
+  }
+}
+
+/// Gone and left agents as one chip with their avatars stacked. A click shows or hides them beside it.
+struct AwayChip: View {
+  let members: [Member]
+  let open: Bool
+  let toggle: () -> Void
+
+  private static let stackedAvatars = 3
+
+  var body: some View {
+    Button(action: toggle) {
+      HStack(spacing: 8) {
+        HStack(spacing: -10) {
+          ForEach(members.prefix(Self.stackedAvatars), id: \.name) { member in
+            AvatarView(name: member.name, size: 26)
+              .overlay(Circle().strokeBorder(.background, lineWidth: 1.5))
+          }
+        }
+        VStack(alignment: .leading, spacing: 1) {
+          Text("\(members.count) gone")
+            .font(.callout.weight(.medium))
+          HStack(spacing: 4) {
+            Image(systemName: "chevron.right")
+              .imageScale(.small)
+              .rotationEffect(.degrees(open ? 90 : 0))
+            Text(open ? "Hide" : "Show")
+          }
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 6)
+      .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+      .opacity(0.6)
+      .contentShape(RoundedRectangle(cornerRadius: 8))
+    }
+    .buttonStyle(.plain)
+    .help(members.map(\.name).joined(separator: ", "))
+    .accessibilityLabel("\(members.count) gone: \(members.map(\.name).joined(separator: ", "))")
+    .accessibilityHint(open ? "Hides them" : "Shows them")
   }
 }
 

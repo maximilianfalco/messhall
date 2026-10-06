@@ -33,7 +33,7 @@ The note has three job tables (Research, Decisions, Builds). The scripts read al
 7. **PR** with `/my-pr`, filling every section of `.github/pull_request_template.md` (One Liner in plain words, Changes as intent not diff, Impact, Key Decisions & Notes with any `decided by agent, veto here` items, QA and Testing with the `messhall-dev` evidence). Every PR carries QA proof via `messhall-tape-qa`: CLI, daemon and MCP work gets a vhs recording, the Mac app gets screenshots. Upload them with `pnpm -s messhall-dev qa-upload <pr> <files...>`, which prints one url per file, and end "QA and Testing" with a `| case | recording |` (or `| case | screenshot |`) table.
 8. **Role instructions win.** A seated agent follows the instructions its role carries (`my_role`). When they hold a review gate (the example `docs/briefs/worker.md` does), it beats the merge step below.
 9. **Merge** when CI is green (and approved, when your role instructions say so). First `gh pr view <n> --json labels --jq '.labels[].name'`: if `human veto` is present, STOP, the PR waits for the owner (the `Critical paths` workflow adds it when the diff touches a `CRITICAL.md` tree). Otherwise `gh pr merge <n> --squash --admin` (the `main` ruleset wants a code owner review, and the owner's admin bypass is how a green PR merges), and ONLY if that command succeeded, `git push origin --delete <branch>`. Never chain the delete with `;` or `&&` on one line before checking: a failed merge plus a delete closes the PR for good. `--delete-branch` aborts inside a worktree, so delete by hand. If `main` moved while you built, `git fetch origin && git merge origin/main` into your branch and resolve the conflicts there (never rebase or force-push a pushed branch), because a conflicting PR never gets a CI run.
-10. **Close.** `queue.py done <id> <pr-url> "<one line: what shipped and how it was verified>"`. Remove the worktree after the merge with `git worktree remove .worktrees/<name>` from the main checkout. Leave it in place while a PR waits for the owner.
+10. **Close.** `queue.py done <id> <pr-url> "<one line: what shipped and how it was verified>"`. A seated worker runs this itself, it does not wait for the orchestrator. Remove the worktree after the merge with `git worktree remove .worktrees/<name>` from the main checkout. Leave it in place while a PR waits for the owner.
 
 ## Spawning seated agents
 
@@ -55,6 +55,12 @@ pnpm messhall-dev agent orchestrator --room dev --say '@reviewer-1 your role: re
 - The spawn prompt holds no role behaviour. `docs/briefs/worker.md` (the review gate), `reviewer.md` and `orchestrator.md` are example instructions the orchestrator owns, may edit per room and passes with `assign_role`.
 - It targets the real daemon and room on purpose. Watch one with `tmux attach -t messhall-<id>`. Mention it from the room to steer it.
 - If claude never comes up (login screen, timeout), `spawn` kills the session and releases the row.
+
+## Never speak as the human
+
+- Talk in a room only through your own MCP seat (`join`, `post`, `wait`). `messhall post` and `messhall-dev agent` join as a script, so the room shows you as `script`, not `claude`.
+- Never post as `human`: no `messhall say`, never read the human key, never call a human-seat route. A `human` line carries the owner's authority, so an agent faking one breaks the trust model.
+- To try a surface, use your own name on the real daemon or a scratch daemon (`pnpm messhall-dev daemon`, and `--url` on the command you test).
 
 ## Review gate (the example worker and reviewer instructions)
 
