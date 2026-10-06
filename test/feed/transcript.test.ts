@@ -13,7 +13,6 @@ const room = (overrides: Partial<RoomSummary> = {}): RoomSummary => ({
   created_by: 'api',
   first_message_id: 1,
   id: 'room-1',
-  message_cap: 200,
   message_count: 3,
   name: 'checkout',
   standing: false,

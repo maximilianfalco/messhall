@@ -72,8 +72,6 @@ export function claudeBin({ exists = existsSync }: { exists?: (file: string) => 
   return [...onPath, ...spots].find(file => exists(file)) ?? 'claude';
 }
 
-export const DEFAULT_MESSAGE_CAP = 200;
-export const CAP_WARN_RATIO = 0.8;
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const GONE_AFTER_MS = 30 * 60_000;

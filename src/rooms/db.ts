@@ -108,6 +108,11 @@ export const MIGRATIONS = [
   ALTER TABLE members ADD COLUMN role_instructions TEXT;
   ALTER TABLE members ADD COLUMN role_set_by TEXT;
   `,
+  // Rooms no longer close at a post count. Stored room events lose the field too, so replay matches the contract.
+  `
+  ALTER TABLE rooms DROP COLUMN message_cap;
+  UPDATE events SET payload = json_remove(payload, '$.room.message_cap') WHERE kind = 'room';
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

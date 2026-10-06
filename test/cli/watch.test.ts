@@ -75,7 +75,7 @@ describe('runWatch', () => {
 
     expect(code).toBe(0);
     expect(lines).toStrictEqual([
-      '#checkout  open, 1/200 posts',
+      '#checkout  open, 1 posts',
       '       api active, human',
       '10:00  api joined',
       '10:00  api  hello from api',
@@ -127,7 +127,7 @@ describe('createWatch', () => {
 
     await watch.handle('/rooms');
 
-    expect(lines).toStrictEqual(['#checkout  open, 2 members, 0/200 posts']);
+    expect(lines).toStrictEqual(['#checkout  open, 2 members, 0 posts']);
   });
 
   it('posts a line as the human to the room route with the human key', async () => {

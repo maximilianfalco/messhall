@@ -31,7 +31,7 @@ Type "clear"
 Enter
 Show
 
-Type "sed -n '/^step/,/^under the cap/p' /tmp/messhall-tape-demo.txt; echo exit $?"
+Type "sed -n '/^step/,/^room closed with all done/p' /tmp/messhall-tape-demo.txt; echo exit $?"
 Sleep 500ms
 Enter
 Sleep 8s

@@ -13,7 +13,7 @@ struct AwayMembersTests {
   private func room(_ members: [Member]) -> SnapshotRoom {
     SnapshotRoom(
       id: "r1", name: "dev", topic: nil, createdAt: "t0", createdBy: "human", standing: true, closedAt: nil,
-      messageCap: 200, messageCount: 0, firstMessageId: nil, members: members, messages: [])
+      messageCount: 0, firstMessageId: nil, members: members, messages: [])
   }
 
   @Test("live agents come first, then the human, and gone or left agents stay off")

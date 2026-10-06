@@ -12,7 +12,7 @@ private func line(_ id: Int, _ text: String = "hi", kind: MessageKind = .chat) -
 private func room(first: Int?, ids: ClosedRange<Int>?) -> SnapshotRoom {
   SnapshotRoom(
     id: "r1", name: "long", topic: nil, createdAt: "2026-01-01T09:00:00.000Z", createdBy: "api", standing: false,
-    closedAt: nil, messageCap: 200, messageCount: ids?.count ?? 0, firstMessageId: first, members: [],
+    closedAt: nil, messageCount: ids?.count ?? 0, firstMessageId: first, members: [],
     messages: ids.map { $0.map { line($0) } } ?? [])
 }
 

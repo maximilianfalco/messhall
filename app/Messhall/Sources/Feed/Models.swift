@@ -20,14 +20,12 @@ public struct Room: Codable, Equatable, Sendable {
   public var createdBy: String
   public var standing: Bool
   public var closedAt: String?
-  public var messageCap: Int
 
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, name, topic, standing
     case createdAt = "created_at"
     case createdBy = "created_by"
     case closedAt = "closed_at"
-    case messageCap = "message_cap"
   }
 }
 
@@ -86,7 +84,6 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var createdBy: String
   public var standing: Bool
   public var closedAt: String?
-  public var messageCap: Int
   public var messageCount: Int
   public var firstMessageId: Int?
   public var members: [Member]
@@ -113,7 +110,6 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
     case createdAt = "created_at"
     case createdBy = "created_by"
     case closedAt = "closed_at"
-    case messageCap = "message_cap"
     case messageCount = "message_count"
     case firstMessageId = "first_message_id"
   }
@@ -121,13 +117,13 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   init(room: Room) {
     self.init(
       id: room.id, name: room.name, topic: room.topic, createdAt: room.createdAt, createdBy: room.createdBy,
-      standing: room.standing, closedAt: room.closedAt, messageCap: room.messageCap, messageCount: 0, firstMessageId: nil, members: [],
+      standing: room.standing, closedAt: room.closedAt, messageCount: 0, firstMessageId: nil, members: [],
       messages: [])
   }
 
   init(
     id: String, name: String, topic: String?, createdAt: String, createdBy: String, standing: Bool,
-    closedAt: String?, messageCap: Int, messageCount: Int, firstMessageId: Int?, members: [Member],
+    closedAt: String?, messageCount: Int, firstMessageId: Int?, members: [Member],
     messages: [Message]
   ) {
     self.id = id
@@ -137,7 +133,6 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
     self.createdBy = createdBy
     self.standing = standing
     self.closedAt = closedAt
-    self.messageCap = messageCap
     self.messageCount = messageCount
     self.firstMessageId = firstMessageId
     self.members = members
@@ -293,14 +288,12 @@ public struct HumanPostResult: Codable, Equatable, Sendable {
 public struct NewRoom: Codable, Equatable, Sendable {
   public var name: String
   public var topic: String?
-  public var cap: Int?
 
-  enum CodingKeys: String, CodingKey, CaseIterable { case name, topic, cap }
+  enum CodingKeys: String, CodingKey, CaseIterable { case name, topic }
 
-  public init(name: String, topic: String?, cap: Int?) {
+  public init(name: String, topic: String?) {
     self.name = name
     self.topic = topic
-    self.cap = cap
   }
 }
 

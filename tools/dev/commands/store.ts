@@ -52,7 +52,7 @@ export function scriptedRun({ dataDir }: { dataDir: string }) {
   const report = [
     formatTable(['clock', 'step', 'result'], steps),
     '',
-    query('select name, message_cap, closed_at from rooms'),
+    query('select name, closed_at from rooms'),
     '',
     query('select name, kind, presence, cursor, done, left_at from members order by name'),
     '',
