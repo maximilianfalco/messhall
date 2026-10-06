@@ -73,6 +73,11 @@ const SHOTS = [
   { appearance: 'dark', name: 'settings-avatars-dark', settings: 'avatars' },
   { appearance: 'light', name: 'settings-notifications-light', settings: 'notifications' },
   { appearance: 'dark', name: 'settings-notifications-dark', settings: 'notifications' },
+  { appearance: 'light', name: 'settings-shortcut-light', settings: 'shortcut' },
+  { appearance: 'dark', name: 'settings-shortcut-dark', settings: 'shortcut' },
+  { appearance: 'light', menuOpen: true, name: 'menu-open-light' },
+  { appearance: 'dark', menuOpen: true, name: 'menu-open-dark' },
+  { appearance: 'light', hotkey: true, name: 'hotkey-light' },
 ] as const;
 // Posts as the human first, so the take also shows the right side row and the scroll landing flush.
 const RECORDING = { appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true } as const;
@@ -83,7 +88,10 @@ const PANE_SETTINGS = {
   appearance: { accent: 'purple' },
   avatars: { avatars: { colors: { web: { blue: 0.42, green: 0.42, red: 0.05 } } } },
   notifications: { mutedRooms: ['billing'] },
+  shortcut: { hotkey: { key: 'K', modifiers: 'controlCommand' } },
 } as const;
+// Keys the real app never holds, so the shot app can take them for its one press.
+const SHOT_HOTKEY = { hotkey: { key: '9', modifiers: 'controlOptionCommand' } };
 // Shot after the daemon stops, so the window shows its empty state.
 const DOWN_SHOTS = [
   { appearance: 'light', name: 'down-light' },
@@ -93,6 +101,8 @@ const DOWN_SHOTS = [
 const QUIT_WITHIN_MS = 5000;
 // The window's own layer (0, or 3 once floated for a recording), never the menu bar label's 25.
 const WINDOW_LAYERS = [0, 3];
+/** The layer an open menu bar menu draws on. */
+export const MENU_LAYERS = [101];
 
 const run = promisify(execFile);
 const CLAUDE = { name: 'claude-code', version: '2.1.289' };
@@ -102,8 +112,8 @@ const CHANGELOG_PAGES = Array.from({ length: 24 }, (_, i) => `api reference part
 const HISTORY_POSTS = 120;
 const HISTORY_TASKS = ['read the plan', 'wrote the test', 'ran the suite', 'fixed the lint', 'opened the diff'];
 
-/** The id of the app's main window in a `windows.swift` listing: the largest window on a window layer. */
-export function pickWindow(listing: string) {
+/** The id of the largest window on one of `layers` in a `windows.swift` listing, by default the app's main window. */
+export function pickWindow(listing: string, layers = WINDOW_LAYERS) {
   const windows = listing
     .trim()
     .split('\n')
@@ -111,7 +121,7 @@ export function pickWindow(listing: string) {
       const [id = 0, layer, width = 0, height = 0] = line.split(' ').map(Number);
       return { area: width * height, id, layer };
     })
-    .filter(window => WINDOW_LAYERS.includes(window.layer ?? -1) && window.area > 0);
+    .filter(window => layers.includes(window.layer ?? -1) && window.area > 0);
   return windows.toSorted((a, b) => b.area - a.area)[0]?.id;
 }
 
@@ -270,6 +280,13 @@ type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number] | typeof RECORD
 const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
 const windowFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.window`);
 const anchorFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.anchor`);
+const hotkeyFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.hotkey`);
+
+/** The file a shot's app writes a note into, printed under the table. */
+function noteFile(shot: Shot) {
+  if ('pageTop' in shot) return anchorFile(shot);
+  if ('hotkey' in shot) return hotkeyFile(shot);
+}
 
 /** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
 async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<string | undefined> {
@@ -293,6 +310,7 @@ export function shotArgs(shot: Shot) {
       JSON.stringify({
         ...('muted' in shot ? MUTED : {}),
         ...('settings' in shot ? { pane: shot.settings, ...PANE_SETTINGS[shot.settings] } : {}),
+        ...('hotkey' in shot ? SHOT_HOTKEY : {}),
       }),
     ),
     ...('settings' in shot ? ['-shotSettings', windowFile(shot)] : []),
@@ -306,6 +324,8 @@ export function shotArgs(shot: Shot) {
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
     ...('pageTop' in shot ? ['-shotPageTop', anchorFile(shot)] : []),
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
+    ...('menuOpen' in shot ? ['-shotMenu', 'YES'] : []),
+    ...('hotkey' in shot ? ['-shotHotkey', hotkeyFile(shot)] : []),
   ];
 }
 
@@ -331,12 +351,24 @@ async function settingsWindow(shot: Shot) {
   return (await waitFile(file)) ?? readFileSync(file, 'utf8').trim();
 }
 
-async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<number | undefined> {
+async function waitWindow(
+  pid: number,
+  layers = WINDOW_LAYERS,
+  deadline = Date.now() + WINDOW_WITHIN_MS,
+): Promise<number | undefined> {
   const { stdout } = await run('swift', [WINDOWS_SCRIPT, String(pid)]);
-  const id = pickWindow(stdout);
+  const id = pickWindow(stdout, layers);
   if (id !== undefined || Date.now() > deadline) return id;
   await sleep(500);
-  return waitWindow(pid, deadline);
+  return waitWindow(pid, layers, deadline);
+}
+
+/** The window number screencapture takes: Settings, the open menu, the window opened again by the hotkey, or the main one. */
+async function shotTarget({ id, pid, shot }: { id: number; pid: number; shot: Shot }) {
+  if ('settings' in shot) return settingsWindow(shot);
+  if ('menuOpen' in shot) return String((await waitWindow(pid, MENU_LAYERS)) ?? 'no menu opened');
+  if ('hotkey' in shot) return String((await waitWindow(pid)) ?? 'no window after the hotkey');
+  return String(id);
 }
 
 async function shoot({
@@ -353,6 +385,7 @@ async function shoot({
   rmSync(shotFile(shot), { force: true });
   rmSync(windowFile(shot), { force: true });
   rmSync(anchorFile(shot), { force: true });
+  rmSync(hotkeyFile(shot), { force: true });
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
@@ -385,7 +418,11 @@ async function shoot({
       const missing = await waitFile(anchorFile(shot));
       if (missing) return `no older page landed: ${missing}`;
     }
-    const target = 'settings' in shot ? await settingsWindow(shot) : String(id);
+    if ('hotkey' in shot) {
+      const missing = await waitFile(hotkeyFile(shot));
+      if (missing) return `no hotkey press logged: ${missing}`;
+    }
+    const target = await shotTarget({ id, pid: child.pid ?? 0, shot });
     if (!/^\d+$/.test(target)) return target;
     await run('screencapture', ['-o', '-x', '-l', target, file]);
     return file;
@@ -436,7 +473,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, the New Room sheet, a standing room, a closed room, each Settings pane and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, the New Room sheet, a standing room, a closed room, each Settings pane and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -489,8 +526,9 @@ async function appShot({ home, port, sidebar }: { home: string; port: number; si
     ? bad(`apps from ${app} still running after the run: ${strays.join(', ')}`)
     : ok(`no app from ${app} left running`);
   const code = failed.length || left.length || strays.length ? 1 : 0;
-  const anchors = SHOTS.filter(shot => 'pageTop' in shot).flatMap(shot => {
-    const note = statSync(anchorFile(shot), { throwIfNoEntry: false }) && readFileSync(anchorFile(shot), 'utf8');
+  const anchors = SHOTS.flatMap(shot => {
+    const file = noteFile(shot);
+    const note = file && statSync(file, { throwIfNoEntry: false }) && readFileSync(file, 'utf8');
     return note ? [`${shot.name}: ${note.trim()}`] : [];
   });
   return { code, report: [table, '', ...anchors, verdict, quit, stray].join('\n') };
@@ -501,7 +539,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, jump pill, mention picker, New Room sheet, standing and closed rooms, each Settings pane and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker, New Room sheet, standing and closed rooms, each Settings pane and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

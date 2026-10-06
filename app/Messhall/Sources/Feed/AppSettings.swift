@@ -26,7 +26,7 @@ public enum AccentChoice: String, Codable, CaseIterable, Sendable {
 }
 
 public enum SettingsPane: String, Codable, CaseIterable, Sendable {
-  case appearance, avatars, notifications
+  case appearance, avatars, notifications, shortcut
 }
 
 /// Avatar colors the human picked, keyed by member name.
@@ -49,6 +49,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
   public var mutedRooms: Set<String> = []
   public var avatars = AvatarOverrides()
   public var pane = SettingsPane.appearance
+  public var hotkey = Hotkey()
 
   public init() {}
 
@@ -61,6 +62,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
     mutedRooms = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRooms) ?? mutedRooms
     avatars = try c.decodeIfPresent(AvatarOverrides.self, forKey: .avatars) ?? avatars
     pane = try c.decodeIfPresent(SettingsPane.self, forKey: .pane) ?? pane
+    hotkey = try c.decodeIfPresent(Hotkey.self, forKey: .hotkey) ?? hotkey
   }
 
   public mutating func toggleMute(_ room: String) {
