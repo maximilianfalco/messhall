@@ -21,7 +21,9 @@ interface Hit {
 /** The default and longest wait for a client, by the name it sent at initialize. */
 export function waitLimitFor(clientName: string | undefined) {
   const short = SHORT_WAIT_CLIENTS[clientName?.toLowerCase() ?? ''];
-  return short ? { defaultS: short, maxS: short } : { defaultS: WAIT_DEFAULT_S, maxS: WAIT_MAX_S };
+  return short
+    ? { defaultS: Math.min(short, WAIT_DEFAULT_S), maxS: short }
+    : { defaultS: WAIT_DEFAULT_S, maxS: WAIT_MAX_S };
 }
 
 /** Why a message concerns `as`, in a few words for the wait reply. */

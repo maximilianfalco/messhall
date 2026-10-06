@@ -96,8 +96,24 @@ describe('wait', () => {
     expect(waitLimitFor(client)).toStrictEqual({ defaultS: seconds, maxS: seconds });
   });
 
-  it.each(['claude-code', 'codex-mcp-client', 'opencode', undefined])('keeps 100 s and 270 s for %s', client => {
+  it.each(['codex-mcp-client', 'opencode', undefined])('keeps 100 s and 270 s for %s', client => {
     expect(waitLimitFor(client)).toStrictEqual({ defaultS: 100, maxS: 270 });
+  });
+
+  it('keeps the 100 s default for claude-code and caps it at 110 s', () => {
+    expect(waitLimitFor('claude-code')).toStrictEqual({ defaultS: 100, maxS: 110 });
+  });
+
+  it('runs a 250 s wait from claude-code for 110 s', async () => {
+    const api = await harness.agent({ name: 'claude-code' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout', timeout_s: 250 }, LONG));
+    await vi.advanceTimersByTimeAsync(109_999);
+    expect(waiting.done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(waiting.value?.text).toBe('nothing yet, call wait again.');
   });
 
   it('waits 25 seconds by default for a client with a 30 second tool timeout', async () => {
