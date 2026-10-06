@@ -1,9 +1,12 @@
 import { spawn } from 'node:child_process';
+import { statSync } from 'node:fs';
 import path from 'node:path';
 
 import pc from 'picocolors';
 
+import { ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { codexConfigPath, daemonUrl } from '../config.js';
+import { packageRoot } from '../lib/packageRoot.js';
 import { runCommand } from '../lib/run.js';
 import { shellLine } from '../lib/shell.js';
 
@@ -11,6 +14,8 @@ import { readClaudeEntry, readCodexEntry } from './mcp.js';
 import { probeHealth } from './status.js';
 
 export const DEFAULT_ROOM = 'lobby';
+export const BRIEF_HELP =
+  'instructions to read and follow after the join, docs/briefs/orchestrator.md for --as orchestrator';
 
 export interface LaunchDeps {
   codexConfig: string;
@@ -24,15 +29,26 @@ export interface LaunchDeps {
 
 export interface LaunchOptions {
   as?: string;
+  brief?: string;
   cwd?: string;
   print: boolean;
   room?: string;
 }
 
-/** The folder, room and name an agent starts with. The name is the folder's name unless `as` is given. */
+export const briefLine = (brief: string) => `Then read the brief at ${brief} and follow it in the room.`;
+
+function briefPath(brief: string | undefined, name: string, base: string) {
+  if (brief) return path.resolve(base, brief);
+  if (name === ORCHESTRATOR_ROLE) return path.join(packageRoot(), 'docs', 'briefs', 'orchestrator.md');
+  return null;
+}
+
+/** The seat an agent starts in: folder, room, name and brief. The name is the folder's name unless `as` is given.
+ * The brief is a full path from `base`, and the orchestrator name gets the shipped orchestrator brief when none is given. */
 export function launchTarget(options: LaunchOptions, base: string) {
   const cwd = path.resolve(base, options.cwd ?? '.');
-  return { cwd, name: options.as ?? path.basename(cwd), room: options.room ?? DEFAULT_ROOM };
+  const name = options.as ?? path.basename(cwd);
+  return { brief: briefPath(options.brief, name, base), cwd, name, room: options.room ?? DEFAULT_ROOM };
 }
 
 async function missingEntry(agent: 'claude' | 'codex', deps: LaunchDeps) {
@@ -45,17 +61,22 @@ async function missingEntry(agent: 'claude' | 'codex', deps: LaunchDeps) {
 }
 
 /** Prints the command and the first prompt, then runs it and returns its exit code.
- * Refuses with one line when the daemon is down or the agent has no messhall entry. `print` skips both. */
+ * Refuses with one line when the brief is not a file, the daemon is down or the agent has no messhall entry. `print` skips the last two. */
 export async function launch(
   {
     agent,
     argv,
+    brief,
     cwd,
     print,
     prompt,
-  }: { agent: 'claude' | 'codex'; argv: string[]; cwd: string; print: boolean; prompt: string },
+  }: { agent: 'claude' | 'codex'; argv: string[]; brief: string | null; cwd: string; print: boolean; prompt: string },
   deps: LaunchDeps,
 ) {
+  if (brief && !statSync(brief, { throwIfNoEntry: false })?.isFile()) {
+    deps.log(pc.red(`no brief file at ${brief}`));
+    return 1;
+  }
   if (!print) {
     const probe = await probeHealth({ fetch: deps.fetch, url: deps.url });
     if (probe.state !== 'up') {

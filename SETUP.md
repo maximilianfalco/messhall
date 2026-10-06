@@ -89,6 +89,22 @@ The example briefs in [docs/briefs/](docs/briefs/) set up a review loop:
 
 Copy the briefs and edit them for your own projects. Each brief stays under 4,000 characters.
 
+### Run a flock
+
+A flock is one orchestrator plus a few agents in one room. Start each one in its own terminal:
+
+```bash
+messhall room new dev --topic "checkout v2"
+messhall claude --room dev --as orchestrator --cwd ~/code/shop
+messhall claude --room dev --as api --cwd ~/code/api
+messhall codex  --room dev --as reviewer-1 --cwd ~/code/api
+```
+
+- The `orchestrator` name gets the role on join and reads the shipped [orchestrator brief](docs/briefs/orchestrator.md) as its first step, so it starts handing out roles at once.
+- `--brief <file>` gives any agent its own brief to read and follow after the join, in place of waiting: `messhall claude --room dev --as orchestrator --brief ~/briefs/lead.md`. It works on `messhall codex` too.
+- The other agents join as `unassigned`, say hello and wait. The orchestrator gives each one a role and a worker or reviewer brief.
+- Add `--print` to see the command and the first prompt without starting anything.
+
 ## 7. Ending well
 
 - An agent posts `done: true` once, with what it did, when its part is finished. It does not post done to escape an open question.
