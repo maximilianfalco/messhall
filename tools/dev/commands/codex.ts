@@ -5,9 +5,10 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { KEY_HEADER_NAME } from '../../../src/cli/mcp.js';
 import { createCodexClient } from '../../../src/codex/client.js';
 import { codexControlSocket } from '../../../src/config.js';
-import { KEY_FILES, KEY_HEADER } from '../../../src/daemon/keys.js';
+import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 import { connectHttp } from '../../../src/mcp/testing.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
@@ -39,7 +40,7 @@ interface CodexOptions {
 
 /** What the Codex TUI shows. Trust is never answered, since saving it writes the user's config.toml. */
 export function codexScreen(pane: string): Screen {
-  if (/Update available/.test(pane) && /Skip/.test(pane)) return 'update';
+  if (/Update now/.test(pane)) return 'update';
   if (/Trust this folder\?/.test(pane)) return 'trust';
   if (/^\s*›?\s*Error:/m.test(pane)) return 'error';
   if (/Ask Codex to do anything|← for agents/.test(pane)) return 'ready';
@@ -98,7 +99,7 @@ export async function codexRun({ as, keep, room }: CodexOptions) {
       approvalPolicy: 'on-request',
       config: {
         [`mcp_servers.${SERVER_NAME}.default_tools_approval_mode`]: 'approve',
-        [`mcp_servers.${SERVER_NAME}.http_headers`]: { [KEY_HEADER]: key },
+        [`mcp_servers.${SERVER_NAME}.http_headers`]: { [KEY_HEADER_NAME]: key },
         [`mcp_servers.${SERVER_NAME}.url`]: `${daemon.url}/mcp`,
       },
       cwd: homedir(),
@@ -120,25 +121,32 @@ export async function codexRun({ as, keep, room }: CodexOptions) {
     if (opened.code !== 0) throw new Error(`tmux new-session failed: ${opened.stderr.trim()}`);
     note(`codex tui started in tmux session ${session}`);
 
+    // A dialog can open after the composer shows, and Enter there runs brew upgrade, so ready must hold twice.
+    let seen: Screen = 'loading';
     const ready = await until(Date.now() + READY_WITHIN_MS, async () => {
       const screen = codexScreen(await pane(session));
       if (screen === 'update') {
         note('skipping the codex update prompt');
         await tmux(['send-keys', '-t', session, 'Escape']);
-        return;
       }
-      return screen === 'loading' ? undefined : screen;
+      const settled = screen === seen && screen !== 'loading' && screen !== 'update' ? screen : undefined;
+      seen = screen;
+      return settled;
     });
     if (ready !== 'ready') throw new Error(`codex tui is not ready: ${ready ?? 'nothing within 60 s'}`);
     const loaded = await codex.request('thread/loaded/list', {});
     if (!loaded.ok || !loaded.result.data.includes(threadId)) {
       throw new Error('the thread is not loaded on the codex daemon');
     }
-    note('codex tui is on the shared daemon with the thread loaded');
+    const servers = await codex.request('mcpServerStatus/list', { serverName: SERVER_NAME, threadId });
+    const connected = servers.ok && servers.result.data.some(server => server.runtimeStatus === 'connected');
+    if (!connected) throw new Error(`messhall is not a connected MCP server on the thread, see codex logs`);
+    note('codex tui is on the shared daemon, the thread is loaded with messhall connected');
 
     const prompt = `Run echo $CODEX_THREAD_ID. Then call messhall join: room ${room}, as ${as}, thread_id that value. Do not call wait. When a messhall line arrives, call read_since and answer the mention in one short post.`;
     await tmux(['send-keys', '-t', session, '-l', prompt]);
     await sleep(POLL_MS);
+    if (codexScreen(await pane(session)) !== 'ready') throw new Error('a codex dialog opened, stopped before enter');
     await tmux(['send-keys', '-t', session, 'Enter']);
 
     scripted = await connectHttp({ key, name: 'messhall-dev-codex', url: daemon.url });

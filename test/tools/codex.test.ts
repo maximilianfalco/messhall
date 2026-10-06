@@ -15,6 +15,12 @@ const TRUST = `  Folder access
 › 1. Trust and continue
   2. Back to Agent Command Center`;
 
+const UPDATE_BOX = `╭─────────────────────────────────────────────────╮
+│ ✨ Update available! 0.157.1 -> 0.160.1         │
+╰─────────────────────────────────────────────────╯
+› Ask Codex to do anything
+  GPT-6-Luna high · ~ · ← for agents`;
+
 const READY = `│ directory: ~                                  │
 ╰───────────────────────────────────────────────╯
 › Ask Codex to do anything
@@ -28,6 +34,7 @@ describe('codexScreen', () => {
     ['update', UPDATE],
     ['trust', TRUST],
     ['ready', READY],
+    ['ready', UPDATE_BOX],
     ['error', RESUME_FAILED],
     ['loading', '  Resuming session…'],
   ])('reads %s from the pane', (screen, pane) => {

@@ -23,7 +23,8 @@ import { readAgentKey } from './agentKey.js';
 import { probeHealth } from './status.js';
 
 const CLAUDE = 'claude';
-const KEY_HEADER_NAME = 'X-Messhall-Key';
+// Codex fails the MCP handshake with the lowercase name, so this spelling is load-bearing.
+export const KEY_HEADER_NAME = 'X-Messhall-Key';
 const MASK = '<agent key>';
 const CODEX_HEADER = `[mcp_servers.${SERVER_NAME}]`;
 // Codex asks before every MCP tool call by default, which stalls a room.

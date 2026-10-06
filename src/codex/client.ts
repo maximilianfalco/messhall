@@ -1,6 +1,7 @@
 import type { SetTimer } from '../doorbell/batch.js';
 import type { InitializeParams } from './generated/InitializeParams.js';
 import type { InitializeResponse } from './generated/InitializeResponse.js';
+import type { ListMcpServerStatusParams } from './generated/v2/ListMcpServerStatusParams.js';
 import type { ThreadArchiveParams } from './generated/v2/ThreadArchiveParams.js';
 import type { ThreadInjectItemsParams } from './generated/v2/ThreadInjectItemsParams.js';
 import type { ThreadLoadedListParams } from './generated/v2/ThreadLoadedListParams.js';
@@ -23,6 +24,10 @@ interface ThreadReply {
 
 interface Methods {
   initialize: { params: InitializeParams; result: InitializeResponse };
+  'mcpServerStatus/list': {
+    params: ListMcpServerStatusParams;
+    result: { data: { name: string; runtimeStatus?: string }[] };
+  };
   'thread/archive': { params: ThreadArchiveParams; result: Record<string, never> };
   'thread/inject_items': { params: ThreadInjectItemsParams; result: Record<string, never> };
   'thread/loaded/list': { params: ThreadLoadedListParams; result: ThreadLoadedListResponse };

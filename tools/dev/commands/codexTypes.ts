@@ -14,6 +14,7 @@ export const CODEX_TYPES_DIR = path.join(REPO_ROOT, 'src', 'codex', 'generated')
 const ROOTS = [
   'InitializeParams.ts',
   'InitializeResponse.ts',
+  'v2/ListMcpServerStatusParams.ts',
   'v2/ThreadArchiveParams.ts',
   'v2/ThreadInjectItemsParams.ts',
   'v2/ThreadLoadedListParams.ts',
