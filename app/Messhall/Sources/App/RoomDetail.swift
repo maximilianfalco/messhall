@@ -27,6 +27,7 @@ struct RoomDetail: View {
   var body: some View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
+      if store.phase == .outdated || store.behind { OlderAppBanner() }
       RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(
         live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil,
@@ -214,6 +215,17 @@ struct ReconnectBanner: View {
       .padding(.horizontal, 16)
       .padding(.vertical, 8)
       .background(.orange.opacity(0.15))
+  }
+}
+
+struct OlderAppBanner: View {
+  var body: some View {
+    Label(FeedStore.outdatedReason, systemImage: "arrow.down.app")
+      .font(.callout)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 16)
+      .padding(.vertical, 8)
+      .background(.yellow.opacity(0.15))
   }
 }
 
@@ -757,7 +769,7 @@ struct MessageRow: View {
 
   var body: some View {
     switch message.kind {
-    case .system:
+    case .system, .unknown:
       Text("\(message.text)  \(message.time)")
         .font(.caption)
         .foregroundStyle(.secondary)

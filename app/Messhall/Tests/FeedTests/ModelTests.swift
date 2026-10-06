@@ -43,10 +43,51 @@ struct ModelTests {
     #expect(try Fixture.decode(FeedError.self, "FeedError").error == "room not found")
   }
 
-  @Test("refuse a bus event with an unknown type")
-  func unknownType() {
+  @Test("decode a bus event with an unknown type as unknown")
+  func unknownType() throws {
     let data = Data(#"{"type":"weather","room":"x"}"#.utf8)
 
-    #expect(throws: DecodingError.self) { try JSONDecoder().decode(BusEvent.self, from: data) }
+    #expect(try JSONDecoder().decode(BusEvent.self, from: data) == .unknown(type: "weather"))
+  }
+
+  @Test("decode a presence the app does not know as unknown")
+  func unknownPresence() throws {
+    let data = Data(#"{"type":"presence","room":"checkout","name":"api","from":"active","to":"dozing"}"#.utf8)
+
+    #expect(try JSONDecoder().decode(BusEvent.self, from: data) == .presence(
+      PresenceEvent(room: "checkout", name: "api", from: .active, to: .unknown)))
+  }
+
+  @Test("decode a member change and a member kind the app does not know as unknown")
+  func unknownMemberChange() throws {
+    var json = try Fixture.text("MemberEvent")
+    json = json.replacingOccurrences(of: #""change": "joined""#, with: #""change": "benched""#)
+    json = json.replacingOccurrences(of: #""kind": "codex""#, with: #""kind": "gemini""#)
+
+    let event = try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8))
+
+    guard case .member(let e) = event else { Issue.record("not a member event"); return }
+    #expect(e.change == .unknown)
+    #expect(e.member.kind == .unknown)
+  }
+
+  @Test("decode a room change the app does not know as unknown")
+  func unknownRoomChange() throws {
+    let json = try Fixture.text("RoomEvent").replacingOccurrences(of: #""change": "closed""#, with: #""change": "archived""#)
+
+    guard case .room(let e) = try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8)) else {
+      Issue.record("not a room event"); return
+    }
+    #expect(e.change == .unknown)
+  }
+
+  @Test("decode a message kind the app does not know as unknown")
+  func unknownMessageKind() throws {
+    let json = try Fixture.text("MessageEvent").replacingOccurrences(of: #""kind": "done""#, with: #""kind": "poll""#)
+
+    guard case .message(let e) = try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8)) else {
+      Issue.record("not a message event"); return
+    }
+    #expect(e.message.kind == .unknown)
   }
 }

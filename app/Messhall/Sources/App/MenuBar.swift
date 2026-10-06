@@ -42,6 +42,7 @@ struct MenuBarMenu: View {
 
   private var status: String {
     if case .down(let reason) = store.phase, !store.loaded { return reason }
+    if store.phase == .outdated, !store.loaded { return FeedStore.outdatedReason }
     let active = store.rooms.flatMap(\.liveAgents).filter { $0.presence == .active }.count
     return "\(plural(store.openRoomCount, "room")) open, \(active) active"
   }

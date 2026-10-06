@@ -255,6 +255,12 @@ describe('shotArgs', () => {
     ).toStrictEqual(expect.arrayContaining(['-shotRemove', 'docs', '-shotRoom', 'handoff']));
   });
 
+  it('builds the app as if for an older contract for the older-app shot', () => {
+    expect(shotArgs({ appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' })).toStrictEqual(
+      expect.arrayContaining(['-shotContract', '0', '-shotRoom', 'checkout']),
+    );
+  });
+
   it('mutes a member through the app for the mute shot', () => {
     expect(
       shotArgs({ appearance: 'light', mute: 'qa', name: 'mute-light', openFolds: true, room: 'checkout' }),
