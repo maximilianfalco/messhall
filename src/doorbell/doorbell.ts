@@ -34,6 +34,7 @@ export function startDoorbell({
     batcher.add({
       closed: room?.closed_at !== null,
       message: event.message,
+      pausedWith: store.pausedWith(event.room),
       room: event.room,
     });
   });

@@ -118,6 +118,10 @@ export const MIGRATIONS = [
   ALTER TABLE rooms DROP COLUMN message_cap;
   UPDATE events SET payload = json_remove(payload, '$.room.message_cap') WHERE kind = 'room';
   `,
+  // The agent this member traded too many lines with alone. Lines between them ring nobody until the human posts.
+  `
+  ALTER TABLE members ADD COLUMN paused_with TEXT;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

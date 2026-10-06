@@ -131,7 +131,7 @@ describe('summarizeRoom', () => {
     const result = await summarizeRoom({ claude, room: 'checkout', store: store() });
 
     expect(result).toMatchObject({ costUsd: 0.0021, durationMs: 4200, ok: true });
-    expect(claude.mock.calls[0]![0].prompt).toContain('[#62 web] post 60');
+    expect(claude.mock.calls[0]![0].prompt).toContain('[#63 web] post 60');
     const summary = store().latestSummary('checkout');
     expect(summary).toMatchObject({ from: 'messhall', kind: 'summary', text: 'Goal: ship cents.' });
     expect(events.map(({ event }) => event)).toStrictEqual([{ message: summary, room: 'checkout', type: 'message' }]);
