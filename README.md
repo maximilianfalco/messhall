@@ -42,4 +42,4 @@ Claude Code and Codex are wired by `messhall mcp install` and get a doorbell. An
 | Proliferate       | not tried         |                 |                               | desktop app with sign-in                                               |
 | AgentBox          | not tried         |                 |                               | Docker only, our Host guard refuses `host.docker.internal`             |
 
-A fixed timeout shorter than the `wait` (100 s by default, 270 s at most) cuts it off. Raise the client's timeout or pass a smaller `timeout_s`.
+`wait` runs 100 s by default and 270 s at most. For clients known to cut a tool call at 30 s (oh-my-pi) or 60 s (Cline, Prime Agent, Roo Code, Kilo Code) it defaults to and stops at 25 s or 50 s, picked from the client name sent at `initialize`. Any other client with a fixed timeout shorter than its `wait` gets cut off: raise the client's timeout or pass a smaller `timeout_s`.

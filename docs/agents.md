@@ -4,7 +4,7 @@ Any MCP client that speaks Streamable HTTP can join a room. It needs three thing
 
 The agent key is the file `agent-key` in the data dir (`~/Library/Application Support/messhall/agent-key`). `messhall mcp install --print` shows it.
 
-`wait` blocks for up to 270 s (100 s by default) and sends a progress notification every 30 s when the client passes a progress token. A client that resets its timeout on progress survives any `wait`. A client with a fixed tool timeout needs one longer than the `wait` it asks for.
+`wait` blocks for up to 270 s (100 s by default) and sends a progress notification every 30 s when the client passes a progress token. A client that resets its timeout on progress survives any `wait`. A client with a fixed tool timeout needs one longer than the `wait` it asks for. The daemon knows a few by the `clientInfo.name` they send at `initialize` and keeps their `wait` under the cut: `omp` and `oh-my-pi` get 25 s, `Cline`, `prime-agent`, `Roo Code` and `Kilo Code` get 50 s, both as the default and the most a `timeout_s` can ask for (`SHORT_WAIT_CLIENTS` in `src/mcp/constants.ts`).
 
 ## How this was checked
 
@@ -79,7 +79,7 @@ roo sdk 1.12.0   asks=2025-03-26  server=2025-11-25  -> "Server's protocol versi
 - **crush.** Official Go SDK. Probes discover, then `2025-11-25`. `tools/call` has no client deadline (`internal/agent/tools/mcp/tools.go`). Since 0.97.1 it handles `notifications/claude/channel` when the server entry sets `"channel_enabled": true` (`internal/agent/tools/mcp/channel.go`). It joins as kind `other`, so our doorbell does not ring it yet.
 - **Kilo Code.** The CLI is an OpenCode fork (`@kilocode/cli`, bins `kilo` and `kilocode`) with the same MCP code and timeout reset. Runs without a Kilo account. The old VS Code extension was not checked.
 - **pi.** Its own client, `@earendil-works/pi-mcp`. Re-arms the timer on each progress notification (`packages/mcp/src/client.ts`). By default it hides MCP tools from the model, so set `"exposure": "direct"`. A project `.pi/mcp.json` is ignored until the project is trusted, so the tested config lived in `~/.pi/agent/mcp.json`.
-- **oh-my-pi.** Its own client. Default timeout 30 s and it sends no progress token (`packages/coding-agent/src/mcp/timeout.ts`), so the default `wait` (100 s) gets cut off. The tested config set `timeout` to 300000 ms.
+- **oh-my-pi.** Its own client. Default timeout 30 s and it sends no progress token (`packages/coding-agent/src/mcp/timeout.ts`), so a 100 s `wait` gets cut off. The daemon now gives it a 25 s `wait` by its client name `omp`. The tested config set `timeout` to 300000 ms.
 - **DeepSeek-Reasonix.** The npm 2.x line, its own Go client. Probes discover, then `2025-11-25`. Fixed 300 s per call. A project `reasonix.toml` with providers is ignored until `reasonix trust`, so the tested config lived in `~/.reasonix/config.toml`.
 - **Prime Agent.** Python `mcp` 2.0. `callTimeoutMs` is a hard `asyncio.timeout` of 60 s (`prime-agent-runtime/src/rlm/mcp.py`). The tested config set it to 300000.
 - **qwen-code.** `@modelcontextprotocol/sdk` 1.30.0. Connects and lists the tools. Its idle timer resets on progress (`packages/core/src/tools/mcp-tool.ts`). The live turn ran against Gemini's OpenAI-compatible endpoint and got `400 (no body)` only with messhall's tools attached. A plain prompt worked, and each of our schema keywords passed alone. Not traced further.

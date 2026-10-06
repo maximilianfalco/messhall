@@ -2,6 +2,8 @@ import type { Progress } from '@modelcontextprotocol/client';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { waitLimitFor } from '../../src/mcp/tools/wait.js';
+
 import { mcpHarness, type McpHarness } from './harness.js';
 
 const LONG = { timeout: 600_000 };
@@ -61,6 +63,53 @@ describe('wait', () => {
     await vi.advanceTimersByTimeAsync(99_999);
     expect(waiting.done).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
+
+    expect(waiting.done).toBe(true);
+  });
+
+  it.each([
+    ['omp', 25],
+    ['oh-my-pi', 25],
+    ['Cline', 50],
+    ['prime-agent', 50],
+    ['Roo Code', 50],
+    ['Kilo Code', 50],
+  ])('caps wait for %s at %i seconds', (client, seconds) => {
+    expect(waitLimitFor(client)).toStrictEqual({ defaultS: seconds, maxS: seconds });
+  });
+
+  it.each(['claude-code', 'codex-mcp-client', 'opencode', undefined])('keeps 100 s and 270 s for %s', client => {
+    expect(waitLimitFor(client)).toStrictEqual({ defaultS: 100, maxS: 270 });
+  });
+
+  it('waits 25 seconds by default for a client with a 30 second tool timeout', async () => {
+    const api = await harness.agent({ name: 'omp' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout' }, LONG));
+    await vi.advanceTimersByTimeAsync(24_999);
+    expect(waiting.done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(waiting.value?.text).toBe('nothing yet, call wait again.');
+  });
+
+  it('clamps an explicit timeout_s to the safe max for a short timeout client', async () => {
+    const api = await harness.agent({ name: 'Cline' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout', timeout_s: 200 }, LONG));
+    await vi.advanceTimersByTimeAsync(50_000);
+
+    expect(waiting.value?.text).toBe('nothing yet, call wait again.');
+  });
+
+  it('lets an explicit timeout_s under the safe max win', async () => {
+    const api = await harness.agent({ name: 'Cline' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout', timeout_s: 10 }, LONG));
+    await vi.advanceTimersByTimeAsync(10_000);
 
     expect(waiting.done).toBe(true);
   });
