@@ -24,6 +24,14 @@ export const historySchema = z.object({
   messages: z.array(messageSchema).describe('One page of a room, oldest first.'),
 });
 
+export const searchHitSchema = messageSchema.extend({
+  room: nameSchema.describe('Name of the room the message is in.'),
+});
+
+export const searchResultSchema = z.object({
+  messages: z.array(searchHitSchema).describe('Messages that have every word searched for, newest first.'),
+});
+
 export const humanPostSchema = z.object({
   text: z.string().min(1).max(TEXT_MAX_CHARS).describe('What the human says, 1 to 4,000 chars.'),
 });
@@ -56,6 +64,7 @@ export const feedErrorSchema = z.object({
 
 export type Snapshot = z.infer<typeof snapshotSchema>;
 export type History = z.infer<typeof historySchema>;
+export type SearchResult = z.infer<typeof searchResultSchema>;
 export type HumanPostResult = z.infer<typeof humanPostResultSchema>;
 export type ReopenResult = z.infer<typeof reopenResultSchema>;
 export type NewRoomResult = z.infer<typeof newRoomResultSchema>;

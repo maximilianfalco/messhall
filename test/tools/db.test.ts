@@ -59,7 +59,7 @@ describe('scriptedRun', () => {
     expect(result.code).toBe(0);
     expect(report).toContain('read as web');
     expect(report).toContain('@web the order schema has a currency field now');
-    expect(report).toMatch(/api\s+claude\s+gone/);
+    expect(report).toMatch(/api\s+claude\s+left/);
   });
 
   it('refuses a dir that already holds a db', () => {

@@ -5,6 +5,7 @@ struct RoomDetail: View {
   let room: SnapshotRoom
   let store: FeedStore
   let client: FeedClient
+  @State private var query = ""
 
   private var subtitle: String {
     let posts = "\(room.messageCount) of \(room.messageCap) posts"
@@ -17,12 +18,14 @@ struct RoomDetail: View {
       if case .down = store.phase { ReconnectBanner() }
       MemberStrip(members: room.members)
       Divider()
-      Transcript(messages: room.messages)
+      Transcript(messages: room.messages.matching(query), query: query)
       Divider()
       PostBox(room: room, store: store, client: client)
     }
     .navigationTitle("#\(room.name)")
     .navigationSubtitle(subtitle)
+    .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
+    .onChange(of: room.name) { query = "" }
   }
 }
 
@@ -77,7 +80,7 @@ struct MemberChip: View {
     .padding(.horizontal, 10)
     .padding(.vertical, 6)
     .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-    .opacity(member.presence == .gone ? 0.6 : 1)
+    .opacity(member.presence.isAway ? 0.6 : 1)
     .help("\(member.displayName) runs on \(member.kind.rawValue) and is \(member.presence.rawValue)")
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("\(member.displayName), \(member.kind.rawValue), \(member.presence.rawValue)")
@@ -89,7 +92,7 @@ struct PresenceDot: View {
 
   var body: some View {
     Group {
-      if presence == .gone {
+      if presence.isAway {
         Circle().strokeBorder(presence.color, lineWidth: 1.5)
       } else {
         Circle().fill(presence.color)
@@ -101,9 +104,12 @@ struct PresenceDot: View {
 
 struct Transcript: View {
   let messages: [Message]
+  let query: String
 
   var body: some View {
-    if messages.isEmpty {
+    if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+      ContentUnavailableView.search(text: query)
+    } else if messages.isEmpty {
       ContentUnavailableView(
         "No Messages Yet", systemImage: "text.bubble",
         description: Text("Posts show up here as the agents talk."))

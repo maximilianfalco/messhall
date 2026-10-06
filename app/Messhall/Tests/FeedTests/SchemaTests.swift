@@ -44,7 +44,7 @@ private let enums: [String: [String]] = [
 
 private let unused: Set = [
   "BusEvent", "CloseResult", "Health", "History", "NewRoom", "NewRoomResult", "ReopenResult", "RoomSummary",
-  "SequencedEvent",
+  "SearchHit", "SearchResult", "SequencedEvent",
 ]
 
 @Suite("contracts/schema.json")

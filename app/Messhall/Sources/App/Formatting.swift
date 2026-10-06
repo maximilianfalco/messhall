@@ -43,12 +43,13 @@ extension MemberKind {
 
 extension Presence {
   var label: String { rawValue.capitalized }
+  var isAway: Bool { self == .gone || self == .left }
 
   var color: Color {
     switch self {
     case .active: .green
     case .waiting: .orange
-    case .idle, .gone: .secondary
+    case .idle, .gone, .left: .secondary
     }
   }
 }

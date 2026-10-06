@@ -14,7 +14,7 @@ import {
   SYSTEM_NAME,
   TEXT_MAX_CHARS,
 } from '../../contracts/room.ts';
-import { DEFAULT_MESSAGE_CAP, READ_LIMIT } from '../config.js';
+import { DEFAULT_MESSAGE_CAP, READ_LIMIT, SEARCH_LIMIT } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
 
 import { createEventBus } from './events.js';
@@ -49,6 +49,9 @@ const toMember = (row: Row) => memberSchema.parse({ ...row, done: row.done === 1
 const toMessage = (row: Row) =>
   messageSchema.parse({ ...row, from: row.from_name, mentions: parseStoredJson(String(row.mentions)) });
 
+// Each word becomes a quoted prefix term, so FTS5 syntax in a query is just text.
+const ftsQuery = (q: string) => Array.from(q.matchAll(/[\p{L}\p{N}_]+/gu), ([word]) => `"${word}"*`).join(' ');
+
 const isReserved = (name: string) => (RESERVED_NAMES as readonly string[]).includes(name);
 
 /**
@@ -81,7 +84,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     latest: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id'),
     latestSummary: db.prepare("SELECT * FROM messages WHERE room_id = ? AND kind = 'summary' ORDER BY id DESC LIMIT 1"),
     latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
-    leave: db.prepare("UPDATE members SET left_at = ?, presence = 'gone' WHERE room_id = ? AND name = ?"),
+    leave: db.prepare("UPDATE members SET left_at = ?, presence = 'left' WHERE room_id = ? AND name = ?"),
     liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
     member: db.prepare('SELECT * FROM members WHERE room_id = ? AND name = ?'),
     messagesAfter: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? ORDER BY id LIMIT ?'),
@@ -95,6 +98,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     roomById: db.prepare('SELECT * FROM rooms WHERE id = ?'),
     rooms: db.prepare(
       `SELECT rooms.*, (SELECT count(*) FROM messages WHERE room_id = rooms.id AND ${IS_POST}) AS message_count FROM rooms ORDER BY name`,
+    ),
+    search: db.prepare(
+      'SELECT messages.*, rooms.name AS room FROM messages_fts JOIN messages ON messages.id = messages_fts.rowid JOIN rooms ON rooms.id = messages.room_id WHERE messages_fts MATCH ? AND (? IS NULL OR rooms.id = ?) ORDER BY messages.id DESC LIMIT ?',
     ),
     seen: db.prepare('UPDATE members SET presence = ?, last_seen_at = ? WHERE room_id = ? AND name = ?'),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
@@ -403,6 +409,16 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         setPresence(room, member, 'active', emit, true);
         return { messages, more, ok: true } as const;
       });
+    },
+
+    /** Messages whose text has every word of `q` (as a word start), newest first, each with its room name. */
+    searchMessages({ limit = SEARCH_LIMIT, q, room: roomName }: { limit?: number; q: string; room?: string }) {
+      const room = roomName === undefined ? undefined : findRoom(roomName);
+      if (roomName !== undefined && !room) return { ok: false, reason: 'no_room' } as const;
+      const match = ftsQuery(q);
+      const roomId = room?.id ?? null;
+      const rows = match ? sql.search.all(match, roomId, roomId, limit) : [];
+      return { messages: rows.map(row => ({ ...toMessage(row), room: String(row.room) })), ok: true } as const;
     },
 
     /** Reopens a closed room with a full cap from where it stands. */

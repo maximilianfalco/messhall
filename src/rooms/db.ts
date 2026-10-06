@@ -64,6 +64,15 @@ export const MIGRATIONS = [
     '$.room.standing', json('false')
   ) WHERE kind = 'room';
   `,
+  // Search reads the text from messages. Posts are never edited or deleted, so an insert trigger keeps it whole.
+  `
+  CREATE VIRTUAL TABLE messages_fts USING fts5(text, content = 'messages', content_rowid = 'id');
+  INSERT INTO messages_fts (rowid, text) SELECT id, text FROM messages;
+  CREATE TRIGGER messages_fts_insert AFTER INSERT ON messages BEGIN
+    INSERT INTO messages_fts (rowid, text) VALUES (new.id, new.text);
+  END;
+  UPDATE members SET presence = 'left' WHERE left_at IS NOT NULL;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {
