@@ -206,6 +206,12 @@ describe('shotArgs', () => {
     expect(args[args.indexOf('-shotPageTop') + 1]).toMatch(/demo\/out\/shots\/history-dark\.anchor$/);
   });
 
+  it('sets a role through the app for the role shot', () => {
+    expect(shotArgs({ appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' })).toStrictEqual(
+      expect.arrayContaining(['-shotRole', 'qa=reviewer', '-shotRoom', 'checkout']),
+    );
+  });
+
   it('opens every fold for the expanded shot', () => {
     expect(shotArgs({ appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' })).toStrictEqual(
       expect.arrayContaining(['-shotOpenFolds', 'YES', '-shotRoom', 'handoff']),

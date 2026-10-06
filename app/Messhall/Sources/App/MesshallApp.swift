@@ -44,6 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       if let text = UserDefaults.standard.string(forKey: "shotPost") {
         Task { await ShotHooks.post(text, store: store, client: client) }
       }
+      if let role = UserDefaults.standard.string(forKey: "shotRole") {
+        let room = UserDefaults.standard.string(forKey: "shotRoom")
+        Task { await ShotHooks.setRole(role, room: room, store: store, client: client) }
+      }
       ShotHooks.navigate(
         room: UserDefaults.standard.string(forKey: "shotRoom"),
         newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"), navigation: navigation)
