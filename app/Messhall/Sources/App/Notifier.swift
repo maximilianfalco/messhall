@@ -54,13 +54,19 @@ struct MuteButton: View {
   let room: String
   @Environment(Notifier.self) private var notifier
 
+  private var help: String {
+    if !notifier.enabled { return "Notifications are off in the Messhall menu bar menu" }
+    return notifier.isMuted(room) ? "Notifications for #\(room) are off" : "Turn off notifications for #\(room)"
+  }
+
   var body: some View {
-    let muted = notifier.isMuted(room)
+    let muted = notifier.isMuted(room) || !notifier.enabled
     Button {
       notifier.toggleMute(room)
     } label: {
       Label(muted ? "Unmute Room" : "Mute Room", systemImage: muted ? "bell.slash" : "bell")
     }
-    .help(muted ? "Notifications for #\(room) are off" : "Turn off notifications for #\(room)")
+    .disabled(!notifier.enabled)
+    .help(help)
   }
 }

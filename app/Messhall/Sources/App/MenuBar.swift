@@ -4,9 +4,13 @@ import SwiftUI
 
 struct MenuBarLabel: View {
   let store: FeedStore
+  let navigation: Navigation
+  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
+    // The app delegate has no openWindow, and a closed window is gone from NSApp, so it asks here.
     Image(nsImage: StatusIcon.image(dot: store.anyActive))
+      .onChange(of: navigation.windowRequests) { openWindow(id: MesshallApp.windowID) }
     if store.loaded { Text("\(store.openRoomCount)") }
   }
 }

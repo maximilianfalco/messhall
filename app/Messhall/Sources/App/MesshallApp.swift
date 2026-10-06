@@ -7,6 +7,8 @@ import UserNotifications
 @MainActor
 final class Navigation {
   var room: String?
+  /// Bumped to ask the menu bar label, which always lives, to open the window.
+  var windowRequests = 0
 }
 
 @MainActor
@@ -55,8 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   private func show(_ room: String?) {
     if let room { navigation.room = room }
+    navigation.windowRequests += 1
     NSApp.activate()
-    NSApp.windows.first { $0.identifier?.rawValue == MesshallApp.windowID }?.makeKeyAndOrderFront(nil)
   }
 }
 
@@ -79,7 +81,7 @@ struct MesshallApp: App {
       MenuBarMenu(store: delegate.store, navigation: delegate.navigation)
         .environment(delegate.notifier)
     } label: {
-      MenuBarLabel(store: delegate.store)
+      MenuBarLabel(store: delegate.store, navigation: delegate.navigation)
     }
   }
 }
