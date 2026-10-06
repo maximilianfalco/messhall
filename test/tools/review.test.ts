@@ -13,6 +13,8 @@ describe('reviewRequest', () => {
     [`Ready for review: ${URL} @reviewer-2 thanks`, { reviewer: 'reviewer-2', round: 1, url: URL }],
     [`round 2: ${URL} @reviewer-1`, { reviewer: 'reviewer-1', round: 2, url: URL }],
     [`round 3: ${URL}, fixed both blockers @reviewer-1`, { reviewer: 'reviewer-1', round: 3, url: URL }],
+    [`CI green. ready for review: ${URL} @reviewer-1`, { reviewer: 'reviewer-1', round: 1, url: URL }],
+    [`merged main in! round 2: ${URL} @reviewer-2`, { reviewer: 'reviewer-2', round: 2, url: URL }],
   ])('reads %s', (line, expected) => {
     expect(reviewRequest(line)).toStrictEqual(expected);
   });
@@ -23,6 +25,8 @@ describe('reviewRequest', () => {
     ['ready for review: https://example.com/pull/12 @reviewer-1'],
     [`PR open: ${URL} @reviewer-1`],
     [`round two: ${URL} @reviewer-1`],
+    [`taking ${URL} round 3: checking the merge @reviewer-1`],
+    [`you said ready for review: ${URL} @reviewer-1`],
   ])('ignores %s', line => {
     expect(reviewRequest(line)).toBeUndefined();
   });
