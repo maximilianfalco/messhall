@@ -110,6 +110,14 @@ describe('agentRun', () => {
     expect(text).toContain('api → @web] @web total is cents now');
   });
 
+  it('names itself messhall-dev when no client is given', async () => {
+    await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', url: daemon.url });
+
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toMatch(
+      /api +other +messhall-dev /,
+    );
+  });
+
   it('sends the client name it was given at initialize', async () => {
     await agentRun({ client: 'claude-code', keyFile: keyFile(), role: 'api', room: 'checkout', url: daemon.url });
 

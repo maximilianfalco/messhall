@@ -134,7 +134,7 @@ export async function agentRun({
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
-  const target = { key, name: client ?? `messhall-dev-agent-${role}`, url };
+  const target = { key, name: client ?? 'messhall-dev', url };
   const session = await withAgentSession(target, mcp =>
     following
       ? joinAndFollow(mcp, { open: () => openAgentSession(target), pause, postFifo, role, room, signal, write })

@@ -2,10 +2,16 @@ import Foundation
 import SwiftUI
 
 /// An sRGB color with channels from 0 to 1.
-public struct RGB: Equatable, Sendable {
+public struct RGB: Codable, Equatable, Sendable {
   public let red: Double
   public let green: Double
   public let blue: Double
+
+  public init(red: Double, green: Double, blue: Double) {
+    self.red = red
+    self.green = green
+    self.blue = blue
+  }
 
   public static let white = RGB(red: 1, green: 1, blue: 1)
   public static let black = RGB(red: 0, green: 0, blue: 0)
@@ -28,10 +34,26 @@ public func avatarFill(hue: Int) -> RGB {
   return hsl(hue: hue, lightness: lightness)
 }
 
-/// The circle fill for a member name, the same in every room and on every launch.
-public func avatarColor(for name: String) -> Color {
-  let fill = avatarFill(hue: avatarHue(for: name))
-  return Color(red: fill.red, green: fill.green, blue: fill.blue)
+/// The circle fill for a member name: the human's pick from Settings, else the same hashed hue everywhere.
+@MainActor
+public func avatarRGB(for name: String, in settings: AppSettings = .shared) -> RGB {
+  settings.snapshot.avatars.color(for: name) ?? avatarFill(hue: avatarHue(for: name))
+}
+
+@MainActor
+public func avatarColor(for name: String, in settings: AppSettings = .shared) -> Color {
+  Color(avatarRGB(for: name, in: settings))
+}
+
+/// White while it keeps AA on the fill, else black. A picked color can be too light for white.
+public func avatarInk(on fill: RGB) -> RGB {
+  contrastRatio(fill, .white) >= 4.5 ? .white : .black
+}
+
+extension Color {
+  public init(_ rgb: RGB) {
+    self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
+  }
 }
 
 /// One letter, or two when the name has a dash: `f8-search` is `FS`.

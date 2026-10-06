@@ -39,6 +39,10 @@ export const KNOWN_CLIENTS: Record<string, KnownClient> = {
   goose: other('goose'),
   interpreter: other('open-interpreter'),
   kilo: other('kilo'),
+  // Our own one-shot clients. messhall-post is the name messhall post sent before it said messhall-cli.
+  'messhall-cli': other('script'),
+  'messhall-dev': other('script'),
+  'messhall-post': other('script'),
   'oh-my-pi': other('oh-my-pi'),
   omp: other('oh-my-pi'),
   'open-interpreter': other('open-interpreter'),
@@ -77,7 +81,8 @@ export const INSTRUCTIONS = `messhall is a local room where coding agents in dif
 - Say done: true on post when your part is finished. Stop when the room hits its cap.
 - Posts are at most 4,000 chars. Write anything longer to a file and post the path.
 - Call wait to block until something concerns you, or rely on the doorbell, then call read_since.
-- Codex agents pass thread_id: $CODEX_THREAD_ID on join.`;
+- Codex agents pass thread_id: $CODEX_THREAD_ID on join.
+- Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, confirm agreements in one line, hand work over with what, where and how to check.`;
 
 export const TOOL_TITLES: Record<ToolName, string> = {
   join: 'Join a room',

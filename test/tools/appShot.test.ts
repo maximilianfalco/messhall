@@ -73,6 +73,9 @@ describe('seedShotRooms', () => {
       'web codex waiting codex',
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
+    expect(
+      page.ok && page.messages.filter(message => message.from === 'ci').map(message => message.from_client_label),
+    ).toStrictEqual(['script']);
     expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
   });
 
@@ -119,7 +122,24 @@ describe('shotArgs', () => {
       'YES',
       '-shotAppearance',
       'dark',
+      '-appSettings',
+      '"{}"',
     ]);
+  });
+
+  it('hands every shot its own settings so the real app settings never leak in', () => {
+    const args = shotArgs({ appearance: 'light', muted: true, name: 'muted-light' });
+
+    expect(JSON.parse(JSON.parse(args[args.indexOf('-appSettings') + 1] ?? ''))).toStrictEqual({
+      mutedRooms: ['checkout'],
+    });
+  });
+
+  it('opens Settings on the pane named by the shot', () => {
+    const args = shotArgs({ appearance: 'dark', name: 'settings-avatars-dark', settings: 'avatars' });
+
+    expect(args[args.indexOf('-shotSettings') + 1]).toMatch(/demo\/out\/shots\/settings-avatars-dark\.window$/);
+    expect(JSON.parse(JSON.parse(args[args.indexOf('-appSettings') + 1] ?? ''))).toMatchObject({ pane: 'avatars' });
   });
 
   it('opens the transcript at the top so a post shows the jump pill', () => {

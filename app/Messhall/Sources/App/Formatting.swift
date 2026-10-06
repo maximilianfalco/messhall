@@ -9,7 +9,7 @@ func plural(_ count: Int, _ noun: String) -> String {
 }
 
 extension SnapshotRoom {
-  var agents: [Member] { members.filter { $0.kind != .human } }
+  var agents: [Member] { present.filter { $0.kind != .human } }
 
   var agentSummary: String {
     let active = agents.filter { $0.presence == .active }.count

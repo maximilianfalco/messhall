@@ -38,6 +38,10 @@ describe('clientType', () => {
     ['prime-agent', 'other', 'prime', false],
     ['openhands', 'other', 'openhands', false],
     ['interpreter', 'other', 'open-interpreter', false],
+    ['messhall-cli', 'other', 'script', false],
+    ['messhall-dev', 'other', 'script', false],
+    ['messhall-dev-agent-api', 'other', 'script', false],
+    ['messhall-post-ci', 'other', 'script', false],
   ] as const)('reads %s as kind %s, label %s, channel %s', (name, kind, label, channel) => {
     expect(clientType(name)).toStrictEqual({ channel, kind, label });
   });

@@ -46,6 +46,13 @@ describe('runPost', () => {
     expect(room()).not.toContain('is gone');
   });
 
+  it('names itself messhall-cli, so the room labels it a script', async () => {
+    const result = await post();
+
+    expect(room()).toMatch(/ci +other +messhall-cli /);
+    expect(room()).toMatch(new RegExp(`${result.output} +ci +chat +build is green`));
+  });
+
   it('posts a done line with done', async () => {
     const result = await post({ done: true });
 

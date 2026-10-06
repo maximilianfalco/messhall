@@ -71,6 +71,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   const stamp = () => now().toISOString();
 
   const sql = {
+    allMembers: db.prepare('SELECT * FROM members WHERE room_id = ? ORDER BY name'),
     agentsNotDone: db.prepare(
       "SELECT count(*) AS n FROM members WHERE room_id = ? AND left_at IS NULL AND kind != 'human' AND done = 0",
     ),
@@ -81,7 +82,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, client_name, client_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ),
     insertMessage: db.prepare(
-      'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
+      'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at, from_kind, from_client_label) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
     ),
     insertSummary: db.prepare(
       "INSERT INTO messages (room_id, from_name, kind, text, created_at, covers_id) VALUES (?, ?, 'summary', ?, ?, ?) RETURNING *",
@@ -145,8 +146,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   const countPosts = (room: Room) => Number(sql.countPosts.get(room.id)?.n);
   const latestSummaryRow = (room: Room) => sql.latestSummary.get(room.id);
 
-  function post(room: Room, from: string, kind: MessageKind, text: string, mentions: string[], emit: Emit) {
-    const message = toMessage(sql.insertMessage.get(room.id, from, kind, text, JSON.stringify(mentions), stamp())!);
+  // The sender's kind and label go on the post, so the transcript can show them after the sender leaves.
+  function post(room: Room, from: Member | string, kind: MessageKind, text: string, mentions: string[], emit: Emit) {
+    const [name, fromKind, label] =
+      typeof from === 'string' ? [from, null, null] : [from.name, from.kind, from.client_label];
+    const row = sql.insertMessage.get(room.id, name, kind, text, JSON.stringify(mentions), stamp(), fromKind, label);
+    const message = toMessage(row!);
     emit({ message, room: room.name, type: 'message' });
     return message;
   }
@@ -321,10 +326,11 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Members still in the room, by name. Empty when the room does not exist. */
-    listMembers(roomName: string) {
+    /** Members still in the room, by name, and with `left` those who left too. Empty when the room does not exist. */
+    listMembers(roomName: string, { left = false }: { left?: boolean } = {}) {
       const room = findRoom(roomName);
-      return room ? sql.liveMembers.all(room.id).map(toMember) : [];
+      if (!room) return [];
+      return (left ? sql.allMembers : sql.liveMembers).all(room.id).map(toMember);
     },
 
     /** A page of a room's messages, system lines too, oldest first: the latest `limit`, or the `limit` after `after`.
@@ -378,7 +384,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         }
         const names = sql.liveMembers.all(room.id).map(row => String(row.name));
         const kind = done && !human ? 'done' : 'chat';
-        const message = post(room, from, kind, text, parseMentions({ names, text }), emit);
+        const message = post(room, member, kind, text, parseMentions({ names, text }), emit);
         sql.setDone.run(kind === 'done' ? 1 : 0, room.id, from);
         setPresence(room, member, 'active', emit, true);
 

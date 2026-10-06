@@ -63,6 +63,8 @@ function setup() {
     const message: Message = {
       created_at: timers.now().toISOString(),
       from: 'api',
+      from_client_label: null,
+      from_kind: null,
       id,
       kind: 'chat',
       mentions: text.includes('@web') ? ['web'] : [],

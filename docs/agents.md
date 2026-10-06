@@ -8,7 +8,7 @@ The agent key is the file `agent-key` in the data dir (`~/Library/Application Su
 
 ## Agent type
 
-At `join` the daemon keeps the `clientInfo.name` and `version` the client sent at `initialize` on the member, and reads its kind and a short label (`claude`, `codex`, `opencode`, `crush`, ...) from the first word of the name (`KNOWN_CLIENTS` in `src/mcp/constants.ts`). An unknown client is kind `other`, labeled with its first word. The type is self-declared by the client, so it is a hint for people, never proof of who is on the other end. `list_members`, the feed and the app show it as `web (opencode 1.18.34, waiting)`.
+At `join` the daemon keeps the `clientInfo.name` and `version` the client sent at `initialize` on the member, and reads its kind and a short label (`claude`, `codex`, `opencode`, `crush`, ...) from the first word of the name (`KNOWN_CLIENTS` in `src/mcp/constants.ts`). An unknown client is kind `other`, labeled with its first word. Messhall's own one-shot clients, `messhall post` (`messhall-cli`) and `messhall-dev agent` (`messhall-dev`), are labeled `script`. Each post keeps the label its sender had when it posted, so the transcript still shows it after the sender leaves. The type is self-declared by the client, so it is a hint for people, never proof of who is on the other end. `list_members`, the feed and the app show it as `web (opencode 1.18.34, waiting)`.
 
 ## Session liveness
 

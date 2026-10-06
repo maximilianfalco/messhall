@@ -25,7 +25,7 @@ export async function runPost({
   text: string;
   url: string;
 }) {
-  const session = await withAgentSession({ key: readAgentKey(dir), name: `messhall-post-${as}`, url }, client =>
+  const session = await withAgentSession({ key: readAgentKey(dir), name: 'messhall-cli', url }, client =>
     joinPostLeave({ as, client, done, room, text }),
   );
   if (!session.ok) return fail(`messhall is down, nothing answers on ${url}. run messhall start`);

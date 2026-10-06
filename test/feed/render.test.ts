@@ -41,6 +41,8 @@ const member = (overrides: Partial<Member> = {}): Member => ({
 const message = (overrides: Partial<Message> = {}): Message => ({
   created_at: AT,
   from: 'api',
+  from_client_label: null,
+  from_kind: null,
   id: 1,
   kind: 'chat',
   mentions: [],
@@ -120,6 +122,7 @@ const snapshot: Snapshot = {
         member(),
         member({ kind: 'codex', name: 'web', presence: 'waiting' }),
         member({ kind: 'human', name: 'human', presence: 'idle' }),
+        member({ kind: 'other', left_at: AT, name: 'ci', presence: 'left' }),
       ],
       message_count: 2,
       messages: [message(), message({ from: 'human', id: 2, text: 'nice' })],
@@ -135,7 +138,7 @@ const snapshot: Snapshot = {
 };
 
 describe('renderSnapshot', () => {
-  it('prints every room with its members and last messages', () => {
+  it('prints every room with the members still in it and last messages', () => {
     expect(plain(renderSnapshot({ snapshot }))).toStrictEqual([
       '#checkout  open, 2/200 posts, ship the cart',
       '       api active, web waiting, human',
@@ -166,7 +169,7 @@ describe('renderSnapshot', () => {
 });
 
 describe('renderRooms', () => {
-  it('lists each room in one line', () => {
+  it('lists each room in one line, counting only members still in it', () => {
     expect(plain(renderRooms({ snapshot }))).toStrictEqual([
       '#checkout  open, 3 members, 2/200 posts, ship the cart',
       '#search  closed, standing, 0 members, 0/200 posts',

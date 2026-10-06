@@ -16,3 +16,10 @@ extension Member {
     "\(displayName) runs on \(client ?? kind.rawValue) and is \(presence.rawValue)"
   }
 }
+
+extension Message {
+  /// The type pill on a chat line. The label stamped on the post wins, so a sender who left keeps it.
+  public func typeLabel(sender: Member?) -> String? {
+    fromClientLabel ?? sender?.clientLabel
+  }
+}
