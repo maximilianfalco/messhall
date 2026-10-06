@@ -8,6 +8,8 @@ import { claudeArgv } from './claudeTmux.js';
 export const SPAWN_SESSION_PREFIX = 'messhall-';
 export const SEAT_SESSION_PREFIX = `${SPAWN_SESSION_PREFIX}seat-`;
 export const ROLE_WAIT_MIN = 2;
+/** The reviewer `docs/briefs/worker.md` names, which `--reviewer` swaps out. */
+export const DEFAULT_REVIEWER = 'reviewer-1';
 const PLAN_FILE = 'personal-dev-notes.md';
 // A build agent works alone, so it gets the usual tools, not the demo's short list.
 export const SPAWN_ALLOWED_TOOLS = [
@@ -87,23 +89,26 @@ export function seatPrompt({ name, room }: { name: string; room: string }) {
     `Talk in the room only through those tools, never through messhall post or messhall-dev agent, so the room shows you as claude.`,
     `Never speak as the human: no messhall say, no human key, no human-seat routes. To try a surface, test with your own name or a scratch daemon (pnpm messhall-dev daemon).`,
     `Then do nothing else until orchestrator or human gives you a role: after a line that mentions you, call my_role and follow the instructions it returns.`,
-    `If my_role still says unassigned after ${ROLE_WAIT_MIN} minutes, post "@orchestrator what is my role?" and wait again.`,
+    `If my_role still says unassigned after one ${ROLE_WAIT_MIN * 60} s wait, post "@orchestrator what is my role?".`,
     `Whenever a role line mentions you later, call my_role again and switch to what it says.`,
+    `When you have nothing to do, end your turn and let the doorbell ring you, do not loop on wait.`,
     `Answer a ring, a human line or a mention of you in #${room} right away, then go back to work.`,
   ].join(' ');
 }
 
-/** Role instructions for a queue row: the role text, then the row, branch and claimed worktree. */
+/** Role instructions for a queue row: the role text with `reviewer` in its review gate, then the row, branch and claimed worktree. */
 export function rowInstructions({
   branch,
   brief,
   id,
+  reviewer = DEFAULT_REVIEWER,
   role,
   worktree,
 }: {
   branch: string;
   brief?: string;
   id: string;
+  reviewer?: string;
   role?: string;
   worktree: string;
 }) {
@@ -113,7 +118,7 @@ export function rowInstructions({
     `It is already claimed and your worktree is ${worktree}, so skip the claim and worktree steps, and ${guide}.`,
     `Closing the row is yours: when it is finished, you may run queue.py done ${id} yourself. Keep your seat until then.`,
   ].join(' ');
-  return role ? `${role}\n\n${row}` : row;
+  return role ? `${role.replaceAll(`@${DEFAULT_REVIEWER}`, `@${reviewer}`)}\n\n${row}` : row;
 }
 
 /** The orchestrator line that gives `member` its role with the instructions in `file`. */

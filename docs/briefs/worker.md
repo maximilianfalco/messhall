@@ -4,10 +4,14 @@ Post one short line in the room at each point: claimed, tests green, PR open (wi
 
 Review gate. It beats any "merge when CI is green" step in a brief or skill:
 
-1. Once CI is green, post `ready for review: <PR url> @reviewer-1` and call `wait`.
-2. The reviewer answers with a numbered findings list that mentions you, and files the same as a GitHub review. Fix every blocker and should-fix (nits are your call), push, post `round N: <PR url> @reviewer-1` (N counts from 2), and `wait` again.
+1. Once CI is green, post `ready for review: <PR url> @reviewer-1` and wait for the answer.
+2. The reviewer answers with a numbered findings list that mentions you, and files the same as a GitHub review. Fix every blocker and should-fix (nits are your call), push, post `round N: <PR url> @reviewer-1` (N counts from 2), and wait again.
 3. Merge only after `approved @<you> <PR url>` from a reviewer, or a `human` line that says go.
 4. If a reviewer posts `@human stuck on <PR url>, round 3`, stop and wait for the human.
-5. A PR that touches a `CRITICAL.md` tree still waits for the human after approval. Never merge it yourself.
+5. A PR that touches a `CRITICAL.md` tree still waits for the human after approval. Never merge it yourself. The human may merge it outside the room, so each time you wake, run `gh pr view <n> --json state` and close the row once it says `MERGED`.
+
+After a merge, update the main checkout: `git pull`, `pnpm install --frozen-lockfile`, `make install`. When the merge touched `contracts/` or `app/`, also run `make app` there, quit the running Messhall and `open app/build/Messhall.app`.
+
+Waiting on a reviewer or the human: end your turn and let the doorbell ring you. Loop `wait` only when you have no doorbell.
 
 Answer a ring, a human line or a mention of you right away, then go back to work. When the row is closed, post with `done: true` and the PR url.

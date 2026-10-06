@@ -91,6 +91,11 @@ describe('row seat prompt', () => {
     expect(prompt).not.toContain('\n');
   });
 
+  it('ends the turn when idle instead of looping wait', () => {
+    expect(prompt).toContain('end your turn and let the doorbell ring you');
+    expect(prompt).not.toMatch(/wait again|keep calling wait/);
+  });
+
   it('carries no row id, branch or job words', () => {
     expect(prompt).not.toMatch(/B82|f8\/thing|worktree|queue|row|brief|pickup|job|claim/i);
   });
@@ -124,6 +129,14 @@ describe('rowInstructions', () => {
     const text = rowInstructions({ ...base, role: 'You are a worker.' });
     expect(text.startsWith('You are a worker.')).toBe(true);
     expect(text.indexOf('row B82')).toBeGreaterThan(0);
+  });
+
+  it('names the given reviewer in the review gate', () => {
+    const role = 'post `ready for review: <url> @reviewer-1`, then `round N: <url> @reviewer-1`';
+    const text = rowInstructions({ ...base, reviewer: 'reviewer-2', role });
+    expect(text).toContain('ready for review: <url> @reviewer-2');
+    expect(text).toContain('round N: <url> @reviewer-2');
+    expect(text).not.toContain('@reviewer-1');
   });
 });
 
@@ -221,6 +234,35 @@ describe('spawnRun', () => {
     expect(outcome.report).toContain('row B82 of the job queue');
     expect(outcome.report).toContain('--assign f8-thing=worker');
     expect(queue.mock.calls.map(([args]) => args[0])).toStrictEqual(['show']);
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it('writes the given reviewer into the role instructions on a dry run', async () => {
+    const { launch, queue } = run(LISTING);
+    const instructions = path.join(mkdtempSync(path.join(tmpdir(), 'spawn-')), 'worker.md');
+    writeFileSync(instructions, 'ask `ready for review: <url> @reviewer-1`');
+    const outcome = await spawnRun({
+      ...options,
+      dryRun: true,
+      id: 'B82',
+      instructions,
+      launch,
+      queue,
+      reviewer: 'reviewer-2',
+    });
+    expect(outcome.code).toBe(0);
+    expect(outcome.report).toContain('ready for review: <url> @reviewer-2');
+    expect(outcome.report).not.toContain('@reviewer-1');
+  });
+
+  it.each([
+    ['Reviewer 2', 'not a member name'],
+    ['reviewer-2', 'needs --instructions'],
+  ])('refuses --reviewer %s before claiming anything', async (reviewer, reason) => {
+    const { launch, queue } = run(LISTING);
+    const outcome = await spawnRun({ ...options, dryRun: true, id: 'B82', launch, queue, reviewer });
+    expect(outcome.code).toBe(1);
+    expect(outcome.report).toContain(reason);
     expect(launch).not.toHaveBeenCalled();
   });
 });
