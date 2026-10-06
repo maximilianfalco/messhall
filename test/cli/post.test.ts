@@ -43,7 +43,7 @@ describe('runPost', () => {
     expect(result.output).toMatch(/^\d+$/);
     expect(room()).toMatch(new RegExp(`${result.output} +ci +chat +build is green`));
     expect(room()).toMatch(/system +ci left/);
-    expect(room()).not.toContain('is gone');
+    expect(room()).not.toContain('is away');
   });
 
   it('names itself messhall-cli, so the room labels it a script', async () => {

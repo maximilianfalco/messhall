@@ -81,7 +81,7 @@ function withStore<T>({ dataDir }: { dataDir: string }, use: (store: ReturnType<
 // Members still seated in the room, by name, so flock can show each one's role.
 const seatedMembers = ({ dataDir, room }: { dataDir: string; room: string }) =>
   withStore({ dataDir }, store => {
-    const members = store.listMembers(room).filter(member => member.presence !== 'gone');
+    const members = store.listMembers(room).filter(member => member.presence !== 'away');
     return new Map(members.map(member => [member.name, member]));
   });
 

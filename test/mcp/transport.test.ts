@@ -54,8 +54,8 @@ async function start() {
 
 const agentKey = () => readFileSync(path.join(home, KEY_FILES.agent), 'utf8').trim();
 
-async function agent(url: string, key = agentKey()) {
-  const connected = await connectHttp({ key, url });
+async function agent(url: string, key = agentKey(), seat?: string) {
+  const connected = await connectHttp({ key, seat, url });
   clients.push(connected.client);
   const call = async (name: string, args: Record<string, unknown> = {}) => {
     const result = await connected.client.callTool({ arguments: args, name });
@@ -151,7 +151,41 @@ describe('the /mcp endpoint', () => {
     expect(found.map(entry => entry.session.id)).toStrictEqual([api.transport.sessionId]);
   });
 
-  it('marks the members gone and forgets the session on DELETE', async () => {
+  it('seats a client that comes back with its seat header after a restart, with its role, and no join', async () => {
+    const first = await start();
+    const api = await agent(first.url, agentKey(), 'seat-a');
+    const orchestrator = await agent(first.url);
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await orchestrator.call('join', { as: 'orchestrator', room: 'checkout' });
+    await orchestrator.call('assign_role', { member: 'api', role: 'worker', room: 'checkout' });
+    await first.close();
+    daemon = undefined;
+    const second = await start();
+
+    const back = await agent(second.url, agentKey(), 'seat-a');
+    const posted = await back.call('post', { room: 'checkout', text: 'back after the restart' });
+    const role = await back.call('my_role', { room: 'checkout' });
+
+    expect(posted.isError).toBe(false);
+    expect(role.text).toContain('your role in #checkout: worker');
+    expect(second.sessionsFor({ name: 'api', room: 'checkout' })).toHaveLength(1);
+  });
+
+  it('leaves an away seat alone for a client with another seat header', async () => {
+    const first = await start();
+    const api = await agent(first.url, agentKey(), 'seat-a');
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await api.transport.terminateSession();
+
+    const other = await agent(first.url, agentKey(), 'seat-b');
+    const posted = await other.call('post', { room: 'checkout', text: 'hi' });
+    const joined = await other.call('join', { as: 'api', room: 'checkout' });
+
+    expect(posted).toStrictEqual({ isError: true, text: 'you are not in #checkout. call join first.' });
+    expect(joined).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+  });
+
+  it('marks the members away and forgets the session on DELETE', async () => {
     const { url } = await start();
     const api = await agent(url);
     await api.call('join', { as: 'api', room: 'checkout' });
@@ -165,7 +199,7 @@ describe('the /mcp endpoint', () => {
       .listMembers('checkout')
       .find(item => item.name === 'api');
     side.close();
-    expect(member?.presence).toBe('gone');
+    expect(member?.presence).toBe('away');
     const res = await post(url, { id: 3, jsonrpc: '2.0', method: 'tools/list' }, { 'mcp-session-id': sessionId });
     expect(res.status).toBe(404);
   });
@@ -224,7 +258,7 @@ describe('createMcpEndpoint sweep', () => {
     return { call };
   }
 
-  it('closes a session with no stream and no call for 60 s at the next sweep and marks its members gone', async () => {
+  it('closes a session with no stream and no call for 60 s at the next sweep and marks its members away', async () => {
     const api = await agent(endpointUrl(), 'no-key-check-here');
     await api.call('join', { as: 'api', room: 'checkout' });
     await api.client.close();
@@ -237,7 +271,7 @@ describe('createMcpEndpoint sweep', () => {
 
     expect([early, swept]).toStrictEqual([0, 1]);
     expect(sessionOf('api')).toBeUndefined();
-    expect(presenceOf('api')).toBe('gone');
+    expect(presenceOf('api')).toBe('away');
   });
 
   it('keeps a session whose stream is open however long it is quiet', async () => {
@@ -266,6 +300,6 @@ describe('createMcpEndpoint sweep', () => {
     const swept = await endpoint.sweep();
 
     expect([held, swept]).toStrictEqual([0, 1]);
-    expect(presenceOf('api')).toBe('gone');
+    expect(presenceOf('api')).toBe('away');
   });
 });

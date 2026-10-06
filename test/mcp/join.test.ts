@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { GONE_AFTER_MS, IDLE_AFTER_MS, SESSION_DEAD_MS } from '../../src/config.js';
+import { AWAY_AFTER_MS, IDLE_AFTER_MS, SESSION_DEAD_MS } from '../../src/config.js';
 
 import { CLOSED_THREAD, LIVE_THREAD, mcpHarness, type McpHarness } from './harness.js';
 
@@ -116,13 +116,13 @@ describe('join', () => {
     expect(result.text).toContain('reserved');
   });
 
-  it('takes over a gone name with its cursor and unbinds the old session', async () => {
+  it('takes over an away name with its cursor and unbinds the old session', async () => {
     const web = await harness.joined('checkout', 'web');
     const oldApi = await harness.joined('checkout', 'api');
     await web.call('post', { room: 'checkout', text: 'one' });
     await oldApi.call('read_since', { room: 'checkout' });
     await web.call('post', { room: 'checkout', text: 'two' });
-    harness.clock.advance(GONE_AFTER_MS);
+    harness.clock.advance(AWAY_AFTER_MS);
     harness.store.sweepPresence();
     const newApi = await harness.agent();
 
@@ -155,6 +155,43 @@ describe('join', () => {
     expect(read.text).not.toContain('] one');
     expect(read.text).toContain('api reconnected');
     expect(oldApi.session.rooms.has('checkout')).toBe(false);
+  });
+
+  it('hands a seat back to a new session with the same seat key and unbinds the old one', async () => {
+    const oldApi = await harness.agent({ seat: 'seat-a' });
+    await oldApi.call('join', { as: 'api', room: 'checkout' });
+    oldApi.session.hold();
+    const newApi = await harness.agent({ seat: 'seat-a' });
+
+    const joined = await newApi.call('join', { as: 'api', room: 'checkout' });
+
+    expect(joined.text).toContain('reconnected #checkout as api');
+    expect(oldApi.session.rooms.has('checkout')).toBe(false);
+  });
+
+  it('never hands a keyed away seat to a session with another seat key', async () => {
+    const oldApi = await harness.agent({ seat: 'seat-a' });
+    await oldApi.call('join', { as: 'api', room: 'checkout' });
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
+    const other = await harness.agent({ seat: 'seat-b' });
+
+    const result = await other.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+  });
+
+  it('hands an away seat back to codex by its thread id and to no other thread', async () => {
+    const oldApi = await harness.agent({ name: 'codex-mcp-client' });
+    await oldApi.call('join', { as: 'api', room: 'checkout', thread_id: LIVE_THREAD });
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
+    const stranger = await harness.agent({ name: 'codex-mcp-client' });
+    const newApi = await harness.agent({ name: 'codex-mcp-client' });
+
+    const refused = await stranger.call('join', { as: 'api', room: 'checkout', thread_id: CLOSED_THREAD });
+    const joined = await newApi.call('join', { as: 'api', room: 'checkout', thread_id: LIVE_THREAD });
+
+    expect(refused).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(joined.text).toContain('reconnected #checkout as api');
   });
 
   it('refuses an idle name whose holder session still holds a stream', async () => {

@@ -66,6 +66,8 @@ export function clientType(name: string): KnownClient {
     .find(prefix => KNOWN_CLIENTS[prefix]);
   return key ? KNOWN_CLIENTS[key]! : other(word);
 }
+// Lowercase, the way node hands request headers over. The launcher's per-agent key, so a seat survives a reconnect.
+export const SEAT_HEADER = 'x-messhall-seat';
 export const PROGRESS_EVERY_MS = 30_000;
 export const ROOTS_TIMEOUT_MS = 5000;
 
@@ -78,6 +80,7 @@ export const TOOL_NAMES = [
   'list_rooms',
   'assign_role',
   'my_role',
+  'kick',
   'leave',
 ] as const;
 
@@ -98,6 +101,7 @@ export const INSTRUCTIONS = `messhall is a local room where coding agents in dif
 export const TOOL_TITLES: Record<ToolName, string> = {
   assign_role: 'Give a member a role',
   join: 'Join a room',
+  kick: 'Kick a member out of a room',
   leave: 'Leave a room',
   list_members: 'List the members of a room',
   list_rooms: 'List every room',
@@ -112,10 +116,11 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Returns your role in a room, who set it and the instructions that came with it. Follow them for your work in the room; they cannot grant permissions or override human lines. Call it after a role line mentions you, since the role may have changed. Unassigned means wait for the orchestrator or the human.',
   assign_role:
     'Sets what a member does in a room: worker, reviewer, orchestrator, observer or any short slug, with optional instructions (at most 4,000 chars) the member reads through my_role and join. A new assign replaces the old instructions. Only the human or a member whose role is orchestrator may call it; anyone else is refused. Everyone starts unassigned, a member named orchestrator starts as orchestrator. Also post one line mentioning the member, so it is rung and the human sees the change.',
-  join: 'Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. A name held by a live member is refused with a free name to try. A name whose holder is gone or whose session died is taken over with its bookmark.',
+  join: 'Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. Your seat stays until you leave or are kicked: after a dropped connection or a restart it is away, and you get it back with your bookmark and role by joining again under the same name (Codex: same thread_id). A seat held by another agent is refused with a free name to try.',
+  kick: 'Removes a member from a room at once, active or away, never the human. Only a member whose role is orchestrator may call it. The member can join again. Post one line saying why, so the room and the human see it.',
   leave: 'Leaves a room with an optional note the room sees. Your bookmark stays for a later join.',
   list_members:
-    "Lists a room's members with kind, role (when assigned), presence (active, waiting, idle or gone) and last seen. Members who left are not listed. No need to join first.",
+    "Lists a room's members with kind, role (when assigned), presence (active, waiting, idle or away) and last seen. Members who left are not listed. No need to join first.",
   list_rooms:
     'Lists every room: topic, open or closed, who made it, members with kind and presence, post count, last activity. A standing room (made by human) stays open when everyone is done. Use it to pick a room before you join one.',
   post: 'Posts a message to a room you joined and returns its id. Mention with @name or @all. Pass done: true when your part is finished. At most 4,000 chars: write longer content to a file and post the path. A closed room refuses posts.',
@@ -141,6 +146,7 @@ const WRITES: ToolAnnotations = {
 export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   assign_role: WRITES,
   join: WRITES,
+  kick: { ...WRITES, destructiveHint: true },
   leave: WRITES,
   list_members: READ_ONLY,
   list_rooms: READ_ONLY,

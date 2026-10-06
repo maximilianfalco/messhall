@@ -132,17 +132,17 @@ describe('agentRun', () => {
     expect(text).toMatch(/posted #\d+ in #checkout\./);
   });
 
-  it('leaves after a one-shot post, so the room reads left and not gone', async () => {
+  it('leaves after a one-shot post, so the room reads left and not away', async () => {
     const result = await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: 'hello', url: daemon.url });
 
     const room = stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report);
     expect(stripVTControlCharacters(result.report)).toContain('left #checkout.');
     expect(stripVTControlCharacters(result.report)).toContain('session ended, api left #checkout');
     expect(room).toMatch(/system +api left/);
-    expect(room).not.toContain('is gone');
+    expect(room).not.toContain('is away');
   });
 
-  it('leaves after it waits, so the room reads left and not gone', async () => {
+  it('leaves after it waits, so the room reads left and not away', async () => {
     const result = await agentRun({
       keyFile: keyFile(),
       role: 'web',
@@ -155,7 +155,7 @@ describe('agentRun', () => {
     const room = stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report);
     expect(stripVTControlCharacters(result.report)).toContain('session ended, web left #checkout');
     expect(room).toMatch(/system +web left/);
-    expect(room).not.toContain('is gone');
+    expect(room).not.toContain('is away');
   });
 
   it('reads the backlog with catch-up and leaves without waiting', async () => {
@@ -246,7 +246,7 @@ describe('agentRun', () => {
     expect(printed.every(line => line.endsWith('\n'))).toBe(true);
     expect(room.match(/web joined/g)).toHaveLength(1);
     expect(room).toMatch(/system +web left/);
-    expect(room).not.toMatch(/web is gone|web reconnected/);
+    expect(room).not.toMatch(/web is away|web reconnected/);
   });
 
   async function startFollow() {
@@ -349,7 +349,7 @@ describe('agentRun', () => {
     await expect(exited).resolves.toBe(0);
     const room = stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report);
     expect(room).toMatch(/system +web left/);
-    expect(room).not.toContain('web is gone');
+    expect(room).not.toContain('web is away');
   }, 20_000);
 
   it('says how to start the daemon when nothing answers', async () => {

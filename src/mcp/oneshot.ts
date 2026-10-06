@@ -34,7 +34,7 @@ export async function callTool(
 }
 
 /** Joins, posts `text` if given, then leaves, even after a refused post. Leave keeps the cursor,
- * and the room reads "left", not "gone", when the session ends. */
+ * and the room reads "left", not "away", when the session ends. */
 export async function joinPostLeave({
   as,
   client,

@@ -28,9 +28,10 @@ export function mcpHarness() {
   async function agent({
     name: clientName,
     roots,
+    seat,
     version,
-  }: { name?: string; roots?: string[]; version?: string } = {}) {
-    const session = createSession({ id: `session-${clients.length + 1}`, now: scratch.clock.now });
+  }: { name?: string; roots?: string[]; seat?: string; version?: string } = {}) {
+    const session = createSession({ id: `session-${clients.length + 1}`, now: scratch.clock.now, seat });
     sessions.add({ session });
     const client = await connectInMemory(
       () => createMesshallServer({ codex, now: scratch.clock.now, session, sessions, store: scratch.store }),

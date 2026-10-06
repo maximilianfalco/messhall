@@ -23,6 +23,12 @@ export const refuse = (text: string): CallToolResult => ({ content: [{ text, typ
 
 export const notJoined = (room: string) => refuse(`you are not in #${room}. call join first.`);
 
+/** A bound session whose seat the store no longer has was kicked, so it lets go of the room and says so. */
+export function removedFrom(session: McpSession, room: string) {
+  session.unbind(room);
+  return refuse(`you were removed from #${room} by the human or an orchestrator. call join to come back.`);
+}
+
 /** Registers one tool with its title and annotations. A throw becomes an isError reply, so a tool never throws. */
 export function registerRoomTool<Input, Output>(
   server: McpServer,

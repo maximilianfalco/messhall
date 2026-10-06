@@ -50,7 +50,7 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 
 /**
  * Join, post, then wait and read once, or with `catchUp` read every page without waiting.
- * Leaves at the end, so the room reads left, not gone.
+ * Leaves at the end, so the room reads left, not away.
  */
 async function joinAndRead(
   client: Client,
@@ -190,7 +190,7 @@ export async function agentRun({
         : `${role} ${name}`;
   const lines = session.value.flatMap(reply => [reply.isError ? bad(label(reply)) : ok(label(reply)), reply.text, '']);
   const left = session.value.some(reply => reply.name === 'leave' && !reply.isError);
-  lines.push(dim(left ? `session ended, ${role} left #${room}` : `session ended, ${role} is gone from #${room}`));
+  lines.push(dim(left ? `session ended, ${role} left #${room}` : `session ended, ${role} is away from #${room}`));
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 

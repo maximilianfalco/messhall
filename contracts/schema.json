@@ -52,7 +52,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "Agents in a room right now that are not gone."
+          "description": "Agents in a room right now that are not away."
         },
         "ok": {
           "type": "boolean",
@@ -279,7 +279,7 @@
             "removed",
             "role"
           ],
-          "description": "joined, left, reconnected, removed when it was left or gone for 5 minutes or the human removed it, or role when its role was set."
+          "description": "joined, left, reconnected, removed when it left 5 minutes ago or the human or an orchestrator kicked it, or role when its role was set."
         },
         "member": {
           "description": "The member after the change.",
@@ -459,10 +459,10 @@
         "active",
         "waiting",
         "idle",
-        "gone",
+        "away",
         "left"
       ],
-      "description": "What the member is doing: active, waiting, idle, gone (went quiet) or left (called leave)."
+      "description": "What the member is doing: active, waiting, idle, away (its session dropped or went quiet, the seat is kept) or left (called leave)."
     },
     "PresenceEvent": {
       "type": "object",
@@ -504,7 +504,7 @@
       "type": "object",
       "properties": {
         "member": {
-          "description": "The member as it was when it dropped out, left or gone.",
+          "description": "The member as it was when it was removed.",
           "$ref": "#/$defs/Member"
         }
       },

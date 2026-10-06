@@ -113,7 +113,7 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     if (result.ok) sendJson(res, 200, { member: result.member } satisfies RemoveMemberResult);
     else if (result.reason === 'no_room') sendJson(res, 404, NO_ROOM);
     else if (result.reason === 'no_member') sendJson(res, 404, { error: `no member ${member} in #${room}` });
-    else sendJson(res, 409, { error: `${member} is still here, only a left or gone member can be removed` });
+    else sendJson(res, 409, { error: 'the human seat cannot be removed' });
   };
 
   const routes: Route[] = [

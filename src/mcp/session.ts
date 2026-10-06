@@ -4,9 +4,9 @@ import { SESSION_DEAD_MS } from '../config.js';
 
 /**
  * What the daemon knows about one MCP session: the name it holds in each room, its agent kind,
- * when it was last seen, and how many HTTP requests it has open right now.
+ * when it was last seen, how many HTTP requests it has open right now, and the seat key it sent.
  */
-export function createSession({ id, now }: { id: string; now: () => Date }) {
+export function createSession({ id, now, seat }: { id: string; now: () => Date; seat?: string }) {
   const rooms = new Map<string, string>();
   const marks = new Map<string, number>();
   let channel = false;
@@ -68,6 +68,8 @@ export function createSession({ id, now }: { id: string; now: () => Date }) {
       return open;
     },
     rooms: rooms as ReadonlyMap<string, string>,
+    /** The seat key from the client's header at initialize, so its seats come back after a reconnect. */
+    seat,
     /** Stamps a tool call. */
     seen() {
       lastSeen = now().getTime();
