@@ -20,7 +20,7 @@ Type "clear"
 Enter
 Show
 
-Type "pnpm -s test test/doorbell test/channels --reporter verbose 2>&1 | grep -E 'delay|activeLately|active in the last|notification with|real client|Test Files|Tests '; echo exit $pipestatus[1]"
+Type "pnpm -s test test/doorbell --reporter verbose 2>&1 | grep -E 'delay|activeLately|active in the last|notification with|real client|Test Files|Tests '; echo exit $pipestatus[1]"
 Sleep 500ms
 Enter
 Sleep 10s

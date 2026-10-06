@@ -1,8 +1,8 @@
-import type { Ringer, RingInput } from '../doorbell/ringers.js';
-import type { McpSession } from '../mcp/session.js';
+import type { McpSession } from '../../mcp/session.js';
+import type { Ringer, RingInput } from '../ringer.js';
 import type { McpServer } from '@modelcontextprotocol/server';
 
-import { logger } from '../lib/logger.js';
+import { logger } from '../../lib/logger.js';
 
 export const CHANNEL_METHOD = 'notifications/claude/channel';
 

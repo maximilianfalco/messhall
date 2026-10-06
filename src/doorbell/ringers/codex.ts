@@ -1,10 +1,10 @@
-import type { Ringer, RingInput } from '../doorbell/ringers.js';
-import type { McpSession } from '../mcp/session.js';
-import type { CodexClient } from './client.js';
+import type { CodexClient } from '../../codex/client.js';
+import type { McpSession } from '../../mcp/session.js';
+import type { Ringer, RingInput } from '../ringer.js';
 
 import { randomUUID } from 'node:crypto';
 
-import { logger } from '../lib/logger.js';
+import { logger } from '../../lib/logger.js';
 
 export interface CodexEntry {
   session: Pick<McpSession, 'dropThread' | 'id' | 'kind' | 'threadId'>;

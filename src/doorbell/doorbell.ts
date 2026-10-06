@@ -1,6 +1,6 @@
 import type { RoomStore } from '../rooms/store.js';
 import type { RingBatch, SetTimer } from './batch.js';
-import type { Ringers } from './ringers.js';
+import type { Ringers } from './ringer.js';
 
 import { logger } from '../lib/logger.js';
 
