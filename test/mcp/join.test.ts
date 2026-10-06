@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { GONE_AFTER_MS } from '../../src/config.js';
+import { GONE_AFTER_MS, IDLE_AFTER_MS, SESSION_DEAD_MS } from '../../src/config.js';
 
 import { CLOSED_THREAD, LIVE_THREAD, mcpHarness, type McpHarness } from './harness.js';
 
@@ -136,6 +136,38 @@ describe('join', () => {
     expect(harness.sessions.sessionsFor({ name: 'api', room: 'checkout' }).map(entry => entry.session)).toStrictEqual([
       newApi.session,
     ]);
+  });
+
+  it('takes over a name whose holder session died, with its cursor and a reconnected line', async () => {
+    const web = await harness.joined('checkout', 'web');
+    const oldApi = await harness.joined('checkout', 'api');
+    await web.call('post', { room: 'checkout', text: 'one' });
+    await oldApi.call('read_since', { room: 'checkout' });
+    await web.call('post', { room: 'checkout', text: 'two' });
+    harness.clock.advance(SESSION_DEAD_MS);
+    const newApi = await harness.agent();
+
+    const joined = await newApi.call('join', { as: 'api', room: 'checkout' });
+    const read = await newApi.call('read_since', { room: 'checkout' });
+
+    expect(joined).toMatchObject({ isError: false, text: expect.stringContaining('reconnected #checkout as api') });
+    expect(read.text).toContain('] two');
+    expect(read.text).not.toContain('] one');
+    expect(read.text).toContain('api reconnected');
+    expect(oldApi.session.rooms.has('checkout')).toBe(false);
+  });
+
+  it('refuses an idle name whose holder session still holds a stream', async () => {
+    const oldApi = await harness.joined('checkout', 'api');
+    oldApi.session.hold();
+    harness.clock.advance(IDLE_AFTER_MS);
+    harness.store.sweepPresence();
+    const newApi = await harness.agent();
+
+    const result = await newApi.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(oldApi.session.rooms.get('checkout')).toBe('api');
   });
 
   it('answers a repeat join under the same name without a refusal', async () => {

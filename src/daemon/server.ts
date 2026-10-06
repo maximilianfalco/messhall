@@ -6,7 +6,7 @@ import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
 import { createCodexClient } from '../codex/client.js';
-import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
+import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, SWEEP_EVERY_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringer.js';
 import { createChannelRinger } from '../doorbell/ringers/channel.js';
@@ -74,14 +74,14 @@ function caught(handler: Handler) {
   }) satisfies Handler;
 }
 
-/** Opens the store and key files, binds 127.0.0.1 and sweeps presence on a timer.
+/** Opens the store and key files, marks members from the last run gone, binds 127.0.0.1 and sweeps on a timer.
  * A taken port gives `port_taken` with the pid that holds it, never a quiet move. */
 export async function startDaemon({
   dataDir,
   findPortHolder = lsofPortHolder,
   now,
   port,
-  sweepEveryMs = PRESENCE_SWEEP_MS,
+  sweepEveryMs = SWEEP_EVERY_MS,
 }: {
   dataDir: string;
   findPortHolder?: (port: number) => Promise<string | undefined>;
@@ -97,6 +97,8 @@ export async function startDaemon({
   const keys = loadKeys({ dataDir });
   const db = openDb({ dataDir });
   const store = createRoomStore({ db, now });
+  // No session lives through a restart, so nobody from the last run is still here.
+  store.markAllGone();
   const codex = createCodexClient({ socketPath: codexControlSocket() });
   const mcp = createMcpEndpoint({ codex, now, store });
   const ringers = createRingers([

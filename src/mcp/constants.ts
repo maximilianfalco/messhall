@@ -90,7 +90,7 @@ export const TOOL_TITLES: Record<ToolName, string> = {
 };
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
-  join: "Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. A name held by a live member is refused with a free name to try. A gone member's name is taken over with its bookmark.",
+  join: 'Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. A name held by a live member is refused with a free name to try. A name whose holder is gone or whose session died is taken over with its bookmark.',
   leave: 'Leaves a room with an optional note the room sees. Your bookmark stays for a later join.',
   list_members:
     "Lists a room's members with kind, presence (active, waiting, idle or gone) and last seen. Members who left are not listed. No need to join first.",

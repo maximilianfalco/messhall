@@ -58,6 +58,8 @@ const toMessage = (row: Row) =>
 // Each word becomes a quoted prefix term, so FTS5 syntax in a query is just text.
 const ftsQuery = (q: string) => Array.from(q.matchAll(/[\p{L}\p{N}_]+/gu), ([word]) => `"${word}"*`).join(' ');
 
+const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
+
 const isReserved = (name: string) => (RESERVED_NAMES as readonly string[]).includes(name);
 
 /**
@@ -269,18 +271,20 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     },
 
     /**
-     * Joins `as` to the room, making the room on first join. A gone holder is taken over with its
-     * cursor ("reconnected"), a live holder gives `name_taken` with a free name to try. A closed
-     * standing room waits for the human to reopen it.
+     * Joins `as` to the room, making the room on first join. A gone holder, or one whose session is
+     * dead (`holderDead`), is taken over with its cursor ("reconnected"). A live holder gives
+     * `name_taken` with a free name to try. A closed standing room waits for the human to reopen it.
      */
     joinRoom({
       as,
       client,
+      holderDead = false,
       kind,
       room: roomName,
     }: {
       as: string;
       client?: { name: string; version: string };
+      holderDead?: boolean;
       kind: AgentKind;
       room: string;
     }) {
@@ -289,7 +293,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const room = findRoom(roomName) ?? makeRoom({ createdBy: as, name: roomName }, emit);
         if (room.standing && room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
         const existing = findMember(room, as);
-        if (existing && existing.left_at === null && existing.presence !== 'gone') {
+        if (existing && existing.left_at === null && existing.presence !== 'gone' && !holderDead) {
           return { ok: false, reason: 'name_taken', suggestion: suggestName(room, as) } as const;
         }
         const change: MemberChange = existing?.left_at === null ? 'reconnected' : 'joined';
@@ -445,6 +449,27 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (!room) return { ok: false, reason: 'no_room' } as const;
         if (room.closed_at === null) return { ok: false, reason: 'open' } as const;
         return { ok: true, room: reopen(room, emit) } as const;
+      });
+    },
+
+    /** Marks every agent still in a room gone, with one line per open room. For daemon start, when no session is left. */
+    markAllGone() {
+      return transaction(emit => {
+        const changes = sql.sweepable.all().map(row => {
+          const member = toMember(row);
+          sql.setPresence.run('gone', member.room_id, member.name);
+          const room = roomById(member.room_id);
+          emit({ from: member.presence, name: member.name, room: room.name, to: 'gone', type: 'presence' });
+          const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to: 'gone' };
+          return { change, room };
+        });
+        const open = changes.filter(({ room }) => room.closed_at === null);
+        Map.groupBy(open, ({ room }) => room.id).forEach(group => {
+          const names = group.map(({ change }) => change.name);
+          const verb = names.length > 1 ? 'are' : 'is';
+          systemLine(group[0]!.room, `messhall restarted, ${LIST.format(names)} ${verb} gone`, emit);
+        });
+        return changes.map(({ change }) => change);
       });
     },
 
