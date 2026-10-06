@@ -62,7 +62,7 @@ describe('scriptedRun', () => {
     expect(report).toMatch(/api\s+claude\s+left/);
   });
 
-  it('drops an agent left for 30 minutes from the members table', () => {
+  it('drops an agent left for 5 minutes from the members table', () => {
     const report = stripVTControlCharacters(scriptedRun({ dataDir }).report);
 
     expect(report).toMatch(/clear stale members\s+ios dropped out/);

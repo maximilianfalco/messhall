@@ -35,7 +35,7 @@ export function scriptedRun({ dataDir }: { dataDir: string }) {
   try {
     step('join demo as ios (other)', outcome(store.joinRoom({ as: 'ios', kind: 'other', room: ROOM })));
     step('leave as ios', outcome(store.leaveRoom({ as: 'ios', room: ROOM })));
-    tick(30 * 60_000);
+    tick(5 * 60_000);
     step('join demo as api (claude)', outcome(store.joinRoom({ as: 'api', kind: 'claude', room: ROOM })));
     step('join demo as web (codex)', outcome(store.joinRoom({ as: 'web', kind: 'codex', room: ROOM })));
     step('join demo as api again', outcome(store.joinRoom({ as: 'api', kind: 'other', room: ROOM })));

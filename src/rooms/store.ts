@@ -228,6 +228,11 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     }
   }
 
+  function drop(room: Room, member: Member, emit: Emit) {
+    sql.removeMember.run(room.id, member.name);
+    emit({ change: 'removed', member, room: room.name, type: 'member' });
+  }
+
   // Finds the room and a member still in it, the gate every member call goes through.
   function seat(roomName: string, name: string) {
     const room = findRoom(roomName);
@@ -564,17 +569,30 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Drops agents left or gone for 30 minutes. Their posts keep the sender's name and type, and a rejoin starts fresh. */
+    /** Drops agents left or gone for 5 minutes. Their posts keep the sender's name and type, and a rejoin starts fresh. */
     clearStale() {
       return transaction(emit => {
         const cutoff = new Date(now().getTime() - STALE_AFTER_MS).toISOString();
         return sql.stale.all(cutoff).map(row => {
           const member = toMember(row);
           const room = roomById(member.room_id);
-          sql.removeMember.run(member.room_id, member.name);
-          emit({ change: 'removed', member, room: room.name, type: 'member' });
+          drop(room, member, emit);
           return { name: member.name, room: room.name };
         });
+      });
+    },
+
+    /** Drops a left or gone member now, the way `clearStale` does later. A member still here is refused. */
+    removeMember({ member: name, room: roomName }: { member: string; room: string }) {
+      return transaction(emit => {
+        const room = findRoom(roomName);
+        if (!room) return { ok: false, reason: 'no_room' } as const;
+        const member = findMember(room, name);
+        if (!member) return { ok: false, reason: 'no_member' } as const;
+        if (member.presence !== 'left' && member.presence !== 'gone')
+          return { ok: false, reason: 'still_here' } as const;
+        drop(room, member, emit);
+        return { member, ok: true } as const;
       });
     },
 
