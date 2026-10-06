@@ -14,6 +14,8 @@ import {
 export const TOPIC_MAX_CHARS = 200;
 
 export const SNAPSHOT_EVENT = 'snapshot';
+// Bump when a feed enum or event type grows, so an older app can tell it is behind.
+export const FEED_CONTRACT_VERSION = 1;
 
 export const snapshotRoomSchema = roomSummarySchema.extend({
   members: z.array(memberSchema).describe('Members still in the room, by name, the human seat too.'),
@@ -21,12 +23,19 @@ export const snapshotRoomSchema = roomSummarySchema.extend({
 });
 
 export const snapshotSchema = z.object({
+  contract_version: z
+    .number()
+    .int()
+    .positive()
+    .meta({ 'x-current': FEED_CONTRACT_VERSION })
+    .describe('The feed contract the daemon speaks. An app built for a lower number is older than the daemon.'),
   rooms: z.array(snapshotRoomSchema).describe('Every room, open or closed, by name.'),
   seq: z
     .number()
     .int()
     .nonnegative()
     .describe('The event sequence this snapshot is current to. Resume the feed after it.'),
+  version: z.string().describe('The messhall version the daemon runs, for display.'),
 });
 
 export const historySchema = z.object({

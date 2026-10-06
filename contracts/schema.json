@@ -840,6 +840,13 @@
     "Snapshot": {
       "type": "object",
       "properties": {
+        "contract_version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "x-current": 1,
+          "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
+        },
         "rooms": {
           "type": "array",
           "items": {
@@ -852,11 +859,17 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "The event sequence this snapshot is current to. Resume the feed after it."
+        },
+        "version": {
+          "type": "string",
+          "description": "The messhall version the daemon runs, for display."
         }
       },
       "required": [
+        "contract_version",
         "rooms",
-        "seq"
+        "seq",
+        "version"
       ],
       "additionalProperties": false
     },
