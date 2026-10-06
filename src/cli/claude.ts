@@ -3,16 +3,19 @@ import type { Command } from 'commander';
 
 import { SERVER_NAME } from '../mcp/constants.js';
 
-import { DEFAULT_ROOM, launch, launchDeps, launchTarget } from './launch.js';
+import { briefLine, DEFAULT_ROOM, launch, launchDeps, launchTarget } from './launch.js';
 
 interface Seat {
+  brief?: string;
   name: string;
   room: string;
 }
 
-/** The first prompt: join the room under the name, then wait. Nothing else. */
-export const claudePrompt = ({ name, room }: Seat) =>
-  `Join #${room} as ${name} with the messhall tools, then wait for instructions from the room or the human.`;
+/** The first prompt: join the room under the name, then follow the brief, or wait when there is none. */
+export const claudePrompt = ({ brief, name, room }: Seat) =>
+  brief
+    ? `Join #${room} as ${name} with the messhall tools. ${briefLine(brief)}`
+    : `Join #${room} as ${name} with the messhall tools, then wait for instructions from the room or the human.`;
 
 /** The `claude` argv with messhall as a dev channel. The prompt goes after `--` so a list flag in `extra` cannot eat it. */
 export function claudeArgv({ extra, ...seat }: Seat & { extra: string[] }) {
@@ -30,7 +33,10 @@ export function claudeArgv({ extra, ...seat }: Seat & { extra: string[] }) {
 export function runClaude(options: LaunchOptions & { extra: string[] }, deps: LaunchDeps) {
   const { cwd, ...seat } = launchTarget(options, deps.cwd);
   const argv = claudeArgv({ ...seat, extra: options.extra });
-  return launch({ agent: 'claude', argv, cwd, print: options.print, prompt: claudePrompt(seat) }, deps);
+  return launch(
+    { agent: 'claude', argv, brief: seat.brief, cwd, print: options.print, prompt: claudePrompt(seat) },
+    deps,
+  );
 }
 
 /** Registers `claude`. */
@@ -42,6 +48,10 @@ export function registerClaude(program: Command) {
     .option('--room <room>', `room to join, ${DEFAULT_ROOM} by default`)
     .option('--as <name>', 'name in the room, the cwd folder by default')
     .option('--cwd <dir>', 'folder to start claude in')
+    .option(
+      '--brief <file>',
+      'instructions to read and follow after the join, docs/briefs/orchestrator.md for --as orchestrator',
+    )
     .option('--print', 'only print the command and the first prompt')
     .action(async (extra: string[], options: Omit<LaunchOptions, 'print'> & { print?: boolean }) => {
       process.exitCode = await runClaude({ ...options, extra, print: Boolean(options.print) }, launchDeps());
