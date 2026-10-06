@@ -33,4 +33,9 @@ public enum Follow {
     guard lastAfter > lastBefore else { return .none }
     return nearBottom || fromHuman ? .scroll(animated: true) : .showPill
   }
+
+  /// What to do after a fold opens or closes. Near the bottom it stays flush with the end, else the reader stays put.
+  public static func afterToggle(nearBottom: Bool) -> Action {
+    nearBottom ? .scroll(animated: false) : .none
+  }
 }

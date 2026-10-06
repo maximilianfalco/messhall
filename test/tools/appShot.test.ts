@@ -61,6 +61,7 @@ describe('seedShotRooms', () => {
       ['billing', false, 'ledger', false],
       ['checkout', true, 'qa', false],
       ['docs-sync', true, 'writer', false],
+      ['handoff', true, 'api', false],
       ['release-notes', true, 'human', true],
     ]);
     expect(
@@ -73,6 +74,21 @@ describe('seedShotRooms', () => {
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
     expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
+  });
+
+  it('leaves runs of joins and leaves between posts in the handoff room, the newest one short', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+
+    seedShotRooms({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const page = createRoomStore({ db, now: () => now }).listMessages({ limit: 50, room: 'handoff' });
+    db.close();
+
+    expect(page.ok && page.messages.map(message => message.kind).join(' ')).toBe(
+      'system system system chat chat system system system system chat system system',
+    );
   });
 });
 
@@ -125,6 +141,12 @@ describe('shotArgs', () => {
     ]);
     expect(shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' })).toStrictEqual(
       expect.arrayContaining(['-shotNewRoom', 'Release Notes', '-shotSheet']),
+    );
+  });
+
+  it('opens every fold for the expanded shot', () => {
+    expect(shotArgs({ appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' })).toStrictEqual(
+      expect.arrayContaining(['-shotOpenFolds', 'YES', '-shotRoom', 'handoff']),
     );
   });
 

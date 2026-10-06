@@ -54,4 +54,14 @@ struct FollowTests {
     #expect(Follow.wait(columnsChangedAt: changed, now: changed.addingTimeInterval(elapsed)) == 0)
     #expect(Follow.wait(columnsChangedAt: nil, now: changed) == 0)
   }
+
+  @Test("a fold that opens or closes near the bottom lands flush at the end with no animation")
+  func toggleAtBottom() {
+    #expect(Follow.afterToggle(nearBottom: true) == .scroll(animated: false))
+  }
+
+  @Test("a fold that opens or closes while scrolled up leaves the reader where they are")
+  func toggleScrolledUp() {
+    #expect(Follow.afterToggle(nearBottom: false) == .none)
+  }
 }

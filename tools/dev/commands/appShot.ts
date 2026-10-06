@@ -9,7 +9,7 @@ import { promisify } from 'node:util';
 
 import { runPost } from '../../../src/cli/post.js';
 import { openDb } from '../../../src/rooms/db.js';
-import { createRoomStore } from '../../../src/rooms/store.js';
+import { createRoomStore, type RoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, formatTable, ok } from '../lib/print.js';
 
@@ -48,6 +48,10 @@ const SHOTS = [
   { agentPost: true, appearance: 'dark', name: 'pill-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', muted: true, name: 'muted-light' },
   { appearance: 'dark', muted: true, name: 'muted-dark' },
+  { appearance: 'light', name: 'folded-light', room: 'handoff' },
+  { appearance: 'dark', name: 'folded-dark', room: 'handoff' },
+  { appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' },
+  { appearance: 'dark', name: 'expanded-dark', openFolds: true, room: 'handoff' },
 ] as const;
 // Posts as the human first, so the take also shows the right side row and the scroll landing flush.
 const RECORDING = { appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true } as const;
@@ -87,7 +91,36 @@ export function checkShotHome(home: string) {
   if (path.resolve(home) === real) return `refusing ${home}, it is the real data dir`;
 }
 
-/** Seeds four rooms on a fresh db so every screen has something to show. Presence follows `now`. */
+/** A room with runs of joins and leaves between posts, so the transcript shows folded and open runs. */
+function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
+  const room = 'handoff';
+  const presence = (lines: [string, 'join' | 'leave', string?][]) =>
+    lines.forEach(([as, change, note]) => {
+      step(20_000);
+      if (change === 'join') store.joinRoom({ as, client: CLAUDE, kind: 'claude', room });
+      else store.leaveRoom({ as, note, room });
+    });
+  presence([
+    ['api', 'join'],
+    ['web', 'join'],
+    ['qa', 'join'],
+  ]);
+  store.postMessage({ from: 'api', room, text: '@web i will take the migration, the form is yours' });
+  store.postMessage({ from: 'web', room, text: '@api sounds good, starting on the form now' });
+  presence([
+    ['web', 'leave', 'back after lunch'],
+    ['qa', 'leave'],
+    ['web', 'join'],
+    ['qa', 'join'],
+  ]);
+  store.postMessage({ from: 'api', room, text: '@web @qa the migration is in, over to you' });
+  presence([
+    ['web', 'leave'],
+    ['qa', 'leave'],
+  ]);
+}
+
+/** Seeds five rooms on a fresh db so every screen has something to show. Presence follows `now`. */
 export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) {
   let at = now.getTime() - 20 * 60_000;
   const db = openDb({ dataDir });
@@ -105,6 +138,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     step(5 * 60_000);
     store.joinRoom({ as: 'ledger', client: CLAUDE, kind: 'claude', room: 'billing' });
     store.postMessage({ done: true, from: 'ledger', room: 'billing', text: 'invoices backfilled' });
+    seedHandoff({ step, store });
     step(5 * 60_000);
     store.joinRoom({ as: 'qa', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'checkout' });
     store.postMessage({
@@ -196,6 +230,7 @@ export function shotArgs(shot: Shot) {
     ...('room' in shot ? ['-shotRoom', shot.room] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
+    ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
   ];
 }
@@ -313,7 +348,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, the jump pill, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, folded and open presence runs, the jump pill, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
