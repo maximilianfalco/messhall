@@ -111,9 +111,15 @@ describe('shotArgs', () => {
       '-shotRoom',
       'billing',
     ]);
-    expect(shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' }).slice(-2)).toStrictEqual(
-      ['-shotNewRoom', 'Release Notes'],
+    expect(shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' })).toStrictEqual(
+      expect.arrayContaining(['-shotNewRoom', 'Release Notes', '-shotSheet']),
     );
+  });
+
+  it('has the app draw the sheet into the shot file itself', () => {
+    const args = shotArgs({ appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' });
+
+    expect(args[args.indexOf('-shotSheet') + 1]).toMatch(/demo\/out\/shots\/new-room-light\.png$/);
   });
 });
 

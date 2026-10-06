@@ -36,6 +36,20 @@
       if let newRoom { navigation.newRoomDraft = newRoom }
     }
 
+    /// `-shotSheet <file>`: draws the open sheet into a png from inside the app.
+    /// screencapture cannot grab a window with a sheet on an accessory app, so app-shot reads this file instead.
+    static func saveSheet(to file: String) async {
+      while NSApp.windows.first(where: { $0.sheetParent != nil && $0.isVisible }) == nil {
+        try? await Task.sleep(for: .milliseconds(100))
+      }
+      try? await Task.sleep(for: .seconds(1))
+      guard let view = NSApp.windows.first(where: { $0.sheetParent != nil })?.contentView?.superview,
+        let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+      else { return }
+      view.cacheDisplay(in: view.bounds, to: rep)
+      try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
+    }
+
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.
     static func renderStatus(into dir: URL) {
       for scheme in [ColorScheme.light, .dark] {

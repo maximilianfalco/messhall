@@ -45,6 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       ShotHooks.navigate(
         room: UserDefaults.standard.string(forKey: "shotRoom"),
         newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"), navigation: navigation)
+      if let file = UserDefaults.standard.string(forKey: "shotSheet") {
+        Task { await ShotHooks.saveSheet(to: file) }
+      }
     #endif
   }
 

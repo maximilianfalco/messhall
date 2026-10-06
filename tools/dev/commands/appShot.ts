@@ -25,7 +25,7 @@ const WINDOW_WITHIN_MS = 30_000;
 const SETTLE_MS = 2500;
 const POST_TEXT = 'thanks both. ship it once the e2e run is green';
 // Lands below a transcript scrolled to the top, so the jump pill shows.
-const AGENT_POST = { as: 'writer', room: 'docs-sync', text: 'the glossary page is updated too' };
+const AGENT_POST = { as: 'editor', room: 'docs-sync', text: 'the glossary page is updated too' };
 
 const SHOTS = [
   { appearance: 'light', name: 'window-light' },
@@ -52,7 +52,6 @@ const DOWN_SHOTS = [
 ] as const;
 
 const QUIT_WITHIN_MS = 5000;
-const CAPTURE_TRIES = 8;
 
 const run = promisify(execFile);
 // Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
@@ -159,6 +158,16 @@ function processAlive(pid: number) {
 
 type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number];
 
+const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
+
+/** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
+async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<string | undefined> {
+  if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) > 0) return;
+  if (Date.now() > deadline) return `no sheet drawn within ${WINDOW_WITHIN_MS}ms`;
+  await sleep(250);
+  return waitFile(file, deadline);
+}
+
 /** The launch args for one shot. The real app shares the bundle id, so a window closed there would stay shut here. */
 export function shotArgs(shot: Shot) {
   return [
@@ -169,7 +178,7 @@ export function shotArgs(shot: Shot) {
     ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
     ...('muted' in shot ? MUTED_ARGS : []),
     ...('room' in shot ? ['-shotRoom', shot.room] : []),
-    ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom] : []),
+    ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
   ];
 }
@@ -198,18 +207,6 @@ async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS)
   return waitWindow(pid, deadline);
 }
 
-/** `screencapture -l` fails now and then while a sheet is up, so it gets a few tries. Gives the last error text. */
-async function capture(id: number, file: string, tries = CAPTURE_TRIES): Promise<string | undefined> {
-  try {
-    await run('screencapture', ['-o', '-x', '-l', String(id), file]);
-  } catch (error) {
-    const reason = `screencapture failed: ${String(error).trim().split('\n').at(-1)}`;
-    if (tries <= 1) return reason;
-    await sleep(1000);
-    return capture(id, file, tries - 1);
-  }
-}
-
 async function shoot({
   app,
   env,
@@ -221,6 +218,7 @@ async function shoot({
   launched: number[];
   shot: Shot;
 }) {
+  rmSync(shotFile(shot), { force: true });
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
@@ -240,9 +238,12 @@ async function shoot({
       });
       if (posted.code !== 0) return `agent post failed: ${posted.output}`;
     }
+    const file = shotFile(shot);
+    // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
+    if ('newRoom' in shot) return (await waitFile(file)) ?? file;
     await sleep(SETTLE_MS);
-    const file = path.join(OUT_DIR, `${shot.name}.png`);
-    return (await capture(id, file)) ?? file;
+    await run('screencapture', ['-o', '-x', '-l', String(id), file]);
+    return file;
   } finally {
     child.kill('SIGTERM');
     await Promise.race([exited, sleep(QUIT_WITHIN_MS)]);
