@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { dialogKeys, proofLines } from '../../tools/dev/commands/channel.js';
+import { proofLines } from '../../tools/dev/commands/channel.js';
+import { dialogKeys } from '../../tools/dev/lib/claudeTmux.js';
 
 const TRUST = ` Accessing workspace:
  /private/var/folders/xy/T/messhall-channel-cwd-abc
