@@ -20,6 +20,7 @@ import { bad, dim, ok } from '../lib/print.js';
 const MORE = 'more are waiting';
 
 interface AgentOptions {
+  assign?: string;
   catchUp?: boolean;
   client?: string;
   follow?: boolean;
@@ -70,6 +71,18 @@ async function joinAndRead(
   return replies;
 }
 
+/** Joins, posts `say` if given, sets `member`'s role, then leaves even after a refusal. */
+async function joinAssignLeave(
+  client: Client,
+  { member, role, room, say, value }: { member: string; role: string; room: string; say?: string; value: string },
+) {
+  const joined = await callTool(client, 'join', { as: role, room });
+  if (joined.isError) return [joined];
+  const posted = say ? [await callTool(client, 'post', { room, text: say })] : [];
+  const assigned = await callTool(client, 'assign_role', { member, role: value, room });
+  return [joined, ...posted, assigned, await callTool(client, 'leave', { room })];
+}
+
 /** Joins once, follows until `signal` aborts, then leaves. A lost session is reopened and joined
  * again under the same name, so the seat outlives a daemon restart. */
 async function joinAndFollow(
@@ -116,6 +129,7 @@ async function joinAndFollow(
  * session ends. `wait` blocks once, `catchUp` reads the backlog, `follow` holds the seat until `signal` aborts.
  */
 export async function agentRun({
+  assign,
   catchUp,
   client,
   follow: following,
@@ -131,6 +145,8 @@ export async function agentRun({
   wait,
   write = line => process.stdout.write(line),
 }: AgentOptions) {
+  const [member, value] = assign?.split('=') ?? [];
+  if (assign !== undefined && !(member && value)) return { code: 1, report: bad('--assign takes <member>=<role>') };
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
@@ -138,9 +154,11 @@ export async function agentRun({
   const session = await withAgentSession(target, mcp =>
     following
       ? joinAndFollow(mcp, { open: () => openAgentSession(target), pause, postFifo, role, room, signal, write })
-      : wait || catchUp
-        ? joinAndRead(mcp, { catchUp, role, room, say, timeout })
-        : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
+      : member && value
+        ? joinAssignLeave(mcp, { member, role, room, say, value })
+        : wait || catchUp
+          ? joinAndRead(mcp, { catchUp, role, room, say, timeout })
+          : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
   );
   if (!session.ok) {
     return {
@@ -162,13 +180,14 @@ export async function agentRun({
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--assign <member=role>] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
     .description('A scripted agent over real HTTP MCP: join, post, wait, read, with how long wait blocked.')
     .requiredOption('--room <room>', 'room to join')
     .option('--say <text>', 'post this after joining')
+    .option('--assign <member=role>', "set a member's role after the post, as the orchestrator does")
     .option('--wait', 'block until something concerns this agent, then read')
     .option('--catch-up', 'read the backlog and leave without waiting')
     .option(

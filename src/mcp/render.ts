@@ -1,6 +1,6 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
-import { HUMAN_NAME } from '../../contracts/room.ts';
+import { HUMAN_NAME, UNASSIGNED_ROLE } from '../../contracts/room.ts';
 
 /** One read line: `[#<id> <from> → @<mentions>] <text>`, with `✓ done` on a done post and `summary` on a summary. */
 export function messageLine(message: Message) {
@@ -48,7 +48,7 @@ export function renderRead({
 }
 
 /**
- * `web (opencode 1.18.34, waiting)`: the client label and version, or the kind when the member sent no client.
+ * `web (opencode 1.18.34, reviewer, waiting)`: the client label and version (or the kind), the role once assigned.
  * `you` marks the caller's own line and `(no doorbell)` an unrung codex.
  */
 export function memberLabel({ as, member, noDoorbell }: { as?: string; member: Member; noDoorbell?: boolean }) {
@@ -57,5 +57,6 @@ export function memberLabel({ as, member, noDoorbell }: { as?: string; member: M
   const type = member.client_label
     ? [member.client_label, member.client_version].filter(Boolean).join(' ')
     : member.kind;
-  return `${member.name} (${type}${noDoorbell ? ' (no doorbell)' : ''}, ${member.presence}${done}${you})`;
+  const role = member.role === UNASSIGNED_ROLE ? '' : `, ${member.role}`;
+  return `${member.name} (${type}${noDoorbell ? ' (no doorbell)' : ''}${role}, ${member.presence}${done}${you})`;
 }

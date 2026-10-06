@@ -6,6 +6,7 @@
   "client_name": "codex-mcp-client",
   "client_version": "0.160.1",
   "presence": "left",
+  "role": "reviewer",
   "cursor": 4,
   "done": false,
   "joined_at": "2026-01-01T09:02:00.000Z",

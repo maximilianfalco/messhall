@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { nameSchema } from './room.ts';
+import { nameSchema, roleSchema } from './room.ts';
 
 export const AGENT_KINDS = ['claude', 'codex', 'other'] as const;
 export const WAIT_MAX_S = 270;
@@ -58,6 +58,12 @@ export const listMembersInputSchema = z.object({
   room: roomField.describe('Room to list. No need to join it first.'),
 });
 
+export const assignRoleInputSchema = z.object({
+  member: nameSchema.describe('Name of the member to give the role.'),
+  role: roleSchema.describe('The role: worker, reviewer, orchestrator, observer or any short slug.'),
+  room: roomField.describe('Room you joined, where the member sits.'),
+});
+
 export const listRoomsInputSchema = z.object({});
 
 export const leaveInputSchema = z.object({
@@ -70,4 +76,5 @@ export type PostInput = z.infer<typeof postInputSchema>;
 export type ReadSinceInput = z.infer<typeof readSinceInputSchema>;
 export type WaitInput = z.infer<typeof waitInputSchema>;
 export type ListMembersInput = z.infer<typeof listMembersInputSchema>;
+export type AssignRoleInput = z.infer<typeof assignRoleInputSchema>;
 export type LeaveInput = z.infer<typeof leaveInputSchema>;

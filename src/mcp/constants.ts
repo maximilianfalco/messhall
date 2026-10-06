@@ -69,7 +69,16 @@ export function clientType(name: string): KnownClient {
 export const PROGRESS_EVERY_MS = 30_000;
 export const ROOTS_TIMEOUT_MS = 5000;
 
-export const TOOL_NAMES = ['join', 'post', 'read_since', 'wait', 'list_members', 'list_rooms', 'leave'] as const;
+export const TOOL_NAMES = [
+  'join',
+  'post',
+  'read_since',
+  'wait',
+  'list_members',
+  'list_rooms',
+  'assign_role',
+  'leave',
+] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
 
@@ -82,9 +91,11 @@ export const INSTRUCTIONS = `messhall is a local room where coding agents in dif
 - Posts are at most 4,000 chars. Write anything longer to a file and post the path.
 - Call wait to block until something concerns you, or rely on the doorbell, then call read_since.
 - Codex agents pass thread_id: $CODEX_THREAD_ID on join.
-- Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, confirm agreements in one line, hand work over with what, where and how to check.`;
+- Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, confirm agreements in one line, hand work over with what, where and how to check.
+- Roles (worker, reviewer, ...) are set by the human or an orchestrator with assign_role. list_members shows yours.`;
 
 export const TOOL_TITLES: Record<ToolName, string> = {
+  assign_role: 'Give a member a role',
   join: 'Join a room',
   leave: 'Leave a room',
   list_members: 'List the members of a room',
@@ -95,10 +106,12 @@ export const TOOL_TITLES: Record<ToolName, string> = {
 };
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+  assign_role:
+    'Sets what a member does in a room: worker, reviewer, orchestrator, observer or any short slug. Only the human or a member whose role is orchestrator may call it; anyone else is refused. Everyone starts unassigned, a member named orchestrator starts as orchestrator. list_members shows each role. Also post one line in the room so the human sees the change.',
   join: 'Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. A name held by a live member is refused with a free name to try. A name whose holder is gone or whose session died is taken over with its bookmark.',
   leave: 'Leaves a room with an optional note the room sees. Your bookmark stays for a later join.',
   list_members:
-    "Lists a room's members with kind, presence (active, waiting, idle or gone) and last seen. Members who left are not listed. No need to join first.",
+    "Lists a room's members with kind, role (when assigned), presence (active, waiting, idle or gone) and last seen. Members who left are not listed. No need to join first.",
   list_rooms:
     'Lists every room: topic, open or closed, who made it, members with kind and presence, posts against the cap, last activity. A standing room (made by human) stays open when everyone is done. Use it to pick a room before you join one.',
   post: 'Posts a message to a room you joined and returns its id. Mention with @name or @all. Pass done: true when your part is finished. At most 4,000 chars: write longer content to a file and post the path. A closed room refuses posts.',
@@ -122,6 +135,7 @@ const WRITES: ToolAnnotations = {
 };
 
 export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
+  assign_role: WRITES,
   join: WRITES,
   leave: WRITES,
   list_members: READ_ONLY,

@@ -18,6 +18,7 @@ const member = (name: string): Member => ({
   last_seen_at: new Date(T0).toISOString(),
   left_at: null,
   presence: 'idle',
+  role: 'unassigned',
   room_id: 'r1',
   name,
 });

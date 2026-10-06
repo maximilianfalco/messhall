@@ -37,6 +37,55 @@ afterEach(async () => {
 const keyFile = () => path.join(home, KEY_FILES.agent);
 
 describe('agentRun', () => {
+  it('posts the role line and sets the role when it joins as the orchestrator', async () => {
+    await agentRun({ keyFile: keyFile(), role: 'reviewer-1', room: 'dev', say: 'hi', url: daemon.url });
+
+    const result = await agentRun({
+      assign: 'reviewer-1=reviewer',
+      keyFile: keyFile(),
+      role: 'orchestrator',
+      room: 'dev',
+      say: '@reviewer-1 your role: reviewer',
+      url: daemon.url,
+    });
+
+    const text = stripVTControlCharacters(result.report);
+    expect(result.code).toBe(0);
+    expect(text).toContain('reviewer-1 is now reviewer in #dev.');
+    expect(text).toContain('left #dev.');
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'dev' }).report)).toMatch(
+      /reviewer-1\s+other\s+messhall-dev \S+\s+reviewer/,
+    );
+  });
+
+  it('refuses a role from a member who is not the orchestrator, and still leaves', async () => {
+    const result = await agentRun({
+      assign: 'api=reviewer',
+      keyFile: keyFile(),
+      role: 'api',
+      room: 'dev',
+      url: daemon.url,
+    });
+
+    const text = stripVTControlCharacters(result.report);
+    expect(result.code).toBe(1);
+    expect(text).toContain('only the human or an orchestrator can set roles in #dev.');
+    expect(text).toContain('left #dev.');
+  });
+
+  it('refuses an assign that is not member=role before it connects', async () => {
+    const result = await agentRun({
+      assign: 'reviewer',
+      keyFile: keyFile(),
+      role: 'orchestrator',
+      room: 'dev',
+      url: daemon.url,
+    });
+
+    expect(result.code).toBe(1);
+    expect(stripVTControlCharacters(result.report)).toContain('--assign takes <member>=<role>');
+  });
+
   it('joins, posts and prints what came back', async () => {
     const result = await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: 'hello', url: daemon.url });
 

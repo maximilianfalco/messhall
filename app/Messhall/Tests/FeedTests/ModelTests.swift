@@ -34,6 +34,7 @@ struct ModelTests {
 
     #expect(member.presence == .left)
     #expect(member.leftAt != nil)
+    #expect(member.role == "reviewer")
   }
 
   @Test("decode the post result and the error body")

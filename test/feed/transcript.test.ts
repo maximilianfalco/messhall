@@ -33,6 +33,7 @@ const member = (overrides: Partial<Member> = {}): Member => ({
   left_at: null,
   name: 'api',
   presence: 'active',
+  role: 'unassigned',
   room_id: 'room-1',
   ...overrides,
 });

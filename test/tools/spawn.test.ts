@@ -4,11 +4,12 @@ import type { RunResult } from '../../tools/dev/lib/run.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { flockStop, spawnRun } from '../../tools/dev/commands/spawn.js';
+import { flockStop, seatRun, spawnRun } from '../../tools/dev/commands/spawn.js';
 import { claudeArgv } from '../../tools/dev/lib/claudeTmux.js';
 import {
   parseFlock,
   parseQueueRow,
+  seatPrompt,
   SPAWN_ALLOWED_TOOLS,
   spawnArgv,
   spawnPlan,
@@ -65,7 +66,13 @@ describe('spawnPlan', () => {
 });
 
 describe('spawnPrompt', () => {
-  const base = { branch: 'f8/thing', id: 'B82', room: 'dev', worktree: '/repo/.worktrees/f8-thing' };
+  const base = {
+    branch: 'f8/thing',
+    id: 'B82',
+    reviewers: ['reviewer-1'],
+    room: 'dev',
+    worktree: '/repo/.worktrees/f8-thing',
+  };
 
   it('points at the brief, the row, the seat, the progress points and the done line', () => {
     const prompt = spawnPrompt({ ...base, brief: '/notes/brief.md' });
@@ -81,6 +88,53 @@ describe('spawnPrompt', () => {
 
   it('falls back to the pickup skill without a brief', () => {
     expect(spawnPrompt(base)).toContain('/messhall-pickup-any-work B82');
+  });
+
+  it('waits for a worker role before it starts the row', () => {
+    const prompt = spawnPrompt(base);
+    expect(prompt).toContain('post one line saying who you are');
+    expect(prompt).toContain('do nothing else until orchestrator or human posts "@f8-thing your role: ..."');
+    expect(prompt).toContain('check it with list_members');
+    expect(prompt).toContain('post "@orchestrator what is my role?"');
+    expect(prompt.indexOf('your role: ...')).toBeLessThan(prompt.indexOf('/messhall-pickup-any-work B82'));
+  });
+
+  it('gates the merge on a review from the first reviewer, or a human go', () => {
+    const prompt = spawnPrompt(base);
+    expect(prompt).toContain('do not merge on green CI');
+    expect(prompt).toContain('post "ready for review: <PR url> @reviewer-1"');
+    expect(prompt).toContain('post "round N: <PR url> @reviewer-1"');
+    expect(prompt).toContain(
+      'merge only after "approved @f8-thing <PR url>" from reviewer-1 or a human line that says go',
+    );
+    expect(prompt).toContain('"@human stuck", stop and wait for the human');
+    expect(prompt).toContain('CRITICAL.md tree still waits for the human');
+  });
+
+  it('names the first reviewer and takes approval from any of them', () => {
+    const prompt = spawnPrompt({ ...base, reviewers: ['reviewer-2', 'reviewer-1'] });
+    expect(prompt).toContain('"ready for review: <PR url> @reviewer-2"');
+    expect(prompt).toContain('from reviewer-2 or reviewer-1 or a human line');
+  });
+});
+
+describe('seatPrompt', () => {
+  it('seats a named agent that waits for its role, then follows the agent brief', () => {
+    const prompt = seatPrompt({ name: 'reviewer-1', room: 'dev' });
+    expect(prompt).toContain('Read the using-messhall skill first.');
+    expect(prompt).toContain('join #dev as reviewer-1');
+    expect(prompt).toContain('never call leave');
+    expect(prompt).toContain('do nothing else until orchestrator or human posts "@reviewer-1 your role: ..."');
+    expect(prompt).toContain('post "@orchestrator what is my role?"');
+    expect(prompt).toMatch(/tools\/dev\/briefs\/agent\.md/);
+    expect(prompt).not.toContain('rubric');
+    expect(prompt).not.toContain('\n');
+  });
+
+  it('adds the extra rubric for reviews when one is given', () => {
+    expect(seatPrompt({ name: 'reviewer-1', room: 'dev', rubric: '/notes/rubric.md' })).toContain(
+      'when you review, also use the rubric in /notes/rubric.md',
+    );
   });
 });
 
@@ -108,8 +162,16 @@ describe('parseFlock', () => {
       '',
     ].join('\n');
     expect(parseFlock(listing)).toStrictEqual([
-      { pane: '%3', pid: 4242, row: 'B82', session: 'messhall-B82' },
-      { pane: '%7', pid: 777, row: 'D80', session: 'messhall-D80' },
+      { kind: 'row', pane: '%3', pid: 4242, row: 'B82', session: 'messhall-B82' },
+      { kind: 'row', pane: '%7', pid: 777, row: 'D80', session: 'messhall-D80' },
+    ]);
+  });
+
+  it('reads a seated agent session as a seat with its name', () => {
+    const listing = ['messhall-seat-reviewer-1\t%9\t900', 'messhall-B82\t%3\t4242'].join('\n');
+    expect(parseFlock(listing)).toStrictEqual([
+      { kind: 'seat', name: 'reviewer-1', pane: '%9', pid: 900, session: 'messhall-seat-reviewer-1' },
+      { kind: 'row', pane: '%3', pid: 4242, row: 'B82', session: 'messhall-B82' },
     ]);
   });
 });
@@ -120,7 +182,14 @@ describe('spawnRun', () => {
     const launch = vi.fn<typeof launchClaude>();
     return { launch, queue };
   };
-  const options = { brief: undefined, dataDir: '/nowhere', model: 'opus', room: 'dev', url: 'http://127.0.0.1:1' };
+  const options = {
+    brief: undefined,
+    dataDir: '/nowhere',
+    model: 'opus',
+    reviewers: ['reviewer-1'],
+    room: 'dev',
+    url: 'http://127.0.0.1:1',
+  };
 
   it('refuses a blocked row before claiming or launching anything', async () => {
     const { launch, queue } = run(LISTING);
@@ -146,7 +215,52 @@ describe('spawnRun', () => {
 describe('flockStop', () => {
   it('refuses a row with no spawned session', async () => {
     const tmux = vi.fn<Runner>(() => Promise.resolve(result('', 1)));
-    await expect(flockStop({ row: 'B82', tmux })).resolves.toMatchObject({ code: 1 });
+    await expect(flockStop({ target: 'b82', tmux })).resolves.toMatchObject({ code: 1 });
     expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-B82']);
   });
+
+  it('stops a seated agent by name', async () => {
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('')));
+    const outcome = await flockStop({ target: 'reviewer-1', tmux });
+    expect(outcome.code).toBe(0);
+    expect(outcome.report).not.toContain('release');
+    expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-seat-reviewer-1']);
+  });
+});
+
+describe('seatRun', () => {
+  it('prints the plan on a dry run without launching', async () => {
+    const launch = vi.fn<typeof launchClaude>();
+    const outcome = await seatRun({
+      dataDir: '/nowhere',
+      dryRun: true,
+      launch,
+      model: 'opus',
+      name: 'reviewer-1',
+      room: 'dev',
+      url: 'http://127.0.0.1:1',
+    });
+    expect(outcome.code).toBe(0);
+    expect(outcome.report).toContain('tmux session messhall-seat-reviewer-1');
+    expect(outcome.report).toContain('join #dev as reviewer-1');
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it.each([['Reviewer 1'], ['human'], ['orchestrator-but-way-too-long-for-a-member-name']])(
+    'refuses the name %s',
+    async name => {
+      const launch = vi.fn<typeof launchClaude>();
+      const outcome = await seatRun({
+        dataDir: '/nowhere',
+        dryRun: true,
+        launch,
+        model: 'opus',
+        name,
+        room: 'dev',
+        url: 'http://127.0.0.1:1',
+      });
+      expect(outcome.code).toBe(1);
+      expect(launch).not.toHaveBeenCalled();
+    },
+  );
 });
