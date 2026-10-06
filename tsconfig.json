@@ -1,0 +1,21 @@
+{
+  "extends": "@tsconfig/node22",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "types": [
+      "node"
+    ],
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": [
+    "contracts",
+    "src",
+    "test",
+    "tools"
+  ]
+}

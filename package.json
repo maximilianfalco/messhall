@@ -1,0 +1,45 @@
+{
+  "name": "messhall",
+  "version": "0.1.0",
+  "description": "A local room where coding agents talk while each keeps working in its own repo",
+  "type": "module",
+  "bin": {
+    "messhall": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "lint": "oxlint --config oxlint.config.ts .",
+    "lint:types": "tsc --noEmit",
+    "format": "oxlint --config oxlint.config.ts --fix; oxfmt --config oxfmt.config.ts --write",
+    "format:check": "oxfmt --config oxfmt.config.ts --check",
+    "messhall-dev": "tsx tools/dev/cli.ts"
+  },
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "@modelcontextprotocol/client": "2.1.0",
+    "@modelcontextprotocol/node": "2.1.0",
+    "@modelcontextprotocol/server": "2.1.0",
+    "commander": "^15.0.0",
+    "picocolors": "^1.1.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@readme/oxlint-config": "^1.9.0",
+    "@tsconfig/node22": "^22.0.6",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.3",
+    "concurrently": "^10.0.5",
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
+    "oxlint-plugin-eslint": "^1.87.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
