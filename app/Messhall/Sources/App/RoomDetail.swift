@@ -260,13 +260,16 @@ struct Transcript: View {
   }
 
   private func start(_ proxy: ScrollViewProxy) {
+    scroll(proxy, animated: false)
     #if DEBUG
+      // The bottom anchor wins the first layout, so the shot scrolls up a beat later.
       if ShotHooks.startAtTop {
-        proxy.scrollTo(messages.first?.id, anchor: .top)
-        return
+        Task {
+          try? await Task.sleep(for: .milliseconds(500))
+          proxy.scrollTo(messages.first?.id, anchor: .top)
+        }
       }
     #endif
-    scroll(proxy, animated: false)
   }
 
   private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
