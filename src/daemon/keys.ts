@@ -9,9 +9,11 @@ import { KeyFileError } from '../errors/KeyFileError.js';
 import { sendJson } from './router.js';
 
 export const KEY_HEADER = 'x-messhall-key';
-export const KEY_FILES = { agent: 'agent-key', human: 'human-key' } as const;
+export const KEY_KINDS = ['agent', 'human'] as const;
 
-export type KeyKind = keyof typeof KEY_FILES;
+export type KeyKind = (typeof KEY_KINDS)[number];
+
+export const KEY_FILES = { agent: 'agent-key', human: 'human-key' } as const satisfies Record<KeyKind, string>;
 
 const KEY_BYTES = 32;
 const OWNER_ONLY = 0o600;
@@ -41,12 +43,20 @@ export function loadKeys({ dataDir }: { dataDir: string }) {
     human: readOrCreate(path.join(dataDir, KEY_FILES.human)),
   };
   return {
-    /** Runs `handler` only when the request's key header matches the `kind` key, else answers 401. */
-    requireKey(kind: KeyKind, handler: Handler) {
+    /** Runs `handler` only when the request's key header is one of the `kinds` keys. No key or an
+     * unknown one gets 401, a real key of another kind gets 403. */
+    requireKey(kinds: KeyKind | readonly KeyKind[], handler: Handler) {
+      const allowed: readonly KeyKind[] = typeof kinds === 'string' ? [kinds] : kinds;
       return ((req, res) => {
         const presented = req.headers[KEY_HEADER];
-        if (typeof presented !== 'string' || !same(presented, keys[kind])) {
+        const kind =
+          typeof presented === 'string' ? KEY_KINDS.find(item => same(presented, keys[item])) : undefined;
+        if (!kind) {
           sendJson(res, 401, { error: `missing or wrong ${KEY_HEADER}` });
+          return;
+        }
+        if (!allowed.includes(kind)) {
+          sendJson(res, 403, { error: `the ${kind} key cannot use this route` });
           return;
         }
         return handler(req, res);
