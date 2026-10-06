@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { clientType } from '../../src/mcp/constants.js';
-import { ringsByChannel, roleFromFolder } from '../../src/mcp/tools/join.js';
+import { ringsByChannel } from '../../src/mcp/seats.js';
+import { roleFromFolder } from '../../src/mcp/tools/join.js';
 
 describe('roleFromFolder', () => {
   it.each([

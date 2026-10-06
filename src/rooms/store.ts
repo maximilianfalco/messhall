@@ -121,7 +121,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
-      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
+      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = done * ? WHERE room_id = ? AND name = ?",
     ),
     reopen: db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
@@ -333,13 +333,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
      * Joins `as` to the room, making the room on first join. A seat still held goes back, with its cursor
      * and role ("reconnected"), only to the same `seatKey`. A keyless seat goes to any caller once it is
      * away or its session is dead (`holderDead`). Anyone else gets `name_taken` with a free name to try.
-     * A closed standing room waits for the human to reopen it.
+     * A closed standing room waits for the human to reopen it. A `reattach` keeps the done mark, a join clears it.
      */
     joinRoom({
       as,
       client,
       holderDead = false,
       kind,
+      reattach = false,
       room: roomName,
       seatKey,
     }: {
@@ -347,6 +348,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       client?: { name: string; version: string };
       holderDead?: boolean;
       kind: AgentKind;
+      reattach?: boolean;
       room: string;
       seatKey?: string;
     }) {
@@ -364,7 +366,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const [name, version] = [client?.name ?? null, client?.version ?? null];
         const role = as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
         const seatKeyOrNull = seatKey ?? null;
-        if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), room.id, as);
+        if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), reattach ? 1 : 0, room.id, as);
         else {
           const at = stamp();
           sql.insertMember.run(room.id, as, kind, at, at, 'active', cursor, name, version, role, seatKeyOrNull);
