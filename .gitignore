@@ -8,3 +8,6 @@ coverage/
 .worktrees
 personal-dev-notes.md
 demo/out
+app/build
+app/Messhall/.build
+app/Messhall/.swiftpm
