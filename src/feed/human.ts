@@ -2,6 +2,7 @@ import type {
   CloseResult,
   HumanPostResult,
   HumanRoleResult,
+  MuteResult,
   NewRoomResult,
   ReopenResult,
 } from '../../contracts/feed.ts';
@@ -14,9 +15,11 @@ import { humanPostSchema, humanRoleSchema, newRoomSchema } from '../../contracts
 import { HUMAN_NAME } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
-import { memberRoleTarget, readJson, roomTarget } from './http.js';
+import { memberAction, readJson, roomTarget } from './http.js';
 
 const NO_ROOM = { error: 'no such room' };
+
+const MUTES = { mute: true, unmute: false } as const;
 
 /** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
  * this runs, so no agent can speak as the human. */
@@ -62,9 +65,23 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     else sendJson(res, 409, { error: `role set, but the line was refused: ${line.reason}` });
   };
 
+  const mute = (res: ServerResponse, { member, muted, room }: { member: string; muted: boolean; room: string }) => {
+    if (!store.ensureHuman(room).ok) {
+      sendJson(res, 404, NO_ROOM);
+      return;
+    }
+    const result = store.muteMember({ by: HUMAN_NAME, member, muted, room });
+    if (result.ok) sendJson(res, 200, { member: result.member } satisfies MuteResult);
+    else if (result.reason === 'human') sendJson(res, 409, { error: 'the human seat cannot be muted' });
+    else sendJson(res, 404, { error: `no member ${member} in #${room}` });
+  };
+
   const post: Handler = async (req, res) => {
-    const role = memberRoleTarget(req);
-    if (role) return setRole(req, res, role);
+    const call = memberAction(req);
+    if (call?.action === 'role') return setRole(req, res, call);
+    if (call?.action === 'mute' || call?.action === 'unmute') {
+      return mute(res, { member: call.member, muted: MUTES[call.action], room: call.room });
+    }
     const target = roomTarget(req);
     if (target?.action === 'close') {
       const result = store.closeRoom(target.name);

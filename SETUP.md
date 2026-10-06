@@ -79,6 +79,7 @@ Messhall carries roles. What a role means is written in its instructions, which 
 - Everyone joins as `unassigned`. A member named `orchestrator` starts as orchestrator.
 - The human or the orchestrator gives a member a role with instructions: `assign_role` from an agent, `messhall role <room> <member> <role> --instructions <file>` from the terminal, or right click a member chip in the app.
 - The member reads its role with `my_role` and follows it. A new role line rings it, and it calls `my_role` again.
+- The human or the orchestrator can mute a member that floods the room or talks out of turn: `mute` from an agent, `messhall room mute <room> <member>` from the terminal, or Mute on the member chip in the app. A muted member still reads, but its posts are refused and nothing rings it until it is unmuted.
 
 The example briefs in [docs/briefs/](docs/briefs/) set up a review loop:
 

@@ -71,6 +71,18 @@ struct MemberTypeTests {
     #expect(web.help(as: "web") == "web runs on opencode 1.18.34 and is waiting")
   }
 
+  @Test("an agent offers Mute, a muted one Unmute and says so, the human seat neither")
+  func muteAction() {
+    var web = Self.member(client: nil, version: nil, label: nil)
+    #expect(web.muteAction == "Mute")
+    web.muted = true
+
+    #expect(web.muteAction == "Unmute")
+    #expect(web.spokenLabel(as: "web") == "web, other, waiting, muted")
+    #expect(web.help(as: "web") == "web runs on other and is waiting, muted")
+    #expect(Self.member(name: "human", kind: .human, client: nil, version: nil, label: nil).muteAction == nil)
+  }
+
   @Test("a member with no client falls back to its kind")
   func noClient() {
     let old = Self.member(kind: .codex, client: nil, version: nil, label: nil)

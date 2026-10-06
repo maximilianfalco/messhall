@@ -81,6 +81,18 @@ struct FeedClientTests {
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
   }
 
+  @Test("a mute and an unmute post with no body to the member's mute paths")
+  func mute() throws {
+    let mute = try client(key: "k1").request(.mute(room: "ops", member: "api", muted: true))
+    let unmute = try client(key: "k1").request(.mute(room: "ops", member: "api", muted: false))
+
+    #expect(mute.httpMethod == "POST")
+    #expect(mute.httpBody == nil)
+    #expect(mute.url?.absoluteString == "http://127.0.0.1:7796/api/rooms/ops/members/api/mute")
+    #expect(unmute.url?.absoluteString == "http://127.0.0.1:7796/api/rooms/ops/members/api/unmute")
+    #expect(mute.value(forHTTPHeaderField: "x-messhall-key") == "k1")
+  }
+
   @Test("a role posts just the role to the member's role path")
   func role() throws {
     let request = try client(key: "k1").request(.role(room: "ops", member: "api", role: "reviewer"))

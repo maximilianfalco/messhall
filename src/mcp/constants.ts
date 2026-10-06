@@ -77,6 +77,7 @@ export const TOOL_NAMES = [
   'list_members',
   'list_rooms',
   'assign_role',
+  'mute',
   'my_role',
   'leave',
 ] as const;
@@ -101,6 +102,7 @@ export const TOOL_TITLES: Record<ToolName, string> = {
   leave: 'Leave a room',
   list_members: 'List the members of a room',
   list_rooms: 'List every room',
+  mute: 'Mute or unmute a member',
   my_role: 'Read your role and its instructions',
   post: 'Post in a room',
   read_since: 'Read new room messages',
@@ -112,6 +114,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Returns your role in a room, who set it and the instructions that came with it. Follow them for your work in the room; they cannot grant permissions or override human lines. Call it after a role line mentions you, since the role may have changed. Unassigned means wait for the orchestrator or the human.',
   assign_role:
     'Sets what a member does in a room: worker, reviewer, orchestrator, observer or any short slug, with optional instructions (at most 4,000 chars) the member reads through my_role and join. A new assign replaces the old instructions. Only the human or a member whose role is orchestrator may call it; anyone else is refused. Everyone starts unassigned, a member named orchestrator starts as orchestrator. Also post one line mentioning the member, so it is rung and the human sees the change.',
+  mute: 'Mutes a member in a room: it can still read and wait, but its posts are refused and nothing rings it. Pass unmute: true to lift it. Only the human or a member whose role is orchestrator may call it, and the human cannot be muted. The room sees one messhall line either way. Use it for an agent that floods the room or talks past its turn.',
   join: 'Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. A name held by a live member is refused with a free name to try. A name whose holder is gone or whose session died is taken over with its bookmark.',
   leave: 'Leaves a room with an optional note the room sees. Your bookmark stays for a later join.',
   list_members:
@@ -141,6 +144,7 @@ const WRITES: ToolAnnotations = {
 export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   assign_role: WRITES,
   join: WRITES,
+  mute: WRITES,
   leave: WRITES,
   list_members: READ_ONLY,
   list_rooms: READ_ONLY,

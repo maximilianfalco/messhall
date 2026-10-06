@@ -14,7 +14,7 @@ export function parseMentions({ names, text }: { names: string[]; text: string }
 }
 
 /** True when the message is one the member should answer: a mention, `@all`, the human, or a room of two agents.
- * Daemon lines, summaries and lines from the partner a member is paused with concern nobody. */
+ * Daemon lines, summaries and lines from the partner a member is paused with concern nobody, and nothing concerns a muted member. */
 export function concerns({
   member,
   members,
@@ -27,7 +27,7 @@ export function concerns({
   pausedWith: Readonly<Record<string, string>>;
 }) {
   if (message.kind === 'system' || message.kind === 'summary' || message.from === member.name) return false;
-  if (pausedWith[member.name] === message.from) return false;
+  if (member.muted || pausedWith[member.name] === message.from) return false;
   if (message.mentions.includes(member.name) || message.mentions.includes(ALL_MENTION)) return true;
   if (message.from === HUMAN_NAME) return true;
   const agents = members.filter(other => other.kind !== 'human' && other.left_at === null).map(other => other.name);
@@ -53,7 +53,7 @@ export function nextPresence({ member, now }: { member: Pick<Member, 'last_seen_
   return member.presence;
 }
 
-/** Only the human seat and an orchestrator hand out roles, so an agent cannot promote itself. */
+/** Only the human seat and an orchestrator hand out roles and mutes, so an agent cannot promote itself. */
 export function canAssignRole({ by }: { by: Pick<Member, 'kind' | 'role'> }) {
   return by.kind === 'human' || by.role === ORCHESTRATOR_ROLE;
 }

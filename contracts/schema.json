@@ -231,6 +231,10 @@
           ],
           "description": "When the member left, null while it is in the room."
         },
+        "muted": {
+          "type": "boolean",
+          "description": "True while the human or an orchestrator has muted the member: it reads, but its posts are refused."
+        },
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
@@ -260,6 +264,7 @@
         "kind",
         "last_seen_at",
         "left_at",
+        "muted",
         "name",
         "presence",
         "role",
@@ -275,11 +280,13 @@
           "enum": [
             "joined",
             "left",
+            "muted",
             "reconnected",
             "removed",
-            "role"
+            "role",
+            "unmuted"
           ],
-          "description": "joined, left, reconnected, removed when it was left or gone for 30 minutes and dropped out, or role when its role was set."
+          "description": "joined, left, reconnected, removed when it was left or gone for 30 minutes and dropped out, role when its role was set, or muted and unmuted."
         },
         "member": {
           "description": "The member after the change.",
@@ -293,7 +300,7 @@
         "type": {
           "type": "string",
           "const": "member",
-          "description": "A member came, went, dropped out or got a role."
+          "description": "A member came, went, dropped out, got a role or was muted."
         }
       },
       "required": [
@@ -313,6 +320,19 @@
         "human"
       ],
       "description": "Which agent runs the member: claude, codex, other or human."
+    },
+    "MuteResult": {
+      "type": "object",
+      "properties": {
+        "member": {
+          "description": "The member after the mute or unmute.",
+          "$ref": "#/$defs/Member"
+        }
+      },
+      "required": [
+        "member"
+      ],
+      "additionalProperties": false
     },
     "Message": {
       "type": "object",

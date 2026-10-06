@@ -77,6 +77,9 @@ export const memberSchema = z.object({
   kind: memberKindSchema.describe('Which agent runs the member.'),
   last_seen_at: timestampSchema.describe('When the member last made a call.'),
   left_at: timestampSchema.nullable().describe('When the member left, null while it is in the room.'),
+  muted: z
+    .boolean()
+    .describe('True while the human or an orchestrator has muted the member: it reads, but its posts are refused.'),
   name: nameSchema.describe('Role name in the room.'),
   presence: presenceSchema.describe('What the member is doing now.'),
   role: roleSchema.describe(

@@ -94,6 +94,11 @@ public final class FeedStore {
     add(result.message, to: room)
   }
 
+  /// Shows a member the human just muted or unmuted, before its event comes back.
+  func add(_ member: Member, change: MemberChange, to room: String) {
+    apply(.member(MemberEvent(room: room, change: change, member: member)))
+  }
+
   /// Shows a room the human just made, closed or reopened, before its event comes back.
   func add(_ room: Room) {
     apply(.room(RoomEvent(change: .topic, room: room)))

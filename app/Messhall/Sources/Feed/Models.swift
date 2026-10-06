@@ -9,7 +9,7 @@ public enum Presence: String, Codable, CaseIterable, Sendable {
 }
 public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done, summary }
 public enum MemberKind: String, Codable, CaseIterable, Sendable { case claude, codex, other, human }
-public enum MemberChange: String, Codable, Sendable { case joined, left, reconnected, removed, role }
+public enum MemberChange: String, Codable, Sendable { case joined, left, muted, reconnected, removed, role, unmuted }
 public enum RoomChange: String, Codable, Sendable { case created, closed, reopened, topic }
 
 public struct Room: Codable, Equatable, Sendable {
@@ -43,9 +43,10 @@ public struct Member: Codable, Equatable, Sendable {
   public var joinedAt: String
   public var lastSeenAt: String
   public var leftAt: String?
+  public var muted = false
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case name, kind, presence, role, cursor, done
+    case name, kind, presence, role, cursor, done, muted
     case roomId = "room_id"
     case clientLabel = "client_label"
     case clientName = "client_name"
@@ -290,6 +291,12 @@ public struct HumanRole: Codable, Equatable, Sendable {
   public var instructions: String?
 
   enum CodingKeys: String, CodingKey, CaseIterable { case role, instructions }
+}
+
+public struct MuteResult: Codable, Equatable, Sendable {
+  public var member: Member
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case member }
 }
 
 public struct HumanRoleResult: Codable, Equatable, Sendable {

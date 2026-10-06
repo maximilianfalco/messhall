@@ -56,6 +56,31 @@ describe('runRoom', () => {
     expect(rooms()[0]!.closed_at).toBeNull();
   });
 
+  it('mutes and unmutes a member', async () => {
+    feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+    const mutedOf = () => feed.scratch.store.listMembers('checkout').find(member => member.name === 'api')?.muted;
+
+    await expect(room({ action: 'mute', member: 'api', name: 'checkout' })).resolves.toStrictEqual({
+      code: 0,
+      output: ['muted api in #checkout, it can read but not post'],
+    });
+    expect(mutedOf()).toBe(true);
+    await expect(room({ action: 'unmute', member: 'api', name: 'checkout' })).resolves.toStrictEqual({
+      code: 0,
+      output: ['unmuted api in #checkout'],
+    });
+    expect(mutedOf()).toBe(false);
+  });
+
+  it('passes on the refusal for a member who is not in the room', async () => {
+    feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+
+    await expect(room({ action: 'mute', member: 'web', name: 'checkout' })).resolves.toStrictEqual({
+      code: 1,
+      output: ['messhall refused: no member web in #checkout'],
+    });
+  });
+
   it('lists every room, closed ones too, with the standing tag', async () => {
     feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
     await room({ action: 'new', name: 'planning', topic: 'q4' });

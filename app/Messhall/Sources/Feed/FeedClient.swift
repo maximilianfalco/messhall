@@ -11,6 +11,7 @@ public struct FeedClient: Sendable {
     case close(room: String)
     case reopen(room: String)
     case role(room: String, member: String, role: String)
+    case mute(room: String, member: String, muted: Bool)
   }
 
   public struct KeyMissing: Error {}
@@ -66,6 +67,10 @@ public struct FeedClient: Sendable {
       request.httpMethod = "POST"
       request.setValue("application/json", forHTTPHeaderField: "content-type")
       request.httpBody = try JSONEncoder().encode(HumanRole(role: role))
+    case .mute(let room, let member, let muted):
+      let action = muted ? "mute" : "unmute"
+      request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/members/\(member)/\(action)"))
+      request.httpMethod = "POST"
     }
     request.setValue(try humanKey(), forHTTPHeaderField: "x-messhall-key")
     return request

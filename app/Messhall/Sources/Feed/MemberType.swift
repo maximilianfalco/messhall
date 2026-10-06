@@ -18,14 +18,19 @@ extension Member {
     kind == .human ? [] : Self.usualRoles.filter { $0 != role }
   }
 
+  /// The chip menu item that flips the mute. None for the human seat, which cannot be muted.
+  public var muteAction: String? {
+    kind == .human ? nil : muted ? "Unmute" : "Mute"
+  }
+
   /// `web, opencode 1.18.34, waiting`. A member with no client says its kind instead.
   public func spokenLabel(as displayName: String) -> String {
-    "\(displayName), \(client ?? kind.rawValue), \(presence.rawValue)"
+    "\(displayName), \(client ?? kind.rawValue), \(presence.rawValue)\(muted ? ", muted" : "")"
   }
 
   /// `web runs on opencode 1.18.34 and is waiting`, the hover help on the chip.
   public func help(as displayName: String) -> String {
-    "\(displayName) runs on \(client ?? kind.rawValue) and is \(presence.rawValue)"
+    "\(displayName) runs on \(client ?? kind.rawValue) and is \(presence.rawValue)\(muted ? ", muted" : "")"
   }
 }
 

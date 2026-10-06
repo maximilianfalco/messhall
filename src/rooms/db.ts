@@ -122,6 +122,10 @@ export const MIGRATIONS = [
   `
   ALTER TABLE members ADD COLUMN paused_with TEXT;
   `,
+  // A muted member reads but cannot post, and nothing rings it, until the human or an orchestrator unmutes it.
+  `
+  ALTER TABLE members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

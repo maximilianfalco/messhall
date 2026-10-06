@@ -65,6 +65,17 @@ extension FeedStore {
     }
   }
 
+  /// Mutes or unmutes a member as the human and shows it at once. Returns the refusal text, or nil.
+  public func mute(_ member: String, muted: Bool, room: String, via client: FeedClient) async -> String? {
+    switch await HumanSeat(client: client).mute(member, muted: muted, room: room) {
+    case .done(let member):
+      add(member, change: muted ? .muted : .unmuted, to: room)
+      return nil
+    case .refused(let reason):
+      return reason
+    }
+  }
+
   /// Makes, closes or reopens a room as the human and shows it at once. Returns the refusal text, or nil.
   public func change(_ action: RoomAction, via client: FeedClient) async -> String? {
     let seat = HumanSeat(client: client)

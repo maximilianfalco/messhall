@@ -1031,3 +1031,103 @@ describe('the loop guard', () => {
     expect(loopLines()).toHaveLength(2);
   });
 });
+
+describe('muting', () => {
+  const mute = (input: { by: string; member: string; muted?: boolean }) =>
+    store().muteMember({ muted: true, room: 'demo', ...input });
+
+  it('lets the human mute a member, with a system line and a member muted event', () => {
+    joinBoth();
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    const result = mute({ by: 'human', member: 'api' });
+
+    expect(result).toMatchObject({ member: { muted: true, name: 'api' }, ok: true });
+    expect(memberOf('demo', 'api')?.muted).toBe(true);
+    expect(texts('demo').at(-1)).toBe('messhall: api muted by human');
+    expect(seen.map(({ event }) => event)).toMatchObject([
+      { change: 'muted', member: { muted: true, name: 'api' }, type: 'member' },
+      { message: { kind: 'system', text: 'api muted by human' }, type: 'message' },
+    ]);
+  });
+
+  it('lets an orchestrator mute and unmute a member', () => {
+    joinBoth();
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    mute({ by: 'orchestrator', member: 'web' });
+    const result = mute({ by: 'orchestrator', member: 'web', muted: false });
+
+    expect(result).toMatchObject({ member: { muted: false, name: 'web' }, ok: true });
+    expect(texts('demo').slice(-2)).toStrictEqual([
+      'messhall: web muted by orchestrator',
+      'messhall: web unmuted by orchestrator',
+    ]);
+  });
+
+  it('refuses posts from a muted member, done posts too, and keeps it reading', () => {
+    joinBoth();
+    mute({ by: 'human', member: 'api' });
+    post('web', 'still here');
+
+    expect(store().postMessage({ from: 'api', room: 'demo', text: 'hello' })).toStrictEqual({
+      ok: false,
+      reason: 'muted',
+    });
+    expect(store().postMessage({ done: true, from: 'api', room: 'demo', text: 'done' })).toMatchObject({
+      reason: 'muted',
+    });
+    expect(store().readUnseen({ as: 'api', room: 'demo' })).toMatchObject({
+      messages: expect.arrayContaining([expect.objectContaining({ text: 'still here' })]),
+      ok: true,
+    });
+  });
+
+  it('lets an unmuted member post again', () => {
+    joinBoth();
+    mute({ by: 'human', member: 'api' });
+    mute({ by: 'human', member: 'api', muted: false });
+
+    expect(store().postMessage({ from: 'api', room: 'demo', text: 'back' }).ok).toBe(true);
+  });
+
+  it('keeps the mute across a leave and a later join', () => {
+    joinBoth();
+    mute({ by: 'human', member: 'api' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect(memberOf('demo', 'api')?.muted).toBe(true);
+  });
+
+  it('writes nothing when the member is already in that state', () => {
+    joinBoth();
+    mute({ by: 'human', member: 'api' });
+    const before = texts('demo');
+
+    expect(mute({ by: 'human', member: 'api' })).toMatchObject({ ok: true });
+    expect(mute({ by: 'human', member: 'web', muted: false })).toMatchObject({ ok: true });
+    expect(texts('demo')).toStrictEqual(before);
+  });
+
+  it.each([
+    [{ by: 'web', member: 'api' }, 'not_allowed'],
+    [{ by: 'api', member: 'api' }, 'not_allowed'],
+    [{ by: 'stranger', member: 'api' }, 'not_member'],
+    [{ by: 'human', member: 'ghost' }, 'no_member'],
+    [{ by: 'human', member: 'human' }, 'human'],
+  ])('refuses %o with %s', (input, reason) => {
+    joinBoth();
+
+    expect(mute(input)).toStrictEqual({ ok: false, reason });
+    expect(memberOf('demo', 'api')?.muted).toBe(false);
+  });
+
+  it('refuses a room that does not exist', () => {
+    expect(store().muteMember({ by: 'human', member: 'api', muted: true, room: 'nope' })).toStrictEqual({
+      ok: false,
+      reason: 'no_room',
+    });
+  });
+});

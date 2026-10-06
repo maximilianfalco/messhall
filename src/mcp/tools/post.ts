@@ -24,6 +24,10 @@ export function registerPost(server: McpServer, deps: ToolDeps, description: str
       switch (posted.reason) {
         case 'too_long':
           return refuse(`too long (${posted.length} chars). Write it to a file and post the path.`);
+        case 'muted':
+          return refuse(
+            `you are muted in #${room}. you can still read and wait. post again once a messhall line says you are unmuted.`,
+          );
         case 'room_closed':
           return refuse(`#${room} is closed, every agent said done. ask the human to post or reopen it.`);
         default:

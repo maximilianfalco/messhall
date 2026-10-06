@@ -94,6 +94,22 @@ struct FeedStoreTests {
     #expect(store.rooms[0].messages.map(\.id) == [1, 2])
   }
 
+  @Test("a muted event marks the member muted and an unmuted event clears it")
+  func muted() throws {
+    let store = try loaded()
+    let json = try Fixture.text("MemberEvent")
+    let muted = json
+      .replacingOccurrences(of: #""change": "joined""#, with: #""change": "muted""#)
+      .replacingOccurrences(of: #""muted": false"#, with: #""muted": true"#)
+    let unmuted = json.replacingOccurrences(of: #""change": "joined""#, with: #""change": "unmuted""#)
+    store.apply(.event(seq: 8, try event("MemberEvent")))
+
+    store.apply(.event(seq: 9, try JSONDecoder().decode(BusEvent.self, from: Data(muted.utf8))))
+    #expect(store.rooms[0].members.map(\.muted) == [false, false, true])
+    store.apply(.event(seq: 10, try JSONDecoder().decode(BusEvent.self, from: Data(unmuted.utf8))))
+    #expect(store.rooms[0].members.map(\.muted) == [false, false, false])
+  }
+
   @Test("a presence event changes one member")
   func presence() throws {
     let store = try loaded()

@@ -70,6 +70,12 @@ export const assignRoleInputSchema = z.object({
   room: roomField.describe('Room you joined, where the member sits.'),
 });
 
+export const muteInputSchema = z.object({
+  member: nameSchema.describe('Name of the member to mute or unmute.'),
+  room: roomField.describe('Room you joined, where the member sits.'),
+  unmute: z.boolean().optional().describe('True lifts the mute. Left out, the member is muted.'),
+});
+
 export const myRoleInputSchema = z.object({
   room: roomField.describe('Room you joined.'),
 });
@@ -87,5 +93,6 @@ export type ReadSinceInput = z.infer<typeof readSinceInputSchema>;
 export type WaitInput = z.infer<typeof waitInputSchema>;
 export type ListMembersInput = z.infer<typeof listMembersInputSchema>;
 export type AssignRoleInput = z.infer<typeof assignRoleInputSchema>;
+export type MuteInput = z.infer<typeof muteInputSchema>;
 export type MyRoleInput = z.infer<typeof myRoleInputSchema>;
 export type LeaveInput = z.infer<typeof leaveInputSchema>;
