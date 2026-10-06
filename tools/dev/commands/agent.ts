@@ -10,6 +10,7 @@ import { callTool, joinPostLeave, withAgentSession, type ToolReply } from '../..
 import { bad, dim, ok } from '../lib/print.js';
 
 interface AgentOptions {
+  client?: string;
   keyFile: string;
   role: string;
   room: string;
@@ -30,7 +31,10 @@ function readKey(file: string) {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** Join, post, wait, then read_since. Stays in the room, so the member turns gone when the session ends. */
-async function joinAndWait(client: Client, { role, room, say, timeout }: Omit<AgentOptions, 'keyFile' | 'url'>) {
+async function joinAndWait(
+  client: Client,
+  { role, room, say, timeout }: Omit<AgentOptions, 'client' | 'keyFile' | 'url'>,
+) {
   const replies = [await callTool(client, 'join', { as: role, room })];
   const step = async (name: string, args: Record<string, unknown>) => {
     const reply = await callTool(client, name, args);
@@ -47,14 +51,14 @@ async function joinAndWait(client: Client, { role, room, say, timeout }: Omit<Ag
  * A scripted agent over real HTTP MCP: joins `room` as `role` and posts `say`. Without `wait` it
  * leaves before the session ends. With `wait` it blocks until something concerns it, reads, and ends gone.
  */
-export async function agentRun({ keyFile, role, room, say, timeout, url, wait }: AgentOptions) {
+export async function agentRun({ client, keyFile, role, room, say, timeout, url, wait }: AgentOptions) {
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
-  const session = await withAgentSession({ key, name: `messhall-dev-agent-${role}`, url }, client =>
+  const session = await withAgentSession({ key, name: client ?? `messhall-dev-agent-${role}`, url }, mcp =>
     wait
-      ? joinAndWait(client, { role, room, say, timeout })
-      : joinPostLeave({ as: role, client, room, text: say }).then(result => result.replies),
+      ? joinAndWait(mcp, { role, room, say, timeout })
+      : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
   );
   if (!session.ok) {
     return {
@@ -76,7 +80,7 @@ export async function agentRun({ keyFile, role, room, say, timeout, url, wait }:
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--wait] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--wait] [--client <name>] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
@@ -85,6 +89,7 @@ export function registerAgent(program: Command) {
     .option('--say <text>', 'post this after joining')
     .option('--wait', 'block until something concerns this agent, then read')
     .option('--timeout <s>', 'wait timeout in seconds', value => Number(value))
+    .option('--client <name>', 'clientInfo name to send at initialize, to act as another agent')
     .option('--url <url>', 'daemon url', daemonUrl())
     .option('--key-file <file>', 'agent key file', path.join(dataDir(), KEY_FILES.agent))
     .action(async (role: string, options: Omit<AgentOptions, 'role'>) => {

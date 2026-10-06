@@ -25,7 +25,7 @@ export function mcpHarness() {
   const clients: Client[] = [];
   const codex = fakeCodexRpc({ threads: { [CLOSED_THREAD]: 'notLoaded', [LIVE_THREAD]: 'idle' } });
 
-  async function agent({ clientName, roots }: { clientName?: string; roots?: string[] } = {}) {
+  async function agent({ name: clientName, roots }: { name?: string; roots?: string[] } = {}) {
     const session = createSession({ id: `session-${clients.length + 1}`, now: scratch.clock.now });
     sessions.add({ session });
     const client = await connectInMemory(

@@ -191,7 +191,7 @@ describe('join', () => {
   });
 
   it('marks a crush session as rung by the channel and keeps its kind other', async () => {
-    const crush = await harness.agent({ clientName: 'crush' });
+    const crush = await harness.agent({ name: 'crush' });
 
     await crush.call('join', { as: 'crushy', room: 'checkout' });
 
@@ -200,7 +200,7 @@ describe('join', () => {
   });
 
   it('does not mark a plain other client as rung by the channel', async () => {
-    const other = await harness.agent({ clientName: 'gemini-cli' });
+    const other = await harness.agent({ name: 'gemini-cli' });
 
     await other.call('join', { as: 'web', room: 'checkout' });
 
