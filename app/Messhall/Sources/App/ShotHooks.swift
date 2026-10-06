@@ -24,6 +24,56 @@
     /// `-shotOpenFolds YES`: every run of presence lines starts open, so a shot shows the lines inside.
     static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
 
+    /// `-shotDraft <text>`: the composer opens with this typed, so a draft ending in `@` shows the mention picker.
+    static let draft = UserDefaults.standard.string(forKey: "shotDraft")
+
+    /// `-shotKeys <steps>`: steps split by `|`, each `down`, `up`, `return`, `tab`, `escape` or text to type.
+    /// The app sends them to its own composer, so the real app never gets a key. After each step the field goes to `-shotKeysOut`.
+    static func pressKeys(_ steps: String, logTo file: String) async {
+      while NSApp.windows.first(where: isPlain) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      try? await Task.sleep(for: .seconds(2))
+      guard let window = NSApp.windows.first(where: isPlain), let field = window.contentView.flatMap(composer) else {
+        return
+      }
+      window.makeKey()
+      window.makeFirstResponder(field)
+      var log = "start: [\(fieldText(window))]\n"
+      for step in steps.split(separator: "|").map(String.init) {
+        for event in keyEvents(step, in: window) { window.sendEvent(event) }
+        try? await Task.sleep(for: .milliseconds(400))
+        log += "\(step): [\(fieldText(window))]\n"
+      }
+      try? log.write(toFile: file, atomically: true, encoding: .utf8)
+    }
+
+    private static let namedKeys: [String: (code: UInt16, chars: String)] = [
+      "down": (125, String(UnicodeScalar(NSDownArrowFunctionKey)!)),
+      "up": (126, String(UnicodeScalar(NSUpArrowFunctionKey)!)),
+      "return": (36, "\r"), "tab": (48, "\t"), "escape": (53, "\u{1b}"),
+    ]
+
+    private static func keyEvents(_ step: String, in window: NSWindow) -> [NSEvent] {
+      let keys = namedKeys[step].map { [$0] } ?? step.map { (code: UInt16(0), chars: String($0)) }
+      return keys.flatMap { key in
+        [NSEvent.EventType.keyDown, .keyUp].compactMap {
+          NSEvent.keyEvent(
+            with: $0, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber, context: nil, characters: key.chars,
+            charactersIgnoringModifiers: key.chars, isARepeat: false, keyCode: key.code)
+        }
+      }
+    }
+
+    private static func composer(in view: NSView) -> NSView? {
+      if let text = view as? NSTextView, text.isEditable { return text }
+      if let field = view as? NSTextField, field.isEditable, !(field is NSSearchField) { return field }
+      return view.subviews.lazy.compactMap(composer).first
+    }
+
+    private static func fieldText(_ window: NSWindow) -> String {
+      (window.firstResponder as? NSTextView)?.string ?? "?"
+    }
+
     /// `-shotPost <text>`: posts into the first open room through the same path as the post box.
     static func post(_ text: String, store: FeedStore, client: FeedClient) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }

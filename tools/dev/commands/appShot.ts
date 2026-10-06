@@ -56,6 +56,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'folded-dark', room: 'handoff' },
   { appearance: 'light', name: 'expanded-light', openFolds: true, room: 'handoff' },
   { appearance: 'dark', name: 'expanded-dark', openFolds: true, room: 'handoff' },
+  { appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' },
+  { appearance: 'dark', draft: 'over to @a', name: 'picker-dark', room: 'checkout' },
   { appearance: 'light', name: 'history-light', pageTop: true, room: 'history' },
   { appearance: 'dark', name: 'history-dark', pageTop: true, room: 'history' },
   { appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' },
@@ -290,6 +292,7 @@ export function shotArgs(shot: Shot) {
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
+    ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
     ...('pageTop' in shot ? ['-shotPageTop', anchorFile(shot)] : []),
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
   ];
@@ -422,7 +425,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, folded and open presence runs, the jump pill, the New Room sheet, a standing room, a closed room, each Settings pane and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, the New Room sheet, a standing room, a closed room, each Settings pane and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -487,7 +490,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, jump pill, New Room sheet, standing and closed rooms, each Settings pane and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, jump pill, mention picker, New Room sheet, standing and closed rooms, each Settings pane and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)
