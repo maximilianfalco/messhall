@@ -5,12 +5,12 @@ import type { Server } from 'node:http';
 
 import { createServer } from 'node:http';
 
-import { createClaudeRinger } from '../channels/claude.js';
 import { createCodexClient } from '../codex/client.js';
-import { createCodexRinger } from '../codex/ringer.js';
 import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
-import { createRingers } from '../doorbell/ringers.js';
+import { createRingers } from '../doorbell/ringer.js';
+import { createClaudeRinger } from '../doorbell/ringers/claude.js';
+import { createCodexRinger } from '../doorbell/ringers/codex.js';
 import { feedRoutes } from '../feed/routes.js';
 import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';

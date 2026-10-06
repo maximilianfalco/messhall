@@ -1,9 +1,9 @@
-import type { RingInput, Ringer } from '../../src/doorbell/ringers.js';
+import type { RingInput, Ringer } from '../../src/doorbell/ringer.js';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { startDoorbell } from '../../src/doorbell/doorbell.js';
-import { createRingers } from '../../src/doorbell/ringers.js';
+import { createRingers } from '../../src/doorbell/ringer.js';
 import { scratchStore } from '../rooms/scratch.js';
 
 type Scratch = ReturnType<typeof scratchStore>;
