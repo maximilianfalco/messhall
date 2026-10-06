@@ -6,12 +6,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
+import pc from 'picocolors';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readAgentKey } from '../../src/cli/agentKey.js';
 import {
   claudeLine,
   codexBlock,
+  codexTuis,
   hasChannels,
   runMcpDoctor,
   runMcpInstall,
@@ -77,6 +79,7 @@ const output = () => stripVTControlCharacters(logs.join('\n'));
 function deps(overrides: Partial<McpDeps> = {}): McpDeps {
   return {
     codexConfig,
+    codexSocket: path.join(home, 'app-server-control.sock'),
     confirm: () => Promise.resolve(true),
     dataDir: home,
     fetch: healthy,
@@ -387,6 +390,96 @@ describe('runMcpDoctor', () => {
     expect(output()).toContain('messhall start');
     expect(output()).toContain('✖ claude entry: missing');
     expect(output()).toContain('✖ codex entry: missing');
+  });
+});
+
+describe('codexTuis', () => {
+  it('keeps codex tuis and drops the daemon, helpers and other subcommands', () => {
+    const ps = [
+      '  PID ARGS',
+      '  101 codex',
+      '  102 /opt/homebrew/bin/codex resume 019a',
+      '  103 codex app-server',
+      '  104 /Users/someone/.codex/packages/app-server-daemon/current/bin/codex app-server --listen unix://',
+      '  105 /opt/homebrew/Caskroom/codex/0.157.1/bin/codex-code-mode-host',
+      '  106 node /tmp/plugins/codex/scripts/app-server-broker.mjs serve',
+      '  107 codex exec hello',
+      '  108 codex -c model=o3',
+    ].join('\n');
+
+    expect(codexTuis(ps)).toStrictEqual([
+      { flag: null, pid: 101 },
+      { flag: null, pid: 102 },
+      { flag: '-c', pid: 108 },
+    ]);
+  });
+
+  it.each([
+    ['codex -c model=o3', '-c'],
+    ['codex --config model=o3', '--config'],
+    ['codex --enable web_search', '--enable'],
+    ['codex --disable apps', '--disable'],
+    ['codex --search', '--search'],
+    ['codex --no-daemon', '--no-daemon'],
+  ])('flags %s as embedded by %s', (args, flag) => {
+    expect(codexTuis(`PID ARGS\n  7 ${args}`)).toStrictEqual([{ flag, pid: 7 }]);
+  });
+});
+
+describe('runMcpDoctor codex sessions', () => {
+  const versions = () => ({
+    'claude --version': [done('2.1.289 (Claude Code)')],
+    'claude mcp get': [done(getOutput())],
+    'codex --version': [done('codex-cli 0.157.1')],
+  });
+  const socket = () => path.join(home, 'app-server-control.sock');
+
+  beforeEach(() => {
+    writeCodex(`${codexBlock({ key: KEY, url: URL_BASE })}\n`);
+  });
+
+  it('is a dim info line, not red, with no socket and no codex running', async () => {
+    const { run } = fakeRun({ ...versions(), 'ps -axo pid,args': [done('  PID ARGS\n  1 /sbin/launchd')] });
+
+    const code = await runMcpDoctor(deps({ run }));
+
+    expect(code).toBe(0);
+    expect(output()).not.toContain('✖');
+    expect(logs).toContain(pc.dim('codex sessions: no shared daemon and no codex running'));
+  });
+
+  it('is green when codex tuis run on the shared daemon', async () => {
+    writeFileSync(socket(), '');
+    const { run } = fakeRun({
+      ...versions(),
+      'ps -axo pid,args': [done('  PID ARGS\n  101 codex\n  103 codex app-server')],
+    });
+
+    const code = await runMcpDoctor(deps({ run }));
+
+    expect(code).toBe(0);
+    expect(output()).toContain('✔ codex sessions: shared daemon up, 1 codex running');
+  });
+
+  it('flags an embedded codex by pid and flag and never prints its args', async () => {
+    writeFileSync(socket(), '');
+    const ps = '  PID ARGS\n  101 codex\n  108 codex -c secret_value=1';
+    const { run } = fakeRun({ ...versions(), 'ps -axo pid,args': [done(ps)] });
+
+    const code = await runMcpDoctor(deps({ run }));
+
+    expect(code).toBe(1);
+    expect(output()).toContain('✖ codex pid 108 started with -c: embedded, cannot be rung (fall back to wait)');
+    expect(output()).not.toContain('secret_value');
+  });
+
+  it('is a dim info line when codex runs but the shared daemon socket is not there', async () => {
+    const { run } = fakeRun({ ...versions(), 'ps -axo pid,args': [done('  PID ARGS\n  101 codex')] });
+
+    const code = await runMcpDoctor(deps({ run }));
+
+    expect(code).toBe(0);
+    expect(logs).toContain(pc.dim(`codex sessions: 1 codex running, no shared daemon socket at ${socket()}`));
   });
 });
 
