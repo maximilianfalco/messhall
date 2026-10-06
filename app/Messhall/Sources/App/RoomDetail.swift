@@ -28,7 +28,7 @@ struct RoomDetail: View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       RoomHeader(room: room, subtitle: subtitle)
-      MemberStrip(members: room.present, mention: room.isOpen ? { mention($0) } : nil, setRole: setRole)
+      MemberStrip(members: room.present, mention: room.isOpen ? { mention($0) } : nil, setRole: room.isOpen ? { setRole($0, member: $1) } : nil)
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
@@ -207,7 +207,7 @@ struct ReconnectBanner: View {
 struct MemberStrip: View {
   let members: [Member]
   let mention: ((String) -> Void)?
-  let setRole: (_ role: String, _ member: String) -> Void
+  let setRole: ((_ role: String, _ member: String) -> Void)?
 
   private var ordered: [Member] {
     members.filter { $0.kind != .human } + members.filter { $0.kind == .human }
@@ -219,7 +219,7 @@ struct MemberStrip: View {
         ForEach(ordered, id: \.name) { member in
           chip(member)
             .contextMenu {
-              if !member.roleChoices.isEmpty {
+              if let setRole, !member.roleChoices.isEmpty {
                 Menu("Role") {
                   ForEach(member.roleChoices, id: \.self) { role in
                     Button(role.capitalized) { setRole(role, member.name) }

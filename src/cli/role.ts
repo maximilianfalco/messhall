@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 import pc from 'picocolors';
 
@@ -34,7 +34,8 @@ export async function runRole({
 }) {
   const key = readHumanKey(dir);
   if (!key) return fail(`no human key in ${dir}, start the daemon once`);
-  const text = instructions && existsSync(instructions) ? readFileSync(instructions, 'utf8') : instructions;
+  const isFile = instructions && statSync(instructions, { throwIfNoEntry: false })?.isFile();
+  const text = isFile ? readFileSync(instructions, 'utf8') : instructions;
 
   let response: Response;
   try {

@@ -55,6 +55,13 @@ describe('runRole', () => {
     expect(roleOf()?.instructions).toBe('review every pr\n');
   });
 
+  it('sends a folder path as text instead of reading it', async () => {
+    const result = await role({ instructions: feed.scratch.dataDir });
+
+    expect(result.code).toBe(0);
+    expect(roleOf()?.instructions).toBe(feed.scratch.dataDir);
+  });
+
   it('passes on the daemon refusal in one line', async () => {
     const result = await role({ member: 'web' });
 
