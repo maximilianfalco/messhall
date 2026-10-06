@@ -44,6 +44,16 @@ describe('roomReport', () => {
     expect(text).toMatch(/web\s+other\s+opencode 1\.18\.34\s+active/);
   });
 
+  it('shows the type each post was sent with, kept after the sender leaves', () => {
+    scratch.store.joinRoom({ as: 'web', client: { name: 'opencode', version: '1' }, kind: 'other', room: 'demo' });
+    scratch.store.postMessage({ from: 'web', room: 'demo', text: 'hi' });
+    scratch.store.leaveRoom({ as: 'web', room: 'demo' });
+
+    const text = stripVTControlCharacters(roomReport({ dataDir: scratch.dataDir, name: 'demo' }).report);
+
+    expect(text).toMatch(/\d+\s+web\s+chat\s+hi\s+opencode/);
+  });
+
   it('says who made a standing room', () => {
     scratch.store.createRoom({ created_by: 'human', name: 'planning' });
 

@@ -281,6 +281,24 @@
           "type": "string",
           "description": "Member name, or messhall for daemon lines."
         },
+        "from_client_label": {
+          "description": "The sender's agent type when it posted, like claude or script. Null for the human, daemon lines or a sender with no client.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemberKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which agent ran the sender when it posted. Null for daemon lines and summaries."
+        },
         "id": {
           "type": "integer",
           "exclusiveMinimum": 0,
@@ -311,6 +329,8 @@
       "required": [
         "created_at",
         "from",
+        "from_client_label",
+        "from_kind",
         "id",
         "kind",
         "mentions",
@@ -635,6 +655,24 @@
           "type": "string",
           "description": "Member name, or messhall for daemon lines."
         },
+        "from_client_label": {
+          "description": "The sender's agent type when it posted, like claude or script. Null for the human, daemon lines or a sender with no client.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemberKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which agent ran the sender when it posted. Null for daemon lines and summaries."
+        },
         "id": {
           "type": "integer",
           "exclusiveMinimum": 0,
@@ -670,6 +708,8 @@
       "required": [
         "created_at",
         "from",
+        "from_client_label",
+        "from_kind",
         "id",
         "kind",
         "mentions",

@@ -37,6 +37,8 @@ type SnapshotRoom = Snapshot['rooms'][number];
 const stateOf = (room: SnapshotRoom) => [room.closed_at ? 'closed' : 'open', ...(room.standing ? ['standing'] : [])];
 const postsOf = (room: SnapshotRoom) => `${room.message_count}/${room.message_cap} posts`;
 
+// The snapshot keeps members who left so old posts keep a sender. Lists and counts skip them.
+const present = (members: Member[]) => members.filter(item => item.presence !== 'left');
 const memberList = (members: Member[]) =>
   members.map(item => (item.kind === 'human' ? nameOf(item.name) : `${nameOf(item.name)} ${item.presence}`)).join(', ');
 
@@ -59,7 +61,7 @@ export function renderSnapshot({ room, snapshot }: { room?: string; snapshot: Sn
   return rooms.flatMap((item, index) => [
     ...(index ? [''] : []),
     `${pc.bold(`#${item.name}`)}  ${pc.dim([...stateOf(item), postsOf(item), item.topic].filter(Boolean).join(', '))}`,
-    `${GUTTER}${item.members.length ? memberList(item.members) : pc.dim('nobody here')}`,
+    `${GUTTER}${present(item.members).length ? memberList(present(item.members)) : pc.dim('nobody here')}`,
     ...item.messages.map(message => messageLine({ message, tag: '' })),
   ]);
 }
@@ -68,7 +70,7 @@ export function renderSnapshot({ room, snapshot }: { room?: string; snapshot: Sn
 export function renderRooms({ snapshot }: { snapshot: Snapshot }) {
   if (!snapshot.rooms.length) return [pc.dim('no rooms yet')];
   return snapshot.rooms.map(item => {
-    const parts = [...stateOf(item), `${item.members.length} members`, postsOf(item), item.topic];
+    const parts = [...stateOf(item), `${present(item.members).length} members`, postsOf(item), item.topic];
     return `${pc.bold(`#${item.name}`)}  ${pc.dim(parts.filter(Boolean).join(', '))}`;
   });
 }

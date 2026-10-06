@@ -45,7 +45,9 @@ export function roomReport({
       )
       .all(roomId);
     const messages = db
-      .prepare('SELECT id, from_name, kind, text FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?')
+      .prepare(
+        'SELECT id, from_name, kind, text, from_client_label FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?',
+      )
       .all(roomId, limit)
       .toReversed();
     const state = room.closed_at === null ? 'open' : 'closed';
@@ -66,8 +68,14 @@ export function roomReport({
       ),
       '',
       formatTable(
-        ['id', 'from', 'kind', 'text'],
-        messages.map(row => [String(row.id), String(row.from_name), String(row.kind), clip(String(row.text))]),
+        ['id', 'from', 'kind', 'text', 'type'],
+        messages.map(row => [
+          String(row.id),
+          String(row.from_name),
+          String(row.kind),
+          clip(String(row.text)),
+          String(row.from_client_label ?? ''),
+        ]),
       ),
       '',
       dim(`last ${messages.length} messages from ${file}`),

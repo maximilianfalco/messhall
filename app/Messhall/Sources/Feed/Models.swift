@@ -57,6 +57,8 @@ public struct Message: Codable, Equatable, Identifiable, Sendable {
   public var id: Int
   public var roomId: String
   public var from: String
+  public var fromClientLabel: String? = nil
+  public var fromKind: MemberKind? = nil
   public var kind: MessageKind
   public var text: String
   public var mentions: [String]
@@ -65,6 +67,8 @@ public struct Message: Codable, Equatable, Identifiable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, from, kind, text, mentions
     case roomId = "room_id"
+    case fromClientLabel = "from_client_label"
+    case fromKind = "from_kind"
     case createdAt = "created_at"
   }
 }
@@ -83,6 +87,8 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var messages: [Message]
 
   public var isOpen: Bool { closedAt == nil }
+  /// Members still in the room. `members` keeps those who left, so their old posts keep a sender.
+  public var present: [Member] { members.filter { $0.presence != .left } }
 
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, name, topic, standing, members, messages

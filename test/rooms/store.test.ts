@@ -158,6 +158,29 @@ describe('postMessage', () => {
     expect(store().postMessage({ from: 'api', room: 'demo', text: 'x'.repeat(4000) }).ok).toBe(true);
   });
 
+  it('stamps each post with the sender kind and client label, and daemon lines with none', () => {
+    store().joinRoom({ as: 'web', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'demo' });
+    const message = post('web', 'hi');
+    store().leaveRoom({ as: 'web', room: 'demo' });
+
+    expect(message).toMatchObject({ from_client_label: 'opencode', from_kind: 'other' });
+    expect(
+      store()
+        .listMessages({ limit: 10, room: 'demo' })
+        .messages?.map(item => [item.from, item.from_kind, item.from_client_label]),
+    ).toStrictEqual([
+      ['messhall', null, null],
+      ['web', 'other', 'opencode'],
+      ['messhall', null, null],
+    ]);
+  });
+
+  it('stamps a human post with kind human and no label', () => {
+    store().createRoom({ created_by: 'human', name: 'demo' });
+
+    expect(post('human', 'hi')).toMatchObject({ from_client_label: null, from_kind: 'human' });
+  });
+
   it('parses mentions against current members only', () => {
     joinBoth();
     store().joinRoom({ as: 'infra', kind: 'other', room: 'demo' });

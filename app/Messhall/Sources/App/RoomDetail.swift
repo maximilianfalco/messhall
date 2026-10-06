@@ -20,7 +20,7 @@ struct RoomDetail: View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       RoomOrigin(room: room)
-      MemberStrip(members: room.members)
+      MemberStrip(members: room.present)
       Divider()
       Transcript(
         messages: room.messages.matching(query), members: room.members, query: query,
@@ -460,9 +460,9 @@ struct ChatRow: View {
       VStack(alignment: isHuman ? .trailing : .leading, spacing: 3) {
         HStack(spacing: 6) {
           Text(isHuman ? youLabel : message.from).fontWeight(.semibold)
-          if let sender, let label = sender.clientLabel {
-            TypePill(label: label, name: sender.name)
-              .help(sender.client ?? label)
+          if let label = message.typeLabel(sender: sender) {
+            TypePill(label: label, name: message.from)
+              .help(sender?.client ?? label)
           }
           Text(message.time)
             .font(.caption)

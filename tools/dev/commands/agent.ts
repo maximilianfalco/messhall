@@ -102,7 +102,7 @@ export async function agentRun({
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
-  const session = await withAgentSession({ key, name: client ?? `messhall-dev-agent-${role}`, url }, mcp =>
+  const session = await withAgentSession({ key, name: client ?? 'messhall-dev', url }, mcp =>
     following
       ? joinAndFollow(mcp, { postFifo, role, room, signal, write })
       : wait || catchUp

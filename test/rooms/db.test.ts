@@ -158,4 +158,40 @@ describe('openDb', () => {
     ]);
     db.close();
   });
+
+  it('stamps old messages and stored message events with the sender kind and label from its member', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    MIGRATIONS.slice(0, 5).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = 5;
+      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
+      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, left_at, client_name) VALUES
+        ('r1', 'web', 'other', 't0', 't0', 'left', 't1', 'opencode'), ('r1', 'ci', 'other', 't0', 't0', 'left', 't1', NULL);
+      INSERT INTO messages (room_id, from_name, kind, text, created_at) VALUES
+        ('r1', 'web', 'chat', 'hi', 't0'), ('r1', 'ci', 'chat', 'green', 't0'), ('r1', 'messhall', 'system', 'web left', 't1');
+      INSERT INTO events (kind, payload, created_at) VALUES
+        ('message', '{"type":"message","room":"demo","message":{"id":1,"from":"web"}}', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect(
+      db
+        .prepare('select from_name, from_kind, from_client_label from messages order by id')
+        .all()
+        .map(row => ({ ...row })),
+    ).toStrictEqual([
+      { from_client_label: 'opencode', from_kind: 'other', from_name: 'web' },
+      { from_client_label: null, from_kind: 'other', from_name: 'ci' },
+      { from_client_label: null, from_kind: null, from_name: 'messhall' },
+    ]);
+    expect(JSON.parse(String(db.prepare('select payload from events').get()?.payload)).message).toStrictEqual({
+      from: 'web',
+      from_client_label: 'opencode',
+      from_kind: 'other',
+      id: 1,
+    });
+    db.close();
+  });
 });
