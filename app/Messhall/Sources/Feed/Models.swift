@@ -83,10 +83,17 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var closedAt: String?
   public var messageCap: Int
   public var messageCount: Int
+  public var firstMessageId: Int?
   public var members: [Member]
   public var messages: [Message]
 
   public var isOpen: Bool { closedAt == nil }
+  public var oldestLoadedId: Int? { messages.first?.id }
+  /// True while older messages sit above the loaded ones.
+  public var hasMore: Bool {
+    guard let firstMessageId, let oldestLoadedId else { return false }
+    return oldestLoadedId > firstMessageId
+  }
   /// Members still in the room. `members` keeps those who left, so their old posts keep a sender.
   public var present: [Member] { members.filter { $0.presence != .left } }
 
@@ -97,18 +104,20 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
     case closedAt = "closed_at"
     case messageCap = "message_cap"
     case messageCount = "message_count"
+    case firstMessageId = "first_message_id"
   }
 
   init(room: Room) {
     self.init(
       id: room.id, name: room.name, topic: room.topic, createdAt: room.createdAt, createdBy: room.createdBy,
-      standing: room.standing, closedAt: room.closedAt, messageCap: room.messageCap, messageCount: 0, members: [],
+      standing: room.standing, closedAt: room.closedAt, messageCap: room.messageCap, messageCount: 0, firstMessageId: nil, members: [],
       messages: [])
   }
 
   init(
     id: String, name: String, topic: String?, createdAt: String, createdBy: String, standing: Bool,
-    closedAt: String?, messageCap: Int, messageCount: Int, members: [Member], messages: [Message]
+    closedAt: String?, messageCap: Int, messageCount: Int, firstMessageId: Int?, members: [Member],
+    messages: [Message]
   ) {
     self.id = id
     self.name = name
@@ -119,6 +128,7 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
     self.closedAt = closedAt
     self.messageCap = messageCap
     self.messageCount = messageCount
+    self.firstMessageId = firstMessageId
     self.members = members
     self.messages = messages
   }
@@ -129,6 +139,13 @@ public struct Snapshot: Codable, Equatable, Sendable {
   public var rooms: [SnapshotRoom]
 
   enum CodingKeys: String, CodingKey, CaseIterable { case seq, rooms }
+}
+
+/// One page of a room's messages, oldest first.
+public struct History: Codable, Equatable, Sendable {
+  public var messages: [Message]
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case messages }
 }
 
 public struct MessageEvent: Decodable, Equatable, Sendable {

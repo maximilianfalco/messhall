@@ -95,6 +95,12 @@ export const messageSchema = z.object({
 });
 
 export const roomSummarySchema = roomSchema.extend({
+  first_message_id: z
+    .number()
+    .int()
+    .positive()
+    .nullable()
+    .describe('Id of the oldest message in the room, system lines too. Null while it has none.'),
   message_count: z.number().int().nonnegative().describe('Posts that count toward the cap.'),
 });
 
