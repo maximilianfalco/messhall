@@ -76,3 +76,4 @@ export const FEED_PAGE_MAX = 200;
 export const FEED_PING_MS = 15_000;
 export const FEED_STALL_MS = 30_000;
 export const FEED_BODY_MAX_BYTES = 64 * 1024;
+export const WATCH_RECONNECT_MS = 1000;

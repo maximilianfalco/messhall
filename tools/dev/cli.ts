@@ -1,12 +1,14 @@
 import { Command } from 'commander';
 
 import { registerAgent } from './commands/agent.js';
+import { registerAppShot } from './commands/appShot.js';
 import { registerChannel } from './commands/channel.js';
 import { registerCheck } from './commands/check.js';
 import { registerCodex } from './commands/codex.js';
 import { registerCodexTypes } from './commands/codexTypes.js';
 import { registerDaemon } from './commands/daemon.js';
 import { registerDb } from './commands/db.js';
+import { registerDemo } from './commands/demo.js';
 import { registerEnv } from './commands/env.js';
 import { registerFeatureMap } from './commands/featuremap.js';
 import { registerFeed } from './commands/feed.js';
@@ -33,9 +35,11 @@ const program = new Command()
   registerFeed,
   registerMcp,
   registerAgent,
+  registerAppShot,
   registerChannel,
   registerCodex,
   registerCodexTypes,
+  registerDemo,
 ].forEach(register => register(program));
 
 await program.parseAsync(process.argv);

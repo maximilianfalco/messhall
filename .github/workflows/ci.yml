@@ -55,10 +55,25 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm messhall-dev featuremap --check
 
+  app:
+    name: App
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # The Mac app needs Xcode for swift test. A runner image without it skips the job instead of failing it.
+      - id: xcode
+        run: |
+          if xcodebuild -version; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "::notice::no Xcode on this runner, skipping the app"; fi
+      - if: steps.xcode.outputs.ok == 'true'
+        run: make app-test
+      - if: steps.xcode.outputs.ok == 'true'
+        run: make app
+
   ci:
     name: CI
     if: always()
-    needs: [format, lint, types, test, feature-map]
+    needs: [format, lint, types, test, feature-map, app]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

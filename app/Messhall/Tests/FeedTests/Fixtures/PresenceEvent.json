@@ -1,0 +1,1 @@
+{ "type": "presence", "room": "checkout", "name": "api", "from": "active", "to": "idle" }
