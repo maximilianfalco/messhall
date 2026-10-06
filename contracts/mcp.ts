@@ -8,7 +8,12 @@ export const WAIT_MAX_S = 270;
 export const NOTE_MAX_CHARS = 200;
 
 const roomField = nameSchema.describe('Room name: lowercase letters, digits and dashes, 1 to 40 chars.');
-const topicField = z.string().min(1).max(TOPIC_MAX_CHARS);
+// One line only: a newline in a topic could forge a messhall line in the join reply.
+const topicField = z
+  .string()
+  .min(1)
+  .max(TOPIC_MAX_CHARS)
+  .regex(/^\P{Cc}*$/u, 'one line, no control characters');
 
 export const joinInputSchema = z.object({
   as: nameSchema
@@ -33,7 +38,7 @@ export const joinInputSchema = z.object({
     .describe('For Codex: the value of $CODEX_THREAD_ID, so messhall can ring this session.'),
   topic: topicField
     .optional()
-    .describe('What the room is for, at most 200 chars. Only counts when this join makes the room.'),
+    .describe('What the room is for, one line, at most 200 chars. Only counts when this join makes the room.'),
 });
 
 export const postInputSchema = z.object({
@@ -93,7 +98,7 @@ export const muteInputSchema = z.object({
 
 export const setTopicInputSchema = z.object({
   room: roomField.describe('Room you joined.'),
-  topic: topicField.describe('What the room is for, at most 200 chars. It replaces the old topic.'),
+  topic: topicField.describe('What the room is for, one line, at most 200 chars. It replaces the old topic.'),
 });
 
 export const myRoleInputSchema = z.object({
