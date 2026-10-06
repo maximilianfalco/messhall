@@ -83,7 +83,8 @@ private struct AppearancePane: View {
       }
     }
     .formStyle(.grouped)
-    .fixedSize(horizontal: false, vertical: true)
+    .scrollDisabled(true)
+    .frame(height: 150)
   }
 }
 

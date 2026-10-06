@@ -11,8 +11,6 @@ final class Navigation {
   var newRoomDraft: String?
   /// Bumped to ask the menu bar label, which always lives, to open the window.
   var windowRequests = 0
-  /// Bumped the same way to open the Settings window.
-  var settingsRequests = 0
 }
 
 @MainActor
@@ -54,8 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       if let file = UserDefaults.standard.string(forKey: "shotSheet") {
         Task { await ShotHooks.saveSheet(to: file) }
       }
-      if UserDefaults.standard.bool(forKey: "shotSettings") {
-        Task { await ShotHooks.openSettings(navigation: navigation) }
+      if let file = UserDefaults.standard.string(forKey: "shotSettings") {
+        Task { await ShotHooks.openSettings(numberInto: file) }
       }
     #endif
   }

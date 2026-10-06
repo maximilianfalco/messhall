@@ -46,21 +46,24 @@
       try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
     }
 
-    /// `-shotSettings YES`: opens Settings and shuts the main window, so the shot finds Settings.
-    /// The pane comes from `-appSettings`, the same as a reopen after a quit.
-    static func openSettings(navigation: Navigation) async {
-      while mainWindow() == nil { try? await Task.sleep(for: .milliseconds(100)) }
-      navigation.settingsRequests += 1
-      while NSApp.windows.first(where: isSettings) == nil { try? await Task.sleep(for: .milliseconds(100)) }
-      mainWindow()?.close()
+    /// `-shotSettings <file>`: picks Settings in the app menu, like cmd comma, and writes its window number.
+    /// The main window stays in the window list after a close, so app-shot needs the number to find Settings.
+    static func openSettings(numberInto file: String) async {
+      while NSApp.windows.first(where: isPlain) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      let main = NSApp.windows.first(where: isPlain)
+      guard let menu = NSApp.mainMenu?.items.first?.submenu,
+        let index = menu.items.firstIndex(where: { $0.keyEquivalent == "," })
+      else { return }
+      menu.performActionForItem(at: index)
+      while NSApp.windows.first(where: { $0 !== main && isPlain($0) }) == nil {
+        try? await Task.sleep(for: .milliseconds(100))
+      }
+      let settings = NSApp.windows.first { $0 !== main && isPlain($0) }
+      try? String(settings?.windowNumber ?? 0).write(toFile: file, atomically: true, encoding: .utf8)
     }
 
-    private static func isSettings(_ window: NSWindow) -> Bool {
-      window.isVisible && window.identifier?.rawValue.contains("Settings") == true
-    }
-
-    private static func mainWindow() -> NSWindow? {
-      NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) && $0.sheetParent == nil && !isSettings($0) }
+    private static func isPlain(_ window: NSWindow) -> Bool {
+      window.isVisible && window.styleMask.contains(.titled) && window.sheetParent == nil
     }
 
     /// `-shotToggleSidebar <seconds>`: hides then shows the sidebar, the same call as View > Hide Sidebar.
@@ -83,7 +86,7 @@
       func find(_ view: NSView) -> NSSplitView? {
         view as? NSSplitView ?? view.subviews.lazy.compactMap(find).first
       }
-      return mainWindow()?.contentView.flatMap(find)?.delegate as? NSSplitViewController
+      return NSApp.windows.first(where: isPlain)?.contentView.flatMap(find)?.delegate as? NSSplitViewController
     }
 
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.

@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 
 import { execFile, spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -187,6 +187,7 @@ function processAlive(pid: number) {
 type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number] | typeof RECORDING;
 
 const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
+const windowFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.window`);
 
 /** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
 async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<string | undefined> {
@@ -205,11 +206,14 @@ export function shotArgs(shot: Shot) {
     shot.appearance,
     ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
     '-appSettings',
-    JSON.stringify({
-      ...('muted' in shot ? MUTED : {}),
-      ...('settings' in shot ? { pane: shot.settings, ...PANE_SETTINGS[shot.settings] } : {}),
-    }),
-    ...('settings' in shot ? ['-shotSettings', 'YES'] : []),
+    // A launch arg is read as a plist, so the JSON goes in as a quoted plist string.
+    JSON.stringify(
+      JSON.stringify({
+        ...('muted' in shot ? MUTED : {}),
+        ...('settings' in shot ? { pane: shot.settings, ...PANE_SETTINGS[shot.settings] } : {}),
+      }),
+    ),
+    ...('settings' in shot ? ['-shotSettings', windowFile(shot)] : []),
     ...('room' in shot ? ['-shotRoom', shot.room] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
@@ -233,6 +237,12 @@ function appPids(app: string) {
   return result.stdout.split('\n').filter(Boolean).map(Number);
 }
 
+/** The Settings window's number, which the app writes once Settings is up, or an error text. */
+async function settingsWindow(shot: Shot) {
+  const file = windowFile(shot);
+  return (await waitFile(file)) ?? readFileSync(file, 'utf8').trim();
+}
+
 async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<number | undefined> {
   const { stdout } = await run('swift', [WINDOWS_SCRIPT, String(pid)]);
   const id = pickWindow(stdout);
@@ -253,6 +263,7 @@ async function shoot({
   shot: Shot;
 }) {
   rmSync(shotFile(shot), { force: true });
+  rmSync(windowFile(shot), { force: true });
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
@@ -281,9 +292,9 @@ async function shoot({
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
     if ('newRoom' in shot) return (await waitFile(file)) ?? file;
     await sleep(SETTLE_MS);
-    // The main window opens first and the app shuts it once Settings is up, so look again.
-    const target = 'settings' in shot ? await waitWindow(child.pid ?? 0) : id;
-    await run('screencapture', ['-o', '-x', '-l', String(target), file]);
+    const target = 'settings' in shot ? await settingsWindow(shot) : String(id);
+    if (!/^\d+$/.test(target)) return target;
+    await run('screencapture', ['-o', '-x', '-l', target, file]);
     return file;
   } finally {
     child.kill('SIGTERM');

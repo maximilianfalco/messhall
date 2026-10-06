@@ -104,21 +104,23 @@ describe('shotArgs', () => {
       '-shotAppearance',
       'dark',
       '-appSettings',
-      '{}',
+      '"{}"',
     ]);
   });
 
   it('hands every shot its own settings so the real app settings never leak in', () => {
     const args = shotArgs({ appearance: 'light', muted: true, name: 'muted-light' });
 
-    expect(JSON.parse(args[args.indexOf('-appSettings') + 1] ?? '')).toStrictEqual({ mutedRooms: ['checkout'] });
+    expect(JSON.parse(JSON.parse(args[args.indexOf('-appSettings') + 1] ?? ''))).toStrictEqual({
+      mutedRooms: ['checkout'],
+    });
   });
 
   it('opens Settings on the pane named by the shot', () => {
     const args = shotArgs({ appearance: 'dark', name: 'settings-avatars-dark', settings: 'avatars' });
 
-    expect(args).toStrictEqual(expect.arrayContaining(['-shotSettings', 'YES']));
-    expect(JSON.parse(args[args.indexOf('-appSettings') + 1] ?? '')).toMatchObject({ pane: 'avatars' });
+    expect(args[args.indexOf('-shotSettings') + 1]).toMatch(/demo\/out\/shots\/settings-avatars-dark\.window$/);
+    expect(JSON.parse(JSON.parse(args[args.indexOf('-appSettings') + 1] ?? ''))).toMatchObject({ pane: 'avatars' });
   });
 
   it('opens the transcript at the top so a post shows the jump pill', () => {
