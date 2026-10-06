@@ -21,4 +21,9 @@ describe('worker brief', () => {
   it('names the default reviewer that spawn --reviewer swaps out', () => {
     expect(worker).toContain(`@${DEFAULT_REVIEWER}`);
   });
+
+  it('idles on the doorbell for a reviewer but loops wait for a human merge, which rings nothing', () => {
+    expect(worker).toContain('Waiting on a reviewer: end your turn and let the doorbell ring you.');
+    expect(worker).toContain('call `wait` in a loop and run `gh pr view <n> --json state` each time it returns');
+  });
 });
