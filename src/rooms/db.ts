@@ -103,6 +103,11 @@ export const MIGRATIONS = [
     payload, '$.member.role', CASE json_extract(payload, '$.member.name') WHEN 'orchestrator' THEN 'orchestrator' ELSE 'unassigned' END
   ) WHERE kind = 'member';
   `,
+  // What a role asks of its member, and who set it. Read through my_role and join, never on the wire.
+  `
+  ALTER TABLE members ADD COLUMN role_instructions TEXT;
+  ALTER TABLE members ADD COLUMN role_set_by TEXT;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

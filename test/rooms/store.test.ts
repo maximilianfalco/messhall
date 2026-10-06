@@ -848,3 +848,46 @@ describe('roles', () => {
     expect(roleOf('api')).toBe('unassigned');
   });
 });
+
+describe('role instructions', () => {
+  it('stores the instructions and who set them with the role', () => {
+    joinBoth();
+    store().assignRole({
+      by: 'human',
+      instructions: 'review PRs that mention you',
+      member: 'api',
+      role: 'reviewer',
+      room: 'demo',
+    });
+
+    expect(store().roleOf({ name: 'api', room: 'demo' })).toStrictEqual({
+      by: 'human',
+      instructions: 'review PRs that mention you',
+      role: 'reviewer',
+    });
+  });
+
+  it('replaces the instructions on the next assign, none when left out', () => {
+    joinBoth();
+    store().assignRole({ by: 'human', instructions: 'review', member: 'api', role: 'reviewer', room: 'demo' });
+    store().assignRole({ by: 'human', member: 'api', role: 'observer', room: 'demo' });
+
+    expect(store().roleOf({ name: 'api', room: 'demo' })).toStrictEqual({
+      by: 'human',
+      instructions: null,
+      role: 'observer',
+    });
+  });
+
+  it('gives a fresh member unassigned with no instructions, and nothing for a stranger', () => {
+    joinBoth();
+
+    expect(store().roleOf({ name: 'web', room: 'demo' })).toStrictEqual({
+      by: null,
+      instructions: null,
+      role: 'unassigned',
+    });
+    expect(store().roleOf({ name: 'ghost', room: 'demo' })).toBeUndefined();
+    expect(store().roleOf({ name: 'web', room: 'nope' })).toBeUndefined();
+  });
+});

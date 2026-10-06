@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { joinInputSchema } from '../../../contracts/mcp.ts';
 import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
 import { clientType, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
-import { memberLabel } from '../render.js';
+import { memberLabel, roleBlock } from '../render.js';
 
 import { refuse, registerRoomTool, reply } from './registry.js';
 
@@ -103,6 +103,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
         `members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,
+        ...roleBlock({ role: store.roleOf({ name: as, room: input.room })!, room: input.room }),
         ...(kind === 'codex' || input.thread_id
           ? [session.threadId ? 'doorbell: codex' : 'doorbell: none (call wait)']
           : []),
