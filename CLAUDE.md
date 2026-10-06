@@ -17,7 +17,7 @@ Repo rules for Messhall. The global `~/CLAUDE.md` still applies; these add to it
 - Push a branch once, when the gate is green. Open the PR, let CI run once, then squash-merge with `gh pr merge <n> --squash --admin` (never a merge commit or a rebase onto `main`). `main` has a ruleset: PRs only, squash only, one code owner review, signed commits, no force push. The owner merges through the admin bypass, which is why `--admin` is needed. When `main` moves under an open branch, `git merge origin/main` into it. Never rebase or force-push a pushed branch.
 - Merge without asking when CI is green, except PRs that touch a `CRITICAL.md` tree (they get the **human veto** label): those wait for the owner.
 - Commit and PR titles are title-only conventional commits. No bodies, no AI credit.
-- Job queue ids (rows like B4, D12) live in the queue and the vault only. Never write them in commits, PR titles or bodies, or any tracked file. Name the thing instead: "the room store".
+- Job queue row ids live in the queue and the vault only. Never write them in commits, PR titles or bodies, or any tracked file. Name the thing instead: "the room store".
 
 ## PRs
 
