@@ -33,13 +33,13 @@ describe('createMesshallServer', () => {
     tools.forEach(tool => expect(tool.title).toBe(TOOL_TITLES[tool.name as keyof typeof TOOL_TITLES]));
   });
 
-  it('marks only read_since, wait and the list tools read only', async () => {
+  it('marks only read_since, wait, my_role and the list tools read only', async () => {
     const { client } = await harness.agent();
 
     const { tools } = await client.listTools();
 
     const readOnly = tools.filter(tool => tool.annotations?.readOnlyHint).map(tool => tool.name);
-    expect(readOnly).toStrictEqual(['read_since', 'wait', 'list_members', 'list_rooms']);
+    expect(readOnly).toStrictEqual(['read_since', 'wait', 'list_members', 'list_rooms', 'my_role']);
   });
 
   it('describes every input field with a sentence', async () => {

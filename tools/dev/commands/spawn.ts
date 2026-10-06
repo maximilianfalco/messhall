@@ -30,7 +30,6 @@ import {
 const SKILL_SCRIPTS = path.join(REPO_ROOT, '.claude/skills/messhall-pickup-any-work/scripts');
 const DEFAULT_ROOM = 'dev';
 const DEFAULT_MODEL = 'opus';
-const DEFAULT_REVIEWERS = ['reviewer-1'];
 const ROW_ID = /^[a-z]\d+$/i;
 const REVIEW_LOOKBACK = 500;
 const FLOCK_FORMAT = '#{session_name}\t#{pane_id}\t#{pane_pid}';
@@ -57,7 +56,6 @@ interface SpawnOptions {
   model: string;
   now?: () => Date;
   queue?: Runner;
-  reviewers: string[];
   room: string;
   url: string;
 }
@@ -73,7 +71,6 @@ export async function spawnRun({
   model,
   now = () => new Date(),
   queue = runQueue,
-  reviewers,
   room,
   url,
 }: SpawnOptions) {
@@ -91,7 +88,7 @@ export async function spawnRun({
   const worktreeRel = `.worktrees/${slug}`;
   const plannedWorktree = path.join(await mainCheckout(), worktreeRel);
   const prompt = (worktree: string) =>
-    spawnPrompt({ branch: row.branch, brief: briefFile, id: row.id, reviewers, room, worktree });
+    spawnPrompt({ branch: row.branch, brief: briefFile, id: row.id, room, worktree });
 
   if (dryRun) {
     return {
@@ -148,7 +145,6 @@ export async function seatRun({
   model,
   name,
   room,
-  rubric,
   url,
 }: {
   dataDir: string;
@@ -157,20 +153,17 @@ export async function seatRun({
   model: string;
   name: string;
   room: string;
-  rubric?: string;
   url: string;
 }) {
   if (!NAME_PATTERN.test(name) || (RESERVED_NAMES as readonly string[]).includes(name)) {
     return { code: 1, report: bad(`not spawning: ${name} is not a free member name (a-z, 0-9, dashes, up to 40)`) };
   }
-  const rubricFile = rubric && path.resolve(rubric);
-  if (rubricFile && !existsSync(rubricFile)) return { code: 1, report: bad(`no rubric at ${rubricFile}`) };
   const session = seatSessionName(name);
   const debugFile = path.join(dataDir, 'spawn', `seat-${name}-debug.log`);
   const mcpConfig = path.join(dataDir, 'spawn', `seat-${name}-mcp.json`);
   const argv = spawnArgv({ debugFile, mcpConfig, model });
   const cwd = await mainCheckout();
-  const prompt = seatPrompt({ name, room, rubric: rubricFile });
+  const prompt = seatPrompt({ name, room });
   if (dryRun) {
     return {
       code: 0,
@@ -288,12 +281,6 @@ export function reviewsReport({ dataDir, now = new Date(), room }: { dataDir: st
   };
 }
 
-const list = (value: string) =>
-  value
-    .split(',')
-    .map(name => name.trim())
-    .filter(Boolean);
-
 /** Registers `spawn <row|agent>`, `flock [stop <row|name>]` and `reviews`. */
 export function registerSpawn(program: Command) {
   program
@@ -304,14 +291,7 @@ export function registerSpawn(program: Command) {
     .option('--room <room>', 'room the agent sits in', DEFAULT_ROOM)
     .option('--model <model>', 'claude model', DEFAULT_MODEL)
     .option('--brief <file>', 'brief a row agent reads first, else it runs the pickup skill')
-    .option(
-      '--reviewers <names>',
-      'comma list of reviewers a row agent asks, the first is named',
-      list,
-      DEFAULT_REVIEWERS,
-    )
     .option('--as <name>', 'with `agent`: the member name to seat')
-    .option('--rubric <file>', 'with `agent`: an extra rubric to review against')
     .option('--dry-run', 'print the plan, claim and start nothing')
     .action(
       async (
@@ -321,9 +301,7 @@ export function registerSpawn(program: Command) {
           brief?: string;
           dryRun?: boolean;
           model: string;
-          reviewers: string[];
           room: string;
-          rubric?: string;
         },
       ) => {
         const shared = { dataDir: defaultDataDir(), dryRun: Boolean(options.dryRun), url: daemonUrl() };

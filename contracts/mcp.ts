@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { nameSchema, roleSchema } from './room.ts';
+import { INSTRUCTIONS_MAX_CHARS, nameSchema, roleSchema } from './room.ts';
 
 export const AGENT_KINDS = ['claude', 'codex', 'other'] as const;
 export const WAIT_MAX_S = 270;
@@ -59,9 +59,19 @@ export const listMembersInputSchema = z.object({
 });
 
 export const assignRoleInputSchema = z.object({
+  instructions: z
+    .string()
+    .min(1)
+    .max(INSTRUCTIONS_MAX_CHARS)
+    .optional()
+    .describe('What the member should do in this role, at most 4,000 chars. It replaces any earlier ones.'),
   member: nameSchema.describe('Name of the member to give the role.'),
   role: roleSchema.describe('The role: worker, reviewer, orchestrator, observer or any short slug.'),
   room: roomField.describe('Room you joined, where the member sits.'),
+});
+
+export const myRoleInputSchema = z.object({
+  room: roomField.describe('Room you joined.'),
 });
 
 export const listRoomsInputSchema = z.object({});
@@ -77,4 +87,5 @@ export type ReadSinceInput = z.infer<typeof readSinceInputSchema>;
 export type WaitInput = z.infer<typeof waitInputSchema>;
 export type ListMembersInput = z.infer<typeof listMembersInputSchema>;
 export type AssignRoleInput = z.infer<typeof assignRoleInputSchema>;
+export type MyRoleInput = z.infer<typeof myRoleInputSchema>;
 export type LeaveInput = z.infer<typeof leaveInputSchema>;

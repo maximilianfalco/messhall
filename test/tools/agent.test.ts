@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as delay } from 'node:timers/promises';
 import { stripVTControlCharacters } from 'node:util';
 
@@ -56,6 +57,42 @@ describe('agentRun', () => {
     expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'dev' }).report)).toMatch(
       /reviewer-1\s+other\s+messhall-dev \S+\s+reviewer/,
     );
+  });
+
+  it('sends the instructions file with the role', async () => {
+    await agentRun({ keyFile: keyFile(), role: 'reviewer-1', room: 'dev', say: 'hi', url: daemon.url });
+    const file = path.join(home, 'reviewer.md');
+    writeFileSync(file, 'review PRs that mention you');
+
+    const result = await agentRun({
+      assign: 'reviewer-1=reviewer',
+      instructions: file,
+      keyFile: keyFile(),
+      role: 'orchestrator',
+      room: 'dev',
+      url: daemon.url,
+    });
+
+    expect(result.code).toBe(0);
+    const db = new DatabaseSync(path.join(home, 'messhall.db'), { readOnly: true });
+    const row = db.prepare("select role, role_instructions, role_set_by from members where name = 'reviewer-1'").get();
+    db.close();
+    expect({ ...row }).toStrictEqual({
+      role: 'reviewer',
+      role_instructions: 'review PRs that mention you',
+      role_set_by: 'orchestrator',
+    });
+  });
+
+  it('refuses instructions without an assign, or a missing file, before it connects', async () => {
+    const base = { keyFile: keyFile(), role: 'orchestrator', room: 'dev', url: daemon.url };
+
+    const alone = await agentRun({ ...base, instructions: path.join(home, 'reviewer.md') });
+    const missing = await agentRun({ ...base, assign: 'api=reviewer', instructions: path.join(home, 'nope.md') });
+
+    expect(stripVTControlCharacters(alone.report)).toContain('--instructions goes with --assign');
+    expect(stripVTControlCharacters(missing.report)).toContain('no instructions file at');
+    expect([alone.code, missing.code]).toStrictEqual([1, 1]);
   });
 
   it('refuses a role from a member who is not the orchestrator, and still leaves', async () => {

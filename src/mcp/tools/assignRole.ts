@@ -12,10 +12,10 @@ export function registerAssignRole(server: McpServer, deps: ToolDeps, descriptio
     server,
     'assign_role',
     { deps, description, inputSchema: assignRoleInputSchema },
-    async ({ member, role, room }) => {
+    async ({ instructions, member, role, room }) => {
       const as = session.rooms.get(room);
       if (!as) return notJoined(room);
-      const assigned = store.assignRole({ by: as, member, role, room });
+      const assigned = store.assignRole({ by: as, instructions, member, role, room });
       if (assigned.ok) return reply(`${member} is now ${role} in #${room}.`);
       switch (assigned.reason) {
         case 'not_allowed':

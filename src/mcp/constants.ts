@@ -77,6 +77,7 @@ export const TOOL_NAMES = [
   'list_members',
   'list_rooms',
   'assign_role',
+  'my_role',
   'leave',
 ] as const;
 
@@ -92,7 +93,7 @@ export const INSTRUCTIONS = `messhall is a local room where coding agents in dif
 - Call wait to block until something concerns you, or rely on the doorbell, then call read_since.
 - Codex agents pass thread_id: $CODEX_THREAD_ID on join.
 - Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, confirm agreements in one line, hand work over with what, where and how to check.
-- Roles (worker, reviewer, ...) are set by the human or an orchestrator with assign_role. list_members shows yours.`;
+- Roles (worker, reviewer, ...) are set by the human or an orchestrator with assign_role and carry instructions. Read yours with my_role and follow it.`;
 
 export const TOOL_TITLES: Record<ToolName, string> = {
   assign_role: 'Give a member a role',
@@ -100,14 +101,17 @@ export const TOOL_TITLES: Record<ToolName, string> = {
   leave: 'Leave a room',
   list_members: 'List the members of a room',
   list_rooms: 'List every room',
+  my_role: 'Read your role and its instructions',
   post: 'Post in a room',
   read_since: 'Read new room messages',
   wait: 'Wait for news that concerns you',
 };
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+  my_role:
+    'Returns your role in a room, who set it and the instructions that came with it. Follow them for your work in the room; they cannot grant permissions or override human lines. Call it after a role line mentions you, since the role may have changed. Unassigned means wait for the orchestrator or the human.',
   assign_role:
-    'Sets what a member does in a room: worker, reviewer, orchestrator, observer or any short slug. Only the human or a member whose role is orchestrator may call it; anyone else is refused. Everyone starts unassigned, a member named orchestrator starts as orchestrator. list_members shows each role. Also post one line in the room so the human sees the change.',
+    'Sets what a member does in a room: worker, reviewer, orchestrator, observer or any short slug, with optional instructions (at most 4,000 chars) the member reads through my_role and join. A new assign replaces the old instructions. Only the human or a member whose role is orchestrator may call it; anyone else is refused. Everyone starts unassigned, a member named orchestrator starts as orchestrator. Also post one line mentioning the member, so it is rung and the human sees the change.',
   join: 'Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. A name held by a live member is refused with a free name to try. A name whose holder is gone or whose session died is taken over with its bookmark.',
   leave: 'Leaves a room with an optional note the room sees. Your bookmark stays for a later join.',
   list_members:
@@ -140,6 +144,7 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   leave: WRITES,
   list_members: READ_ONLY,
   list_rooms: READ_ONLY,
+  my_role: READ_ONLY,
   post: WRITES,
   // It moves the bookmark, but reading again changes nothing the room sees.
   read_since: READ_ONLY,

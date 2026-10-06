@@ -6,6 +6,7 @@ export const MEMBER_KINDS = ['claude', 'codex', 'other', 'human'] as const;
 
 export const NAME_PATTERN = /^[a-z0-9-]{1,40}$/;
 export const TEXT_MAX_CHARS = 4000;
+export const INSTRUCTIONS_MAX_CHARS = 4000;
 export const HUMAN_NAME = 'human';
 export const SYSTEM_NAME = 'messhall';
 export const ALL_MENTION = 'all';

@@ -117,7 +117,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'SELECT messages.*, rooms.name AS room FROM messages_fts JOIN messages ON messages.id = messages_fts.rowid JOIN rooms ON rooms.id = messages.room_id WHERE messages_fts MATCH ? AND (? IS NULL OR rooms.id = ?) ORDER BY messages.id DESC LIMIT ?',
     ),
     seen: db.prepare('UPDATE members SET presence = ?, last_seen_at = ? WHERE room_id = ? AND name = ?'),
-    setRole: db.prepare('UPDATE members SET role = ? WHERE room_id = ? AND name = ?'),
+    setRole: db.prepare(
+      'UPDATE members SET role = ?, role_instructions = ?, role_set_by = ? WHERE room_id = ? AND name = ?',
+    ),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
     sweepable: db.prepare(
@@ -323,18 +325,39 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
 
     /** Sets a member's role, even one who left, since a role outlives a leave.
      * Only the human seat or an orchestrator in the room may, so `by` is checked first. */
-    assignRole({ by, member: name, role, room: roomName }: { by: string; member: string; role: string; room: string }) {
+    assignRole({
+      by,
+      instructions,
+      member: name,
+      role,
+      room: roomName,
+    }: {
+      by: string;
+      instructions?: string;
+      member: string;
+      role: string;
+      room: string;
+    }) {
       return transaction(emit => {
         const found = seat(roomName, by);
         if (!found.ok) return found;
         if (!canAssignRole({ by: found.member })) return { ok: false, reason: 'not_allowed' } as const;
         const target = findMember(found.room, name);
         if (!target) return { ok: false, reason: 'no_member' } as const;
-        sql.setRole.run(role, found.room.id, name);
+        sql.setRole.run(role, instructions ?? null, by, found.room.id, name);
         const member = findMember(found.room, name)!;
         emit({ change: 'role', member, room: found.room.name, type: 'member' });
         return { member, ok: true } as const;
       });
+    },
+
+    /** A member's role with its instructions and who set them, or undefined when there is no such member. */
+    roleOf({ name, room: roomName }: { name: string; room: string }) {
+      const room = findRoom(roomName);
+      const row = room && sql.member.get(room.id, name);
+      if (!row) return;
+      const text = (value: unknown) => (value === null ? null : String(value));
+      return { by: text(row.role_set_by), instructions: text(row.role_instructions), role: String(row.role) };
     },
 
     /** Leaves the room with a system line. The cursor stays for a later join. */

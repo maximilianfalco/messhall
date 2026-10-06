@@ -66,75 +66,47 @@ describe('spawnPlan', () => {
 });
 
 describe('spawnPrompt', () => {
-  const base = {
-    branch: 'f8/thing',
-    id: 'B82',
-    reviewers: ['reviewer-1'],
-    room: 'dev',
-    worktree: '/repo/.worktrees/f8-thing',
-  };
+  const base = { branch: 'f8/thing', id: 'B82', room: 'dev', worktree: '/repo/.worktrees/f8-thing' };
 
-  it('points at the brief, the row, the seat, the progress points and the done line', () => {
+  it('seats the agent, then waits for a role before it touches the row', () => {
     const prompt = spawnPrompt({ ...base, brief: '/notes/brief.md' });
-    expect(prompt).toContain('Read /notes/brief.md first');
-    expect(prompt).toContain('row B82');
-    expect(prompt).toContain('/repo/.worktrees/f8-thing');
     expect(prompt).toContain('join #dev as f8-thing');
-    expect(prompt).toContain('never call leave until the row is closed');
-    expect(prompt).toContain('claimed, tests green, PR open (with the url), CI result, merged');
-    expect(prompt).toContain('done: true');
+    expect(prompt).toContain('never call leave until your work is finished');
+    expect(prompt).toContain('do nothing else until orchestrator or human gives you a role');
+    expect(prompt).toContain('call my_role');
+    expect(prompt).toContain('follow the instructions it returns');
+    expect(prompt).toContain('post "@orchestrator what is my role?"');
     expect(prompt).not.toContain('\n');
   });
 
-  it('falls back to the pickup skill without a brief', () => {
+  it('gives the row as context: id, branch, claimed worktree and brief', () => {
+    const prompt = spawnPrompt({ ...base, brief: '/notes/brief.md' });
+    expect(prompt).toContain('row B82 of the job queue, branch f8/thing');
+    expect(prompt).toContain('your worktree is /repo/.worktrees/f8-thing');
+    expect(prompt).toContain('its brief is /notes/brief.md');
+    expect(prompt.indexOf('my_role')).toBeLessThan(prompt.indexOf('row B82'));
+  });
+
+  it('points at the pickup skill without a brief', () => {
     expect(spawnPrompt(base)).toContain('/messhall-pickup-any-work B82');
   });
 
-  it('waits for a worker role before it starts the row', () => {
+  it('holds no reviewer or worker policy', () => {
     const prompt = spawnPrompt(base);
-    expect(prompt).toContain('post one line saying who you are');
-    expect(prompt).toContain('do nothing else until orchestrator or human posts "@f8-thing your role: ..."');
-    expect(prompt).toContain('check it with list_members');
-    expect(prompt).toContain('post "@orchestrator what is my role?"');
-    expect(prompt.indexOf('your role: ...')).toBeLessThan(prompt.indexOf('/messhall-pickup-any-work B82'));
-  });
-
-  it('gates the merge on a review from the first reviewer, or a human go', () => {
-    const prompt = spawnPrompt(base);
-    expect(prompt).toContain('do not merge on green CI');
-    expect(prompt).toContain('post "ready for review: <PR url> @reviewer-1"');
-    expect(prompt).toContain('post "round N: <PR url> @reviewer-1"');
-    expect(prompt).toContain(
-      'merge only after "approved @f8-thing <PR url>" from reviewer-1 or a human line that says go',
-    );
-    expect(prompt).toContain('"@human stuck", stop and wait for the human');
-    expect(prompt).toContain('CRITICAL.md tree still waits for the human');
-  });
-
-  it('names the first reviewer and takes approval from any of them', () => {
-    const prompt = spawnPrompt({ ...base, reviewers: ['reviewer-2', 'reviewer-1'] });
-    expect(prompt).toContain('"ready for review: <PR url> @reviewer-2"');
-    expect(prompt).toContain('from reviewer-2 or reviewer-1 or a human line');
+    expect(prompt).not.toMatch(/ready for review|approved|merge|reviewer/i);
   });
 });
 
 describe('seatPrompt', () => {
-  it('seats a named agent that waits for its role, then follows the agent brief', () => {
+  it('seats a named agent that waits for its role and follows its instructions', () => {
     const prompt = seatPrompt({ name: 'reviewer-1', room: 'dev' });
     expect(prompt).toContain('Read the using-messhall skill first.');
     expect(prompt).toContain('join #dev as reviewer-1');
-    expect(prompt).toContain('never call leave');
-    expect(prompt).toContain('do nothing else until orchestrator or human posts "@reviewer-1 your role: ..."');
-    expect(prompt).toContain('post "@orchestrator what is my role?"');
-    expect(prompt).toMatch(/tools\/dev\/briefs\/agent\.md/);
-    expect(prompt).not.toContain('rubric');
+    expect(prompt).toContain('never call leave.');
+    expect(prompt).toContain('call my_role');
+    expect(prompt).toContain('a role line mentions you later, call my_role again');
+    expect(seatPrompt({ name: 'web', room: 'dev' })).not.toMatch(/ready for review|approved|merge|review/i);
     expect(prompt).not.toContain('\n');
-  });
-
-  it('adds the extra rubric for reviews when one is given', () => {
-    expect(seatPrompt({ name: 'reviewer-1', room: 'dev', rubric: '/notes/rubric.md' })).toContain(
-      'when you review, also use the rubric in /notes/rubric.md',
-    );
   });
 });
 
@@ -186,7 +158,6 @@ describe('spawnRun', () => {
     brief: undefined,
     dataDir: '/nowhere',
     model: 'opus',
-    reviewers: ['reviewer-1'],
     room: 'dev',
     url: 'http://127.0.0.1:1',
   };
