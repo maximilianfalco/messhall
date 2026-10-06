@@ -31,8 +31,10 @@ Two parts, used together:
 | `pnpm messhall-dev daemon [--keep]` | `messhall daemon` from source on `MESSHALL_HOME` (else a temp dir) and `MESSHALL_PORT` (else a free port): its url, pid, data dir and `/health` body. Stops it unless `--keep` |
 | `pnpm messhall-dev room <name> [--data-dir <d>]` | a room's members with presence and cursor, and its last messages, read only from the daemon's data dir |
 | `pnpm messhall-dev store [--data-dir <d>]` | a scripted join, post, read, done, leave and presence sweep on a scratch room store with a fake clock, then its rooms, members, messages and event counts |
+| `pnpm messhall-dev feed [--room <r>] [--url <u>] [--since <seq>] [--count <n>]` | the live SSE feed of the running daemon, read with the human key: a `snapshot` line, then one line per `message`, `member`, `presence` or `room` event with its sequence. `--since` replays from the event log instead. Exits after `--count` lines or on ctrl-c |
+| `pnpm messhall-dev schema` | writes `contracts/schema.json` from the zod contracts (also `pnpm schema` and `pnpm build`). A test fails when the committed file is stale |
 
-The rest (`mcp`, `agent`, `feed`, `channel`, `codex`, `demo`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
+The rest (`mcp`, `agent`, `channel`, `codex`, `demo`) land with the feature they verify. Their rows in the Dev tool section of the feature map are `planned` and say what each will prove. Add the dev command before the surface it verifies.
 
 `scripts/messhall-dev` is a shell wrapper for the same tool, for use from any directory.
 
