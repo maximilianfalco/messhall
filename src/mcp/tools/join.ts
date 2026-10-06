@@ -76,7 +76,9 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       // A takeover leaves the old session bound, so drop it there before it can post as this name.
       sessions.sessionsFor({ name: as, room: input.room }).forEach(entry => entry.session.unbind(input.room));
     }
-    session.bind({ kind, name: as, room: input.room, threadId });
+    const newest = store.listMessages({ limit: 1, room: input.room });
+    const mark = newest.ok ? (newest.messages.at(-1)?.id ?? 0) : 0;
+    session.bind({ kind, mark, name: as, room: input.room, threadId });
 
     const members = store.listMembers(input.room);
     const me = members.find(member => member.name === as)!;

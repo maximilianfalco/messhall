@@ -6,14 +6,16 @@ import type { AgentKind } from '../../contracts/room.ts';
  */
 export function createSession({ id, now }: { id: string; now: () => Date }) {
   const rooms = new Map<string, string>();
+  const marks = new Map<string, number>();
   let kind: AgentKind = 'other';
   let lastSeen = now().getTime();
   let open = 0;
   let threadId: string | undefined;
 
   return {
-    /** Holds `name` in `room` for this session. */
-    bind(binding: { kind: AgentKind; name: string; room: string; threadId?: string }) {
+    /** Holds `name` in `room` for this session. `mark` is the newest message id when it joined. */
+    bind(binding: { kind: AgentKind; mark?: number; name: string; room: string; threadId?: string }) {
+      if (!rooms.has(binding.room)) marks.set(binding.room, binding.mark ?? 0);
       rooms.set(binding.room, binding.name);
       ({ kind } = binding);
       // A codex thread id is only passed once thread/read has checked it.
@@ -33,6 +35,10 @@ export function createSession({ id, now }: { id: string; now: () => Date }) {
       };
     },
     id,
+    /** The newest message id when this session joined `room`. Older unread posts are backlog. */
+    markOf(room: string) {
+      return marks.get(room) ?? 0;
+    },
     /** True when no request is open and none ended after `cutoff`. A held GET stream keeps it live. */
     idleSince(cutoff: number) {
       return open === 0 && lastSeen <= cutoff;
@@ -57,6 +63,7 @@ export function createSession({ id, now }: { id: string; now: () => Date }) {
     /** Lets go of `room`, after a leave, a takeover or the end of the session. */
     unbind(room: string) {
       rooms.delete(room);
+      marks.delete(room);
     },
   };
 }
