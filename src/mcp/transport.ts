@@ -17,8 +17,10 @@ import { DEFAULT_MAX_REQUEST_BODY_SIZE, isInitializeRequest } from '@modelcontex
 import { sendJson } from '../daemon/router.js';
 import { logger } from '../lib/logger.js';
 
+import { SEAT_HEADER } from './constants.js';
 import { createMesshallServer } from './server.js';
 import { createSession, createSessionRegistry } from './session.js';
+import { bindSeat } from './tools/join.js';
 
 export const MCP_PATH = '/mcp';
 export const MCP_METHODS = ['POST', 'GET', 'DELETE'] as const;
@@ -31,6 +33,12 @@ export interface McpEntry {
 
 const rpcError = (res: ServerResponse, status: number, message: string) =>
   sendJson(res, status, { error: { code: -32_000, message }, id: null, jsonrpc: '2.0' });
+
+// One read of the header. Empty when the launcher set no seat, which means no key.
+function seatOf(req: IncomingMessage) {
+  const value = req.headers[SEAT_HEADER];
+  return typeof value === 'string' && value ? value : undefined;
+}
 
 async function readJson(req: IncomingMessage) {
   const chunks: Buffer[] = [];
@@ -51,7 +59,8 @@ async function readJson(req: IncomingMessage) {
 
 /**
  * The `/mcp` endpoint: one transport and one McpServer per `Mcp-Session-Id`. A session ends on
- * DELETE, on transport close, or when the sweep finds it dead, and its members turn gone.
+ * DELETE, on transport close, or when the sweep finds it dead, and its members turn away. A new
+ * session that sends a seat key sits down again in every seat that key holds whose holder is dead.
  */
 export function createMcpEndpoint({
   codex,
@@ -71,9 +80,22 @@ export function createMcpEndpoint({
     sessions.remove(entry.session.id);
     [...entry.session.rooms].forEach(([room, as]) => {
       entry.session.unbind(room);
-      store.touch({ as, room, state: 'gone' });
+      store.touch({ as, room, state: 'away' });
     });
     logger.info('mcp session closed', { session: entry.session.id });
+  }
+
+  function reattach({ server, session }: McpEntry) {
+    const { seat } = session;
+    if (!seat) return;
+    const client = server.server.getClientVersion();
+    store.seatsOf(seat).forEach(({ kind, name, room }) => {
+      // A child process inherits the key, so a seat whose holder is still live stays with it.
+      if (sessions.sessionsFor({ name, room }).some(entry => !entry.session.dead())) return;
+      if (store.joinRoom({ as: name, client, kind, room, seatKey: seat }).ok) {
+        bindSeat({ client, kind, name, room, session, sessions, store });
+      }
+    });
   }
 
   async function open(req: IncomingMessage, res: ServerResponse) {
@@ -82,7 +104,7 @@ export function createMcpEndpoint({
       rpcError(res, 400, 'no session: send initialize first');
       return;
     }
-    const session = createSession({ id: randomUUID(), now });
+    const session = createSession({ id: randomUUID(), now, seat: seatOf(req) });
     const server = createMesshallServer({ codex, now, session, sessions, store });
     const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: () => session.id });
     const entry: McpEntry = { server, session, transport };
@@ -91,8 +113,12 @@ export function createMcpEndpoint({
     sessions.add(entry);
     res.once('close', session.hold());
     await transport.handleRequest(req, res, body);
-    if (transport.sessionId) logger.info('mcp session opened', { session: session.id });
-    else sessions.remove(session.id);
+    if (!transport.sessionId) {
+      sessions.remove(session.id);
+      return;
+    }
+    logger.info('mcp session opened', { session: session.id });
+    reattach(entry);
   }
 
   const handle: Handler = async (req, res) => {
@@ -113,7 +139,7 @@ export function createMcpEndpoint({
   };
 
   return {
-    /** Closes every session, marking their members gone. */
+    /** Closes every session, marking their members away. */
     async close() {
       await Promise.all(sessions.all().map(entry => entry.transport.close()));
     },

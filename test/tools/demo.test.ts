@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { KEY_HEADER } from '../../src/daemon/keys.js';
 import { shellLine } from '../../src/lib/shell.js';
+import { SEAT_HEADER } from '../../src/mcp/constants.js';
 import { scratchPort } from '../../tools/dev/commands/daemon.js';
 import { demoRun } from '../../tools/dev/commands/demo.js';
 import { claudeArgv, mcpConfigJson } from '../../tools/dev/lib/claudeTmux.js';
@@ -115,6 +116,12 @@ describe('claude launcher', () => {
     expect(JSON.parse(mcpConfigJson({ key: 'k', url: 'http://127.0.0.1:7792' }))).toStrictEqual({
       mcpServers: { messhall: { headers: { [KEY_HEADER]: 'k' }, type: 'http', url: 'http://127.0.0.1:7792/mcp' } },
     });
+  });
+
+  it('adds the seat header when given a seat key, so a spawned claude keeps its seat', () => {
+    const config = JSON.parse(mcpConfigJson({ key: 'k', seat: 'seat-a', url: 'http://127.0.0.1:7792' }));
+
+    expect(config.mcpServers.messhall.headers).toStrictEqual({ [KEY_HEADER]: 'k', [SEAT_HEADER]: 'seat-a' });
   });
 
   it('quotes only the args a shell would split', () => {

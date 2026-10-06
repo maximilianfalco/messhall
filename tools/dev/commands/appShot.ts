@@ -129,7 +129,7 @@ export function checkShotHome(home: string) {
   if (path.resolve(home) === real) return `refusing ${home}, it is the real data dir`;
 }
 
-/** A room with runs of joins and leaves between posts, so the transcript shows folded and open runs. It ends with two agents left and two gone, for the gone chip. */
+/** A room with runs of joins and leaves between posts, so the transcript shows folded and open runs. It ends with two agents left and two away, for the away chip. */
 function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'handoff';
   const presence = (lines: [string, 'join' | 'leave', string?][]) =>
@@ -161,7 +161,7 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
     ['web', 'leave'],
     ['qa', 'leave'],
   ]);
-  ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'gone' }));
+  ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'away' }));
 }
 
 /** A room longer than the snapshot, two agents taking turns on numbered steps. */
@@ -205,7 +205,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
       room: 'checkout',
       text: '@all i will rerun the checkout e2e once both sides land',
     });
-    // Left and gone agents land late, so the 5 minute stale sweep keeps them through the shots.
+    // Left and away agents land late, so the 5 minute stale sweep keeps them through the shots.
     at = now.getTime() - 5 * 60_000;
     seedHandoff({ step, store });
     step(10_000);

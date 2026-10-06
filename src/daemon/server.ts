@@ -51,7 +51,7 @@ function health({ now, startedAt, store }: { now: () => Date; startedAt: number;
   const rooms = store.listRooms();
   const live = rooms
     .flatMap(room => store.listMembers(room.name))
-    .filter(member => member.kind !== 'human' && member.presence !== 'gone');
+    .filter(member => member.kind !== 'human' && member.presence !== 'away');
   const body: Health = {
     live_members: live.length,
     ok: true,
@@ -74,7 +74,7 @@ function caught(handler: Handler) {
   }) satisfies Handler;
 }
 
-/** Opens the store and key files, marks members from the last run gone, binds 127.0.0.1 and sweeps on a timer.
+/** Opens the store and key files, marks members from the last run away, binds 127.0.0.1 and sweeps on a timer.
  * A taken port gives `port_taken` with the pid that holds it, never a quiet move. */
 export async function startDaemon({
   dataDir,
@@ -97,8 +97,8 @@ export async function startDaemon({
   const keys = loadKeys({ dataDir });
   const db = openDb({ dataDir });
   const store = createRoomStore({ db, now });
-  // No session lives through a restart, so nobody from the last run is still here.
-  store.markAllGone();
+  // No session lives through a restart, so every seat from the last run is away until its agent comes back.
+  store.markAllAway();
   const codex = createCodexClient({ socketPath: codexControlSocket() });
   const mcp = createMcpEndpoint({ codex, now, store });
   const ringers = createRingers([

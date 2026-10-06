@@ -38,7 +38,7 @@ function request(input: RoomAction, url: string) {
   return { init: { method: 'POST' }, url: `${url}/api/rooms/${encodeURIComponent(input.name)}/${input.action}` };
 }
 
-/** Makes, closes, reopens or lists rooms, or kicks a left or gone member, as the human through the daemon. Prints one line per room, or one red line. */
+/** Makes, closes, reopens or lists rooms, or kicks any agent seat, as the human through the daemon. Prints one line per room, or one red line. */
 export async function runRoom({
   dataDir: dir,
   fetch,
@@ -85,7 +85,7 @@ async function print(input: RoomAction) {
 export function registerRoom(program: Command) {
   const room = program
     .command('room')
-    .description('Make, close, reopen and list rooms, and kick old members, as the human.');
+    .description('Make, close, reopen and list rooms, and kick members, as the human.');
   room
     .command('new')
     .description('Make a standing room. It stays open until you close it.')
@@ -104,7 +104,7 @@ export function registerRoom(program: Command) {
     .action((name: string) => print({ action: 'reopen', name }));
   room
     .command('kick')
-    .description('Remove a left or gone member from a room now. Its posts keep its name.')
+    .description('Remove an agent from a room now, here, away or left. Its posts keep its name.')
     .argument('<room>', 'room name')
     .argument('<member>', 'member name')
     .action((name: string, member: string) => print({ action: 'kick', member, name }));

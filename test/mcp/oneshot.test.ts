@@ -24,7 +24,7 @@ const systemLines = () => {
 };
 
 describe('joinPostLeave', () => {
-  it('joins, posts and ends with leave, so the member reads left and not gone', async () => {
+  it('joins, posts and ends with leave, so the member reads left and not away', async () => {
     const { client } = await harness.agent();
 
     const result = await joinPostLeave({ as: 'api', client, room: 'checkout', text: 'hello' });

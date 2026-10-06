@@ -132,7 +132,7 @@ describe('startDaemon', () => {
     expect(JSON.parse(open.body)).toStrictEqual({ rooms: [], seq: 0 });
   });
 
-  it('marks members left from the last run gone on start, since their sessions died with it', async () => {
+  it('marks members from the last run away on start, since their sessions died with it', async () => {
     const before = sideStore();
     before.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
     before.db.close();
@@ -140,7 +140,7 @@ describe('startDaemon', () => {
     await start();
 
     const side = sideStore();
-    expect(side.store.listMembers('demo').find(member => member.name === 'api')?.presence).toBe('gone');
+    expect(side.store.listMembers('demo').find(member => member.name === 'api')?.presence).toBe('away');
     side.db.close();
   });
 

@@ -224,7 +224,7 @@ describe('wait', () => {
     expect(memberOf('api').presence).toBe('active');
   });
 
-  it('leaves a member gone when its session ended during the wait', async () => {
+  it('leaves a member away when its session ended during the wait', async () => {
     const api = await harness.joined('checkout', 'api');
     const web = await harness.joined('checkout', 'web');
     await api.call('read_since', { room: 'checkout' });
@@ -232,12 +232,12 @@ describe('wait', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     api.session.unbind('checkout');
-    harness.store.touch({ as: 'api', room: 'checkout', state: 'gone' });
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
     await web.call('post', { room: 'checkout', text: '@api still there?' });
     await vi.advanceTimersByTimeAsync(0);
 
     expect(waiting.done).toBe(true);
-    expect(memberOf('api').presence).toBe('gone');
+    expect(memberOf('api').presence).toBe('away');
   });
 
   it('sends progress every 30 seconds when the call carries a progress token', async () => {

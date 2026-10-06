@@ -5,6 +5,8 @@ import { Client, InMemoryTransport, StreamableHTTPClientTransport } from '@model
 import { CLI_VERSION } from '../config.js';
 import { KEY_HEADER } from '../daemon/keys.js';
 
+import { SEAT_HEADER } from './constants.js';
+
 /** Links a server to a client in the same process. With `roots`, the client answers roots/list with them. */
 export async function connectInMemory(
   createServer: () => McpServer,
@@ -22,11 +24,20 @@ export async function connectInMemory(
   return client;
 }
 
-/** A client on the daemon's `/mcp` over real HTTP, sending the agent key. */
-export async function connectHttp({ key, name = 'messhall-http', url }: { key: string; name?: string; url: string }) {
-  const transport = new StreamableHTTPClientTransport(new URL('/mcp', url), {
-    requestInit: { headers: { [KEY_HEADER]: key } },
-  });
+/** A client on the daemon's `/mcp` over real HTTP, sending the agent key, and the seat key when given. */
+export async function connectHttp({
+  key,
+  name = 'messhall-http',
+  seat,
+  url,
+}: {
+  key: string;
+  name?: string;
+  seat?: string;
+  url: string;
+}) {
+  const headers = { [KEY_HEADER]: key, ...(seat ? { [SEAT_HEADER]: seat } : {}) };
+  const transport = new StreamableHTTPClientTransport(new URL('/mcp', url), { requestInit: { headers } });
   const client = new Client({ name, version: CLI_VERSION });
   await client.connect(transport);
   return { client, transport };

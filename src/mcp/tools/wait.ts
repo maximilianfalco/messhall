@@ -8,7 +8,7 @@ import { ALL_MENTION, HUMAN_NAME } from '../../../contracts/room.ts';
 import { concerns } from '../../rooms/rules.js';
 import { PROGRESS_EVERY_MS, SHORT_WAIT_CLIENTS, WAIT_DEFAULT_S } from '../constants.js';
 
-import { notJoined, refuse, registerRoomTool, reply } from './registry.js';
+import { notJoined, refuse, registerRoomTool, removedFrom, reply } from './registry.js';
 
 /** What wait says on a timeout. Any other text that is not an error means it woke. */
 export const NOTHING_YET = 'nothing yet, call wait again.';
@@ -127,6 +127,8 @@ export function registerWait(server: McpServer, deps: ToolDeps, description: str
     if (input.room && !session.rooms.has(input.room)) return notJoined(input.room);
     const rooms = new Map([...session.rooms].filter(([room]) => input.room === undefined || room === input.room));
     if (!rooms.size) return refuse('you have not joined a room. call join first.');
+    const kicked = [...rooms].find(([room, as]) => !store.roleOf({ name: as, room }));
+    if (kicked) return removedFrom(session, kicked[0]);
 
     for (const [room, as] of rooms) {
       const message = unseen({ as, room, store }).find(item => concernsMember({ as, message: item, room, store }));
@@ -137,7 +139,7 @@ export function registerWait(server: McpServer, deps: ToolDeps, description: str
     const limit = waitLimitFor(server.server.getClientVersion()?.name);
     const timeoutS = Math.min(input.timeout_s ?? limit.defaultS, limit.maxS);
     const hit = await block({ ctx, rooms, store, timeoutS });
-    // A session that ended mid-wait left its members gone. Reading or touching would bring them back.
+    // A session that ended mid-wait left its members away. Reading or touching would bring them back.
     const held = [...rooms].filter(([room, as]) => session.rooms.get(room) === as);
     held.forEach(([room, as]) => store.touch({ as, room, state: 'active' }));
     session.seen();

@@ -82,7 +82,7 @@ export const humanRoleResultSchema = z.object({
 });
 
 export const removeMemberResultSchema = z.object({
-  member: memberSchema.describe('The member as it was when it dropped out, left or gone.'),
+  member: memberSchema.describe('The member as it was when it was removed.'),
 });
 
 export const feedErrorSchema = z.object({
