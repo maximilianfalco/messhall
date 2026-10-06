@@ -32,7 +32,9 @@ struct NotificationsTests {
     .room(
       RoomEvent(
         change: .closed,
-        room: Room(id: "r1", name: "checkout", topic: nil, createdAt: Self.before, closedAt: at, messageCap: 200)))
+        room: Room(
+          id: "r1", name: "checkout", topic: nil, createdAt: Self.before, createdBy: "api", standing: false,
+          closedAt: at, messageCap: 200)))
   }
 
   private func joined(_ name: String, to room: SnapshotRoom) throws -> SnapshotRoom {
@@ -135,6 +137,17 @@ struct NotificationsTests {
     #expect(
       notificationFor(event: closed(), state: try state(room: room))
         == NotificationContent(room: "checkout", title: "#checkout", body: "messhall: all done, room closed"))
+  }
+
+  @Test("a room the human closed does not post")
+  func humanClosed() throws {
+    var room = try room()
+    room.messages.append(
+      Message(
+        id: 9, roomId: "r1", from: "messhall", kind: .system, text: "#checkout closed by the human", mentions: [],
+        createdAt: Self.after))
+
+    #expect(notificationFor(event: closed(), state: try state(room: room)) == nil)
   }
 
   @Test("other room changes do not post")

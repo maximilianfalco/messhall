@@ -5,6 +5,8 @@ let systemName = "messhall"
 let allMention = "all"
 // Matches the daemon's 80 percent line, "#room is at 160/200, wrap up".
 let capWarningSuffix = ", wrap up"
+// Matches the daemon's line when the human closes a room, so your own close stays quiet.
+let humanCloseSuffix = "closed by the human"
 let bodyLimit = 120
 
 /// One banner to show: the room it opens, its title and its body.
@@ -49,6 +51,7 @@ public func notificationFor(event: BusEvent, state: NotifyState) -> Notification
       return nil
     }
     let line = state.room?.messages.last { $0.kind == .system }?.text ?? "room closed"
+    guard !line.hasSuffix(humanCloseSuffix) else { return nil }
     return content(room: e.room.name, from: systemName, text: line, muted: state.mutedRooms)
   case .member, .presence:
     return nil
