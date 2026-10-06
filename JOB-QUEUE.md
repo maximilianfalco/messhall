@@ -68,3 +68,7 @@ If you cannot finish, put the row back to `open` and clear Owner and Worktree. A
 ## Scripts
 
 `.claude/skills/messhall-pickup-any-work/scripts/queue.py` implements `path`, `show [--all]`, `claim`, `release` and `done` against this format. `scripts/worktree.sh <branch>` creates the worktree from `origin/main`, installs deps and links `personal-dev-notes.md` from the main checkout. Both only need Python 3, git and pnpm.
+
+## Seated agents
+
+`pnpm messhall-dev spawn <id> [--room dev] [--model opus] [--brief <file>] [--dry-run]` runs one ready row as an interactive Claude Code in tmux session `messhall-<id>`: it claims the row, makes the worktree, starts claude with the messhall dev channel and types a first prompt that has the agent join the room as its branch slug, post progress at each step, answer mentions mid-job and post a done line with the PR url. `pnpm messhall-dev flock` lists the running sessions and whether each agent is seated, `flock stop <id>` kills one. The pickup skill's "Spawning seated agents" section has the details.
