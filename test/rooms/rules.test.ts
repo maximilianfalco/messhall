@@ -2,7 +2,7 @@ import type { Member, Message } from '../../contracts/room.ts';
 
 import { describe, expect, it } from 'vitest';
 
-import { capState, concerns, nextPresence, parseMentions } from '../../src/rooms/rules.js';
+import { canAssignRole, capState, concerns, nextPresence, parseMentions } from '../../src/rooms/rules.js';
 
 const T0 = '2026-01-01T10:00:00.000Z';
 const minutes = (count: number) => new Date(Date.parse(T0) + count * 60_000);
@@ -18,6 +18,7 @@ const member = (fields: Partial<Member> & Pick<Member, 'name'>): Member => ({
   last_seen_at: T0,
   left_at: null,
   presence: 'active',
+  role: 'unassigned',
   room_id: 'r1',
   ...fields,
 });
@@ -130,5 +131,18 @@ describe('nextPresence', () => {
     ['gone', 1, 'gone'],
   ] as const)('moves %s after %i minutes to %s', (presence, after, expected) => {
     expect(nextPresence({ member: member({ name: 'api', presence }), now: minutes(after) })).toBe(expected);
+  });
+});
+
+describe('canAssignRole', () => {
+  it.each([
+    ['human', 'human', 'unassigned', true],
+    ['orchestrator', 'claude', 'orchestrator', true],
+    ['boss', 'codex', 'orchestrator', true],
+    ['orchestrator', 'claude', 'worker', false],
+    ['api', 'claude', 'reviewer', false],
+    ['api', 'claude', 'unassigned', false],
+  ] as const)('%s (%s, %s) may assign: %s', (name, kind, role, allowed) => {
+    expect(canAssignRole({ by: member({ kind, name, role }) })).toBe(allowed);
   });
 });

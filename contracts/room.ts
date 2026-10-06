@@ -9,6 +9,10 @@ export const TEXT_MAX_CHARS = 4000;
 export const HUMAN_NAME = 'human';
 export const SYSTEM_NAME = 'messhall';
 export const ALL_MENTION = 'all';
+// The usual roles. Any short slug works too, so a room can name its own.
+export const ROLES = ['unassigned', 'worker', 'reviewer', 'orchestrator', 'observer'] as const;
+export const UNASSIGNED_ROLE = 'unassigned';
+export const ORCHESTRATOR_ROLE = 'orchestrator';
 // The human seat, daemon lines and @all would be forged or ambiguous if an agent could hold these.
 export const RESERVED_NAMES = [HUMAN_NAME, SYSTEM_NAME, ALL_MENTION] as const;
 
@@ -49,6 +53,11 @@ export const roomSchema = z.object({
   topic: z.string().nullable().describe('What the room is for, null when unset.'),
 });
 
+export const roleSchema = z
+  .string()
+  .regex(NAME_PATTERN)
+  .describe(`What the member does here, like ${ROLES.join(', ')}. Any short slug works.`);
+
 export const memberSchema = z.object({
   client_label: z
     .string()
@@ -72,6 +81,7 @@ export const memberSchema = z.object({
   left_at: timestampSchema.nullable().describe('When the member left, null while it is in the room.'),
   name: nameSchema.describe('Role name in the room.'),
   presence: presenceSchema.describe('What the member is doing now.'),
+  role: roleSchema.describe('What the member does here. Starts unassigned, orchestrator for a member named orchestrator.'),
   room_id: z.string().describe('Room id.'),
 });
 

@@ -7,19 +7,21 @@ import { randomUUID } from 'node:crypto';
 import {
   HUMAN_NAME,
   memberSchema,
+  ORCHESTRATOR_ROLE,
   messageSchema,
   RESERVED_NAMES,
   roomSchema,
   roomSummarySchema,
   SYSTEM_NAME,
   TEXT_MAX_CHARS,
+  UNASSIGNED_ROLE,
 } from '../../contracts/room.ts';
 import { DEFAULT_MESSAGE_CAP, READ_LIMIT, SEARCH_LIMIT } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
 import { createEventBus } from './events.js';
-import { capState, nextPresence, parseMentions } from './rules.js';
+import { canAssignRole, capState, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -79,7 +81,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     countPosts: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST}`),
     countPostsUpTo: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST} AND id <= ?`),
     insertMember: db.prepare(
-      'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, client_name, client_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, client_name, client_version, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ),
     insertMessage: db.prepare(
       'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at, from_kind, from_client_label) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
@@ -112,6 +114,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'SELECT messages.*, rooms.name AS room FROM messages_fts JOIN messages ON messages.id = messages_fts.rowid JOIN rooms ON rooms.id = messages.room_id WHERE messages_fts MATCH ? AND (? IS NULL OR rooms.id = ?) ORDER BY messages.id DESC LIMIT ?',
     ),
     seen: db.prepare('UPDATE members SET presence = ?, last_seen_at = ? WHERE room_id = ? AND name = ?'),
+    setRole: db.prepare('UPDATE members SET role = ? WHERE room_id = ? AND name = ?'),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
     sweepable: db.prepare(
@@ -168,7 +171,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   function addHuman(room: Room, emit: Emit) {
     const existing = findMember(room, HUMAN_NAME);
     if (existing) return existing;
-    sql.insertMember.run(room.id, HUMAN_NAME, 'human', stamp(), stamp(), 'idle', 0, null, null);
+    sql.insertMember.run(room.id, HUMAN_NAME, 'human', stamp(), stamp(), 'idle', 0, null, null, UNASSIGNED_ROLE);
     const member = findMember(room, HUMAN_NAME)!;
     emit({ change: 'joined', member, room: room.name, type: 'member' });
     return member;
@@ -305,12 +308,28 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         // A new member starts where the latest summary stands, so its first read is that summary.
         const cursor = Number(latestSummaryRow(room)?.covers_id ?? 0);
         const [name, version] = [client?.name ?? null, client?.version ?? null];
+        const role = as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
         if (existing) sql.rejoin.run(kind, name, version, stamp(), room.id, as);
-        else sql.insertMember.run(room.id, as, kind, stamp(), stamp(), 'active', cursor, name, version);
+        else sql.insertMember.run(room.id, as, kind, stamp(), stamp(), 'active', cursor, name, version, role);
         const member = findMember(room, as)!;
         emit({ change, member, room: room.name, type: 'member' });
         systemLine(room, `${as} ${change}`, emit);
         return { change, member, ok: true, room } as const;
+      });
+    },
+
+    /** Sets a member's role. Only the human seat or an orchestrator in the room may, so `by` is checked first. */
+    assignRole({ by, member: name, role, room: roomName }: { by: string; member: string; role: string; room: string }) {
+      return transaction(emit => {
+        const found = seat(roomName, by);
+        if (!found.ok) return found;
+        if (!canAssignRole({ by: found.member })) return { ok: false, reason: 'not_allowed' } as const;
+        const target = findMember(found.room, name);
+        if (!target || target.left_at !== null) return { ok: false, reason: 'no_member' } as const;
+        sql.setRole.run(role, found.room.id, name);
+        const member = findMember(found.room, name)!;
+        emit({ change: 'role', member, room: found.room.name, type: 'member' });
+        return { member, ok: true } as const;
       });
     },
 

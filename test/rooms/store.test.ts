@@ -772,3 +772,65 @@ describe('searchMessages', () => {
     expect(hits({ q: 'cents', room: 'nope' })).toBe('no_room');
   });
 });
+
+describe('roles', () => {
+  const roleOf = (name: string) => memberOf('demo', name)?.role;
+
+  it('starts members unassigned and a member named orchestrator as orchestrator', () => {
+    joinBoth();
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(['api', 'web', 'orchestrator', 'human'].map(roleOf)).toStrictEqual([
+      'unassigned',
+      'unassigned',
+      'orchestrator',
+      'unassigned',
+    ]);
+  });
+
+  it('lets the orchestrator assign a role and emits a member role event', () => {
+    joinBoth();
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    const result = store().assignRole({ by: 'orchestrator', member: 'api', role: 'reviewer', room: 'demo' });
+
+    expect(result).toMatchObject({ member: { name: 'api', role: 'reviewer' }, ok: true });
+    expect(roleOf('api')).toBe('reviewer');
+    expect(seen.map(({ event }) => event)).toMatchObject([
+      { change: 'role', member: { name: 'api', role: 'reviewer' }, room: 'demo', type: 'member' },
+    ]);
+  });
+
+  it('lets the human seat assign a role', () => {
+    joinBoth();
+
+    expect(store().assignRole({ by: 'human', member: 'web', role: 'worker', room: 'demo' })).toMatchObject({
+      ok: true,
+    });
+    expect(roleOf('web')).toBe('worker');
+  });
+
+  it('keeps a role across a leave and a later join', () => {
+    joinBoth();
+    store().assignRole({ by: 'human', member: 'api', role: 'reviewer', room: 'demo' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect(roleOf('api')).toBe('reviewer');
+  });
+
+  it.each([
+    [{ by: 'web', member: 'api', role: 'reviewer', room: 'demo' }, 'not_allowed'],
+    [{ by: 'api', member: 'api', role: 'orchestrator', room: 'demo' }, 'not_allowed'],
+    [{ by: 'stranger', member: 'api', role: 'reviewer', room: 'demo' }, 'not_member'],
+    [{ by: 'human', member: 'ghost', role: 'reviewer', room: 'demo' }, 'no_member'],
+    [{ by: 'human', member: 'api', role: 'reviewer', room: 'nope' }, 'no_room'],
+  ])('refuses %o with %s', (input, reason) => {
+    joinBoth();
+
+    expect(store().assignRole(input)).toStrictEqual({ ok: false, reason });
+    expect(roleOf('api')).toBe('unassigned');
+  });
+});
