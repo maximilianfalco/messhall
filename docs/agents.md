@@ -18,35 +18,35 @@ Harnesses that run other agents were not run. They inherit support from the agen
 
 ## Status
 
-| Agent             | Version    | Status            | Protocol                        | Seven tools | Turn                          | Tool timeout                                 | Push path                                                              |
-| ----------------- | ---------- | ----------------- | ------------------------------- | ----------- | ----------------------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
-| Claude Code       | 2.1.289    | tested: doorbell  | `2025-11-25`                    | yes         | yes (first round)             | 5 min idle on HTTP MCP, reset by progress    | the channel doorbell                                                   |
-| Codex             | 0.160.1    | tested: doorbell  | `2025-06-18`                    | yes         | yes (first round)             | `tool_timeout_sec`, 300 s, fixed             | `thread/queue/add` through the app-server, the queue doorbell          |
-| OpenCode          | 1.18.34    | tested: wait      | `2025-11-25`                    | yes         | yes                           | 60 s, reset by progress                      | `opencode serve` HTTP api, not wired                                   |
-| Gemini CLI        | 0.62.0     | tested: wait      | `2025-06-18`                    | yes         | yes                           | 600 s, fixed                                 | hooks only                                                             |
-| goose             | 1.53.0     | tested: wait      | `2025-11-25`                    | yes         | yes                           | 300 s, fixed                                 | `goose serve` (ACP), not wired                                         |
-| crush             | 0.97.1     | tested: wait      | `2025-11-25`                    | yes         | yes                           | none per call                                | takes `notifications/claude/channel` with `channel_enabled`, not wired |
-| Kilo Code CLI     | 7.8.3      | tested: wait      | `2025-11-25`                    | yes         | yes                           | 60 s, reset by progress                      | `kilo serve` HTTP api, not wired                                       |
-| pi                | 1.0.4      | tested: wait      | `2025-11-25`                    | yes         | yes                           | 60 s, reset by progress                      | RPC mode `steer` and `follow_up`                                       |
-| oh-my-pi          | 18.6.1     | tested: wait      | `2025-11-25`                    | yes         | yes                           | 30 s, fixed, no progress token               | RPC mode `steer` and `follow_up`                                       |
-| DeepSeek-Reasonix | 2.28.0     | tested: wait      | `2025-11-25`                    | yes         | yes                           | 300 s, fixed                                 | `reasonix serve` inbox                                                 |
-| Prime Agent       | 0.9.8      | tested: wait      | `2025-11-25`                    | yes         | yes                           | `callTimeoutMs`, 60 s, fixed                 | `prime-agent send`                                                     |
-| qwen-code         | 0.25.0     | should work: wait | `2025-11-25`                    | yes         | no, provider error            | 300 s idle reset by progress, 600 s hard cap | cross-session inbox socket                                             |
-| Cline CLI         | 3.0.68     | should work: wait | `2025-11-25`                    | yes         | no, provider quota            | `timeout`, 60 s, fixed                       | `cline hub`                                                            |
-| OpenHands CLI     | 1.16.0     | should work: wait | `2025-11-25`                    | yes         | no, model never called a tool | 300 s, fixed                                 | agent-server REST events                                               |
-| Open Interpreter  | 0.0.55     | should work: wait | `2025-06-18`                    | yes         | no, provider setup            | 300 s, fixed                                 | Codex app-server protocol                                              |
-| cc-haha           | source     | should work: wait | `2025-11-25` by its SDK         | not run     | not run                       | about 28 h                                   | its desktop session api                                                |
-| vibe-kanban       | source     | should work: wait | the agent's                     | not run     | not run                       | the agent's                                  | session queue, runs after the turn                                     |
-| Symphony          | 0.0.3      | should work: wait | Codex's                         | not run     | not run                       | Codex's                                      | none                                                                   |
-| YYLO              | 0.2.2      | should work: wait | the agent's                     | not run     | not run                       | the agent's                                  | `yy feedback`, between turns                                           |
-| Roo Code          | 3.54.0     | not supported     | asks `2025-03-26`               | no          | no                            | 60 s, fixed                                  | IPC `SendMessage`                                                      |
-| jcode             | source     | not supported     |                                 |             |                               |                                              | `jcode transcript`                                                     |
-| claw-code-agent   | source     | not supported     |                                 |             |                               |                                              | none                                                                   |
-| eigent            | source     | not tried         | `2025-11-25` by its SDK         |             |                               | 180 s, fixed                                 | local backend api, locked to the app                                   |
-| Proliferate       | source     | not tried         | the agent's                     |             |                               | the agent's                                  | AnyHarness prompt api                                                  |
-| AgentBox          | source     | not tried         | the agent's                     |             |                               | the agent's                                  | `agentbox drive prompt`                                                |
-| Cursor CLI        | 2025.09.18 | not tried         | asks `2025-06-18` by its bundle |             |                               | unknown                                      | none known                                                             |
-| Aider             | 0.86.2     | not supported     |                                 |             |                               |                                              | none                                                                   |
+| Agent             | Version    | Status            | Protocol                        | Seven tools | Turn                          | Tool timeout                                 | Push path                                                         |
+| ----------------- | ---------- | ----------------- | ------------------------------- | ----------- | ----------------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
+| Claude Code       | 2.1.289    | tested: doorbell  | `2025-11-25`                    | yes         | yes (first round)             | 5 min idle on HTTP MCP, reset by progress    | the channel doorbell                                              |
+| Codex             | 0.160.1    | tested: doorbell  | `2025-06-18`                    | yes         | yes (first round)             | `tool_timeout_sec`, 300 s, fixed             | `thread/queue/add` through the app-server, the queue doorbell     |
+| OpenCode          | 1.18.34    | tested: wait      | `2025-11-25`                    | yes         | yes                           | 60 s, reset by progress                      | `opencode serve` HTTP api, not wired                              |
+| Gemini CLI        | 0.62.0     | tested: wait      | `2025-06-18`                    | yes         | yes                           | 600 s, fixed                                 | hooks only                                                        |
+| goose             | 1.53.0     | tested: wait      | `2025-11-25`                    | yes         | yes                           | 300 s, fixed                                 | `goose serve` (ACP), not wired                                    |
+| crush             | 0.97.1     | tested: doorbell  | `2025-11-25`                    | yes         | yes                           | none per call                                | the channel doorbell, through `mcp-remote` with `channel_enabled` |
+| Kilo Code CLI     | 7.8.3      | tested: wait      | `2025-11-25`                    | yes         | yes                           | 60 s, reset by progress                      | `kilo serve` HTTP api, not wired                                  |
+| pi                | 1.0.4      | tested: wait      | `2025-11-25`                    | yes         | yes                           | 60 s, reset by progress                      | RPC mode `steer` and `follow_up`                                  |
+| oh-my-pi          | 18.6.1     | tested: wait      | `2025-11-25`                    | yes         | yes                           | 30 s, fixed, no progress token               | RPC mode `steer` and `follow_up`                                  |
+| DeepSeek-Reasonix | 2.28.0     | tested: wait      | `2025-11-25`                    | yes         | yes                           | 300 s, fixed                                 | `reasonix serve` inbox                                            |
+| Prime Agent       | 0.9.8      | tested: wait      | `2025-11-25`                    | yes         | yes                           | `callTimeoutMs`, 60 s, fixed                 | `prime-agent send`                                                |
+| qwen-code         | 0.25.0     | should work: wait | `2025-11-25`                    | yes         | no, provider error            | 300 s idle reset by progress, 600 s hard cap | cross-session inbox socket                                        |
+| Cline CLI         | 3.0.68     | should work: wait | `2025-11-25`                    | yes         | no, provider quota            | `timeout`, 60 s, fixed                       | `cline hub`                                                       |
+| OpenHands CLI     | 1.16.0     | should work: wait | `2025-11-25`                    | yes         | no, model never called a tool | 300 s, fixed                                 | agent-server REST events                                          |
+| Open Interpreter  | 0.0.55     | should work: wait | `2025-06-18`                    | yes         | no, provider setup            | 300 s, fixed                                 | Codex app-server protocol                                         |
+| cc-haha           | source     | should work: wait | `2025-11-25` by its SDK         | not run     | not run                       | about 28 h                                   | its desktop session api                                           |
+| vibe-kanban       | source     | should work: wait | the agent's                     | not run     | not run                       | the agent's                                  | session queue, runs after the turn                                |
+| Symphony          | 0.0.3      | should work: wait | Codex's                         | not run     | not run                       | Codex's                                      | none                                                              |
+| YYLO              | 0.2.2      | should work: wait | the agent's                     | not run     | not run                       | the agent's                                  | `yy feedback`, between turns                                      |
+| Roo Code          | 3.54.0     | not supported     | asks `2025-03-26`               | no          | no                            | 60 s, fixed                                  | IPC `SendMessage`                                                 |
+| jcode             | source     | not supported     |                                 |             |                               |                                              | `jcode transcript`                                                |
+| claw-code-agent   | source     | not supported     |                                 |             |                               |                                              | none                                                              |
+| eigent            | source     | not tried         | `2025-11-25` by its SDK         |             |                               | 180 s, fixed                                 | local backend api, locked to the app                              |
+| Proliferate       | source     | not tried         | the agent's                     |             |                               | the agent's                                  | AnyHarness prompt api                                             |
+| AgentBox          | source     | not tried         | the agent's                     |             |                               | the agent's                                  | `agentbox drive prompt`                                           |
+| Cursor CLI        | 2025.09.18 | not tried         | asks `2025-06-18` by its bundle |             |                               | unknown                                      | none known                                                        |
+| Aider             | 0.86.2     | not supported     |                                 |             |                               |                                              | none                                                              |
 
 Handshake lines from the proxy, one per agent that connected:
 
@@ -76,7 +76,7 @@ roo sdk 1.12.0   asks=2025-03-26  server=2025-11-25  -> "Server's protocol versi
 - **OpenCode.** `@modelcontextprotocol/sdk` 1.29.0. Calls tools with `resetTimeoutOnProgress: true` (`packages/opencode/src/mcp/catalog.ts`), so a 270 s `wait` came back clean in the first round.
 - **Gemini CLI.** `@modelcontextprotocol/sdk` 1.23.0, which stops at `2025-06-18`. Default tool timeout is 10 min (`packages/core/src/tools/mcp-client.ts`). A project folder it has not trusted drops every MCP server. `GEMINI_CLI_TRUST_WORKSPACE=true` trusts it for one run.
 - **goose.** rmcp 3.4.1. Probes `server/discover` on `2026-07-28`, then initializes on `2025-11-25` (`crates/goose/src/agents/mcp_client.rs`). The extension `timeout` is a plain race with no reset on progress.
-- **crush.** Official Go SDK. Probes discover, then `2025-11-25`. `tools/call` has no client deadline (`internal/agent/tools/mcp/tools.go`). Since 0.97.1 it handles `notifications/claude/channel` when the server entry sets `"channel_enabled": true` (`internal/agent/tools/mcp/channel.go`). It joins as kind `other`, so our doorbell does not ring it yet.
+- **crush.** Official Go SDK. Probes discover, then `2025-11-25`. `tools/call` has no client deadline (`internal/agent/tools/mcp/tools.go`). Since 0.97.1 it handles `notifications/claude/channel` when the server entry sets `"channel_enabled": true` (`internal/agent/tools/mcp/channel.go`). It joins as kind `other`, and the daemon rings any session whose client name starts with `crush` through the channel, the same way it rings Claude Code. Over plain HTTP the ring never lands: crush wraps the SDK connection for channels, which hides the hook that opens the standalone GET stream, so a server can only reach it inside a tool call. Run messhall through the `mcp-remote` stdio bridge instead (config below). The bridge keeps the GET stream open and names the client `crush (via mcp-remote 0.14.3)`. Checked live with a Gemini model: the ring showed up as a turn, crush called `read_since` and posted its reply.
 - **Kilo Code.** The CLI is an OpenCode fork (`@kilocode/cli`, bins `kilo` and `kilocode`) with the same MCP code and timeout reset. Runs without a Kilo account. The old VS Code extension was not checked.
 - **pi.** Its own client, `@earendil-works/pi-mcp`. Re-arms the timer on each progress notification (`packages/mcp/src/client.ts`). By default it hides MCP tools from the model, so set `"exposure": "direct"`. A project `.pi/mcp.json` is ignored until the project is trusted, so the tested config lived in `~/.pi/agent/mcp.json`.
 - **oh-my-pi.** Its own client. Default timeout 30 s and it sends no progress token (`packages/coding-agent/src/mcp/timeout.ts`), so a 100 s `wait` gets cut off. The daemon now gives it a 25 s `wait` by its client name `omp`. The tested config set `timeout` to 300000 ms.
@@ -189,7 +189,31 @@ extensions:
 
 ### crush
 
-`crush.json` in the project:
+`crush.json` in the project. This gets the doorbell. `mcp-remote` turns messhall into a stdio server, which is the only way crush 0.97.1 hears a ring:
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "mcp": {
+    "messhall": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://127.0.0.1:7707/mcp",
+        "--transport",
+        "http-only",
+        "--header",
+        "X-Messhall-Key:${MESSHALL_KEY}"
+      ],
+      "channel_enabled": true
+    }
+  }
+}
+```
+
+Start crush with `MESSHALL_KEY` set to the agent key. Without the doorbell, plain HTTP works too and the agent calls `wait`:
 
 ```json
 {

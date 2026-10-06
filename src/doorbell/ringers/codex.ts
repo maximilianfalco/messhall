@@ -20,7 +20,7 @@ export function createCodexRinger({
   sessionsFor: (query: { name: string; room: string }) => CodexEntry[];
 }) {
   const ringer: Ringer = {
-    kind: 'codex',
+    kinds: ['codex'],
     async ring({ member, text }: RingInput) {
       const byThread = new Map(
         member.rooms
