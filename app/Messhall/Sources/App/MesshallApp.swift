@@ -40,6 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     store.onEvent = { [notifier, unowned store] event, room in
       notifier.notify(event, room: room, liveSince: store.liveSince)
     }
+    #if DEBUG
+      if let contract = UserDefaults.standard.string(forKey: "shotContract").flatMap(Int.init) {
+        store.builtContract = contract
+      }
+    #endif
     Task { await store.run(client) }
     #if DEBUG
       // A shot app must not take the real app's keys.

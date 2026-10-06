@@ -2,15 +2,33 @@ import Foundation
 
 // Hand-written from contracts/schema.json. SchemaTests fail when a field or a value drifts.
 
-public enum Presence: String, Codable, CaseIterable, Sendable {
-  case invited, active, waiting, idle, away, left
+/// The feed contract this app was built against. A newer daemon sends a higher one.
+public enum FeedContract {
+  public static let version = 1
+}
+
+/// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
+public protocol OpenEnum: RawRepresentable, Codable where RawValue == String {
+  static var unknown: Self { get }
+}
+
+extension OpenEnum {
+  public init(from decoder: Decoder) throws {
+    self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+  }
+}
+
+public enum Presence: String, OpenEnum, CaseIterable, Sendable {
+  case invited, active, waiting, idle, away, left, unknown
 
   public var isAway: Bool { self == .away || self == .left }
 }
-public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done, summary }
-public enum MemberKind: String, Codable, CaseIterable, Sendable { case claude, codex, other, human }
-public enum MemberChange: String, Codable, Sendable { case invited, joined, left, muted, reconnected, removed, role, unmuted }
-public enum RoomChange: String, Codable, Sendable { case created, closed, reopened, topic }
+public enum MessageKind: String, OpenEnum, CaseIterable, Sendable { case chat, system, done, summary, unknown }
+public enum MemberKind: String, OpenEnum, CaseIterable, Sendable { case claude, codex, other, human, unknown }
+public enum MemberChange: String, OpenEnum, Sendable {
+  case invited, joined, left, muted, reconnected, removed, role, unmuted, unknown
+}
+public enum RoomChange: String, OpenEnum, Sendable { case created, closed, reopened, topic, unknown }
 
 public struct Room: Codable, Equatable, Sendable {
   public var id: String
@@ -144,8 +162,14 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
 public struct Snapshot: Codable, Equatable, Sendable {
   public var seq: Int
   public var rooms: [SnapshotRoom]
+  /// Optional so an older daemon that sends neither still loads.
+  public var contractVersion: Int?
+  public var version: String?
 
-  enum CodingKeys: String, CodingKey, CaseIterable { case seq, rooms }
+  enum CodingKeys: String, CodingKey, CaseIterable {
+    case seq, rooms, version
+    case contractVersion = "contract_version"
+  }
 }
 
 /// One page of a room's messages, oldest first.
@@ -239,6 +263,8 @@ public enum BusEvent: Decodable, Equatable, Sendable {
   case member(MemberEvent)
   case presence(PresenceEvent)
   case room(RoomEvent)
+  /// A type this build does not know. The store skips it but still moves the sequence.
+  case unknown(type: String)
 
   private enum TypeKey: String, CodingKey { case type }
 
@@ -249,6 +275,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .member(let e): e.room
     case .presence(let e): e.room
     case .room(let e): e.room.name
+    case .unknown: ""
     }
   }
 
@@ -258,6 +285,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .member: "member"
     case .presence: "presence"
     case .room: "room"
+    case .unknown(let type): type
     }
   }
 
@@ -268,8 +296,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case "member": self = .member(try MemberEvent(from: decoder))
     case "presence": self = .presence(try PresenceEvent(from: decoder))
     case "room": self = .room(try RoomEvent(from: decoder))
-    default:
-      throw DecodingError.dataCorrupted(.init(codingPath: [TypeKey.type], debugDescription: "unknown type \(type)"))
+    default: self = .unknown(type: type)
     }
   }
 }

@@ -49,7 +49,7 @@ public func notificationFor(event: BusEvent, state: NotifyState) -> Notification
     let line = state.room?.messages.last { $0.kind == .system }?.text ?? "room closed"
     guard !line.hasSuffix(humanCloseSuffix) else { return nil }
     return content(room: e.room.name, from: systemName, text: line, muted: state.mutedRooms)
-  case .member, .presence:
+  case .member, .presence, .unknown:
     return nil
   }
 }

@@ -21,7 +21,7 @@ extension FeedStore {
           if let update { apply(update) }
         }
       } catch {
-        setPhase(.down(Self.downReason(error)))
+        setPhase(Self.downPhase(error))
       }
       try? await Task.sleep(for: Self.retryDelay)
     }
@@ -106,8 +106,15 @@ extension FeedStore {
     }
   }
 
+  public nonisolated static let outdatedReason = "This app is older than the daemon. Rebuild it."
+
+  nonisolated static func downPhase(_ error: Error) -> Phase {
+    error is DecodingError ? .outdated : .down(downReason(error))
+  }
+
   nonisolated static func downReason(_ error: Error) -> String {
     switch error {
+    case is DecodingError: outdatedReason
     case is FeedClient.KeyMissing: "No human key yet."
     case let refused as FeedClient.Refused: refused.message
     default: "Messhall is not running."

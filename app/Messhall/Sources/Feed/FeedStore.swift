@@ -9,12 +9,16 @@ public final class FeedStore {
     case connecting
     case live
     case down(String)
+    /// The daemon answers but sends a feed this build cannot read.
+    case outdated
   }
 
   public private(set) var rooms: [SnapshotRoom] = []
   public private(set) var seq = 0
   public private(set) var phase = Phase.connecting
   public private(set) var loaded = false
+  /// The daemon's feed contract, nil when it is too old to send one.
+  public private(set) var contractVersion: Int?
   /// Rooms with an older page on its way.
   public private(set) var loadingOlder: Set<String> = []
   /// When the current stream opened. Events stamped before it are a replay.
@@ -25,6 +29,10 @@ public final class FeedStore {
   public init() {}
 
   public var openRoomCount: Int { rooms.filter(\.isOpen).count }
+  /// The contract this build reads. Only a shot sets it lower, to show the older-app notice.
+  @ObservationIgnored public var builtContract = FeedContract.version
+  /// True when the daemon speaks a newer feed contract than this build knows.
+  public var behind: Bool { (contractVersion ?? 0) > builtContract }
   public var anyActive: Bool { rooms.contains { $0.members.contains { $0.presence == .active } } }
 
   public func room(named name: String?) -> SnapshotRoom? {
@@ -43,6 +51,7 @@ public final class FeedStore {
       rooms = snapshot.rooms.map(keepingOlderPages).sorted { $0.name < $1.name }
       loadingOlder = []
       seq = snapshot.seq
+      contractVersion = snapshot.contractVersion
       loaded = true
     case .event(let seq, let event):
       onEvent?(event, room(named: event.room))
@@ -141,6 +150,8 @@ public final class FeedStore {
         room.standing = e.room.standing
         room.closedAt = e.room.closedAt
       }
+    case .unknown:
+      break
     }
   }
 

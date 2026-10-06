@@ -255,6 +255,41 @@ struct FeedStoreTests {
     #expect(store.seq == 8)
   }
 
+  @Test("an event of an unknown type moves the sequence and changes nothing")
+  func unknownEvent() throws {
+    let store = try loaded()
+    let before = store.rooms
+
+    store.apply(.event(seq: 8, .unknown(type: "weather")))
+
+    #expect(store.rooms == before)
+    #expect(store.seq == 8)
+    #expect(store.phase == .live)
+  }
+
+  @Test("a feed the app cannot read says the app is older, not that the daemon is gone")
+  func undecodable() {
+    let error = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad"))
+
+    #expect(FeedStore.downPhase(error) == .outdated)
+    #expect(FeedStore.downPhase(URLError(.cannotConnectToHost)) == .down("Messhall is not running."))
+  }
+
+  @Test("the app is behind when the daemon's contract is newer than the one it was built for")
+  func behind() throws {
+    let store = try loaded()
+    #expect(!store.behind)
+
+    var snapshot = try Fixture.decode(Snapshot.self, "Snapshot")
+    snapshot.contractVersion = FeedContract.version + 1
+    store.apply(.snapshot(snapshot))
+    #expect(store.behind)
+
+    snapshot.contractVersion = nil
+    store.apply(.snapshot(snapshot))
+    #expect(!store.behind)
+  }
+
   @Test("an SSE frame decodes into an update")
   func decodeFrame() throws {
     let update = try FeedUpdate.decode(

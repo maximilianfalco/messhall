@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { historySchema, searchResultSchema, snapshotSchema } from '../../contracts/feed.ts';
+import { FEED_CONTRACT_VERSION, historySchema, searchResultSchema, snapshotSchema } from '../../contracts/feed.ts';
+import { CLI_VERSION } from '../../src/config.js';
 
 import { feedServer } from './feedServer.js';
 
@@ -42,6 +43,12 @@ describe('GET /api/snapshot', () => {
       ['human', 'idle'],
     ]);
     expect(body.rooms[1]!.messages.map(message => message.text)).toStrictEqual(['api joined', 'post 1']);
+  });
+
+  it('names the daemon version and the feed contract version', async () => {
+    const body = snapshotSchema.parse(await (await get('/api/snapshot')).json());
+
+    expect([body.version, body.contract_version]).toStrictEqual([CLI_VERSION, FEED_CONTRACT_VERSION]);
   });
 
   it('lists members who left with presence left', async () => {
