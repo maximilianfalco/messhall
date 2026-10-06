@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { CLI_VERSION } from '../config.js';
 
 import { INSTRUCTIONS, PROTOCOL_VERSIONS, SERVER_NAME, TOOL_DESCRIPTIONS, TOOL_NAMES } from './constants.js';
+import { registerAssignRole } from './tools/assignRole.js';
 import { registerJoin } from './tools/join.js';
 import { registerLeave } from './tools/leave.js';
 import { registerListMembers } from './tools/listMembers.js';
@@ -15,6 +16,7 @@ import { registerReadSince } from './tools/readSince.js';
 import { registerWait } from './tools/wait.js';
 
 const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: string) => void> = {
+  assign_role: registerAssignRole,
   join: registerJoin,
   leave: registerLeave,
   list_members: registerListMembers,

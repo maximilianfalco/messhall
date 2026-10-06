@@ -27,7 +27,7 @@ describe('roomReport', () => {
     const text = stripVTControlCharacters(result.report);
     expect(result.code).toBe(0);
     expect(text).toContain('#demo open, 1/200 posts, made by api, not standing');
-    expect(text).toMatch(/web\s+codex\s+active\s+3/);
+    expect(text).toMatch(/web\s+codex\s+unassigned\s+active\s+3/);
     expect(text).toMatch(/3\s+api\s+chat\s+@web schema changed/);
   });
 
@@ -41,7 +41,18 @@ describe('roomReport', () => {
 
     const text = stripVTControlCharacters(roomReport({ dataDir: scratch.dataDir, name: 'demo' }).report);
 
-    expect(text).toMatch(/web\s+other\s+opencode 1\.18\.34\s+active/);
+    expect(text).toMatch(/web\s+other\s+opencode 1\.18\.34\s+unassigned\s+active/);
+  });
+
+  it('shows the role each member holds', () => {
+    scratch.store.joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    scratch.store.joinRoom({ as: 'reviewer-1', kind: 'claude', room: 'demo' });
+    scratch.store.assignRole({ by: 'orchestrator', member: 'reviewer-1', role: 'reviewer', room: 'demo' });
+
+    const text = stripVTControlCharacters(roomReport({ dataDir: scratch.dataDir, name: 'demo' }).report);
+
+    expect(text).toMatch(/orchestrator\s+claude\s+orchestrator\s+active/);
+    expect(text).toMatch(/reviewer-1\s+claude\s+reviewer\s+active/);
   });
 
   it('shows the type each post was sent with, kept after the sender leaves', () => {
