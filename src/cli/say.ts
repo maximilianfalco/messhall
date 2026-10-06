@@ -13,7 +13,8 @@ type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 const fail = (text: string) => ({ code: 1, output: pc.red(text) }) as const;
 
-function readHumanKey(dir: string) {
+/** The human key from the data dir, or an empty string before the daemon made one. */
+export function readHumanKey(dir: string) {
   const file = path.join(dir, KEY_FILES.human);
   return existsSync(file) ? readFileSync(file, 'utf8').trim() : '';
 }

@@ -1,5 +1,6 @@
 import type { BusEvent } from '../../../contracts/events.ts';
 import type { Snapshot } from '../../../contracts/feed.ts';
+import type { Frame } from '../../../src/lib/sse.js';
 import type { Command } from 'commander';
 
 import { readFileSync } from 'node:fs';
@@ -10,15 +11,10 @@ import { SNAPSHOT_EVENT, snapshotSchema } from '../../../contracts/feed.ts';
 import { daemonUrl, dataDir } from '../../../src/config.js';
 import { KEY_FILES, KEY_HEADER } from '../../../src/daemon/keys.js';
 import { parseStoredJson } from '../../../src/lib/json.js';
+import { readFrames } from '../../../src/lib/sse.js';
 import { bad, dim } from '../lib/print.js';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
-
-interface Frame {
-  data: string;
-  event: string;
-  id: string;
-}
 
 const LABEL_WIDTH = 10;
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -56,17 +52,6 @@ function frameLine(frame: Frame, room: string | undefined) {
   return `${label}${eventLine(event)}`;
 }
 
-function parseFrame(block: string) {
-  const fields = new Map(
-    block
-      .split('\n')
-      .filter(line => !line.startsWith(':'))
-      .map(line => [line.slice(0, line.indexOf(':')), line.slice(line.indexOf(':') + 2)] as const),
-  );
-  const { data, event, id } = Object.fromEntries(fields);
-  return data && event && id ? { data, event, id } : undefined;
-}
-
 /** Tails `GET /api/events` and prints one line per event until `count` lines. Returns the exit code. */
 export async function tailFeed({
   count,
@@ -102,20 +87,11 @@ export async function tailFeed({
   }
 
   let printed = 0;
-  let buffer = '';
-  const decoder = new TextDecoder();
-  for await (const chunk of response.body) {
-    buffer += decoder.decode(chunk, { stream: true });
-    const blocks = buffer.split('\n\n');
-    buffer = blocks.pop() ?? '';
-    const lines = blocks.flatMap(block => {
-      const frame = parseFrame(block);
-      const line = frame && frameLine(frame, room);
-      return line ? [line] : [];
-    });
-    const take = count === undefined ? lines : lines.slice(0, count - printed);
-    take.forEach(print);
-    printed += take.length;
+  for await (const frame of readFrames(response.body)) {
+    const line = frameLine(frame, room);
+    if (!line) continue;
+    print(line);
+    printed += 1;
     if (count !== undefined && printed >= count) break;
   }
   controller.abort();
