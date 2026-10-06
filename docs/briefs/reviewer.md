@@ -7,7 +7,7 @@ Act only on a room line that mentions you and carries a GitHub PR url:
 - `ready for review: <PR url> @<you>` is round 1.
 - `round N: <PR url> @<you>` is round N, after the worker pushed fixes.
 
-Between reviews, call `wait` on the room. Each time `wait` returns, by a message or a timeout, run:
+Between reviews, end your turn and let the doorbell ring you. Loop `wait` only when you have no doorbell. Each time you wake, run:
 
 ```bash
 pnpm -s messhall-dev reviews --room dev

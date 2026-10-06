@@ -20,6 +20,7 @@ import { run } from '../lib/run.js';
 import {
   assignLine,
   branchSlug,
+  DEFAULT_REVIEWER,
   parseFlock,
   parseQueueRow,
   ROLE_WAIT_MIN,
@@ -66,6 +67,7 @@ interface SpawnOptions {
   model: string;
   now?: () => Date;
   queue?: Runner;
+  reviewer?: string;
   room: string;
   url: string;
 }
@@ -144,6 +146,7 @@ export async function spawnRun({
   model,
   now = () => new Date(),
   queue = runQueue,
+  reviewer,
   room,
   url,
 }: SpawnOptions) {
@@ -154,6 +157,8 @@ export async function spawnRun({
   if (briefFile && !existsSync(briefFile)) return { code: 1, report: bad(`no brief at ${briefFile}`) };
   const roleFileIn = instructions && path.resolve(instructions);
   if (roleFileIn && !existsSync(roleFileIn)) return { code: 1, report: bad(`no instructions at ${roleFileIn}`) };
+  if (reviewer && !NAME_PATTERN.test(reviewer)) return { code: 1, report: bad(`${reviewer} is not a member name`) };
+  if (reviewer && !roleFileIn) return { code: 1, report: bad('--reviewer needs --instructions') };
 
   const spawnDir = path.join(dataDir, 'spawn');
   const debugFile = path.join(spawnDir, `${row.id}-debug.log`);
@@ -170,6 +175,7 @@ export async function spawnRun({
       branch: row.branch,
       brief: briefFile,
       id: row.id,
+      reviewer,
       role: roleFileIn && readFileSync(roleFileIn, 'utf8').trim(),
       worktree,
     });
@@ -410,6 +416,10 @@ export function registerSpawn(program: Command) {
     .option('--brief <file>', 'brief a row agent reads first, else it runs the pickup skill')
     .option('--assign <role>', 'with a row: give the agent this role once it joins, as orchestrator')
     .option('--instructions <file>', 'with a row: role text put before the row in its instructions')
+    .option(
+      '--reviewer <name>',
+      `with --instructions: the reviewer named in its review gate in place of @${DEFAULT_REVIEWER}`,
+    )
     .option('--as <name>', 'with `agent`: the member name to seat')
     .option('--dry-run', 'print the plan, claim and start nothing')
     .action(
@@ -422,6 +432,7 @@ export function registerSpawn(program: Command) {
           dryRun?: boolean;
           instructions?: string;
           model: string;
+          reviewer?: string;
           room: string;
         },
       ) => {

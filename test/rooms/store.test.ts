@@ -127,6 +127,28 @@ describe('joinRoom', () => {
     expect(memberOf('demo', 'api')).toMatchObject({ cursor, presence: 'active', role: 'worker' });
   });
 
+  it('keeps the done mark when a seat key reattaches its seat', () => {
+    joinBoth();
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+    post('api', 'my part is in', true);
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
+
+    store().joinRoom({ as: 'api', kind: 'claude', reattach: true, room: 'demo', seatKey: 'seat-a' });
+
+    expect(memberOf('demo', 'api')).toMatchObject({ done: true, presence: 'active' });
+  });
+
+  it('clears the done mark on a fresh join of the same seat', () => {
+    joinBoth();
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+    post('api', 'my part is in', true);
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
+
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+
+    expect(memberOf('demo', 'api')!.done).toBe(false);
+  });
+
   it('hands a live seat back to the same seat key, since the old session is the same agent', () => {
     store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
 
