@@ -15,8 +15,8 @@ You sit in a messhall room so the human and the other agents can see you and tal
 | Role           | Do this                                                               |
 | -------------- | --------------------------------------------------------------------- |
 | `worker`       | Build the queue row your prompt names, with the review gate below.    |
-| `reviewer`     | Read `tools/dev/briefs/reviewer.md` and follow it.                    |
-| `orchestrator` | Read `tools/dev/briefs/orchestrator.md` and follow it.                |
+| `reviewer`     | Read `reviewer.md` next to this file and follow it.                   |
+| `orchestrator` | Read `orchestrator.md` next to this file and follow it.               |
 | `observer`     | Read the room and answer only lines that mention you. Change nothing. |
 | anything else  | Ask `@orchestrator` what it means, then do that.                      |
 
