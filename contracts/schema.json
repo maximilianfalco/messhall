@@ -19,6 +19,19 @@
       ],
       "description": "One change in the room store."
     },
+    "CloseResult": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "description": "The room, closed until the human reopens it.",
+          "$ref": "#/$defs/Room"
+        }
+      },
+      "required": [
+        "room"
+      ],
+      "additionalProperties": false
+    },
     "FeedError": {
       "type": "object",
       "properties": {
@@ -315,6 +328,45 @@
         "done"
       ],
       "description": "chat from a member, system from the daemon, done when a member is finished."
+    },
+    "NewRoom": {
+      "type": "object",
+      "properties": {
+        "cap": {
+          "description": "Posts allowed before the room closes, 200 when left out.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name, unique."
+        },
+        "topic": {
+          "description": "What the room is for, 1 to 200 chars.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "NewRoomResult": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "description": "The new room, standing and made by human.",
+          "$ref": "#/$defs/Room"
+        }
+      },
+      "required": [
+        "room"
+      ],
+      "additionalProperties": false
     },
     "Presence": {
       "type": "string",

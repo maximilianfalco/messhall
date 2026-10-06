@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-import { memberSchema, messageSchema, roomSchema, roomSummarySchema, TEXT_MAX_CHARS } from './room.ts';
+import { memberSchema, messageSchema, nameSchema, roomSchema, roomSummarySchema, TEXT_MAX_CHARS } from './room.ts';
+
+export const TOPIC_MAX_CHARS = 200;
 
 export const SNAPSHOT_EVENT = 'snapshot';
 
@@ -34,6 +36,20 @@ export const reopenResultSchema = z.object({
   room: roomSchema.describe('The room, open again with a full cap.'),
 });
 
+export const newRoomSchema = z.object({
+  cap: z.number().int().positive().optional().describe('Posts allowed before the room closes, 200 when left out.'),
+  name: nameSchema.describe('Room name, unique.'),
+  topic: z.string().min(1).max(TOPIC_MAX_CHARS).optional().describe('What the room is for, 1 to 200 chars.'),
+});
+
+export const newRoomResultSchema = z.object({
+  room: roomSchema.describe('The new room, standing and made by human.'),
+});
+
+export const closeResultSchema = z.object({
+  room: roomSchema.describe('The room, closed until the human reopens it.'),
+});
+
 export const feedErrorSchema = z.object({
   error: z.string().describe('What went wrong, in plain words.'),
 });
@@ -42,3 +58,5 @@ export type Snapshot = z.infer<typeof snapshotSchema>;
 export type History = z.infer<typeof historySchema>;
 export type HumanPostResult = z.infer<typeof humanPostResultSchema>;
 export type ReopenResult = z.infer<typeof reopenResultSchema>;
+export type NewRoomResult = z.infer<typeof newRoomResultSchema>;
+export type CloseResult = z.infer<typeof closeResultSchema>;

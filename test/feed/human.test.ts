@@ -1,6 +1,13 @@
+import type { SequencedEvent } from '../../contracts/events.ts';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { humanPostResultSchema, reopenResultSchema } from '../../contracts/feed.ts';
+import {
+  closeResultSchema,
+  humanPostResultSchema,
+  newRoomResultSchema,
+  reopenResultSchema,
+} from '../../contracts/feed.ts';
 
 import { feedServer } from './feedServer.js';
 
@@ -117,8 +124,83 @@ describe('POST /api/rooms/:name/reopen', () => {
   });
 });
 
+describe('POST /api/rooms', () => {
+  it('makes a standing room made by human, answers 201 and emits room created', async () => {
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    const res = await human('/api/rooms', { cap: 50, name: 'planning', topic: 'q4' });
+
+    expect(res.status).toBe(201);
+    expect(newRoomResultSchema.parse(await res.json()).room).toMatchObject({
+      closed_at: null,
+      created_by: 'human',
+      message_cap: 50,
+      name: 'planning',
+      standing: true,
+      topic: 'q4',
+    });
+    expect(seen[0]!.event).toMatchObject({ change: 'created', type: 'room' });
+  });
+
+  it('ignores a created_by in the body, so the room is always made by human', async () => {
+    const res = await human('/api/rooms', { created_by: 'api', name: 'planning', standing: false });
+
+    expect(newRoomResultSchema.parse(await res.json()).room).toMatchObject({ created_by: 'human', standing: true });
+  });
+
+  it('answers 409 for a name that exists', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect((await human('/api/rooms', { name: 'demo' })).status).toBe(409);
+  });
+
+  it.each([{}, { name: 'Bad Name' }, { cap: 0, name: 'ok' }, { name: 'ok', topic: '' }])(
+    'refuses the body %j with 400',
+    async body => {
+      expect((await human('/api/rooms', body)).status).toBe(400);
+    },
+  );
+});
+
+describe('POST /api/rooms/:name/close', () => {
+  it('closes an open room with a system line and emits room closed', async () => {
+    store().createRoom({ created_by: 'human', name: 'demo' });
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    const res = await human('/api/rooms/demo/close');
+
+    expect(res.status).toBe(200);
+    expect(closeResultSchema.parse(await res.json()).room.closed_at).not.toBeNull();
+    expect(seen.map(item => item.event.type)).toStrictEqual(['message', 'room']);
+    expect(seen[1]!.event).toMatchObject({ change: 'closed' });
+  });
+
+  it('answers 409 for a room that is closed', async () => {
+    closeRoom();
+
+    expect((await human('/api/rooms/demo/close')).status).toBe(409);
+  });
+
+  it('answers 404 for a room that does not exist', async () => {
+    expect((await human('/api/rooms/nope/close')).status).toBe(404);
+  });
+});
+
 describe('human route keys', () => {
-  it.each(['/api/rooms/demo/messages', '/api/rooms/demo/reopen', '/api/rooms/nope/anything'])(
+  it('refuses the agent key on POST /api/rooms with 403 and makes no room', async () => {
+    const res = await postAs('/api/rooms', feed.headers('agent'), { name: 'planning' });
+
+    expect(res.status).toBe(403);
+    expect(store().listRooms()).toStrictEqual([]);
+  });
+
+  it('refuses no key on POST /api/rooms with 401', async () => {
+    expect((await postAs('/api/rooms', {}, { name: 'planning' })).status).toBe(401);
+  });
+
+  it.each(['/api/rooms/demo/messages', '/api/rooms/demo/reopen', '/api/rooms/demo/close', '/api/rooms/nope/anything'])(
     'refuses the agent key on %s with 403 and changes nothing',
     async path => {
       closeRoom();
