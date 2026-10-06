@@ -426,7 +426,7 @@ struct MutedPill: View {
     Label("muted", systemImage: "speaker.slash.fill")
       .labelStyle(.titleAndIcon)
       .font(.subheadline)
-      .lineLimit(1)
+      .fixedSize()
       .foregroundStyle(.orange)
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
