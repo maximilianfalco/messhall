@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Feed
@@ -37,5 +38,20 @@ struct FollowTests {
     #expect(Follow.action(lastBefore: 9, lastAfter: 5, fromHuman: false, nearBottom: true) == .none)
     #expect(Follow.action(lastBefore: 9, lastAfter: nil, fromHuman: false, nearBottom: true) == .none)
     #expect(Follow.action(lastBefore: 9, lastAfter: 9, fromHuman: false, nearBottom: false) == .none)
+  }
+
+  @Test("follow waits out the sidebar slide before it scrolls")
+  func waitsWhileColumnsMove() {
+    let changed = Date(timeIntervalSince1970: 100)
+    #expect(abs(Follow.wait(columnsChangedAt: changed, now: changed.addingTimeInterval(0.1)) - 0.3) < 0.001)
+  }
+
+  @Test(
+    "follow does not wait once the slide is over or when the columns never moved",
+    arguments: [0.5, 2.0])
+  func noWaitAfterSettle(elapsed: Double) {
+    let changed = Date(timeIntervalSince1970: 100)
+    #expect(Follow.wait(columnsChangedAt: changed, now: changed.addingTimeInterval(elapsed)) == 0)
+    #expect(Follow.wait(columnsChangedAt: nil, now: changed) == 0)
   }
 }

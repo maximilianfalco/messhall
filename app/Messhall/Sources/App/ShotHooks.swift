@@ -50,6 +50,30 @@
       try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
     }
 
+    /// `-shotToggleSidebar <seconds>`: hides then shows the sidebar, the same call as View > Hide Sidebar.
+    static func toggleSidebar(pause: Double) async {
+      while splitController() == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      // A window covered or on another Space draws only a few frames a second.
+      // So the take floats it on top of the Space in use, still without focus.
+      let window = splitController()?.view.window
+      window?.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+      window?.level = .floating
+      window?.orderFrontRegardless()
+      for _ in 0..<2 {
+        try? await Task.sleep(for: .seconds(pause))
+        splitController()?.toggleSidebar(nil)
+      }
+    }
+
+    /// SwiftUI keeps its split view controller off the window's controller tree, so it is found by its view.
+    private static func splitController() -> NSSplitViewController? {
+      func find(_ view: NSView) -> NSSplitView? {
+        view as? NSSplitView ?? view.subviews.lazy.compactMap(find).first
+      }
+      let window = NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) && $0.sheetParent == nil }
+      return window?.contentView.flatMap(find)?.delegate as? NSSplitViewController
+    }
+
     /// `-renderStatus <dir>`: writes the menu bar label, idle and active, in light and dark.
     static func renderStatus(into dir: URL) {
       for scheme in [ColorScheme.light, .dark] {

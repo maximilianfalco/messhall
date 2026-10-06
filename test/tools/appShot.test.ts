@@ -23,6 +23,10 @@ describe('pickWindow', () => {
     expect(pickWindow(lines.join('\n'))).toBe(12);
   });
 
+  it('picks a window floated for a recording but never the menu bar label', () => {
+    expect(pickWindow(['10 25 48 24', '12 3 980 640'].join('\n'))).toBe(12);
+  });
+
   it('gives undefined when the app has no window yet', () => {
     expect(pickWindow('10 25 48 24\n')).toBeUndefined();
   });
@@ -106,6 +110,12 @@ describe('shotArgs', () => {
     expect(
       shotArgs({ agentPost: true, appearance: 'light', name: 'pill-light', room: 'docs-sync', scrollTop: true }),
     ).toStrictEqual(expect.arrayContaining(['-shotScrollTop', 'YES', '-shotRoom', 'docs-sync']));
+  });
+
+  it('posts as the human and then hides and shows the sidebar for the recording', () => {
+    expect(shotArgs({ appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true })).toStrictEqual(
+      expect.arrayContaining(['-shotPost', '-shotToggleSidebar', '2.5']),
+    );
   });
 
   it('passes the room to open and the New Room draft', () => {
