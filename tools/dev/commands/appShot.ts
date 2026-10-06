@@ -280,6 +280,12 @@ const windowFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.window`);
 const anchorFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.anchor`);
 const hotkeyFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.hotkey`);
 
+/** The file a shot's app writes a note into, printed under the table. */
+function noteFile(shot: Shot) {
+  if ('pageTop' in shot) return anchorFile(shot);
+  if ('hotkey' in shot) return hotkeyFile(shot);
+}
+
 /** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
 async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<string | undefined> {
   if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) > 0) return;
@@ -518,7 +524,7 @@ async function appShot({ home, port, sidebar }: { home: string; port: number; si
     : ok(`no app from ${app} left running`);
   const code = failed.length || left.length || strays.length ? 1 : 0;
   const anchors = SHOTS.flatMap(shot => {
-    const file = 'pageTop' in shot ? anchorFile(shot) : 'hotkey' in shot ? hotkeyFile(shot) : undefined;
+    const file = noteFile(shot);
     const note = file && statSync(file, { throwIfNoEntry: false }) && readFileSync(file, 'utf8');
     return note ? [`${shot.name}: ${note.trim()}`] : [];
   });

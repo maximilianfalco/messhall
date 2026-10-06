@@ -4,12 +4,12 @@ import Feed
 /// The one hotkey that works from any app. Carbon hotkeys need no Accessibility permission.
 @MainActor
 final class GlobalHotkey {
-  private static let id = EventHotKeyID(signature: 0x4D53_484C, id: 1)
+  static let id = EventHotKeyID(signature: 0x4D53_484C, id: 1)
 
   private let onPress: () -> Void
   private var handler: EventHandlerRef?
   private var hotKey: EventHotKeyRef?
-  private(set) var current: HotkeyRegistration?
+  private var current: HotkeyRegistration?
 
   init(onPress: @escaping () -> Void) {
     self.onPress = onPress

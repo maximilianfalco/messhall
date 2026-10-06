@@ -189,7 +189,7 @@
       try? await Task.sleep(for: .seconds(1))
       log += "window before press: \(NSApp.windows.contains(where: isPlain) ? "open" : "shut")\n"
       var press: EventRef?
-      var id = EventHotKeyID(signature: 0x4D53_484C, id: 1)
+      var id = GlobalHotkey.id
       CreateEvent(
         nil, OSType(kEventClassKeyboard), UInt32(kEventHotKeyPressed), 0, EventAttributes(kEventAttributeNone), &press)
       if let press {
@@ -204,7 +204,9 @@
       }
       log += "window after press: \(NSApp.windows.contains(where: isPlain) ? "open" : "shut")\n"
       hotkey.unregister()
-      log += "held after quit: \(hotkey.current == nil ? "none" : "still held")\n"
+      // Carbon refuses keys this app still holds, so a clean register again proves they were let go.
+      log += "register again after letting go: \(hotkey.register(keys.registration))\n"
+      hotkey.unregister()
       try? log.write(toFile: file, atomically: true, encoding: .utf8)
     }
 
