@@ -208,6 +208,30 @@ describe('the /mcp endpoint', () => {
     expect(members.text).toMatch(/api \([^)]*done/);
   });
 
+  it('seats an invited agent on its first call with its role, so it posts with no join', async () => {
+    const { url } = await start();
+    const side = createRoomStore({ db: openDb({ dataDir: home }), now });
+    side.createRoom({ created_by: 'human', name: 'checkout' });
+    const made = side.invite({
+      by: 'human',
+      instructions: 'build the api',
+      launch: { agent: 'claude', cwd: home },
+      name: 'api',
+      role: 'worker',
+      room: 'checkout',
+    });
+    if (!made.ok) throw new Error(made.reason);
+
+    const api = await agent(url, agentKey(), made.seatKey);
+    const posted = await api.call('post', { room: 'checkout', text: 'here' });
+    const role = await api.call('my_role', { room: 'checkout' });
+
+    expect(posted.isError).toBe(false);
+    expect(role.text).toContain('your role in #checkout: worker');
+    expect(role.text).toContain('build the api');
+    expect(side.listMembers('checkout').find(member => member.name === 'api')?.presence).toBe('active');
+  });
+
   it('leaves a live seat with its holder when a second session sends the same seat header', async () => {
     const { url } = await start();
     const parent = await agent(url, agentKey(), 'seat-a');

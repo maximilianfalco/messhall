@@ -10,6 +10,7 @@ import { HUMAN_NAME } from '../../contracts/room.ts';
 const GUTTER = ' '.repeat(7);
 
 const MEMBER_MARKS: Record<MemberChange, string> = {
+  invited: '+',
   joined: '+',
   left: '-',
   muted: '!',

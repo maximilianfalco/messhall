@@ -3,13 +3,13 @@ import Foundation
 // Hand-written from contracts/schema.json. SchemaTests fail when a field or a value drifts.
 
 public enum Presence: String, Codable, CaseIterable, Sendable {
-  case active, waiting, idle, away, left
+  case invited, active, waiting, idle, away, left
 
   public var isAway: Bool { self == .away || self == .left }
 }
 public enum MessageKind: String, Codable, CaseIterable, Sendable { case chat, system, done, summary }
 public enum MemberKind: String, Codable, CaseIterable, Sendable { case claude, codex, other, human }
-public enum MemberChange: String, Codable, Sendable { case joined, left, muted, reconnected, removed, role, unmuted }
+public enum MemberChange: String, Codable, Sendable { case invited, joined, left, muted, reconnected, removed, role, unmuted }
 public enum RoomChange: String, Codable, Sendable { case created, closed, reopened, topic }
 
 public struct Room: Codable, Equatable, Sendable {

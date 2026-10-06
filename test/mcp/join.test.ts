@@ -250,6 +250,43 @@ describe('join', () => {
     expect(result.text).toContain('doorbell: none (call wait)');
   });
 
+  it('seats a codex agent by its invite token with the role made for it', async () => {
+    harness.store.createRoom({ created_by: 'human', name: 'checkout' });
+    const made = harness.store.invite({
+      by: 'human',
+      launch: { agent: 'codex', cwd: '/tmp/web' },
+      name: 'web',
+      role: 'reviewer',
+      room: 'checkout',
+    });
+    if (!made.ok) throw new Error(made.reason);
+    const codex = await harness.agent();
+
+    const result = await codex.call('join', {
+      as: 'web',
+      invite: made.seatKey,
+      kind: 'codex',
+      room: 'checkout',
+      thread_id: LIVE_THREAD,
+    });
+
+    expect(result.text).toContain('joined #checkout as web.');
+    expect(result.text).toContain('your role in #checkout: reviewer');
+    expect(harness.store.seatsOf(LIVE_THREAD)).toStrictEqual([{ kind: 'codex', name: 'web', room: 'checkout' }]);
+  });
+
+  it('refuses an invite token that matches no invite', async () => {
+    harness.store.createRoom({ created_by: 'human', name: 'checkout' });
+    const codex = await harness.agent();
+
+    const result = await codex.call('join', { as: 'web', invite: 'made-up', kind: 'codex', room: 'checkout' });
+
+    expect(result).toStrictEqual({
+      isError: true,
+      text: 'no invite for web in #checkout. check the name and the invite, or join without one.',
+    });
+  });
+
   it('tells a codex member with no thread id that it has no doorbell', async () => {
     const codex = await harness.agent();
 

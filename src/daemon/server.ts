@@ -122,6 +122,7 @@ export async function startDaemon({
     try {
       store.sweepPresence();
       store.clearStale();
+      store.expireInvites();
     } catch (error) {
       logger.error(asError(error), { message: 'presence sweep failed' });
     }

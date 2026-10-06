@@ -9,7 +9,16 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { KEY_FILES } from '../../src/daemon/keys.js';
-import { flockStop, nudgeRun, seatRun, seatThenAssign, spawnRun } from '../../tools/dev/commands/spawn.js';
+import { openDb } from '../../src/rooms/db.js';
+import { createRoomStore } from '../../src/rooms/store.js';
+import {
+  flockStop,
+  nudgeRun,
+  reviewsReport,
+  seatRun,
+  seatThenAssign,
+  spawnRun,
+} from '../../tools/dev/commands/spawn.js';
 import { claudeArgv } from '../../tools/dev/lib/claudeTmux.js';
 import {
   parseFlock,
@@ -361,4 +370,29 @@ describe('seatRun', () => {
       expect(launch).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('reviewsReport', () => {
+  it('lists a request in the newest page of a room longer than one page', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-reviews-'));
+    const now = new Date('2026-10-06T12:30:00.000Z');
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => now });
+    store.joinRoom({ as: 'f8-thing', kind: 'claude', room: 'dev' });
+    for (const step of Array.from({ length: 600 }, (_, n) => `step ${n}`)) {
+      store.postMessage({ from: 'f8-thing', room: 'dev', text: step });
+    }
+    store.postMessage({
+      from: 'f8-thing',
+      room: 'dev',
+      text: 'CI green. ready for review: https://github.com/acme/widgets/pull/12 @reviewer-1',
+    });
+    db.close();
+
+    const outcome = reviewsReport({ dataDir, now, room: 'dev' });
+
+    expect(outcome.code).toBe(0);
+    expect(outcome.report).toContain('https://github.com/acme/widgets/pull/12');
+    expect(outcome.report).toContain('waiting');
+  });
 });

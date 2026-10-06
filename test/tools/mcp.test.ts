@@ -21,7 +21,9 @@ describe('mcpReport', () => {
     expect(result.code).toBe(0);
     expect(text).toMatch(/instructions\s+\d+\/1500 chars/);
     TOOL_NAMES.forEach(name => expect(text).toContain(name));
-    expect(text).toMatch(/join \(writes, \d+\/1500 chars\): Join a room\n {2}as\?, kind\?, room, thread_id\?/);
+    expect(text).toMatch(
+      /join \(writes, \d+\/1500 chars\): Join a room\n {2}as\?, invite\?, kind\?, room, thread_id\?/,
+    );
     expect(text).toMatch(/wait \(read only, \d+\/1500 chars\): .+\n {2}room\?, timeout_s\?/);
   });
 

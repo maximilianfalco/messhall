@@ -2,7 +2,16 @@ import { z } from 'zod';
 
 import { memberSchema, messageSchema, nameSchema, presenceSchema, roomSchema, timestampSchema } from './room.ts';
 
-export const MEMBER_CHANGES = ['joined', 'left', 'muted', 'reconnected', 'removed', 'role', 'unmuted'] as const;
+export const MEMBER_CHANGES = [
+  'invited',
+  'joined',
+  'left',
+  'muted',
+  'reconnected',
+  'removed',
+  'role',
+  'unmuted',
+] as const;
 export const ROOM_CHANGES = ['created', 'closed', 'reopened', 'topic'] as const;
 
 export type MemberChange = (typeof MEMBER_CHANGES)[number];
@@ -18,11 +27,11 @@ export const memberEventSchema = z.object({
   change: z
     .enum(MEMBER_CHANGES)
     .describe(
-      'joined, left, reconnected, removed when it left 5 minutes ago or the human or an orchestrator kicked it, role when its role was set, or muted and unmuted.',
+      'invited when its seat was made ahead, joined, left, reconnected, removed when it left 5 minutes ago, its invite went unused or the human or an orchestrator kicked it, role when its role was set, or muted and unmuted.',
     ),
   member: memberSchema.describe('The member after the change.'),
   room: nameSchema.describe('Room name.'),
-  type: z.literal('member').describe('A member came, went, dropped out, got a role or was muted.'),
+  type: z.literal('member').describe('A member was invited, came, went, dropped out, got a role or was muted.'),
 });
 
 export const presenceEventSchema = z.object({

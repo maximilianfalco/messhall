@@ -2,7 +2,11 @@
 export const STALE_AFTER_MS = 10 * 60_000;
 
 const PR_URL = String.raw`https://github\.com/[\w.-]+/[\w.-]+/pull/\d+(?!\d)`;
-const REQUEST = new RegExp(String.raw`^\s*(?:ready for review|round (\d+)):\s*(${PR_URL})\b.*?@([a-z0-9-]{1,40})`, 'i');
+// A request may sit on any line of a post, or follow a short sentence like `CI green. ready for review: ...`.
+const REQUEST = new RegExp(
+  String.raw`(?:^|[.!?])\s*(?:ready for review|round (\d+)):\s*(${PR_URL})\b.*?@([a-z0-9-]{1,40})`,
+  'im',
+);
 
 const urlsIn = (text: string) => Array.from(text.matchAll(new RegExp(PR_URL, 'g')), ([url]) => url);
 
@@ -15,7 +19,7 @@ export interface RoomLine {
   text: string;
 }
 
-/** Reads `ready for review: <url> @reviewer` (round 1) or `round N: <url> @reviewer`. Anything else is not a request. */
+/** Reads `ready for review: <url> @reviewer` (round 1) or `round N: <url> @reviewer`, at the start of a sentence. Anything else is not a request. */
 export function reviewRequest(line: string) {
   const match = REQUEST.exec(line);
   if (!match) return;
