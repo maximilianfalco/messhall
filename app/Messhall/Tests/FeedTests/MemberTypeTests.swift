@@ -25,6 +25,12 @@ struct MemberTypeTests {
       Self.member(name: "human", kind: .human, client: nil, version: nil, label: nil, role: "observer").rolePill == nil)
   }
 
+  @Test("an observer reads as one so its chip dims, any other role does not")
+  func isObserver() {
+    #expect(Self.member(client: nil, version: nil, label: nil, role: "observer").isObserver)
+    #expect(!Self.member(client: nil, version: nil, label: nil, role: "worker").isObserver)
+  }
+
   @Test("an agent offers every usual role but its own")
   func roleChoices() {
     #expect(

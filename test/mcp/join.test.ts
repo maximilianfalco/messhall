@@ -74,6 +74,9 @@ describe('join', () => {
     const result = await agent.call('join', { as: 'watch', observe: true, room: 'checkout' });
 
     expect(result.text).toContain('watch (claude 2.1.289, observer, active, you)');
+    expect(result.text).toContain(
+      'your role in #checkout: observer. you read and a mention rings you, but you never count as one of the agents here.',
+    );
   });
 
   it('defaults the name to the basename of the first root', async () => {
