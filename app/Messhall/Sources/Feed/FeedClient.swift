@@ -11,6 +11,7 @@ public struct FeedClient: Sendable {
     case close(room: String)
     case reopen(room: String)
     case role(room: String, member: String, role: String)
+    case remove(room: String, member: String)
   }
 
   public struct KeyMissing: Error {}
@@ -66,6 +67,9 @@ public struct FeedClient: Sendable {
       request.httpMethod = "POST"
       request.setValue("application/json", forHTTPHeaderField: "content-type")
       request.httpBody = try JSONEncoder().encode(HumanRole(role: role))
+    case .remove(let room, let member):
+      request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/members/\(member)"))
+      request.httpMethod = "DELETE"
     }
     request.setValue(try humanKey(), forHTTPHeaderField: "x-messhall-key")
     return request
