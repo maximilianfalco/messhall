@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   closeResultSchema,
   humanPostResultSchema,
+  humanRoleResultSchema,
   newRoomResultSchema,
   reopenResultSchema,
 } from '../../contracts/feed.ts';
@@ -184,12 +185,104 @@ describe('POST /api/rooms/:name/close', () => {
   });
 });
 
+describe('POST /api/rooms/:name/members/:member/role', () => {
+  it('sets the role with instructions, by human, and answers 200 with the member', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    const res = await human('/api/rooms/demo/members/api/role', { instructions: 'review the pr', role: 'reviewer' });
+
+    expect(res.status).toBe(200);
+    expect(humanRoleResultSchema.parse(await res.json()).member).toMatchObject({ name: 'api', role: 'reviewer' });
+    expect(store().roleOf({ name: 'api', room: 'demo' })).toStrictEqual({
+      by: 'human',
+      instructions: 'review the pr',
+      role: 'reviewer',
+    });
+  });
+
+  it('posts one human line that mentions the member, so it gets rung', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    const res = await human('/api/rooms/demo/members/api/role', { role: 'worker' });
+
+    expect(humanRoleResultSchema.parse(await res.json()).message).toMatchObject({
+      from: 'human',
+      mentions: ['api'],
+      text: '@api your role: worker',
+    });
+  });
+
+  it('clears earlier instructions when none are sent', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    await human('/api/rooms/demo/members/api/role', { instructions: 'review the pr', role: 'reviewer' });
+
+    await human('/api/rooms/demo/members/api/role', { role: 'worker' });
+
+    expect(store().roleOf({ name: 'api', room: 'demo' })).toMatchObject({ instructions: null, role: 'worker' });
+  });
+
+  it('adds the human seat to a room that lacks it', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    feed.scratch.db.prepare("DELETE FROM members WHERE name = 'human'").run();
+
+    expect((await human('/api/rooms/demo/members/api/role', { role: 'worker' })).status).toBe(200);
+  });
+
+  it.each([
+    {},
+    { role: 'Bad Role' },
+    { instructions: '', role: 'worker' },
+    { instructions: 'x'.repeat(4001), role: 'worker' },
+  ])('refuses bad body %# with 400', async body => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect((await human('/api/rooms/demo/members/api/role', body)).status).toBe(400);
+  });
+
+  it('answers 404 for a member that is not in the room and posts nothing', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    const before = store().listMessages({ limit: 50, room: 'demo' });
+
+    const res = await human('/api/rooms/demo/members/web/role', { role: 'worker' });
+
+    expect(res.status).toBe(404);
+    expect(store().listMessages({ limit: 50, room: 'demo' })).toStrictEqual(before);
+  });
+
+  it('answers 404 for a room that does not exist', async () => {
+    expect((await human('/api/rooms/nope/members/api/role', { role: 'worker' })).status).toBe(404);
+  });
+
+  it('answers 404 for a member name that is not a name', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect((await human('/api/rooms/demo/members/Not%20A%20Name/role', { role: 'worker' })).status).toBe(404);
+  });
+});
+
 describe('human route keys', () => {
   it('refuses the agent key on POST /api/rooms with 403 and makes no room', async () => {
     const res = await postAs('/api/rooms', feed.headers('agent'), { name: 'planning' });
 
     expect(res.status).toBe(403);
     expect(store().listRooms()).toStrictEqual([]);
+  });
+
+  it('refuses the agent key on the role route with 403 and leaves the role alone', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    const before = store().listMessages({ limit: 50, room: 'demo' });
+
+    const res = await postAs('/api/rooms/demo/members/api/role', feed.headers('agent'), { role: 'orchestrator' });
+
+    expect(res.status).toBe(403);
+    expect(store().roleOf({ name: 'api', room: 'demo' })).toMatchObject({ by: null, role: 'unassigned' });
+    expect(store().listMessages({ limit: 50, room: 'demo' })).toStrictEqual(before);
+  });
+
+  it('refuses no key on the role route with 401', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect((await postAs('/api/rooms/demo/members/api/role', {}, { role: 'orchestrator' })).status).toBe(401);
   });
 
   it('refuses no key on POST /api/rooms with 401', async () => {

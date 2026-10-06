@@ -16,7 +16,7 @@ import {
   TEXT_MAX_CHARS,
   UNASSIGNED_ROLE,
 } from '../../contracts/room.ts';
-import { READ_LIMIT, SEARCH_LIMIT } from '../config.js';
+import { READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
@@ -104,7 +104,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
-      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
+      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, left_at = NULL, gone_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
     ),
     reopen: db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
@@ -115,12 +115,18 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     search: db.prepare(
       'SELECT messages.*, rooms.name AS room FROM messages_fts JOIN messages ON messages.id = messages_fts.rowid JOIN rooms ON rooms.id = messages.room_id WHERE messages_fts MATCH ? AND (? IS NULL OR rooms.id = ?) ORDER BY messages.id DESC LIMIT ?',
     ),
-    seen: db.prepare('UPDATE members SET presence = ?, last_seen_at = ? WHERE room_id = ? AND name = ?'),
+    removeMember: db.prepare('DELETE FROM members WHERE room_id = ? AND name = ?'),
+    seen: db.prepare(
+      'UPDATE members SET presence = ?, last_seen_at = ?, gone_at = NULL WHERE room_id = ? AND name = ?',
+    ),
     setRole: db.prepare(
       'UPDATE members SET role = ?, role_instructions = ?, role_set_by = ? WHERE room_id = ? AND name = ?',
     ),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
-    setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
+    setPresence: db.prepare('UPDATE members SET presence = ?, gone_at = ? WHERE room_id = ? AND name = ?'),
+    stale: db.prepare(
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE kind != 'human' AND coalesce(left_at, gone_at) <= ? ORDER BY rooms.name, members.name",
+    ),
     sweepable: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence != 'gone' ORDER BY rooms.name, members.name",
     ),
@@ -166,8 +172,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
 
   function setPresence(room: Room, member: Member, to: Presence, emit: Emit, seen: boolean) {
     if (seen) sql.seen.run(to, stamp(), room.id, member.name);
-    else sql.setPresence.run(to, room.id, member.name);
     if (member.presence === to) return;
+    if (!seen) sql.setPresence.run(to, to === 'gone' ? stamp() : null, room.id, member.name);
     emit({ from: member.presence, name: member.name, room: room.name, to, type: 'presence' });
     if (to === 'gone') systemLine(room, `${member.name} is gone`, emit);
   }
@@ -493,7 +499,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return transaction(emit => {
         const changes = sql.sweepable.all().map(row => {
           const member = toMember(row);
-          sql.setPresence.run('gone', member.room_id, member.name);
+          sql.setPresence.run('gone', stamp(), member.room_id, member.name);
           const room = roomById(member.room_id);
           emit({ from: member.presence, name: member.name, room: room.name, to: 'gone', type: 'presence' });
           const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to: 'gone' };
@@ -521,6 +527,20 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
           setPresence(room, member, to, emit, false);
           const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to };
           return [change];
+        });
+      });
+    },
+
+    /** Drops agents left or gone for 30 minutes. Their posts keep the sender's name and type, and a rejoin starts fresh. */
+    clearStale() {
+      return transaction(emit => {
+        const cutoff = new Date(now().getTime() - STALE_AFTER_MS).toISOString();
+        return sql.stale.all(cutoff).map(row => {
+          const member = toMember(row);
+          const room = roomById(member.room_id);
+          sql.removeMember.run(member.room_id, member.name);
+          emit({ change: 'removed', member, room: room.name, type: 'member' });
+          return { name: member.name, room: room.name };
         });
       });
     },

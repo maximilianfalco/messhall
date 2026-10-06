@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
-import { memberSchema, messageSchema, nameSchema, roomSchema, roomSummarySchema, TEXT_MAX_CHARS } from './room.ts';
+import {
+  INSTRUCTIONS_MAX_CHARS,
+  memberSchema,
+  messageSchema,
+  nameSchema,
+  roleSchema,
+  roomSchema,
+  roomSummarySchema,
+  TEXT_MAX_CHARS,
+} from './room.ts';
 
 export const TOPIC_MAX_CHARS = 200;
 
@@ -57,6 +66,21 @@ export const closeResultSchema = z.object({
   room: roomSchema.describe('The room, closed until the human reopens it.'),
 });
 
+export const humanRoleSchema = z.object({
+  instructions: z
+    .string()
+    .min(1)
+    .max(INSTRUCTIONS_MAX_CHARS)
+    .optional()
+    .describe('What the member should do in this role, 1 to 4,000 chars. Left out clears any earlier ones.'),
+  role: roleSchema.describe('The role to give the member.'),
+});
+
+export const humanRoleResultSchema = z.object({
+  member: memberSchema.describe('The member with its new role.'),
+  message: messageSchema.describe('The line from human that mentions the member, so it reads its role.'),
+});
+
 export const feedErrorSchema = z.object({
   error: z.string().describe('What went wrong, in plain words.'),
 });
@@ -68,3 +92,5 @@ export type HumanPostResult = z.infer<typeof humanPostResultSchema>;
 export type ReopenResult = z.infer<typeof reopenResultSchema>;
 export type NewRoomResult = z.infer<typeof newRoomResultSchema>;
 export type CloseResult = z.infer<typeof closeResultSchema>;
+export type HumanRole = z.infer<typeof humanRoleSchema>;
+export type HumanRoleResult = z.infer<typeof humanRoleResultSchema>;

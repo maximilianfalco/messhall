@@ -67,6 +67,18 @@ struct FeedStoreTests {
     #expect(store.rooms[0].members[2].presence == .waiting)
   }
 
+  @Test("a removed event drops the member from the room")
+  func removed() throws {
+    let store = try loaded()
+    let joined = try event("MemberEvent")
+    guard case .member(let payload) = joined else { Issue.record("not a member event"); return }
+    store.apply(.event(seq: 8, joined))
+
+    store.apply(.event(seq: 9, .member(MemberEvent(room: "checkout", change: .removed, member: payload.member))))
+
+    #expect(store.rooms[0].members.map(\.name) == ["api", "human"])
+  }
+
   @Test("a role event updates the member and adds no line")
   func role() throws {
     let store = try loaded()
@@ -160,6 +172,19 @@ struct FeedStoreTests {
     store.apply(.event(seq: 8, .room(RoomEvent(change: .created, room: humanRoom(closedAt: nil)))))
 
     #expect(store.rooms.map(\.name) == ["checkout", "ops"])
+  }
+
+  @Test("a role the human just set shows at once with its line")
+  func setRole() throws {
+    let store = try loaded()
+    var member = try #require(store.rooms[0].members.first { $0.kind != .human })
+    member.role = "reviewer"
+    let line = try Fixture.decode(MessageEvent.self, "MessageEvent").message
+
+    store.add(HumanRoleResult(member: member, message: line), to: "checkout")
+
+    #expect(store.rooms[0].members.first { $0.name == member.name }?.role == "reviewer")
+    #expect(store.rooms[0].messages.last == line)
   }
 
   private func humanRoom(closedAt: String?) -> Room {

@@ -1,13 +1,20 @@
-import type { CloseResult, HumanPostResult, NewRoomResult, ReopenResult } from '../../contracts/feed.ts';
+import type {
+  CloseResult,
+  HumanPostResult,
+  HumanRoleResult,
+  NewRoomResult,
+  ReopenResult,
+} from '../../contracts/feed.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
 import type { RoomStore } from '../rooms/store.js';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { humanPostSchema, newRoomSchema } from '../../contracts/feed.ts';
+import { humanPostSchema, humanRoleSchema, newRoomSchema } from '../../contracts/feed.ts';
 import { HUMAN_NAME } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
-import { readJson, roomTarget } from './http.js';
+import { memberRoleTarget, readJson, roomTarget } from './http.js';
 
 const NO_ROOM = { error: 'no such room' };
 
@@ -26,7 +33,38 @@ export function humanRoutes({ keys, store }: { keys: Keys; store: RoomStore }) {
     else sendJson(res, 409, { error: `room #${parsed.data.name} already exists` });
   };
 
+  const setRole = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    { member, room }: { member: string; room: string },
+  ) => {
+    const body = await readJson(req);
+    const parsed = humanRoleSchema.safeParse(body.ok ? body.value : undefined);
+    if (!parsed.success) {
+      sendJson(res, 400, {
+        error: 'send json { role, instructions? }: role is a-z, 0-9 and dashes, instructions 1 to 4000 chars',
+      });
+      return;
+    }
+    const { instructions, role } = parsed.data;
+    if (!store.ensureHuman(room).ok) {
+      sendJson(res, 404, NO_ROOM);
+      return;
+    }
+    const assigned = store.assignRole({ by: HUMAN_NAME, instructions, member, role, room });
+    if (!assigned.ok) {
+      sendJson(res, 404, { error: `no member ${member} in #${room}` });
+      return;
+    }
+    // The mention rings the member, which is its cue to call my_role.
+    const line = store.postMessage({ from: HUMAN_NAME, room, text: `@${member} your role: ${role}` });
+    if (line.ok) sendJson(res, 200, { member: assigned.member, message: line.message } satisfies HumanRoleResult);
+    else sendJson(res, 409, { error: `role set, but the line was refused: ${line.reason}` });
+  };
+
   const post: Handler = async (req, res) => {
+    const role = memberRoleTarget(req);
+    if (role) return setRole(req, res, role);
     const target = roomTarget(req);
     if (target?.action === 'close') {
       const result = store.closeRoom(target.name);

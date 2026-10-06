@@ -858,3 +858,123 @@ describe('role instructions', () => {
     expect(store().roleOf({ name: 'web', room: 'nope' })).toBeUndefined();
   });
 });
+
+describe('clearing stale members', () => {
+  const minutes = (count: number) => count * 60_000;
+  const names = (room = 'demo') =>
+    store()
+      .listMembers(room, { left: true })
+      .map(member => member.name);
+
+  it('drops a member left for 30 minutes and keeps its posts labeled', () => {
+    joinBoth();
+    post('api', 'shipped');
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    scratch.clock.advance(minutes(29));
+    expect(store().clearStale()).toStrictEqual([]);
+    scratch.clock.advance(minutes(1));
+    expect(store().clearStale()).toStrictEqual([{ name: 'api', room: 'demo' }]);
+
+    expect(names()).toStrictEqual(['human', 'web']);
+    const page = store().listMessages({ limit: 50, room: 'demo' });
+    expect(page.ok && page.messages.find(message => message.text === 'shipped')).toMatchObject({
+      from: 'api',
+      from_kind: 'claude',
+    });
+  });
+
+  it('drops a member gone for 30 minutes counted from when it went gone, not its last call', () => {
+    joinBoth();
+    scratch.clock.advance(minutes(30));
+    store().touch({ as: 'web', room: 'demo', state: 'active' });
+    store().sweepPresence();
+    expect(memberOf('demo', 'api')!.presence).toBe('gone');
+
+    scratch.clock.advance(minutes(29));
+    store().touch({ as: 'web', room: 'demo', state: 'active' });
+    expect(store().clearStale()).toStrictEqual([]);
+    scratch.clock.advance(minutes(1));
+    store().touch({ as: 'web', room: 'demo', state: 'active' });
+
+    expect(store().clearStale()).toStrictEqual([{ name: 'api', room: 'demo' }]);
+    expect(names()).toStrictEqual(['human', 'web']);
+  });
+
+  it('restarts the count when a gone member comes back', () => {
+    joinBoth();
+    store().touch({ as: 'api', room: 'demo', state: 'gone' });
+    scratch.clock.advance(minutes(20));
+    store().touch({ as: 'api', room: 'demo', state: 'active' });
+    store().touch({ as: 'api', room: 'demo', state: 'gone' });
+
+    scratch.clock.advance(minutes(20));
+
+    expect(store().clearStale()).toStrictEqual([]);
+  });
+
+  it('never drops the human seat or a live member', () => {
+    joinBoth();
+    store().touch({ as: 'web', room: 'demo', state: 'waiting' });
+
+    scratch.clock.advance(minutes(29));
+    store().touch({ as: 'web', room: 'demo', state: 'waiting' });
+    store().touch({ as: 'api', room: 'demo', state: 'active' });
+    scratch.clock.advance(minutes(5));
+
+    expect(store().clearStale()).toStrictEqual([]);
+    expect(names()).toStrictEqual(['api', 'human', 'web']);
+  });
+
+  it('emits a removed member event for each member it drops', () => {
+    joinBoth();
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    scratch.clock.advance(minutes(30));
+    store().clearStale();
+
+    expect(seen.map(item => item.event)).toStrictEqual([
+      {
+        change: 'removed',
+        member: expect.objectContaining({ name: 'api', presence: 'left' }),
+        room: 'demo',
+        type: 'member',
+      },
+    ]);
+  });
+
+  it('starts a fresh member row on a rejoin under the same name', () => {
+    joinBoth();
+    post('web', 'one');
+    store().readUnseen({ as: 'api', room: 'demo' });
+    store().assignRole({ by: 'human', member: 'api', role: 'reviewer', room: 'demo' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    scratch.clock.advance(minutes(30));
+    store().clearStale();
+
+    const result = store().joinRoom({ as: 'api', kind: 'codex', room: 'demo' });
+
+    expect(result).toMatchObject({ change: 'joined', ok: true });
+    expect(memberOf('demo', 'api')).toMatchObject({
+      cursor: 0,
+      joined_at: new Date(T0 + minutes(30)).toISOString(),
+      kind: 'codex',
+      role: 'unassigned',
+    });
+  });
+
+  it('keeps only the live members of a standing room after many agents left', () => {
+    store().createRoom({ created_by: 'human', name: 'lobby' });
+    Array.from({ length: 35 }, (_, n) => `agent-${n}`).forEach(as => {
+      store().joinRoom({ as, kind: 'claude', room: 'lobby' });
+      store().leaveRoom({ as, room: 'lobby' });
+    });
+    scratch.clock.advance(minutes(30));
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'lobby' });
+
+    expect(store().clearStale()).toHaveLength(35);
+    expect(names('lobby')).toStrictEqual(['api', 'human']);
+  });
+});

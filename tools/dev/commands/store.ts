@@ -16,7 +16,7 @@ const ROOM = 'demo';
 
 const outcome = (result: { ok: boolean; reason?: string }) => (result.ok ? 'ok' : `refused: ${result.reason}`);
 
-/** Runs join, post, read and leave on a fresh store in `dataDir` with a fake clock, then prints its tables. */
+/** Runs join, post, read, leave and the sweeps on a fresh store in `dataDir` with a fake clock, then prints its tables. */
 export function scriptedRun({ dataDir }: { dataDir: string }) {
   if (existsSync(path.join(dataDir, DB_FILE))) {
     return { code: 1, report: bad(`${dataDir} already has a ${DB_FILE}, pick an empty dir`) };
@@ -33,6 +33,9 @@ export function scriptedRun({ dataDir }: { dataDir: string }) {
     tick(30_000);
   };
   try {
+    step('join demo as ios (other)', outcome(store.joinRoom({ as: 'ios', kind: 'other', room: ROOM })));
+    step('leave as ios', outcome(store.leaveRoom({ as: 'ios', room: ROOM })));
+    tick(30 * 60_000);
     step('join demo as api (claude)', outcome(store.joinRoom({ as: 'api', kind: 'claude', room: ROOM })));
     step('join demo as web (codex)', outcome(store.joinRoom({ as: 'web', kind: 'codex', room: ROOM })));
     step('join demo as api again', outcome(store.joinRoom({ as: 'api', kind: 'other', room: ROOM })));
@@ -45,6 +48,8 @@ export function scriptedRun({ dataDir }: { dataDir: string }) {
     tick(3 * 60_000);
     const swept = store.sweepPresence().map(change => `${change.name} ${change.from} to ${change.to}`);
     step('sweep presence after 3 min', swept.join(', ') || 'no change');
+    const dropped = store.clearStale().map(({ name }) => `${name} dropped out`);
+    step('clear stale members', dropped.join(', ') || 'none');
   } finally {
     db.close();
   }

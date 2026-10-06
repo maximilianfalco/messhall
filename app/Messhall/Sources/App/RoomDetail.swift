@@ -28,8 +28,11 @@ struct RoomDetail: View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       RoomHeader(room: room, subtitle: subtitle)
-      MemberStrip(live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil)
-        .id(room.name)
+      MemberStrip(
+        live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil,
+        setRole: room.isOpen ? { setRole($0, member: $1) } : nil
+      )
+      .id(room.name)
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
@@ -95,6 +98,10 @@ struct RoomDetail: View {
 
   private func change(_ action: RoomAction) {
     Task { refusal = await store.change(action, via: client) }
+  }
+
+  private func setRole(_ role: String, member: String) {
+    Task { refusal = await store.setRole(role, member: member, room: room.name, via: client) }
   }
 }
 
@@ -205,6 +212,7 @@ struct MemberStrip: View {
   let live: [Member]
   let away: [Member]
   let mention: ((String) -> Void)?
+  let setRole: ((_ role: String, _ member: String) -> Void)?
   @State private var showsAway = Self.startsOpen
 
   #if DEBUG
@@ -227,7 +235,20 @@ struct MemberStrip: View {
     }
   }
 
-  @ViewBuilder private func chip(_ member: Member) -> some View {
+  private func chip(_ member: Member) -> some View {
+    mentionable(member)
+      .contextMenu {
+        if let setRole, !member.roleChoices.isEmpty {
+          Menu("Role") {
+            ForEach(member.roleChoices, id: \.self) { role in
+              Button(role.capitalized) { setRole(role, member.name) }
+            }
+          }
+        }
+      }
+  }
+
+  @ViewBuilder private func mentionable(_ member: Member) -> some View {
     if let mention, member.kind != .human, member.presence != .left {
       Button { mention(member.name) } label: { MemberChip(member: member) }
         .buttonStyle(.plain)

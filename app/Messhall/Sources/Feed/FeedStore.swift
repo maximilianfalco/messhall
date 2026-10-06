@@ -88,6 +88,12 @@ public final class FeedStore {
     apply(.message(MessageEvent(room: room, message: message)))
   }
 
+  /// Shows a role the human just set, and its line, before their events come back.
+  func add(_ result: HumanRoleResult, to room: String) {
+    apply(.member(MemberEvent(room: room, change: .role, member: result.member)))
+    add(result.message, to: room)
+  }
+
   /// Shows a room the human just made, closed or reopened, before its event comes back.
   func add(_ room: Room) {
     apply(.room(RoomEvent(change: .topic, room: room)))
@@ -104,6 +110,7 @@ public final class FeedStore {
     case .member(let e):
       update(e.room) { room in
         room.members.removeAll { $0.name == e.member.name }
+        guard e.change != .removed else { return }
         room.members.append(e.member)
         room.members.sort { $0.name < $1.name }
       }

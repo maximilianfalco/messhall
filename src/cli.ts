@@ -9,6 +9,7 @@ import { registerInstall } from './cli/install.js';
 import { registerLogs } from './cli/logs.js';
 import { registerMcp } from './cli/mcp.js';
 import { registerPost } from './cli/post.js';
+import { registerRole } from './cli/role.js';
 import { registerRoom } from './cli/room.js';
 import { registerSay } from './cli/say.js';
 import { registerSearch } from './cli/search.js';
@@ -32,6 +33,7 @@ const program = new Command()
   registerLogs,
   registerSay,
   registerRoom,
+  registerRole,
   registerPost,
   registerWatch,
   registerExport,

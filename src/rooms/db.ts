@@ -108,6 +108,11 @@ export const MIGRATIONS = [
   ALTER TABLE members ADD COLUMN role_instructions TEXT;
   ALTER TABLE members ADD COLUMN role_set_by TEXT;
   `,
+  // When a member went gone, so it drops out 30 minutes later. Members already gone count from their last call.
+  `
+  ALTER TABLE members ADD COLUMN gone_at TEXT;
+  UPDATE members SET gone_at = last_seen_at WHERE presence = 'gone';
+  `,
   // Rooms no longer close at a post count. Stored room events lose the field too, so replay matches the contract.
   `
   ALTER TABLE rooms DROP COLUMN message_cap;
