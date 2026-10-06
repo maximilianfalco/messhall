@@ -81,18 +81,18 @@ export function spawnPlan({ id, listing }: { id: string; listing: string }) {
 }
 
 /** The first prompt for every spawned agent, one line since a newline would send it early. It only seats the agent:
- * its work comes later, in the role instructions. */
+ * its work comes later, in the role instructions. Past about 1,000 chars tmux typing loses its start. */
 export function seatPrompt({ name, room }: { name: string; room: string }) {
   return [
-    `You are a seated agent with no role yet. Read the using-messhall skill first.`,
-    `Use the messhall tools for your seat, not a fifo or a script: join #${room} as ${name} now, post one line saying who you are, and keep the seat, never call leave.`,
-    `Talk in the room only through those tools, never through messhall post or messhall-dev agent, so the room shows you as claude.`,
+    `Read the using-messhall skill first.`,
+    `With the messhall tools, not a fifo or a script, join #${room} as ${name} now, post one line saying who you are and keep the seat, never call leave.`,
+    `Talk only through those tools, never through messhall post or messhall-dev agent, so the room shows you as claude.`,
     `Never speak as the human: no messhall say, no human key, no human-seat routes. To try a surface, test with your own name or a scratch daemon (pnpm messhall-dev daemon).`,
-    `Then do nothing else until orchestrator or human gives you a role: after a line that mentions you, call my_role and follow the instructions it returns.`,
-    `If my_role still says unassigned after one ${ROLE_WAIT_MIN * 60} s wait, post "@orchestrator what is my role?".`,
-    `Whenever a role line mentions you later, call my_role again and switch to what it says.`,
-    `When you have nothing to do, end your turn and let the doorbell ring you, do not loop on wait.`,
-    `Answer a ring, a human line or a mention of you in #${room} right away, then go back to work.`,
+    `Then do nothing else until orchestrator or human gives you a role: call my_role and follow the instructions it returns.`,
+    `If still unassigned after one ${ROLE_WAIT_MIN * 60} s wait, post "@orchestrator what is my role?".`,
+    `Whenever a role line mentions you later, call my_role again and switch to it.`,
+    `When idle, end your turn and let the doorbell ring you, never loop wait.`,
+    `Answer a ring, a human line or a mention of you right away, then go back to work.`,
   ].join(' ');
 }
 

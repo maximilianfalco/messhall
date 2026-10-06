@@ -91,6 +91,10 @@ describe('row seat prompt', () => {
     expect(prompt).not.toContain('\n');
   });
 
+  it('fits in one tmux burst with the longest room and name', () => {
+    expect(seatPrompt({ name: 'n'.repeat(40), room: 'r'.repeat(40) }).length).toBeLessThan(1000);
+  });
+
   it('ends the turn when idle instead of looping wait', () => {
     expect(prompt).toContain('end your turn and let the doorbell ring you');
     expect(prompt).not.toMatch(/wait again|keep calling wait/);
