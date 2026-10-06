@@ -49,7 +49,9 @@ export const waitInputSchema = z.object({
     .int()
     .positive()
     .optional()
-    .describe(`Seconds to wait before giving up. Default 100, at most ${WAIT_MAX_S}.`),
+    .describe(
+      `Seconds to wait before giving up. Default 100, at most ${WAIT_MAX_S}, less for clients with a short tool timeout.`,
+    ),
 });
 
 export const listMembersInputSchema = z.object({

@@ -89,6 +89,12 @@ describe('agentRun', () => {
     expect(text).toContain('api → @web] @web total is cents now');
   });
 
+  it('sends the client name it was given at initialize', async () => {
+    await agentRun({ client: 'claude-code', keyFile: keyFile(), role: 'api', room: 'checkout', url: daemon.url });
+
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toMatch(/api +claude /);
+  });
+
   it('says how to start the daemon when nothing answers', async () => {
     const result = await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', url: 'http://127.0.0.1:1' });
 
