@@ -6,11 +6,20 @@ import { AWAY_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
 // The lookbehind keeps emails like a@b.com from reading as a mention.
 const MENTION = /(?<![\w.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])/g;
 
+function splitMentions({ names, text }: { names: string[]; text: string }) {
+  const known = new Set([...names, ALL_MENTION]);
+  const found = Array.from(new Set(Array.from(text.matchAll(MENTION), match => match[1]!)));
+  return { known: found.filter(name => known.has(name)), missing: found.filter(name => !known.has(name)) };
+}
+
 /** Names mentioned with `@` that are in `names`, plus `all`, in first-seen order. */
 export function parseMentions({ names, text }: { names: string[]; text: string }) {
-  const known = new Set([...names, ALL_MENTION]);
-  const found = Array.from(text.matchAll(MENTION), match => match[1]!).filter(name => known.has(name));
-  return Array.from(new Set(found));
+  return splitMentions({ names, text }).known;
+}
+
+/** Names mentioned with `@` that are not in `names`, so nobody gets rung for them. */
+export function missingMentions({ names, text }: { names: string[]; text: string }) {
+  return splitMentions({ names, text }).missing;
 }
 
 /** True for a member that counts as an agent: not the human seat and not an observer. */

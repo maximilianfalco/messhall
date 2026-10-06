@@ -2,7 +2,14 @@ import type { Member, Message } from '../../contracts/room.ts';
 
 import { describe, expect, it } from 'vitest';
 
-import { canAssignRole, concerns, loopPair, nextPresence, parseMentions } from '../../src/rooms/rules.js';
+import {
+  canAssignRole,
+  concerns,
+  loopPair,
+  missingMentions,
+  nextPresence,
+  parseMentions,
+} from '../../src/rooms/rules.js';
 
 const T0 = '2026-01-01T10:00:00.000Z';
 const minutes = (count: number) => new Date(Date.parse(T0) + count * 60_000);
@@ -49,6 +56,19 @@ describe('parseMentions', () => {
     ['@WEB is not a name', []],
   ])('reads %j as %j', (text, expected) => {
     expect(parseMentions({ names: ['api', 'web', 'human'], text })).toStrictEqual(expected);
+  });
+});
+
+describe('missingMentions', () => {
+  it.each([
+    ['@web the schema moved', []],
+    ['@web and @ghost, look', ['ghost']],
+    ['@ghost then @ghost and @mobile', ['ghost', 'mobile']],
+    ['@all wrap up', []],
+    ['mail a@b.com or x@ghost.io', []],
+    ['no mentions here', []],
+  ])('reads %j as %j', (text, expected) => {
+    expect(missingMentions({ names: ['api', 'web', 'human'], text })).toStrictEqual(expected);
   });
 });
 

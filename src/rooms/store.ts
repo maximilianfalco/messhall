@@ -24,7 +24,7 @@ import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
 import { createEventBus } from './events.js';
-import { canAssignRole, isAgent, loopPair, nextPresence, parseMentions } from './rules.js';
+import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -636,8 +636,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     },
 
     /**
-     * Posts as a member. Mentions are read against current members. Closes the room when every agent is done
-     * unless the room is standing. Only the human can post into a closed room, and that reopens it.
+     * Posts as a member. Mentions are read against current members, and `missing` names the ones not here.
+     * Closes the room when every agent is done unless the room is standing. Only the human can post into a closed
+     * room, and that reopens it.
      */
     postMessage({
       done = false,
@@ -670,7 +671,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (human) sql.unpauseAll.run(room.id);
         else guardLoop(room, emit);
         if (kind === 'done') closeIfAllDone(room, emit);
-        return { message, ok: true } as const;
+        return { message, missing: missingMentions({ names, text }), ok: true } as const;
       });
     },
 
