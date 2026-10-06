@@ -206,6 +206,16 @@ public enum BusEvent: Decodable, Equatable, Sendable {
 
   private enum TypeKey: String, CodingKey { case type }
 
+  /// The room name the event belongs to.
+  public var room: String {
+    switch self {
+    case .message(let e): e.room
+    case .member(let e): e.room
+    case .presence(let e): e.room
+    case .room(let e): e.room.name
+    }
+  }
+
   public var type: String {
     switch self {
     case .message: "message"
