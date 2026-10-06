@@ -62,6 +62,7 @@ describe('seedShotRooms', () => {
       ['checkout', true, 'qa', false],
       ['docs-sync', true, 'writer', false],
       ['handoff', true, 'api', false],
+      ['kickoff', true, 'human', true],
       ['release-notes', true, 'human', true],
     ]);
     expect(
@@ -77,9 +78,26 @@ describe('seedShotRooms', () => {
       page.ok && page.messages.filter(message => message.from === 'ci').map(message => message.from_client_label),
     ).toStrictEqual(['script']);
     expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
+    expect(docs.ok && docs.messages.findIndex(message => message.from === 'human')).toBe(7);
   });
 
-  it('leaves runs of joins and leaves between posts in the handoff room, the newest one short', () => {
+  it('leaves a human-made room with no agents and no posts', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+
+    seedShotRooms({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => now });
+    const members = store.listMembers('kickoff').map(member => member.name);
+    const page = store.listMessages({ limit: 50, room: 'kickoff' });
+    db.close();
+
+    expect(members).toStrictEqual(['human']);
+    expect(page.ok && page.messages).toStrictEqual([]);
+  });
+
+  it('leaves runs of joins and leaves between posts in the handoff room, with a human line between two runs', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');
 
@@ -90,7 +108,7 @@ describe('seedShotRooms', () => {
     db.close();
 
     expect(page.ok && page.messages.map(message => message.kind).join(' ')).toBe(
-      'system system system chat chat system system system system chat system system',
+      'system system system chat chat system system chat system system chat system system',
     );
   });
 });
