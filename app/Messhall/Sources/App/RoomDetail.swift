@@ -9,6 +9,14 @@ struct RoomDetail: View {
   @State private var confirmingClose = false
   @State private var refusal: String?
   @State private var query = ""
+  @State private var draft = Self.startDraft
+  @FocusState private var composing: Bool
+
+  #if DEBUG
+    private static let startDraft = ShotHooks.draft ?? ""
+  #else
+    private static let startDraft = ""
+  #endif
 
   private var subtitle: String {
     let posts = "\(room.messageCount) of \(room.messageCap) posts"
@@ -20,7 +28,7 @@ struct RoomDetail: View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       RoomHeader(room: room, subtitle: subtitle)
-      MemberStrip(members: room.present)
+      MemberStrip(members: room.present, mention: room.isOpen ? { mention($0) } : nil)
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
@@ -28,7 +36,7 @@ struct RoomDetail: View {
         .id(room.name)
       Divider()
       if room.isOpen {
-        PostBox(room: room, store: store, client: client)
+        PostBox(room: room, store: store, client: client, text: $draft, focused: $composing)
       } else {
         ClosedBar(reopen: { change(.reopen(room.name)) })
       }
@@ -64,6 +72,11 @@ struct RoomDetail: View {
     } message: {
       Text(refusal ?? "")
     }
+  }
+
+  private func mention(_ name: String) {
+    draft = appendMention(name, to: draft)
+    composing = true
   }
 
   // A filter reads only the loaded lines, so it never pages.
@@ -189,6 +202,7 @@ struct ReconnectBanner: View {
 
 struct MemberStrip: View {
   let members: [Member]
+  let mention: ((String) -> Void)?
 
   private var ordered: [Member] {
     members.filter { $0.kind != .human } + members.filter { $0.kind == .human }
@@ -197,7 +211,15 @@ struct MemberStrip: View {
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
-        ForEach(ordered, id: \.name) { MemberChip(member: $0) }
+        ForEach(ordered, id: \.name) { member in
+          if let mention, member.kind != .human {
+            Button { mention(member.name) } label: { MemberChip(member: member) }
+              .buttonStyle(.plain)
+              .accessibilityHint("Mentions \(member.name) in your message")
+          } else {
+            MemberChip(member: member)
+          }
+        }
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 10)
@@ -659,7 +681,7 @@ struct ChatRow: View {
             .foregroundStyle(.secondary)
         }
         .foregroundStyle(line.mine ? Color.accentColor : .primary)
-        Text(line.text)
+        Text(mentionText(message))
           .multilineTextAlignment(line.mine ? .trailing : .leading)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
@@ -678,11 +700,21 @@ struct PostBox: View {
   let room: SnapshotRoom
   let store: FeedStore
   let client: FeedClient
-  @State private var text = ""
+  @Binding var text: String
+  var focused: FocusState<Bool>.Binding
   @State private var sending = false
   @State private var refusal: String?
+  @State private var highlight: String?
+  @State private var dismissedOn: String?
 
   private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+  private var candidates: [String] {
+    guard text != dismissedOn, let query = mentionQuery(in: text) else { return [] }
+    return Array(mentionCandidates(query: query, members: room.members).prefix(6))
+  }
+
+  private var selected: String? { pickedMention(highlight, in: candidates) }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
@@ -690,7 +722,16 @@ struct PostBox: View {
         TextField("Message #\(room.name) as human", text: $text, axis: .vertical)
         .textFieldStyle(.plain)
         .lineLimit(1...6)
-        .onSubmit(send)
+        .focused(focused)
+        .onSubmit(submit)
+        .onKeyPress(.downArrow) { move(by: 1) }
+        .onKeyPress(.upArrow) { move(by: -1) }
+        .onKeyPress(.tab) { complete() }
+        .onKeyPress(.escape) {
+          guard !candidates.isEmpty else { return .ignored }
+          dismissedOn = text
+          return .handled
+        }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -712,6 +753,37 @@ struct PostBox: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
+    .overlay(alignment: .topLeading) {
+      if !candidates.isEmpty {
+        MentionPicker(names: candidates, selected: selected, members: room.members, pick: pick)
+          .padding(.leading, 16)
+          .padding(.bottom, 4)
+          .frame(height: 0, alignment: .bottomLeading)
+      }
+    }
+  }
+
+  // Return picks the name while the list is up, so a half typed mention is never sent.
+  private func submit() {
+    if complete() == .ignored { send() }
+  }
+
+  @discardableResult private func complete() -> KeyPress.Result {
+    guard let selected else { return .ignored }
+    pick(selected)
+    return .handled
+  }
+
+  private func move(by step: Int) -> KeyPress.Result {
+    guard let selected, let next = steppedMention(from: selected, by: step, in: candidates) else { return .ignored }
+    highlight = next
+    return .handled
+  }
+
+  private func pick(_ name: String) {
+    text = completeMention(name, in: text)
+    highlight = nil
+    focused.wrappedValue = true
   }
 
   private func send() {

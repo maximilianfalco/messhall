@@ -52,6 +52,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       if let file = UserDefaults.standard.string(forKey: "shotSheet") {
         Task { await ShotHooks.saveSheet(to: file) }
       }
+      if let keys = UserDefaults.standard.string(forKey: "shotKeys"),
+        let file = UserDefaults.standard.string(forKey: "shotKeysOut")
+      {
+        Task { await ShotHooks.pressKeys(keys, logTo: file) }
+      }
       if let file = UserDefaults.standard.string(forKey: "shotSettings") {
         Task { await ShotHooks.openSettings(numberInto: file) }
       }

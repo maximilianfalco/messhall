@@ -1,7 +1,6 @@
 import Foundation
 
 let systemName = "messhall"
-let allMention = "all"
 // Matches the daemon's 80 percent line, "#room is at 160/200, wrap up".
 let capWarningSuffix = ", wrap up"
 // Matches the daemon's line when the human closes a room, so your own close stays quiet.
