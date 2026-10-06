@@ -1,7 +1,7 @@
 import type { Client } from '@modelcontextprotocol/client';
 import type { Command } from 'commander';
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { daemonUrl, dataDir } from '../../../src/config.js';
@@ -24,6 +24,7 @@ interface AgentOptions {
   catchUp?: boolean;
   client?: string;
   follow?: boolean;
+  instructions?: string;
   keyFile: string;
   pause?: (ms: number, signal: AbortSignal) => Promise<void>;
   postFifo?: string;
@@ -74,12 +75,19 @@ async function joinAndRead(
 /** Joins, posts `say` if given, sets `member`'s role, then leaves even after a refusal. */
 async function joinAssignLeave(
   client: Client,
-  { member, role, room, say, value }: { member: string; role: string; room: string; say?: string; value: string },
+  {
+    instructions,
+    member,
+    role,
+    room,
+    say,
+    value,
+  }: { instructions?: string; member: string; role: string; room: string; say?: string; value: string },
 ) {
   const joined = await callTool(client, 'join', { as: role, room });
   if (joined.isError) return [joined];
   const posted = say ? [await callTool(client, 'post', { room, text: say })] : [];
-  const assigned = await callTool(client, 'assign_role', { member, role: value, room });
+  const assigned = await callTool(client, 'assign_role', { instructions, member, role: value, room });
   return [joined, ...posted, assigned, await callTool(client, 'leave', { room })];
 }
 
@@ -130,6 +138,7 @@ async function joinAndFollow(
  */
 export async function agentRun({
   assign,
+  instructions: instructionsFile,
   catchUp,
   client,
   follow: following,
@@ -147,6 +156,11 @@ export async function agentRun({
 }: AgentOptions) {
   const [member, value] = assign?.split('=') ?? [];
   if (assign !== undefined && !(member && value)) return { code: 1, report: bad('--assign takes <member>=<role>') };
+  if (instructionsFile && !assign) return { code: 1, report: bad('--instructions goes with --assign') };
+  if (instructionsFile && !existsSync(instructionsFile)) {
+    return { code: 1, report: bad(`no instructions file at ${instructionsFile}`) };
+  }
+  const instructions = instructionsFile ? readFileSync(instructionsFile, 'utf8').trim() : undefined;
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
@@ -155,7 +169,7 @@ export async function agentRun({
     following
       ? joinAndFollow(mcp, { open: () => openAgentSession(target), pause, postFifo, role, room, signal, write })
       : member && value
-        ? joinAssignLeave(mcp, { member, role, room, say, value })
+        ? joinAssignLeave(mcp, { instructions, member, role, room, say, value })
         : wait || catchUp
           ? joinAndRead(mcp, { catchUp, role, room, say, timeout })
           : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
@@ -180,7 +194,7 @@ export async function agentRun({
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--assign <member=role>] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
@@ -188,6 +202,7 @@ export function registerAgent(program: Command) {
     .requiredOption('--room <room>', 'room to join')
     .option('--say <text>', 'post this after joining')
     .option('--assign <member=role>', "set a member's role after the post, as the orchestrator does")
+    .option('--instructions <file>', 'with --assign, send this file as the role instructions')
     .option('--wait', 'block until something concerns this agent, then read')
     .option('--catch-up', 'read the backlog and leave without waiting')
     .option(

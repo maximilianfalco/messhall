@@ -1,13 +1,9 @@
-import path from 'node:path';
-
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 
 import { claudeArgv } from './claudeTmux.js';
-import { REPO_ROOT } from './paths.js';
 
 export const SPAWN_SESSION_PREFIX = 'messhall-';
 export const SEAT_SESSION_PREFIX = `${SPAWN_SESSION_PREFIX}seat-`;
-export const AGENT_BRIEF = path.join(REPO_ROOT, 'tools/dev/briefs/agent.md');
 export const ROLE_WAIT_MIN = 2;
 // A build agent works alone, so it gets the usual tools, not the demo's short list.
 export const SPAWN_ALLOWED_TOOLS = [
@@ -78,14 +74,15 @@ export function spawnPlan({ id, listing }: { id: string; listing: string }) {
   return { ok: true, row, session: sessionName(row.id), slug: branchSlug(row.branch) } as const;
 }
 
-// Every seated agent joins, says hello and waits for the orchestrator or the human to give it a role.
-function seatLines({ name, room, until = '' }: { name: string; room: string; until?: string }) {
+// Every seated agent joins, says hello and waits for a role. What a role means lives in its instructions, not here.
+function seatLines({ name, room, until }: { name: string; room: string; until: string }) {
   return [
     `Read the using-messhall skill first.`,
     `Use the messhall tools for your seat, not a fifo or a script: join #${room} as ${name} now, post one line saying who you are, and keep the seat, never call leave${until}.`,
-    `Then do nothing else until orchestrator or human posts "@${name} your role: ...", and check it with list_members (assign_role sets it there).`,
-    `If no role comes in ${ROLE_WAIT_MIN} minutes, post "@orchestrator what is my role?" and wait again.`,
-    `${AGENT_BRIEF} says what each role does.`,
+    `Then do nothing else until orchestrator or human gives you a role: after a line that mentions you, call my_role and follow the instructions it returns.`,
+    `If my_role still says unassigned after ${ROLE_WAIT_MIN} minutes, post "@orchestrator what is my role?" and wait again.`,
+    `Whenever a role line mentions you later, call my_role again and switch to what it says.`,
+    `Answer a ring, a human line or a mention of you in #${room} right away, then go back to work.`,
   ];
 }
 
@@ -94,44 +91,26 @@ export function spawnPrompt({
   branch,
   brief,
   id,
-  reviewers,
   room,
   worktree,
 }: {
   branch: string;
   brief?: string;
   id: string;
-  reviewers: string[];
   room: string;
   worktree: string;
 }) {
-  const slug = branchSlug(branch);
-  const start = brief
-    ? `Read ${brief} first and follow it. Your job is row ${id} of the job queue, branch ${branch}.`
-    : `Run /messhall-pickup-any-work ${id}, branch ${branch}.`;
-  const first = reviewers[0];
+  const guide = brief ? `its brief is ${brief}` : `/messhall-pickup-any-work ${id} covers how to work it`;
   return [
-    ...seatLines({ name: slug, room, until: ' until the row is closed' }),
-    `Once your role is worker: ${start}`,
-    `The row is already claimed for you and your worktree is ${worktree}, so skip the claim and worktree steps.`,
-    `Post one short line in #${room} at each point: claimed, tests green, PR open (with the url), CI result, merged.`,
-    `Review gate, which beats any merge step in the brief or skill: do not merge on green CI. Once CI is green post "ready for review: <PR url> @${first}" and call wait.`,
-    `Fix each finding, push, post "round N: <PR url> @${first}" (N from 2) and wait again.`,
-    `merge only after "approved @${slug} <PR url>" from ${reviewers.join(' or ')} or a human line that says go.`,
-    `If a reviewer posts "@human stuck", stop and wait for the human. A PR that touches a CRITICAL.md tree still waits for the human.`,
-    `When the channel rings you, or a human line or a mention of you lands, read it and answer in #${room} right away, then go back to work.`,
-    `When the row is closed, post with done: true and the PR url.`,
+    ...seatLines({ name: branchSlug(branch), room, until: ' until your work is finished' }),
+    `Context for your role: you were spawned for row ${id} of the job queue, branch ${branch}.`,
+    `It is already claimed and your worktree is ${worktree}, so skip the claim and worktree steps, and ${guide}.`,
   ].join(' ');
 }
 
 /** The first prompt for a seat with no queue row, one line. Its role, and so its work, comes later. */
-export function seatPrompt({ name, room, rubric }: { name: string; room: string; rubric?: string }) {
-  return [
-    `You are a seated agent with no job yet.`,
-    ...seatLines({ name, room }),
-    ...(rubric ? [`when you review, also use the rubric in ${rubric}.`] : []),
-    `Answer a ring, a human line or a mention of you right away.`,
-  ].join(' ');
+export function seatPrompt({ name, room }: { name: string; room: string }) {
+  return [`You are a seated agent with no job yet.`, ...seatLines({ name, room, until: '' })].join(' ');
 }
 
 /** The shared claude argv with the normal tool set and `--model`. */
