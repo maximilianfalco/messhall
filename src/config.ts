@@ -87,6 +87,8 @@ export const HEALTH_TIMEOUT_MS = 1000;
 export const RING_BATCH_MS = 3000;
 export const RING_THROTTLE_MS = 20_000;
 export const RING_ACTIVE_HOLD_MS = 5000;
+// Two agents trading this many lines alone pause their doorbells until the human posts.
+export const LOOP_GUARD_LINES = 12;
 export const CODEX_REQUEST_TIMEOUT_MS = 5000;
 export const CODEX_RECONNECT_MIN_MS = 500;
 export const CODEX_RECONNECT_MAX_MS = 30_000;

@@ -199,6 +199,7 @@ describe('postMessage', () => {
     expect(texts('demo').filter(line => line.startsWith('messhall:'))).toStrictEqual([
       'messhall: api joined',
       'messhall: web joined',
+      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
     ]);
     expect(post('api', 'one more').kind).toBe('chat');
   });
@@ -976,5 +977,57 @@ describe('clearing stale members', () => {
 
     expect(store().clearStale()).toHaveLength(35);
     expect(names('lobby')).toStrictEqual(['api', 'human']);
+  });
+});
+
+describe('the loop guard', () => {
+  const trade = (count: number) =>
+    Array.from({ length: count }, (_, index) => post(index % 2 ? 'web' : 'api', `line ${index + 1}`));
+  const loopLines = () => texts('demo').filter(line => line.includes('traded'));
+
+  it('pauses two agents after 12 lines alone and asks the human in one line', () => {
+    joinBoth();
+
+    trade(11);
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(1);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toStrictEqual([
+      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
+    ]);
+    expect(store().listMessages({ limit: 1, room: 'demo' }).messages?.[0]?.mentions).toStrictEqual(['human']);
+  });
+
+  it('says it once while the pair stays paused', () => {
+    joinBoth();
+
+    trade(30);
+
+    expect(loopLines()).toHaveLength(1);
+  });
+
+  it('restarts the run when a third agent speaks', () => {
+    joinBoth();
+    store().joinRoom({ as: 'infra', kind: 'claude', room: 'demo' });
+
+    trade(6);
+    post('infra', 'hi both');
+    trade(6);
+
+    expect(store().pausedWith('demo')).toStrictEqual({});
+    expect(loopLines()).toStrictEqual([]);
+  });
+
+  it('lifts the pause when the human posts, and pauses again after 12 more', () => {
+    joinBoth();
+    trade(12);
+
+    post('human', 'stop and sum up');
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(12);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toHaveLength(2);
   });
 });

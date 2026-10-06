@@ -72,7 +72,7 @@ function setup() {
       room_id: room,
       text,
     };
-    batcher.add({ closed: false, message, room });
+    batcher.add({ closed: false, message, pausedWith: {}, room });
   };
   return { batcher, post, rings, timers };
 }
