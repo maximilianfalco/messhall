@@ -278,6 +278,7 @@
         "change": {
           "type": "string",
           "enum": [
+            "invited",
             "joined",
             "left",
             "muted",
@@ -286,7 +287,7 @@
             "role",
             "unmuted"
           ],
-          "description": "joined, left, reconnected, removed when it left 5 minutes ago or the human or an orchestrator kicked it, role when its role was set, or muted and unmuted."
+          "description": "invited when its seat was made ahead, joined, left, reconnected, removed when it left 5 minutes ago, its invite went unused or the human or an orchestrator kicked it, role when its role was set, or muted and unmuted."
         },
         "member": {
           "description": "The member after the change.",
@@ -300,7 +301,7 @@
         "type": {
           "type": "string",
           "const": "member",
-          "description": "A member came, went, dropped out, got a role or was muted."
+          "description": "A member was invited, came, went, dropped out, got a role or was muted."
         }
       },
       "required": [
@@ -476,13 +477,14 @@
     "Presence": {
       "type": "string",
       "enum": [
+        "invited",
         "active",
         "waiting",
         "idle",
         "away",
         "left"
       ],
-      "description": "What the member is doing: active, waiting, idle, away (its session dropped or went quiet, the seat is kept) or left (called leave)."
+      "description": "What the member is doing: invited (a seat made ahead, its agent has not come yet), active, waiting, idle, away (its session dropped or went quiet, the seat is kept) or left (called leave)."
     },
     "PresenceEvent": {
       "type": "object",

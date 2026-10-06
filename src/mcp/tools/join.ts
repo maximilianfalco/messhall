@@ -94,7 +94,11 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       const holderDead = holders.every(entry => entry.session.dead());
       // Codex sends no seat header, so its thread id is its seat key.
       const seat = session.seat ?? input.thread_id;
-      const joined = store.joinRoom({ as, client, holderDead, kind, room: input.room, seatKey: seat });
+      const { invite, room } = input;
+      const joined = store.joinRoom({ as, client, holderDead, invite, kind, room, seatKey: seat });
+      if (!joined.ok && joined.reason === 'no_invite') {
+        return refuse(`no invite for ${as} in #${room}. check the name and the invite, or join without one.`);
+      }
       if (!joined.ok && joined.reason === 'name_reserved') {
         return refuse(`${RESERVED_NAMES.join(', ')} are reserved. pick another name.`);
       }
