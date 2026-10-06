@@ -95,6 +95,19 @@ describe('spawnPrompt', () => {
     const prompt = spawnPrompt(base);
     expect(prompt).not.toMatch(/ready for review|approved|merge|reviewer/i);
   });
+
+  it('lets the agent close its own row', () => {
+    expect(spawnPrompt(base)).toContain('you may run queue.py done B82 yourself');
+  });
+
+  it.each([spawnPrompt(base), seatPrompt({ name: 'web', room: 'dev' })])(
+    'keeps the agent off the human seat and off scripted clients',
+    prompt => {
+      expect(prompt).toContain('Never speak as the human: no messhall say, no human key, no human-seat routes.');
+      expect(prompt).toContain('test with your own name or a scratch daemon (pnpm messhall-dev daemon)');
+      expect(prompt).toContain('never through messhall post or messhall-dev agent');
+    },
+  );
 });
 
 describe('seatPrompt', () => {
@@ -113,8 +126,10 @@ describe('seatPrompt', () => {
 describe('spawnArgv', () => {
   it('is the shared claude argv with the normal tools and the model', () => {
     const files = { debugFile: '/d.log', mcpConfig: '/m.json' };
-    expect(spawnArgv({ ...files, model: 'opus' })).toStrictEqual([
+    expect(spawnArgv({ ...files, mainCheckout: '/repo', model: 'opus' })).toStrictEqual([
       ...claudeArgv({ ...files, allowedTools: SPAWN_ALLOWED_TOOLS }),
+      '--add-dir',
+      '/repo',
       '--model',
       'opus',
     ]);

@@ -79,6 +79,8 @@ function seatLines({ name, room, until }: { name: string; room: string; until: s
   return [
     `Read the using-messhall skill first.`,
     `Use the messhall tools for your seat, not a fifo or a script: join #${room} as ${name} now, post one line saying who you are, and keep the seat, never call leave${until}.`,
+    `Talk in the room only through those tools, never through messhall post or messhall-dev agent, so the room shows you as claude.`,
+    `Never speak as the human: no messhall say, no human key, no human-seat routes. To try a surface, test with your own name or a scratch daemon (pnpm messhall-dev daemon).`,
     `Then do nothing else until orchestrator or human gives you a role: after a line that mentions you, call my_role and follow the instructions it returns.`,
     `If my_role still says unassigned after ${ROLE_WAIT_MIN} minutes, post "@orchestrator what is my role?" and wait again.`,
     `Whenever a role line mentions you later, call my_role again and switch to what it says.`,
@@ -105,6 +107,7 @@ export function spawnPrompt({
     ...seatLines({ name: branchSlug(branch), room, until: ' until your work is finished' }),
     `Context for your role: you were spawned for row ${id} of the job queue, branch ${branch}.`,
     `It is already claimed and your worktree is ${worktree}, so skip the claim and worktree steps, and ${guide}.`,
+    `Closing the row is yours: when it is finished, you may run queue.py done ${id} yourself.`,
   ].join(' ');
 }
 
@@ -113,9 +116,25 @@ export function seatPrompt({ name, room }: { name: string; room: string }) {
   return [`You are a seated agent with no job yet.`, ...seatLines({ name, room, until: '' })].join(' ');
 }
 
-/** The shared claude argv with the normal tool set and `--model`. */
-export function spawnArgv({ debugFile, mcpConfig, model }: { debugFile: string; mcpConfig: string; model: string }) {
-  return [...claudeArgv({ allowedTools: SPAWN_ALLOWED_TOOLS, debugFile, mcpConfig }), '--model', model];
+/** The shared claude argv with the normal tool set and `--model`. `--add-dir` lets it read the main checkout's linked plan without a prompt. */
+export function spawnArgv({
+  debugFile,
+  mainCheckout,
+  mcpConfig,
+  model,
+}: {
+  debugFile: string;
+  mainCheckout: string;
+  mcpConfig: string;
+  model: string;
+}) {
+  return [
+    ...claudeArgv({ allowedTools: SPAWN_ALLOWED_TOOLS, debugFile, mcpConfig }),
+    '--add-dir',
+    mainCheckout,
+    '--model',
+    model,
+  ];
 }
 
 /** Spawn and seat sessions from `tmux list-panes -a -F '#{session_name}\t#{pane_id}\t#{pane_pid}'`, first pane each. */
