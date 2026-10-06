@@ -9,6 +9,7 @@ import { SESSION_DEAD_MS } from '../config.js';
 export function createSession({ id, now, seat }: { id: string; now: () => Date; seat?: string }) {
   const rooms = new Map<string, string>();
   const marks = new Map<string, number>();
+  let called = false;
   let channel = false;
   let kind: AgentKind = 'other';
   let lastSeen = now().getTime();
@@ -54,6 +55,10 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     dead() {
       return open === 0 && now().getTime() - lastSeen >= SESSION_DEAD_MS;
     },
+    /** True once the client made a tool call here. A reconnect opens sessions it never uses. */
+    get called() {
+      return called;
+    },
     /** True when the client takes `notifications/claude/channel`, so the channel ringer can reach it. */
     get channel() {
       return channel;
@@ -72,6 +77,7 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     seat,
     /** Stamps a tool call. */
     seen() {
+      called = true;
       lastSeen = now().getTime();
     },
     get threadId() {

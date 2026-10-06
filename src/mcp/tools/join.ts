@@ -1,4 +1,4 @@
-import type { AgentKind, Message } from '../../../contracts/room.ts';
+import type { Message } from '../../../contracts/room.ts';
 import type { ToolDeps } from './registry.js';
 import type { McpServer, ServerContext } from '@modelcontextprotocol/server';
 
@@ -9,6 +9,7 @@ import { joinInputSchema } from '../../../contracts/mcp.ts';
 import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
 import { clientType, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
 import { memberLabel, roleBlock } from '../render.js';
+import { bindSeat } from '../seats.js';
 
 import { refuse, registerRoomTool, reply } from './registry.js';
 
@@ -25,43 +26,12 @@ export function roleFromFolder(folder: string) {
   return NAME_PATTERN.test(name) ? name : undefined;
 }
 
-/** True when the doorbell can ring this session over the Claude channel. A bridge suffix on the name is fine. */
-export function ringsByChannel({ client, kind }: { client: string | undefined; kind: AgentKind }) {
-  return kind === 'claude' || (client ? clientType(client).channel : false);
-}
-
 // Asks the client for its roots on the call's own stream. Any failure means no default name.
 async function nameFromRoots(server: McpServer, ctx: ServerContext) {
   if (!server.server.getClientCapabilities()?.roots) return;
   const listed = await ctx.mcpReq.send({ method: 'roots/list' }, { timeout: ROOTS_TIMEOUT_MS }).catch(() => null);
   const uri = listed?.roots[0]?.uri;
   return uri?.startsWith('file:') ? roleFromFolder(path.basename(fileURLToPath(uri))) : undefined;
-}
-
-/** Binds a seat the store just gave this session. Any other session holding the name lets go, so only one posts as it. */
-export function bindSeat({
-  client,
-  kind,
-  name,
-  room,
-  session,
-  sessions,
-  store,
-  threadId,
-}: Pick<ToolDeps, 'session' | 'sessions' | 'store'> & {
-  client: { name: string } | undefined;
-  kind: AgentKind;
-  name: string;
-  room: string;
-  threadId?: string;
-}) {
-  sessions
-    .sessionsFor({ name, room })
-    .filter(entry => entry.session !== session)
-    .forEach(entry => entry.session.unbind(room));
-  const newest = store.listMessages({ limit: 1, room });
-  const mark = newest.ok ? (newest.messages.at(-1)?.id ?? 0) : 0;
-  session.bind({ channel: ringsByChannel({ client: client?.name, kind }), kind, mark, name, room, threadId });
 }
 
 const summaryBlock = (summary: Message | undefined) =>

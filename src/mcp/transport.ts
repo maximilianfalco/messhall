@@ -18,9 +18,9 @@ import { sendJson } from '../daemon/router.js';
 import { logger } from '../lib/logger.js';
 
 import { SEAT_HEADER } from './constants.js';
+import { reattachSeats } from './seats.js';
 import { createMesshallServer } from './server.js';
 import { createSession, createSessionRegistry } from './session.js';
-import { bindSeat } from './tools/join.js';
 
 export const MCP_PATH = '/mcp';
 export const MCP_METHODS = ['POST', 'GET', 'DELETE'] as const;
@@ -85,19 +85,6 @@ export function createMcpEndpoint({
     logger.info('mcp session closed', { session: entry.session.id });
   }
 
-  function reattach({ server, session }: McpEntry) {
-    const { seat } = session;
-    if (!seat) return;
-    const client = server.server.getClientVersion();
-    store.seatsOf(seat).forEach(({ kind, name, room }) => {
-      // A child process inherits the key, so a seat whose holder is still live stays with it.
-      if (sessions.sessionsFor({ name, room }).some(entry => !entry.session.dead())) return;
-      if (store.joinRoom({ as: name, client, kind, room, seatKey: seat }).ok) {
-        bindSeat({ client, kind, name, room, session, sessions, store });
-      }
-    });
-  }
-
   async function open(req: IncomingMessage, res: ServerResponse) {
     const body = await readJson(req);
     if (!isInitializeRequest(body)) {
@@ -118,7 +105,7 @@ export function createMcpEndpoint({
       return;
     }
     logger.info('mcp session opened', { session: session.id });
-    reattach(entry);
+    reattachSeats({ server, session, sessions, store });
   }
 
   const handle: Handler = async (req, res) => {
