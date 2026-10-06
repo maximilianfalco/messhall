@@ -8,15 +8,17 @@ import { createServer } from 'node:http';
 import { createClaudeRinger } from '../channels/claude.js';
 import { createCodexClient } from '../codex/client.js';
 import { createCodexRinger } from '../codex/ringer.js';
-import { CLI_VERSION, codexControlSocket, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
+import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringers.js';
 import { feedRoutes } from '../feed/routes.js';
+import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
 import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
+import { startSummaries } from '../rooms/summaries.js';
 
 import { guarded } from './guard.js';
 import { loadKeys } from './keys.js';
@@ -102,6 +104,8 @@ export async function startDaemon({
     createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),
   ]);
   const stopDoorbell = startDoorbell({ now, ringers, store });
+  const claude = claudeBin();
+  const stopSummaries = startSummaries({ claude: options => askClaude({ ...options, bin: claude }), store });
   const startedAt = now().getTime();
 
   // MCP mounts at /mcp and the feed under /api here.
@@ -122,13 +126,21 @@ export async function startDaemon({
   }, sweepEveryMs);
 
   const url = `http://${DAEMON_HOST}:${bound.port}`;
-  logger.info('daemon up', { data_dir: dataDir, pid: process.pid, port: bound.port, url, version: CLI_VERSION });
+  logger.info('daemon up', {
+    claude,
+    data_dir: dataDir,
+    pid: process.pid,
+    port: bound.port,
+    url,
+    version: CLI_VERSION,
+  });
 
   const daemon = {
-    /** Stops the sweep and the doorbell, ends every MCP session, drops open connections and closes the db. */
+    /** Stops the sweep, the doorbell and summaries, ends every MCP session, drops open connections and closes the db. */
     async close() {
       clearInterval(sweep);
       stopDoorbell();
+      stopSummaries();
       codex.close();
       await mcp.close();
       await new Promise<void>(resolve => {

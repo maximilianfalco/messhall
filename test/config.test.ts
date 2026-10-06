@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CLI_VERSION, daemonPort, dataDir, DEFAULT_PORT, launchAgentPath, logDir } from '../src/config.js';
+import { CLI_VERSION, claudeBin, daemonPort, dataDir, DEFAULT_PORT, launchAgentPath, logDir } from '../src/config.js';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -58,5 +58,30 @@ describe('config', () => {
   it('puts the LaunchAgent in the user Library', () => {
     vi.stubEnv('HOME', '/Users/someone');
     expect(launchAgentPath()).toBe('/Users/someone/Library/LaunchAgents/dev.messhall.daemon.plist');
+  });
+
+  it('finds claude on PATH first', () => {
+    vi.stubEnv('PATH', '/usr/bin:/opt/tools/bin');
+    vi.stubEnv('HOME', '/Users/someone');
+    const found = new Set(['/opt/tools/bin/claude', '/Users/someone/.local/bin/claude']);
+
+    expect(claudeBin({ exists: file => found.has(file) })).toBe('/opt/tools/bin/claude');
+  });
+
+  it.each([
+    ['/Users/someone/.local/bin/claude'],
+    ['/opt/homebrew/bin/claude'],
+    ['/Users/someone/.claude/local/claude'],
+  ])('falls back to %s when PATH has no claude, as under launchd', file => {
+    vi.stubEnv('PATH', '/usr/bin:/bin');
+    vi.stubEnv('HOME', '/Users/someone');
+
+    expect(claudeBin({ exists: candidate => candidate === file })).toBe(file);
+  });
+
+  it('gives the bare name when claude is nowhere, so the spawn error names it', () => {
+    vi.stubEnv('PATH', '/usr/bin');
+
+    expect(claudeBin({ exists: () => false })).toBe('claude');
   });
 });

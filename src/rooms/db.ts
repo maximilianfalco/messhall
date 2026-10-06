@@ -46,6 +46,10 @@ export const MIGRATIONS = [
   );
   CREATE INDEX events_created_at ON events (created_at);
   `,
+  // The last post a summary covers, so posts that land while it is written are not skipped.
+  `
+  ALTER TABLE messages ADD COLUMN covers_id INTEGER;
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

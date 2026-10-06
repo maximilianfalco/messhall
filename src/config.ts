@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -53,6 +54,24 @@ export function logDir() {
   return home ? path.join(home, 'logs') : path.join(homedir(), 'Library', 'Logs', 'messhall');
 }
 
+/**
+ * The claude binary: the first on PATH, then the usual install spots, since launchd gives the daemon
+ * a bare PATH. The bare name when none is found, so the spawn error names it.
+ */
+export function claudeBin({ exists = existsSync }: { exists?: (file: string) => boolean } = {}) {
+  const home = homedir();
+  const onPath = (process.env.PATH ?? '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map(dir => path.join(dir, 'claude'));
+  const spots = [
+    path.join(home, '.local', 'bin', 'claude'),
+    '/opt/homebrew/bin/claude',
+    path.join(home, '.claude', 'local', 'claude'),
+  ];
+  return [...onPath, ...spots].find(file => exists(file)) ?? 'claude';
+}
+
 export const DEFAULT_MESSAGE_CAP = 200;
 export const CAP_WARN_RATIO = 0.8;
 export const READ_LIMIT = 50;
@@ -77,3 +96,7 @@ export const FEED_PING_MS = 15_000;
 export const FEED_STALL_MS = 30_000;
 export const FEED_BODY_MAX_BYTES = 64 * 1024;
 export const WATCH_RECONNECT_MS = 1000;
+export const SUMMARY_FIRST_AT = 60;
+export const SUMMARY_EVERY = 40;
+export const SUMMARY_MAX_CHARS = 1200;
+export const SUMMARY_TIMEOUT_MS = 120_000;

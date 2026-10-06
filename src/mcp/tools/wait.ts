@@ -50,7 +50,9 @@ function unseen({ as, room, store }: { as: string; room: string; store: RoomStor
 }
 
 function summary({ as, hit, store }: { as: string; hit: Hit; store: RoomStore }) {
-  const count = unseen({ as, room: hit.room, store }).filter(message => message.kind !== 'system').length;
+  const count = unseen({ as, room: hit.room, store }).filter(
+    message => message.kind === 'chat' || message.kind === 'done',
+  ).length;
   return `${count} new in #${hit.room} (${reasonFor({ as, message: hit.message })}). Call read_since.`;
 }
 
