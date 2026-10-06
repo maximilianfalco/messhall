@@ -52,7 +52,7 @@ public final class FeedStore {
       update(e.room) { room in
         guard !room.messages.contains(where: { $0.id == e.message.id }) else { return }
         room.messages.append(e.message)
-        if e.message.kind != .system { room.messageCount += 1 }
+        if e.message.kind == .chat || e.message.kind == .done { room.messageCount += 1 }
       }
     case .member(let e):
       update(e.room) { room in

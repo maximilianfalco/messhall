@@ -312,9 +312,10 @@
       "enum": [
         "chat",
         "system",
-        "done"
+        "done",
+        "summary"
       ],
-      "description": "chat from a member, system from the daemon, done when a member is finished."
+      "description": "chat from a member, system from the daemon, done when a member is finished, summary of the room so far from the daemon."
     },
     "Presence": {
       "type": "string",

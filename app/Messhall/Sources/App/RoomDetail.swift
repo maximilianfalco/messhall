@@ -143,6 +143,21 @@ struct MessageRow: View {
       }
       .foregroundStyle(.secondary)
       .padding(.vertical, 2)
+    case .summary:
+      Label {
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Summary so far  \(message.time)").font(.caption).foregroundStyle(.secondary)
+          Text(message.text)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      } icon: {
+        Image(systemName: "text.quote").foregroundStyle(.secondary)
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     case .chat:
       ChatRow(message: message)
     }

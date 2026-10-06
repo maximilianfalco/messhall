@@ -368,3 +368,83 @@ describe('listMessages', () => {
     expect(store().listMessages({ limit: 5, room: 'nope' })).toStrictEqual({ ok: false, reason: 'no_room' });
   });
 });
+
+describe('summaries', () => {
+  function summarize(text = 'Goal: cents.') {
+    const coversId = Number(scratch.db.prepare('select max(id) as id from messages').get()?.id);
+    const result = store().addSummary({ coversId, room: 'demo', text });
+    if (!result.ok) throw new Error(result.reason);
+    return result.message;
+  }
+
+  it('refuses a summary for a room that does not exist', () => {
+    expect(store().addSummary({ coversId: 0, room: 'nope', text: 'x' })).toStrictEqual({
+      ok: false,
+      reason: 'no_room',
+    });
+  });
+
+  it('stores a summary from messhall that the cap count leaves out', () => {
+    joinBoth();
+    post('api', 'hello');
+
+    const summary = summarize();
+
+    expect(summary).toMatchObject({ from: 'messhall', kind: 'summary', mentions: [], text: 'Goal: cents.' });
+    expect(store().listRooms()[0]!.message_count).toBe(1);
+    expect(store().latestSummary('demo')).toStrictEqual(summary);
+  });
+
+  it('never closes a room at its cap because of summaries', () => {
+    joinBoth();
+    Array.from({ length: 199 }, (_, index) => post(index % 2 ? 'web' : 'api', `m${index}`));
+
+    summarize();
+
+    expect(store().listRooms()[0]).toMatchObject({ closed_at: null, message_count: 199 });
+  });
+
+  it('starts a new member at the latest summary, so its first read is the summary and what came after', () => {
+    joinBoth();
+    post('api', 'old news');
+    const summary = summarize();
+    post('web', 'after the summary');
+
+    store().joinRoom({ as: 'late', kind: 'claude', room: 'demo' });
+    const read = store().readUnseen({ as: 'late', room: 'demo' });
+
+    expect(read.ok && read.messages.map(item => item.text)).toStrictEqual([
+      summary.text,
+      'after the summary',
+      'late joined',
+    ]);
+  });
+
+  it('starts a new member at 0 in a room with no summary', () => {
+    joinBoth();
+
+    store().joinRoom({ as: 'late', kind: 'claude', room: 'demo' });
+
+    expect(memberOf('demo', 'late')?.cursor).toBe(0);
+  });
+
+  it('reports the posts so far, where the last summary stands and the posts after it', () => {
+    joinBoth();
+    post('api', 'one');
+    post('web', 'two');
+    summarize('first');
+    post('api', 'three');
+
+    const state = store().summaryState('demo');
+
+    expect(
+      state.ok && { ...state, previous: state.previous?.text, messages: state.messages.map(m => m.text) },
+    ).toMatchObject({
+      count: 3,
+      lastSummaryAt: 2,
+      messages: ['three'],
+      ok: true,
+      previous: 'first',
+    });
+  });
+});
