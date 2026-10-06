@@ -238,9 +238,10 @@
             "joined",
             "left",
             "reconnected",
+            "removed",
             "role"
           ],
-          "description": "joined, left, reconnected, or role when its role was set."
+          "description": "joined, left, reconnected, removed when it was left or gone for 30 minutes and dropped out, or role when its role was set."
         },
         "member": {
           "description": "The member after the change.",
@@ -254,7 +255,7 @@
         "type": {
           "type": "string",
           "const": "member",
-          "description": "A member came, went or got a role."
+          "description": "A member came, went, dropped out or got a role."
         }
       },
       "required": [

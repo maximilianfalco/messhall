@@ -67,6 +67,18 @@ struct FeedStoreTests {
     #expect(store.rooms[0].members[2].presence == .waiting)
   }
 
+  @Test("a removed event drops the member from the room")
+  func removed() throws {
+    let store = try loaded()
+    let joined = try event("MemberEvent")
+    guard case .member(let payload) = joined else { Issue.record("not a member event"); return }
+    store.apply(.event(seq: 8, joined))
+
+    store.apply(.event(seq: 9, .member(MemberEvent(room: "checkout", change: .removed, member: payload.member))))
+
+    #expect(store.rooms[0].members.map(\.name) == ["api", "human"])
+  }
+
   @Test("a role event updates the member and adds no line")
   func role() throws {
     let store = try loaded()

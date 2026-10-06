@@ -157,6 +157,20 @@ describe('startDaemon', () => {
     side.db.close();
   });
 
+  it('drops members left for 30 minutes on the same sweep', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    await start();
+    const side = sideStore();
+    side.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    side.store.leaveRoom({ as: 'api', room: 'demo' });
+    at += 30 * 60_000;
+
+    vi.advanceTimersByTime(SWEEP_EVERY_MS);
+
+    expect(side.store.listMembers('demo', { left: true }).map(member => member.name)).toStrictEqual(['human']);
+    side.db.close();
+  });
+
   it('reports the pid that holds a taken port', async () => {
     const holder = createServer();
     await new Promise<void>(resolve => {
