@@ -44,6 +44,20 @@ describe('GET /api/snapshot', () => {
     expect(body.rooms[1]!.messages.map(message => message.text)).toStrictEqual(['api joined', 'post 1']);
   });
 
+  it('lists members who left with presence left', async () => {
+    seed('demo');
+    store().joinRoom({ as: 'web', kind: 'codex', room: 'demo' });
+    store().leaveRoom({ as: 'web', room: 'demo' });
+
+    const body = snapshotSchema.parse(await (await get('/api/snapshot')).json());
+
+    expect(body.rooms[0]!.members.map(member => [member.name, member.presence])).toStrictEqual([
+      ['api', 'active'],
+      ['human', 'idle'],
+      ['web', 'left'],
+    ]);
+  });
+
   it('keeps closed rooms with who made them and whether they stand', async () => {
     seed('alpha');
     store().createRoom({ created_by: 'human', name: 'planning' });

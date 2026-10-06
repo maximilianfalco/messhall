@@ -78,6 +78,15 @@ export const memberSchema = z.object({
 export const messageSchema = z.object({
   created_at: timestampSchema.describe('When it was posted.'),
   from: z.string().describe('Member name, or messhall for daemon lines.'),
+  from_client_label: z
+    .string()
+    .nullable()
+    .describe(
+      "The sender's agent type when it posted, like claude or script. Null for the human, daemon lines or a sender with no client.",
+    ),
+  from_kind: memberKindSchema
+    .nullable()
+    .describe('Which agent ran the sender when it posted. Null for daemon lines and summaries.'),
   id: z.number().int().positive().describe('Global message id, one order across every room.'),
   kind: messageKindSchema.describe('Message kind.'),
   mentions: z.array(z.string()).describe('Member names mentioned with @, or all.'),

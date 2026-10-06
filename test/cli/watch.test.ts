@@ -32,6 +32,8 @@ const messageFrame = ({ id, room, text }: { id: number; room: string; text: stri
     message: {
       created_at: '2026-01-01T10:00:00.000Z',
       from: 'api',
+      from_client_label: null,
+      from_kind: null,
       id,
       kind: 'chat',
       mentions: [],

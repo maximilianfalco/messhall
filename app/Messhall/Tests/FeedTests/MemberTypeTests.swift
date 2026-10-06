@@ -52,4 +52,45 @@ struct MemberTypeTests {
     #expect(old.spokenLabel(as: "web") == "web, codex, waiting")
     #expect(old.help(as: "web") == "web runs on codex and is waiting")
   }
+
+  static func message(label: String?) -> Message {
+    Message(
+      id: 3, roomId: "r1", from: "ci", fromClientLabel: label, fromKind: .other, kind: .chat, text: "green",
+      mentions: [], createdAt: "t0")
+  }
+
+  @Test("the pill comes from the post, so a sender who left keeps it")
+  func leftSender() {
+    #expect(Self.message(label: "script").typeLabel(sender: nil) == "script")
+  }
+
+  @Test("the post label wins over the member, and the member fills in when the post has none")
+  func pillOrder() {
+    let web = Self.member(client: "opencode", version: nil, label: "opencode")
+
+    #expect(Self.message(label: "script").typeLabel(sender: web) == "script")
+    #expect(Self.message(label: nil).typeLabel(sender: web) == "opencode")
+    #expect(Self.message(label: nil).typeLabel(sender: nil) == nil)
+  }
+
+  @Test("decode the sender fields of a post")
+  func decodeSender() throws {
+    guard case .message(let event) = try Fixture.decode(BusEvent.self, "MessageEvent") else {
+      Issue.record("not a message event")
+      return
+    }
+
+    #expect(event.message.fromClientLabel == "opencode")
+    #expect(event.message.fromKind == .other)
+  }
+
+  @Test("members who left stay in the room but not among those present")
+  func present() throws {
+    var room = try #require(try Fixture.decode(Snapshot.self, "Snapshot").rooms.first)
+    room.members.append(Self.member(client: "messhall-cli", version: nil, label: "script"))
+    room.members[2].presence = .left
+
+    #expect(room.members.map(\.name) == ["api", "human", "web"])
+    #expect(room.present.map(\.name) == ["api", "human"])
+  }
 }
