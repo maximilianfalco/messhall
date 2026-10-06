@@ -171,6 +171,22 @@ describe('the /mcp endpoint', () => {
     expect(second.sessionsFor({ name: 'api', room: 'checkout' })).toHaveLength(1);
   });
 
+  it('leaves a live seat with its holder when a second session sends the same seat header', async () => {
+    const { url } = await start();
+    const parent = await agent(url, agentKey(), 'seat-a');
+    await parent.call('join', { as: 'api', room: 'checkout' });
+
+    const child = await agent(url, agentKey(), 'seat-a');
+    const childPost = await child.call('post', { room: 'checkout', text: 'from the child' });
+    const parentPost = await parent.call('post', { room: 'checkout', text: 'still mine' });
+
+    expect(childPost).toStrictEqual({ isError: true, text: 'you are not in #checkout. call join first.' });
+    expect(parentPost.isError).toBe(false);
+    expect(daemon!.sessionsFor({ name: 'api', room: 'checkout' }).map(entry => entry.session.id)).toStrictEqual([
+      parent.transport.sessionId,
+    ]);
+  });
+
   it('leaves an away seat alone for a client with another seat header', async () => {
     const first = await start();
     const api = await agent(first.url, agentKey(), 'seat-a');

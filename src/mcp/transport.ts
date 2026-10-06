@@ -60,7 +60,7 @@ async function readJson(req: IncomingMessage) {
 /**
  * The `/mcp` endpoint: one transport and one McpServer per `Mcp-Session-Id`. A session ends on
  * DELETE, on transport close, or when the sweep finds it dead, and its members turn away. A new
- * session that sends a seat key sits down again in every seat that key holds.
+ * session that sends a seat key sits down again in every seat that key holds whose holder is dead.
  */
 export function createMcpEndpoint({
   codex,
@@ -90,6 +90,8 @@ export function createMcpEndpoint({
     if (!seat) return;
     const client = server.server.getClientVersion();
     store.seatsOf(seat).forEach(({ kind, name, room }) => {
+      // A child process inherits the key, so a seat whose holder is still live stays with it.
+      if (sessions.sessionsFor({ name, room }).some(entry => !entry.session.dead())) return;
       if (store.joinRoom({ as: name, client, kind, room, seatKey: seat }).ok) {
         bindSeat({ client, kind, name, room, session, sessions, store });
       }
