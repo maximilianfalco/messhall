@@ -6,15 +6,22 @@ import type { McpServer, ServerContext } from '@modelcontextprotocol/server';
 import { WAIT_MAX_S, waitInputSchema } from '../../../contracts/mcp.ts';
 import { ALL_MENTION, HUMAN_NAME } from '../../../contracts/room.ts';
 import { concerns } from '../../rooms/rules.js';
-import { PROGRESS_EVERY_MS, WAIT_DEFAULT_S } from '../constants.js';
+import { PROGRESS_EVERY_MS, SHORT_WAIT_CLIENTS, WAIT_DEFAULT_S } from '../constants.js';
 
 import { notJoined, refuse, registerRoomTool, reply } from './registry.js';
 
-const NOTHING_YET = 'nothing yet, call wait again.';
+/** What wait says on a timeout. Any other text that is not an error means it woke. */
+export const NOTHING_YET = 'nothing yet, call wait again.';
 
 interface Hit {
   message: Message;
   room: string;
+}
+
+/** The default and longest wait for a client, by the name it sent at initialize. */
+export function waitLimitFor(clientName: string | undefined) {
+  const short = SHORT_WAIT_CLIENTS[clientName?.toLowerCase() ?? ''];
+  return short ? { defaultS: short, maxS: short } : { defaultS: WAIT_DEFAULT_S, maxS: WAIT_MAX_S };
 }
 
 /** Why a message concerns `as`, in a few words for the wait reply. */
@@ -49,11 +56,17 @@ function unseen({ as, room, store }: { as: string; room: string; store: RoomStor
   return read.ok ? read.messages : [];
 }
 
-function summary({ as, hit, store }: { as: string; hit: Hit; store: RoomStore }) {
-  const count = unseen({ as, room: hit.room, store }).filter(
+function summary({ as, hit, mark, store }: { as: string; hit: Hit; mark: number; store: RoomStore }) {
+  const posts = unseen({ as, room: hit.room, store }).filter(
     message => message.kind === 'chat' || message.kind === 'done',
-  ).length;
-  return `${count} new in #${hit.room} (${reasonFor({ as, message: hit.message })}). Call read_since.`;
+  );
+  const fresh = posts.filter(message => message.id > mark).length;
+  const backlog = posts.length - fresh;
+  const counts = [
+    ...(fresh || !backlog ? [`${fresh} new since your last read`] : []),
+    ...(backlog ? [`${backlog} unread from before you joined this session (backlog)`] : []),
+  ].join(' and ');
+  return `${counts} in #${hit.room} (${reasonFor({ as, message: hit.message })}). Call read_since.`;
 }
 
 function block({
@@ -117,14 +130,15 @@ export function registerWait(server: McpServer, deps: ToolDeps, description: str
 
     for (const [room, as] of rooms) {
       const message = unseen({ as, room, store }).find(item => concernsMember({ as, message: item, room, store }));
-      if (message) return reply(summary({ as, hit: { message, room }, store }));
+      if (message) return reply(summary({ as, hit: { message, room }, mark: session.markOf(room), store }));
     }
 
     rooms.forEach((as, room) => store.touch({ as, room, state: 'waiting' }));
-    const timeoutS = Math.min(input.timeout_s ?? WAIT_DEFAULT_S, WAIT_MAX_S);
+    const limit = waitLimitFor(server.server.getClientVersion()?.name);
+    const timeoutS = Math.min(input.timeout_s ?? limit.defaultS, limit.maxS);
     const hit = await block({ ctx, rooms, store, timeoutS });
     rooms.forEach((as, room) => store.touch({ as, room, state: 'active' }));
     session.seen();
-    return reply(hit ? summary({ as: rooms.get(hit.room)!, hit, store }) : NOTHING_YET);
+    return reply(hit ? summary({ as: rooms.get(hit.room)!, hit, mark: session.markOf(hit.room), store }) : NOTHING_YET);
   });
 }

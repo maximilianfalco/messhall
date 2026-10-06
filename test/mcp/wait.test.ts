@@ -2,6 +2,8 @@ import type { Progress } from '@modelcontextprotocol/client';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { waitLimitFor } from '../../src/mcp/tools/wait.js';
+
 import { mcpHarness, type McpHarness } from './harness.js';
 
 const LONG = { timeout: 600_000 };
@@ -65,6 +67,53 @@ describe('wait', () => {
     expect(waiting.done).toBe(true);
   });
 
+  it.each([
+    ['omp', 25],
+    ['oh-my-pi', 25],
+    ['Cline', 50],
+    ['prime-agent', 50],
+    ['Roo Code', 50],
+    ['Kilo Code', 50],
+  ])('caps wait for %s at %i seconds', (client, seconds) => {
+    expect(waitLimitFor(client)).toStrictEqual({ defaultS: seconds, maxS: seconds });
+  });
+
+  it.each(['claude-code', 'codex-mcp-client', 'opencode', undefined])('keeps 100 s and 270 s for %s', client => {
+    expect(waitLimitFor(client)).toStrictEqual({ defaultS: 100, maxS: 270 });
+  });
+
+  it('waits 25 seconds by default for a client with a 30 second tool timeout', async () => {
+    const api = await harness.agent({ name: 'omp' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout' }, LONG));
+    await vi.advanceTimersByTimeAsync(24_999);
+    expect(waiting.done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(waiting.value?.text).toBe('nothing yet, call wait again.');
+  });
+
+  it('clamps an explicit timeout_s to the safe max for a short timeout client', async () => {
+    const api = await harness.agent({ name: 'Cline' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout', timeout_s: 200 }, LONG));
+    await vi.advanceTimersByTimeAsync(50_000);
+
+    expect(waiting.value?.text).toBe('nothing yet, call wait again.');
+  });
+
+  it('lets an explicit timeout_s under the safe max win', async () => {
+    const api = await harness.agent({ name: 'Cline' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    const waiting = pending(api.call('wait', { room: 'checkout', timeout_s: 10 }, LONG));
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(waiting.done).toBe(true);
+  });
+
   it('never waits past 270 seconds', async () => {
     const api = await harness.joined('checkout', 'api');
 
@@ -86,7 +135,7 @@ describe('wait', () => {
 
     expect(waiting.value).toStrictEqual({
       isError: false,
-      text: '2 new in #checkout (web mentioned you). Call read_since.',
+      text: '2 new since your last read in #checkout (web mentioned you). Call read_since.',
     });
   });
 
@@ -96,7 +145,39 @@ describe('wait', () => {
 
     const result = await api.call('wait', { room: 'checkout' }, LONG);
 
-    expect(result.text).toBe('1 new in #checkout (human posted). Call read_since.');
+    expect(result.text).toBe('1 new since your last read in #checkout (human posted). Call read_since.');
+  });
+
+  it('calls posts from before this session joined the backlog', async () => {
+    const first = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await first.call('leave', { room: 'checkout' });
+    await web.call('post', { room: 'checkout', text: 'the schema moved' });
+    await web.call('post', { room: 'checkout', text: 'and the docs' });
+    const api = await harness.joined('checkout', 'api');
+
+    const result = await api.call('wait', { room: 'checkout' }, LONG);
+
+    expect(result.text).toBe(
+      '2 unread from before you joined this session (backlog) in #checkout (web posted). Call read_since.',
+    );
+  });
+
+  it('counts new and backlog apart when both are unread', async () => {
+    const first = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await harness.joined('checkout', 'ios');
+    await first.call('leave', { room: 'checkout' });
+    await web.call('post', { room: 'checkout', text: 'old news' });
+    const api = await harness.joined('checkout', 'api');
+
+    const waiting = pending(api.call('wait', { room: 'checkout' }, LONG));
+    await web.call('post', { room: 'checkout', text: '@api fresh news' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(waiting.value?.text).toBe(
+      '1 new since your last read and 1 unread from before you joined this session (backlog) in #checkout (web mentioned you). Call read_since.',
+    );
   });
 
   it('waits on every joined room when room is left out', async () => {
@@ -110,7 +191,7 @@ describe('wait', () => {
     await other.call('post', { room: 'billing', text: 'invoice ids are uuids' });
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(waiting.value?.text).toBe('1 new in #billing (web posted). Call read_since.');
+    expect(waiting.value?.text).toBe('1 new since your last read in #billing (web posted). Call read_since.');
   });
 
   it('marks the member waiting while blocked and active after', async () => {

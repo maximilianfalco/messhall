@@ -1,6 +1,7 @@
 import type { Daemon } from '../../src/daemon/server.js';
 
-import { mkdtempSync, rmSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
@@ -53,8 +54,8 @@ describe('agentRun', () => {
     expect(room).not.toContain('is gone');
   });
 
-  it('stays in the room while it waits, and ends gone', async () => {
-    const waiting = agentRun({
+  it('leaves after it waits, so the room reads left and not gone', async () => {
+    const result = await agentRun({
       keyFile: keyFile(),
       role: 'web',
       room: 'checkout',
@@ -63,10 +64,28 @@ describe('agentRun', () => {
       wait: true,
     });
 
-    const result = await waiting;
+    const room = stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report);
+    expect(stripVTControlCharacters(result.report)).toContain('session ended, web left #checkout');
+    expect(room).toMatch(/system +web left/);
+    expect(room).not.toContain('is gone');
+  });
 
-    expect(stripVTControlCharacters(result.report)).not.toContain('left #checkout.');
-    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toContain('web is gone');
+  it('reads the backlog with catch-up and leaves without waiting', async () => {
+    await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: 'old news', url: daemon.url });
+
+    const result = await agentRun({
+      catchUp: true,
+      keyFile: keyFile(),
+      role: 'web',
+      room: 'checkout',
+      url: daemon.url,
+    });
+
+    const text = stripVTControlCharacters(result.report);
+    expect(result.code).toBe(0);
+    expect(text).toContain('[#2 api] old news');
+    expect(text).not.toContain('wait, blocked');
+    expect(text).toContain('session ended, web left #checkout');
   });
 
   it('blocks in wait until another agent mentions it, then reads', async () => {
@@ -88,6 +107,72 @@ describe('agentRun', () => {
     expect(text).toContain('(api mentioned you). Call read_since.');
     expect(text).toContain('api → @web] @web total is cents now');
   });
+
+  it('sends the client name it was given at initialize', async () => {
+    await agentRun({ client: 'claude-code', keyFile: keyFile(), role: 'api', room: 'checkout', url: daemon.url });
+
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toMatch(/api +claude /);
+  });
+
+  it('follows in one session: prints each batch, posts fifo lines, leaves on stop', async () => {
+    const fifo = path.join(home, 'post.fifo');
+    const printed: string[] = [];
+    const stop = new AbortController();
+    const following = agentRun({
+      follow: true,
+      keyFile: keyFile(),
+      postFifo: fifo,
+      role: 'web',
+      room: 'checkout',
+      signal: stop.signal,
+      url: daemon.url,
+      write: line => printed.push(line),
+    });
+    await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'web', room: 'checkout' })).toHaveLength(1));
+    await vi.waitFor(() => expect(existsSync(fifo)).toBe(true));
+
+    await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: '@web first batch', url: daemon.url });
+    await vi.waitFor(() => expect(printed.join('')).toContain('@web first batch'));
+    await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: '@web second batch', url: daemon.url });
+    await vi.waitFor(() => expect(printed.join('')).toContain('@web second batch'));
+    writeFileSync(fifo, 'from the fifo\n');
+    await vi.waitFor(() =>
+      expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toContain(
+        'from the fifo',
+      ),
+    );
+    stop.abort();
+    const result = await following;
+
+    const room = stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report);
+    expect(result.code).toBe(0);
+    expect(printed.filter(line => line.includes('batch'))).toHaveLength(2);
+    expect(printed.every(line => line.endsWith('\n'))).toBe(true);
+    expect(room.match(/web joined/g)).toHaveLength(1);
+    expect(room).toMatch(/system +web left/);
+    expect(room).not.toMatch(/web is gone|web reconnected/);
+  });
+
+  it('leaves and exits 0 when the follow process gets SIGTERM', async () => {
+    const child = spawn(
+      process.execPath,
+      ['--import', 'tsx', 'tools/dev/cli.ts', 'agent', 'web', '--room', 'checkout', '--follow'],
+      { env: { ...process.env, MESSHALL_HOME: home, MESSHALL_PORT: String(new URL(daemon.url).port) } },
+    );
+    const exited = new Promise<number | null>(resolve => {
+      child.on('exit', resolve);
+    });
+    await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'web', room: 'checkout' })).toHaveLength(1), {
+      timeout: 15_000,
+    });
+
+    child.kill('SIGTERM');
+
+    await expect(exited).resolves.toBe(0);
+    const room = stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report);
+    expect(room).toMatch(/system +web left/);
+    expect(room).not.toContain('web is gone');
+  }, 20_000);
 
   it('says how to start the daemon when nothing answers', async () => {
     const result = await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', url: 'http://127.0.0.1:1' });

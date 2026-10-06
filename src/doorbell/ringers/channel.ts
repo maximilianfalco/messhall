@@ -8,29 +8,29 @@ export const CHANNEL_METHOD = 'notifications/claude/channel';
 
 export interface ChannelEntry {
   server: { server: Pick<McpServer['server'], 'notification'> };
-  session: Pick<McpSession, 'id' | 'kind'>;
+  session: Pick<McpSession, 'channel' | 'id'>;
 }
 
-/** Claude Code already shows the server name, so the ring drops its own `messhall: ` lead. */
+/** Channel clients already show the server name, so the ring drops its own `messhall: ` lead. */
 const CLAUDE_PREFIX = 'messhall: ';
 
 /**
- * Rings Claude Code over Channels: one notification on each live claude session that holds the
- * member. Claude Code sends no ack, and a session that went away is dropped, so wait still works.
+ * Rings any client that takes Claude Channels: one notification on each live channel session that
+ * holds the member. The client sends no ack, and a session that went away is dropped, so wait still works.
  */
-export function createClaudeRinger({
+export function createChannelRinger({
   sessionsFor,
 }: {
   sessionsFor: (query: { name: string; room: string }) => ChannelEntry[];
 }) {
   const ringer: Ringer = {
-    kind: 'claude',
+    kinds: ['claude', 'other'],
     async ring({ member, meta, text }: RingInput) {
       const content = text.startsWith(CLAUDE_PREFIX) ? text.slice(CLAUDE_PREFIX.length) : text;
       const byId = new Map(
         member.rooms
           .flatMap(room => sessionsFor({ name: member.name, room }))
-          .filter(entry => entry.session.kind === 'claude')
+          .filter(entry => entry.session.channel)
           .map(entry => [entry.session.id, entry]),
       );
       const sent = await Promise.all(

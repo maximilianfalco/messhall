@@ -12,9 +12,17 @@ export interface ToolReply {
 const POSTED = /^posted #(\d+) /;
 
 /** Calls one tool and keeps its text. A long call like `wait` stays open while it sends progress. */
-export async function callTool(client: Client, name: string, args: Record<string, unknown>): Promise<ToolReply> {
+export async function callTool(
+  client: Client,
+  name: string,
+  args: Record<string, unknown>,
+  { signal }: { signal?: AbortSignal } = {},
+): Promise<ToolReply> {
   const started = performance.now();
-  const result = await client.callTool({ arguments: args, name }, { resetTimeoutOnProgress: true, timeout: 300_000 });
+  const result = await client.callTool(
+    { arguments: args, name },
+    { resetTimeoutOnProgress: true, signal, timeout: 300_000 },
+  );
   return {
     isError: Boolean(result.isError),
     name,
