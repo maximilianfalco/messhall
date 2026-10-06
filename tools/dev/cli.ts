@@ -17,6 +17,7 @@ import { registerQaUpload } from './commands/qaUpload.js';
 import { registerRoom } from './commands/room.js';
 import { registerSchema } from './commands/schema.js';
 import { registerStore } from './commands/store.js';
+import { registerSummarize } from './commands/summarize.js';
 
 const program = new Command()
   .name('messhall-dev')
@@ -31,6 +32,7 @@ const program = new Command()
   registerStore,
   registerDaemon,
   registerRoom,
+  registerSummarize,
   registerSchema,
   registerFeed,
   registerMcp,

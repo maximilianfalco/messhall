@@ -85,6 +85,15 @@ describe('concerns', () => {
     );
   });
 
+  it('skips summaries, even with a mention in them', () => {
+    const summary = message({ from: 'messhall', kind: 'summary', mentions: ['web', 'all'] });
+    expect(ROOM.map(m => concerns({ member: m, members: ROOM, message: summary }))).toStrictEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it('counts only members still in the room', () => {
     const left = [...ROOM, member({ left_at: T0, name: 'infra' })];
     expect(concerns({ member: left[2]!, members: left, message: message({ from: 'api' }) })).toBe(true);

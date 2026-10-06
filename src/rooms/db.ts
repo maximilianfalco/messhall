@@ -46,6 +46,10 @@ export const MIGRATIONS = [
   );
   CREATE INDEX events_created_at ON events (created_at);
   `,
+  // The last post a summary covers, so posts that land while it is written are not skipped.
+  `
+  ALTER TABLE messages ADD COLUMN covers_id INTEGER;
+  `,
   // Old rooms were all made by an agent's first join. Stored room events get the fields too, so replay still parses.
   `
   ALTER TABLE rooms ADD COLUMN created_by TEXT NOT NULL DEFAULT 'messhall';

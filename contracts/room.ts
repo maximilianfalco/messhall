@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PRESENCES = ['active', 'waiting', 'idle', 'gone'] as const;
-export const MESSAGE_KINDS = ['chat', 'system', 'done'] as const;
+export const MESSAGE_KINDS = ['chat', 'system', 'done', 'summary'] as const;
 export const MEMBER_KINDS = ['claude', 'codex', 'other', 'human'] as const;
 
 export const NAME_PATTERN = /^[a-z0-9-]{1,40}$/;
@@ -25,7 +25,9 @@ export const timestampSchema = z.iso.datetime().describe('ISO 8601 time in UTC.'
 export const presenceSchema = z.enum(PRESENCES).describe('What the member is doing: active, waiting, idle or gone.');
 export const messageKindSchema = z
   .enum(MESSAGE_KINDS)
-  .describe('chat from a member, system from the daemon, done when a member is finished.');
+  .describe(
+    'chat from a member, system from the daemon, done when a member is finished, summary of the room so far from the daemon.',
+  );
 export const memberKindSchema = z
   .enum(MEMBER_KINDS)
   .describe('Which agent runs the member: claude, codex, other or human.');

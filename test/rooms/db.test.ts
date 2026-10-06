@@ -76,4 +76,24 @@ describe('openDb', () => {
 
     expect(() => openDb({ dataDir })).toThrow(DbVersionError);
   });
+
+  it('gives a db from before summaries the covers_id column and keeps its messages', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    old.exec(MIGRATIONS[0]!);
+    old.exec("PRAGMA user_version = 1; INSERT INTO rooms VALUES ('r1', 'demo', NULL, 'now', NULL, 200)");
+    old.exec(
+      "INSERT INTO messages (room_id, from_name, kind, text, created_at) VALUES ('r1', 'api', 'chat', 'hi', 'now')",
+    );
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect(
+      db
+        .prepare('select text, covers_id from messages')
+        .all()
+        .map(row => ({ ...row })),
+    ).toStrictEqual([{ covers_id: null, text: 'hi' }]);
+    db.close();
+  });
 });

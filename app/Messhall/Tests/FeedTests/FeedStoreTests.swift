@@ -38,14 +38,14 @@ struct FeedStoreTests {
     #expect(store.seq == 9)
   }
 
-  @Test("a system message does not count toward the cap")
-  func systemMessage() throws {
+  @Test("a system message or a summary does not count toward the cap", arguments: [MessageKind.system, .summary])
+  func daemonMessage(kind: MessageKind) throws {
     let store = try loaded()
-    let system = Message(
-      id: 9, roomId: "r1", from: "messhall", kind: .system, text: "web left", mentions: [],
+    let line = Message(
+      id: 9, roomId: "r1", from: "messhall", kind: kind, text: "web left", mentions: [],
       createdAt: "2026-01-01T09:03:00.000Z")
 
-    store.apply(.event(seq: 8, .message(MessageEvent(room: "checkout", message: system))))
+    store.apply(.event(seq: 8, .message(MessageEvent(room: "checkout", message: line))))
 
     #expect(store.rooms[0].messageCount == 1)
   }

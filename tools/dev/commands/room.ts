@@ -36,7 +36,9 @@ export function roomReport({
       .get(name);
     if (!room) return { code: 1, report: bad(`no room #${name} in ${dataDir}`) };
     const roomId = String(room.id);
-    const posts = db.prepare("SELECT count(*) AS n FROM messages WHERE room_id = ? AND kind != 'system'").get(roomId);
+    const posts = db
+      .prepare("SELECT count(*) AS n FROM messages WHERE room_id = ? AND kind IN ('chat', 'done')")
+      .get(roomId);
     const members = db
       .prepare(
         'SELECT name, kind, presence, cursor, last_seen_at, left_at FROM members WHERE room_id = ? ORDER BY name',

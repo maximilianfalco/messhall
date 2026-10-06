@@ -13,9 +13,10 @@ export function parseMentions({ names, text }: { names: string[]; text: string }
   return Array.from(new Set(found));
 }
 
-/** True when the message is one the member should answer: a mention, `@all`, the human, or a room of two agents. */
+/** True when the message is one the member should answer: a mention, `@all`, the human, or a room of two agents.
+ * Daemon lines and summaries concern nobody. */
 export function concerns({ member, members, message }: { member: Member; members: Member[]; message: Message }) {
-  if (message.kind === 'system' || message.from === member.name) return false;
+  if (message.kind === 'system' || message.kind === 'summary' || message.from === member.name) return false;
   if (message.mentions.includes(member.name) || message.mentions.includes(ALL_MENTION)) return true;
   if (message.from === HUMAN_NAME) return true;
   const agents = members.filter(other => other.kind !== 'human' && other.left_at === null).map(other => other.name);
