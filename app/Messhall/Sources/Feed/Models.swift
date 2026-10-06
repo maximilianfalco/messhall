@@ -31,6 +31,9 @@ public struct Member: Codable, Equatable, Sendable {
   public var roomId: String
   public var name: String
   public var kind: MemberKind
+  public var clientLabel: String?
+  public var clientName: String?
+  public var clientVersion: String?
   public var presence: Presence
   public var cursor: Int
   public var done: Bool
@@ -41,6 +44,9 @@ public struct Member: Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable {
     case name, kind, presence, cursor, done
     case roomId = "room_id"
+    case clientLabel = "client_label"
+    case clientName = "client_name"
+    case clientVersion = "client_version"
     case joinedAt = "joined_at"
     case lastSeenAt = "last_seen_at"
     case leftAt = "left_at"

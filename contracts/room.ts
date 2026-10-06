@@ -50,6 +50,20 @@ export const roomSchema = z.object({
 });
 
 export const memberSchema = z.object({
+  client_label: z
+    .string()
+    .nullable()
+    .describe(
+      'Short agent type from the client name, like claude or opencode, or its first word when unknown. Null for the human seat or a member with no client.',
+    ),
+  client_name: z
+    .string()
+    .nullable()
+    .describe('The clientInfo.name the agent sent at initialize, as sent. Self-declared, null when none.'),
+  client_version: z
+    .string()
+    .nullable()
+    .describe('The clientInfo.version the agent sent at initialize, null when none.'),
   cursor: z.number().int().nonnegative().describe('Id of the last message this member has read.'),
   done: z.boolean().describe('True after the member posted done, until its next post.'),
   joined_at: timestampSchema.describe('When the member first joined.'),

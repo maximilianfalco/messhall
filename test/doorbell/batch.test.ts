@@ -8,6 +8,9 @@ import { createBatcher } from '../../src/doorbell/batch.js';
 const T0 = Date.parse('2026-01-01T10:00:00.000Z');
 
 const member = (name: string): Member => ({
+  client_label: null,
+  client_name: null,
+  client_version: null,
   cursor: 0,
   done: false,
   joined_at: new Date(T0).toISOString(),

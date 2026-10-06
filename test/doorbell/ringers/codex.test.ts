@@ -111,7 +111,7 @@ describe('a codex member after a failed ring', () => {
   });
 
   it('shows no doorbell and still wakes from wait', async () => {
-    const web = await harness.agent();
+    const web = await harness.agent({ name: 'codex' });
     await web.call('join', { as: 'web', kind: 'codex', room: 'checkout', thread_id: LIVE_THREAD });
     const api = await harness.joined('checkout', 'api');
     harness.codex.fail('thread/queue/add');
@@ -123,7 +123,7 @@ describe('a codex member after a failed ring', () => {
     await vi.advanceTimersByTimeAsync(0);
     await api.call('post', { room: 'checkout', text: '@web are you there?' });
 
-    expect(listed.text).toContain('- web (codex (no doorbell), active)');
+    expect(listed.text).toContain('- web (codex 0.1.0 (no doorbell), active)');
     await expect(waiting).resolves.toStrictEqual({
       isError: false,
       text: '1 new since your last read in #checkout (api mentioned you). Call read_since.',

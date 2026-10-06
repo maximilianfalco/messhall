@@ -21,6 +21,9 @@ const room = (overrides: Partial<RoomSummary> = {}): RoomSummary => ({
 });
 
 const member = (overrides: Partial<Member> = {}): Member => ({
+  client_label: null,
+  client_name: null,
+  client_version: null,
   cursor: 0,
   done: false,
   joined_at: AT,

@@ -73,6 +73,14 @@ export const MIGRATIONS = [
   END;
   UPDATE members SET presence = 'left' WHERE left_at IS NOT NULL;
   `,
+  // The client an agent named at initialize. Stored member events get it too, so replay still parses.
+  `
+  ALTER TABLE members ADD COLUMN client_name TEXT;
+  ALTER TABLE members ADD COLUMN client_version TEXT;
+  UPDATE events SET payload = json_set(
+    payload, '$.member.client_label', json('null'), '$.member.client_name', json('null'), '$.member.client_version', json('null')
+  ) WHERE kind = 'member';
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

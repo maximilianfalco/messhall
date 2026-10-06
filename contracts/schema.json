@@ -132,6 +132,27 @@
     "Member": {
       "type": "object",
       "properties": {
+        "client_label": {
+          "description": "Short agent type from the client name, like claude or opencode, or its first word when unknown. Null for the human seat or a member with no client.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client_name": {
+          "description": "The clientInfo.name the agent sent at initialize, as sent. Self-declared, null when none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "client_version": {
+          "description": "The clientInfo.version the agent sent at initialize, null when none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "cursor": {
           "type": "integer",
           "minimum": 0,
@@ -187,6 +208,9 @@
         }
       },
       "required": [
+        "client_label",
+        "client_name",
+        "client_version",
         "cursor",
         "done",
         "joined_at",

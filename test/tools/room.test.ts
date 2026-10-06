@@ -31,6 +31,19 @@ describe('roomReport', () => {
     expect(text).toMatch(/3\s+api\s+chat\s+@web schema changed/);
   });
 
+  it('shows the client each member sent, with its version', () => {
+    scratch.store.joinRoom({
+      as: 'web',
+      client: { name: 'opencode', version: '1.18.34' },
+      kind: 'other',
+      room: 'demo',
+    });
+
+    const text = stripVTControlCharacters(roomReport({ dataDir: scratch.dataDir, name: 'demo' }).report);
+
+    expect(text).toMatch(/web\s+other\s+opencode 1\.18\.34\s+active/);
+  });
+
   it('says who made a standing room', () => {
     scratch.store.createRoom({ created_by: 'human', name: 'planning' });
 
