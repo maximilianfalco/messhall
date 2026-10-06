@@ -2,6 +2,7 @@ import type { SetTimer } from '../doorbell/batch.js';
 import type { InitializeParams } from './generated/InitializeParams.js';
 import type { InitializeResponse } from './generated/InitializeResponse.js';
 import type { ThreadArchiveParams } from './generated/v2/ThreadArchiveParams.js';
+import type { ThreadInjectItemsParams } from './generated/v2/ThreadInjectItemsParams.js';
 import type { ThreadLoadedListParams } from './generated/v2/ThreadLoadedListParams.js';
 import type { ThreadLoadedListResponse } from './generated/v2/ThreadLoadedListResponse.js';
 import type { ThreadQueueAddParams } from './generated/v2/ThreadQueueAddParams.js';
@@ -23,6 +24,7 @@ interface ThreadReply {
 interface Methods {
   initialize: { params: InitializeParams; result: InitializeResponse };
   'thread/archive': { params: ThreadArchiveParams; result: Record<string, never> };
+  'thread/inject_items': { params: ThreadInjectItemsParams; result: Record<string, never> };
   'thread/loaded/list': { params: ThreadLoadedListParams; result: ThreadLoadedListResponse };
   'thread/queue/add': { params: ThreadQueueAddParams; result: ThreadQueueAddResponse };
   'thread/read': { params: ThreadReadParams; result: ThreadReply };

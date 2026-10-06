@@ -15,6 +15,7 @@ const ROOTS = [
   'InitializeParams.ts',
   'InitializeResponse.ts',
   'v2/ThreadArchiveParams.ts',
+  'v2/ThreadInjectItemsParams.ts',
   'v2/ThreadLoadedListParams.ts',
   'v2/ThreadLoadedListResponse.ts',
   'v2/ThreadQueueAddParams.ts',
