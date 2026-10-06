@@ -7,6 +7,7 @@ import {
   humanPostResultSchema,
   humanRoleResultSchema,
   newRoomResultSchema,
+  removeMemberResultSchema,
   reopenResultSchema,
 } from '../../contracts/feed.ts';
 
@@ -32,6 +33,12 @@ function postAs(path: string, headers: Record<string, string>, body: unknown = {
   });
 }
 const human = (path: string, body?: unknown) => postAs(path, feed.headers('human'), body);
+const deleteAs = (path: string, headers: Record<string, string>) =>
+  fetch(`${feed.url}${path}`, { headers, method: 'DELETE' });
+const memberNames = () =>
+  store()
+    .listMembers('demo', { left: true })
+    .map(member => member.name);
 
 function closeRoom() {
   store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
@@ -260,6 +267,38 @@ describe('POST /api/rooms/:name/members/:member/role', () => {
   });
 });
 
+describe('DELETE /api/rooms/:name/members/:member', () => {
+  it('drops a left member as human and answers 200 with the member', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    const res = await deleteAs('/api/rooms/demo/members/api', feed.headers('human'));
+
+    expect(res.status).toBe(200);
+    expect(removeMemberResultSchema.parse(await res.json()).member).toMatchObject({ name: 'api', presence: 'left' });
+    expect(memberNames()).toStrictEqual(['human']);
+  });
+
+  it('answers 409 for a member that is still here and keeps it', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    const res = await deleteAs('/api/rooms/demo/members/api', feed.headers('human'));
+
+    expect(res.status).toBe(409);
+    expect(memberNames()).toStrictEqual(['api', 'human']);
+  });
+
+  it.each(['/api/rooms/demo/members/web', '/api/rooms/nope/members/api', '/api/rooms/demo/members/Not%20A%20Name'])(
+    'answers 404 on %s',
+    async path => {
+      store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+      store().leaveRoom({ as: 'api', room: 'demo' });
+
+      expect((await deleteAs(path, feed.headers('human'))).status).toBe(404);
+    },
+  );
+});
+
 describe('human route keys', () => {
   it('refuses the agent key on POST /api/rooms with 403 and makes no room', async () => {
     const res = await postAs('/api/rooms', feed.headers('agent'), { name: 'planning' });
@@ -283,6 +322,24 @@ describe('human route keys', () => {
     store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
 
     expect((await postAs('/api/rooms/demo/members/api/role', {}, { role: 'orchestrator' })).status).toBe(401);
+  });
+
+  it('refuses the agent key on the member delete route with 403 and keeps the member', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    const res = await deleteAs('/api/rooms/demo/members/api', feed.headers('agent'));
+
+    expect(res.status).toBe(403);
+    expect(memberNames()).toStrictEqual(['api', 'human']);
+  });
+
+  it('refuses no key on the member delete route with 401', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    expect((await deleteAs('/api/rooms/demo/members/api', {})).status).toBe(401);
+    expect(memberNames()).toStrictEqual(['api', 'human']);
   });
 
   it('refuses no key on POST /api/rooms with 401', async () => {

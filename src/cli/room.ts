@@ -13,14 +13,15 @@ type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 type RoomAction =
   | { action: 'close' | 'reopen'; name: string }
+  | { action: 'kick'; member: string; name: string }
   | { action: 'list' }
   | { action: 'new'; name: string; topic?: string };
 
-const DONE: Record<'close' | 'new' | 'reopen', (name: string) => string> = {
-  close: name => `closed #${name}`,
-  new: name => `made #${name}, standing until you close it`,
-  reopen: name => `reopened #${name}`,
-};
+function done(input: Exclude<RoomAction, { action: 'list' }>) {
+  if (input.action === 'kick') return `removed ${input.member} from #${input.name}`;
+  if (input.action === 'new') return `made #${input.name}, standing until you close it`;
+  return `${input.action === 'close' ? 'closed' : 'reopened'} #${input.name}`;
+}
 
 const fail = (text: string) => ({ code: 1, output: [pc.red(text)] }) as const;
 
@@ -30,10 +31,14 @@ function request(input: RoomAction, url: string) {
     const { name, topic } = input;
     return { init: { body: JSON.stringify({ name, topic }), method: 'POST' }, url: `${url}/api/rooms` };
   }
+  if (input.action === 'kick') {
+    const path = `${encodeURIComponent(input.name)}/members/${encodeURIComponent(input.member)}`;
+    return { init: { method: 'DELETE' }, url: `${url}/api/rooms/${path}` };
+  }
   return { init: { method: 'POST' }, url: `${url}/api/rooms/${encodeURIComponent(input.name)}/${input.action}` };
 }
 
-/** Makes, closes, reopens or lists rooms as the human through the daemon. Prints one line per room, or one red line. */
+/** Makes, closes, reopens or lists rooms, or kicks a left or gone member, as the human through the daemon. Prints one line per room, or one red line. */
 export async function runRoom({
   dataDir: dir,
   fetch,
@@ -66,7 +71,7 @@ export async function runRoom({
   if (input.action === 'list') {
     return { code: 0, output: renderRooms({ snapshot: snapshotSchema.parse(body) }) } as const;
   }
-  return { code: 0, output: [DONE[input.action](input.name)] } as const;
+  return { code: 0, output: [done(input)] } as const;
 }
 
 async function print(input: RoomAction) {
@@ -76,9 +81,11 @@ async function print(input: RoomAction) {
   process.exitCode = result.code;
 }
 
-/** Registers `room new | close | reopen | list`. */
+/** Registers `room new | close | reopen | kick | list`. */
 export function registerRoom(program: Command) {
-  const room = program.command('room').description('Make, close, reopen and list rooms as the human.');
+  const room = program
+    .command('room')
+    .description('Make, close, reopen and list rooms, and kick old members, as the human.');
   room
     .command('new')
     .description('Make a standing room. It stays open until you close it.')
@@ -95,6 +102,12 @@ export function registerRoom(program: Command) {
     .description('Reopen a closed room.')
     .argument('<name>', 'room name')
     .action((name: string) => print({ action: 'reopen', name }));
+  room
+    .command('kick')
+    .description('Remove a left or gone member from a room now. Its posts keep its name.')
+    .argument('<room>', 'room name')
+    .argument('<member>', 'member name')
+    .action((name: string, member: string) => print({ action: 'kick', member, name }));
   room
     .command('list')
     .description('List every room, closed ones too.')

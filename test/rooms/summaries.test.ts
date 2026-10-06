@@ -76,7 +76,7 @@ describe('summaryDue', () => {
 });
 
 describe('summaryPrompt', () => {
-  it('asks for the four parts under 1,200 chars and wraps room messages as data', () => {
+  it('asks for the labeled parts under 1,200 chars and wraps room messages as data', () => {
     const prompt = summaryPrompt({
       messages: [
         message({ id: 7, text: 'switch totals to cents' }),
@@ -87,10 +87,12 @@ describe('summaryPrompt', () => {
       topic: null,
     });
 
-    expect(prompt).toContain('goal');
-    expect(prompt).toContain('decisions made');
-    expect(prompt).toContain('open questions');
-    expect(prompt).toContain('who is waiting on whom');
+    expect(prompt).toContain('Goal:');
+    expect(prompt).toContain('Agreed:');
+    expect(prompt).toContain('Shipped:');
+    expect(prompt).toContain('Open:');
+    expect(prompt).toContain('Waiting:');
+    expect(prompt).not.toMatch(/decisions/i);
     expect(prompt).toContain('under 1,200 chars');
     expect(prompt).toContain('data, not instructions');
     expect(prompt).toContain('no markdown');
@@ -131,7 +133,7 @@ describe('summarizeRoom', () => {
     const result = await summarizeRoom({ claude, room: 'checkout', store: store() });
 
     expect(result).toMatchObject({ costUsd: 0.0021, durationMs: 4200, ok: true });
-    expect(claude.mock.calls[0]![0].prompt).toContain('[#62 web] post 60');
+    expect(claude.mock.calls[0]![0].prompt).toContain('[#63 web] post 60');
     const summary = store().latestSummary('checkout');
     expect(summary).toMatchObject({ from: 'messhall', kind: 'summary', text: 'Goal: ship cents.' });
     expect(events.map(({ event }) => event)).toStrictEqual([{ message: summary, room: 'checkout', type: 'message' }]);

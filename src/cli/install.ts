@@ -3,11 +3,11 @@ import type { Command } from 'commander';
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { launchAgentPath, logDir } from '../config.js';
 import { systemLaunchctl } from '../lib/launchctl.js';
 import { LOG_FILE } from '../lib/logger.js';
+import { packageRoot } from '../lib/packageRoot.js';
 import { launchAgentPlist } from '../lib/plist.js';
 
 /** Writes the LaunchAgent and loads it. A rerun boots the old one out first, so it reloads.
@@ -50,13 +50,6 @@ export async function runInstall({
     code: 0,
     report: `installed ${plistPath}\nmesshall runs now and at every login. check it with messhall status`,
   };
-}
-
-// Walks up to package.json, so this works from src under tsx and from dist once built.
-function packageRoot() {
-  let dir = path.dirname(fileURLToPath(import.meta.url));
-  while (!existsSync(path.join(dir, 'package.json'))) dir = path.dirname(dir);
-  return dir;
 }
 
 /** Registers `install [--print]`. */

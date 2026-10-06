@@ -108,7 +108,7 @@ export const MIGRATIONS = [
   ALTER TABLE members ADD COLUMN role_instructions TEXT;
   ALTER TABLE members ADD COLUMN role_set_by TEXT;
   `,
-  // When a member went gone, so it drops out 30 minutes later. Members already gone count from their last call.
+  // When a member went gone, so it drops out a few minutes later. Members already gone count from their last call.
   `
   ALTER TABLE members ADD COLUMN gone_at TEXT;
   UPDATE members SET gone_at = last_seen_at WHERE presence = 'gone';
@@ -117,6 +117,10 @@ export const MIGRATIONS = [
   `
   ALTER TABLE rooms DROP COLUMN message_cap;
   UPDATE events SET payload = json_remove(payload, '$.room.message_cap') WHERE kind = 'room';
+  `,
+  // The agent this member traded too many lines with alone. Lines between them ring nobody until the human posts.
+  `
+  ALTER TABLE members ADD COLUMN paused_with TEXT;
   `,
 ];
 

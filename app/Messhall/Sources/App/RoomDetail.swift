@@ -30,7 +30,7 @@ struct RoomDetail: View {
       RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(
         live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil,
-        setRole: room.isOpen ? { setRole($0, member: $1) } : nil
+        setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) }
       )
       .id(room.name)
       Divider()
@@ -102,6 +102,10 @@ struct RoomDetail: View {
 
   private func setRole(_ role: String, member: String) {
     Task { refusal = await store.setRole(role, member: member, room: room.name, via: client) }
+  }
+
+  private func remove(_ members: [String]) {
+    Task { refusal = await store.remove(members, room: room.name, via: client) }
   }
 }
 
@@ -213,6 +217,7 @@ struct MemberStrip: View {
   let away: [Member]
   let mention: ((String) -> Void)?
   let setRole: ((_ role: String, _ member: String) -> Void)?
+  let remove: ([String]) -> Void
   @State private var showsAway = Self.startsOpen
 
   #if DEBUG
@@ -226,8 +231,10 @@ struct MemberStrip: View {
       HStack(spacing: 8) {
         ForEach(live, id: \.name, content: chip)
         if !away.isEmpty {
-          AwayChip(members: away, open: showsAway) { withAnimation(.snappy) { showsAway.toggle() } }
-          if showsAway { ForEach(away, id: \.name, content: chip) }
+          AwayChip(
+            members: away, open: showsAway, toggle: { withAnimation(.snappy) { showsAway.toggle() } },
+            clear: { remove(away.map(\.name)) })
+          if showsAway { ForEach(away, id: \.name, content: removable) }
         }
       }
       .padding(.horizontal, 16)
@@ -248,6 +255,21 @@ struct MemberStrip: View {
       }
   }
 
+  private func removable(_ member: Member) -> some View {
+    chip(member)
+      .overlay(alignment: .topTrailing) {
+        Button { remove([member.name]) } label: {
+          Image(systemName: "xmark.circle.fill")
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .offset(x: 5, y: -5)
+        .help("Remove \(member.name) from the room")
+        .accessibilityLabel("Remove \(member.name)")
+      }
+  }
+
   @ViewBuilder private func mentionable(_ member: Member) -> some View {
     if let mention, member.kind != .human, member.presence != .left {
       Button { mention(member.name) } label: { MemberChip(member: member) }
@@ -260,14 +282,30 @@ struct MemberStrip: View {
 }
 
 /// Gone and left agents as one chip with their avatars stacked. A click shows or hides them beside it.
+/// Clear All removes them all from the room.
 struct AwayChip: View {
   let members: [Member]
   let open: Bool
   let toggle: () -> Void
+  let clear: () -> Void
 
   private static let stackedAvatars = 3
 
   var body: some View {
+    HStack(spacing: 10) {
+      fold
+      Button("Clear All", action: clear)
+        .buttonStyle(.plain)
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .help("Remove every gone and left agent from the room")
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var fold: some View {
     Button(action: toggle) {
       HStack(spacing: 8) {
         HStack(spacing: -10) {
@@ -289,11 +327,8 @@ struct AwayChip: View {
           .foregroundStyle(.secondary)
         }
       }
-      .padding(.horizontal, 10)
-      .padding(.vertical, 6)
-      .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
       .opacity(0.6)
-      .contentShape(RoundedRectangle(cornerRadius: 8))
+      .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .help(members.map(\.name).joined(separator: ", "))

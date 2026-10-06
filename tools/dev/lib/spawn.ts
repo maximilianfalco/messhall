@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { shellLine } from '../../../src/lib/shell.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 
 import { claudeArgv } from './claudeTmux.js';
@@ -77,47 +78,70 @@ export function spawnPlan({ id, listing }: { id: string; listing: string }) {
   return { ok: true, row, session: sessionName(row.id), slug: branchSlug(row.branch) } as const;
 }
 
-// Every seated agent joins, says hello and waits for a role. What a role means lives in its instructions, not here.
-function seatLines({ name, room, until }: { name: string; room: string; until: string }) {
+/** The first prompt for every spawned agent, one line since a newline would send it early. It only seats the agent:
+ * its work comes later, in the role instructions. */
+export function seatPrompt({ name, room }: { name: string; room: string }) {
   return [
-    `Read the using-messhall skill first.`,
-    `Use the messhall tools for your seat, not a fifo or a script: join #${room} as ${name} now, post one line saying who you are, and keep the seat, never call leave${until}.`,
+    `You are a seated agent with no role yet. Read the using-messhall skill first.`,
+    `Use the messhall tools for your seat, not a fifo or a script: join #${room} as ${name} now, post one line saying who you are, and keep the seat, never call leave.`,
     `Talk in the room only through those tools, never through messhall post or messhall-dev agent, so the room shows you as claude.`,
     `Never speak as the human: no messhall say, no human key, no human-seat routes. To try a surface, test with your own name or a scratch daemon (pnpm messhall-dev daemon).`,
     `Then do nothing else until orchestrator or human gives you a role: after a line that mentions you, call my_role and follow the instructions it returns.`,
     `If my_role still says unassigned after ${ROLE_WAIT_MIN} minutes, post "@orchestrator what is my role?" and wait again.`,
     `Whenever a role line mentions you later, call my_role again and switch to what it says.`,
     `Answer a ring, a human line or a mention of you in #${room} right away, then go back to work.`,
-  ];
+  ].join(' ');
 }
 
-/** The first prompt for a queue row, one line since a newline would send it early. The row is claimed before it is typed. */
-export function spawnPrompt({
+/** Role instructions for a queue row: the role text, then the row, branch and claimed worktree. */
+export function rowInstructions({
   branch,
   brief,
   id,
-  room,
+  role,
   worktree,
 }: {
   branch: string;
   brief?: string;
   id: string;
-  room: string;
+  role?: string;
   worktree: string;
 }) {
   const guide = brief ? `its brief is ${brief}` : `/messhall-pickup-any-work ${id} covers how to work it`;
-  return [
-    ...seatLines({ name: branchSlug(branch), room, until: ' until your work is finished' }),
-    `Context for your role: you were spawned for row ${id} of the job queue, branch ${branch}.`,
+  const row = [
+    `Your work: row ${id} of the job queue, branch ${branch}.`,
     `It is already claimed and your worktree is ${worktree}, so skip the claim and worktree steps, and ${guide}.`,
-    `Closing the row is yours: when it is finished, you may run queue.py done ${id} yourself.`,
+    `Closing the row is yours: when it is finished, you may run queue.py done ${id} yourself. Keep your seat until then.`,
   ].join(' ');
+  return role ? `${role}\n\n${row}` : row;
 }
 
-/** The first prompt for a seat with no queue row, one line. Its role, and so its work, comes later. */
-export function seatPrompt({ name, room }: { name: string; room: string }) {
-  return [`You are a seated agent with no job yet.`, ...seatLines({ name, room, until: '' })].join(' ');
-}
+/** The orchestrator line that gives `member` its role with the instructions in `file`. */
+export const assignLine = ({
+  file,
+  member,
+  role,
+  room,
+}: {
+  file: string;
+  member: string;
+  role: string;
+  room: string;
+}) =>
+  shellLine([
+    'pnpm',
+    'messhall-dev',
+    'agent',
+    'orchestrator',
+    '--room',
+    room,
+    '--say',
+    `@${member} your role: ${role}`,
+    '--assign',
+    `${member}=${role}`,
+    '--instructions',
+    file,
+  ]);
 
 /** The shared claude argv with the normal tool set and `--model`. It may also read the main checkout's plan without a prompt. */
 export function spawnArgv({

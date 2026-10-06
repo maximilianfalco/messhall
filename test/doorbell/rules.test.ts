@@ -43,7 +43,7 @@ const THREE = [
   member({ kind: 'codex', name: 'infra' }),
 ];
 const rung = (input: Partial<Parameters<typeof ringsFor>[0]> & Pick<Parameters<typeof ringsFor>[0], 'message'>) =>
-  ringsFor({ closed: false, lastRing: {}, members: THREE, now: NOW, ...input }).map(ring => ring.name);
+  ringsFor({ closed: false, lastRing: {}, members: THREE, now: NOW, pausedWith: {}, ...input }).map(ring => ring.name);
 
 describe('ringsFor', () => {
   it('rings a mentioned member 3 s from now and names who mentioned it', () => {
@@ -54,6 +54,7 @@ describe('ringsFor', () => {
         members: THREE,
         message: message({ from: 'api', mentions: ['web'] }),
         now: NOW,
+        pausedWith: {},
       }),
     ).toStrictEqual([{ at: T0 + 63_000, kind: 'claude', mentionedBy: 'api', name: 'web' }]);
   });
@@ -98,6 +99,12 @@ describe('ringsFor', () => {
     expect(rung({ members, message: message({ from: 'api', mentions: ['web'] }) })).toStrictEqual(['web']);
   });
 
+  it('never rings for a line between a paused pair, but still for a third agent', () => {
+    const pausedWith = { api: 'web', web: 'api' };
+    expect(rung({ message: message({ from: 'api', mentions: ['web'] }), pausedWith })).toStrictEqual([]);
+    expect(rung({ message: message({ from: 'infra', mentions: ['web'] }), pausedWith })).toStrictEqual(['web']);
+  });
+
   it('never rings in a closed room', () => {
     expect(rung({ closed: true, message: message({ from: 'api', mentions: ['web'] }) })).toStrictEqual([]);
   });
@@ -109,6 +116,7 @@ describe('ringsFor', () => {
       members: THREE,
       message: message({ from: 'api', mentions: ['web'] }),
       now: NOW,
+      pausedWith: {},
     });
     expect(ring?.at).toBe(T0 + 70_000);
   });
@@ -120,6 +128,7 @@ describe('ringsFor', () => {
       members: THREE,
       message: message({ from: 'human' }),
       now: NOW,
+      pausedWith: {},
     });
     expect(ring).toStrictEqual({ at: T0 + 63_000, kind: 'claude', name: 'api' });
   });

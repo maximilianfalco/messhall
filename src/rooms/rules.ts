@@ -14,13 +14,35 @@ export function parseMentions({ names, text }: { names: string[]; text: string }
 }
 
 /** True when the message is one the member should answer: a mention, `@all`, the human, or a room of two agents.
- * Daemon lines and summaries concern nobody. */
-export function concerns({ member, members, message }: { member: Member; members: Member[]; message: Message }) {
+ * Daemon lines, summaries and lines from the partner a member is paused with concern nobody. */
+export function concerns({
+  member,
+  members,
+  message,
+  pausedWith,
+}: {
+  member: Member;
+  members: Member[];
+  message: Message;
+  pausedWith: Readonly<Record<string, string>>;
+}) {
   if (message.kind === 'system' || message.kind === 'summary' || message.from === member.name) return false;
+  if (pausedWith[member.name] === message.from) return false;
   if (message.mentions.includes(member.name) || message.mentions.includes(ALL_MENTION)) return true;
   if (message.from === HUMAN_NAME) return true;
   const agents = members.filter(other => other.kind !== 'human' && other.left_at === null).map(other => other.name);
   return agents.length === 2 && agents.includes(member.name) && agents.includes(message.from);
+}
+
+/**
+ * The two agents behind the last `lines` posts, when nobody else spoke and nobody said done in that run.
+ * Null otherwise. Posts come oldest first.
+ */
+export function loopPair({ lines, posts }: { lines: number; posts: Message[] }) {
+  const run = posts.slice(-lines);
+  if (run.length < lines || run.some(post => post.kind !== 'chat' || post.from === HUMAN_NAME)) return null;
+  const [a, b, ...rest] = new Set(run.map(post => post.from));
+  return a && b && !rest.length ? ([a, b] as const) : null;
 }
 
 /** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns gone at 30. */

@@ -199,6 +199,7 @@ describe('postMessage', () => {
     expect(texts('demo').filter(line => line.startsWith('messhall:'))).toStrictEqual([
       'messhall: api joined',
       'messhall: web joined',
+      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
     ]);
     expect(post('api', 'one more').kind).toBe('chat');
   });
@@ -866,12 +867,12 @@ describe('clearing stale members', () => {
       .listMembers(room, { left: true })
       .map(member => member.name);
 
-  it('drops a member left for 30 minutes and keeps its posts labeled', () => {
+  it('drops a member left for 5 minutes and keeps its posts labeled', () => {
     joinBoth();
     post('api', 'shipped');
     store().leaveRoom({ as: 'api', room: 'demo' });
 
-    scratch.clock.advance(minutes(29));
+    scratch.clock.advance(minutes(4));
     expect(store().clearStale()).toStrictEqual([]);
     scratch.clock.advance(minutes(1));
     expect(store().clearStale()).toStrictEqual([{ name: 'api', room: 'demo' }]);
@@ -884,14 +885,14 @@ describe('clearing stale members', () => {
     });
   });
 
-  it('drops a member gone for 30 minutes counted from when it went gone, not its last call', () => {
+  it('drops a member gone for 5 minutes counted from when it went gone, not its last call', () => {
     joinBoth();
     scratch.clock.advance(minutes(30));
     store().touch({ as: 'web', room: 'demo', state: 'active' });
     store().sweepPresence();
     expect(memberOf('demo', 'api')!.presence).toBe('gone');
 
-    scratch.clock.advance(minutes(29));
+    scratch.clock.advance(minutes(4));
     store().touch({ as: 'web', room: 'demo', state: 'active' });
     expect(store().clearStale()).toStrictEqual([]);
     scratch.clock.advance(minutes(1));
@@ -904,11 +905,11 @@ describe('clearing stale members', () => {
   it('restarts the count when a gone member comes back', () => {
     joinBoth();
     store().touch({ as: 'api', room: 'demo', state: 'gone' });
-    scratch.clock.advance(minutes(20));
+    scratch.clock.advance(minutes(4));
     store().touch({ as: 'api', room: 'demo', state: 'active' });
     store().touch({ as: 'api', room: 'demo', state: 'gone' });
 
-    scratch.clock.advance(minutes(20));
+    scratch.clock.advance(minutes(4));
 
     expect(store().clearStale()).toStrictEqual([]);
   });
@@ -917,10 +918,10 @@ describe('clearing stale members', () => {
     joinBoth();
     store().touch({ as: 'web', room: 'demo', state: 'waiting' });
 
-    scratch.clock.advance(minutes(29));
+    scratch.clock.advance(minutes(4));
     store().touch({ as: 'web', room: 'demo', state: 'waiting' });
     store().touch({ as: 'api', room: 'demo', state: 'active' });
-    scratch.clock.advance(minutes(5));
+    scratch.clock.advance(minutes(2));
 
     expect(store().clearStale()).toStrictEqual([]);
     expect(names()).toStrictEqual(['api', 'human', 'web']);
@@ -932,7 +933,7 @@ describe('clearing stale members', () => {
     const seen: SequencedEvent[] = [];
     store().events.on(event => seen.push(event));
 
-    scratch.clock.advance(minutes(30));
+    scratch.clock.advance(minutes(5));
     store().clearStale();
 
     expect(seen.map(item => item.event)).toStrictEqual([
@@ -951,7 +952,7 @@ describe('clearing stale members', () => {
     store().readUnseen({ as: 'api', room: 'demo' });
     store().assignRole({ by: 'human', member: 'api', role: 'reviewer', room: 'demo' });
     store().leaveRoom({ as: 'api', room: 'demo' });
-    scratch.clock.advance(minutes(30));
+    scratch.clock.advance(minutes(5));
     store().clearStale();
 
     const result = store().joinRoom({ as: 'api', kind: 'codex', room: 'demo' });
@@ -959,7 +960,7 @@ describe('clearing stale members', () => {
     expect(result).toMatchObject({ change: 'joined', ok: true });
     expect(memberOf('demo', 'api')).toMatchObject({
       cursor: 0,
-      joined_at: new Date(T0 + minutes(30)).toISOString(),
+      joined_at: new Date(T0 + minutes(5)).toISOString(),
       kind: 'codex',
       role: 'unassigned',
     });
@@ -971,10 +972,118 @@ describe('clearing stale members', () => {
       store().joinRoom({ as, kind: 'claude', room: 'lobby' });
       store().leaveRoom({ as, room: 'lobby' });
     });
-    scratch.clock.advance(minutes(30));
+    scratch.clock.advance(minutes(5));
     store().joinRoom({ as: 'api', kind: 'claude', room: 'lobby' });
 
     expect(store().clearStale()).toHaveLength(35);
     expect(names('lobby')).toStrictEqual(['api', 'human']);
+  });
+});
+
+describe('removing a member by hand', () => {
+  const names = () =>
+    store()
+      .listMembers('demo', { left: true })
+      .map(member => member.name);
+
+  it('drops a left member right away and keeps its posts labeled', () => {
+    joinBoth();
+    post('api', 'shipped');
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    const result = store().removeMember({ member: 'api', room: 'demo' });
+
+    expect(result).toMatchObject({ member: { name: 'api', presence: 'left' }, ok: true });
+    expect(names()).toStrictEqual(['human', 'web']);
+    const page = store().listMessages({ limit: 50, room: 'demo' });
+    expect(page.ok && page.messages.find(message => message.text === 'shipped')).toMatchObject({
+      from: 'api',
+      from_kind: 'claude',
+    });
+  });
+
+  it('drops a gone member and emits a removed member event', () => {
+    joinBoth();
+    store().touch({ as: 'api', room: 'demo', state: 'gone' });
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    store().removeMember({ member: 'api', room: 'demo' });
+
+    expect(seen.map(item => item.event)).toStrictEqual([
+      {
+        change: 'removed',
+        member: expect.objectContaining({ name: 'api', presence: 'gone' }),
+        room: 'demo',
+        type: 'member',
+      },
+    ]);
+  });
+
+  it('refuses a member that is still here, and the human seat', () => {
+    joinBoth();
+
+    expect(store().removeMember({ member: 'api', room: 'demo' })).toStrictEqual({ ok: false, reason: 'still_here' });
+    expect(store().removeMember({ member: 'human', room: 'demo' })).toStrictEqual({ ok: false, reason: 'still_here' });
+    expect(names()).toStrictEqual(['api', 'human', 'web']);
+  });
+
+  it('refuses a member or a room that does not exist', () => {
+    joinBoth();
+
+    expect(store().removeMember({ member: 'ghost', room: 'demo' })).toStrictEqual({ ok: false, reason: 'no_member' });
+    expect(store().removeMember({ member: 'api', room: 'nope' })).toStrictEqual({ ok: false, reason: 'no_room' });
+  });
+});
+
+describe('the loop guard', () => {
+  const trade = (count: number) =>
+    Array.from({ length: count }, (_, index) => post(index % 2 ? 'web' : 'api', `line ${index + 1}`));
+  const loopLines = () => texts('demo').filter(line => line.includes('traded'));
+
+  it('pauses two agents after 12 lines alone and asks the human in one line', () => {
+    joinBoth();
+
+    trade(11);
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(1);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toStrictEqual([
+      'messhall: @human api and web have traded 12 lines with no one else, their doorbells are paused',
+    ]);
+    expect(store().listMessages({ limit: 1, room: 'demo' }).messages?.[0]?.mentions).toStrictEqual(['human']);
+  });
+
+  it('says it once while the pair stays paused', () => {
+    joinBoth();
+
+    trade(30);
+
+    expect(loopLines()).toHaveLength(1);
+  });
+
+  it('restarts the run when a third agent speaks', () => {
+    joinBoth();
+    store().joinRoom({ as: 'infra', kind: 'claude', room: 'demo' });
+
+    trade(6);
+    post('infra', 'hi both');
+    trade(6);
+
+    expect(store().pausedWith('demo')).toStrictEqual({});
+    expect(loopLines()).toStrictEqual([]);
+  });
+
+  it('lifts the pause when the human posts, and pauses again after 12 more', () => {
+    joinBoth();
+    trade(12);
+
+    post('human', 'stop and sum up');
+    expect(store().pausedWith('demo')).toStrictEqual({});
+
+    trade(12);
+    expect(store().pausedWith('demo')).toStrictEqual({ api: 'web', web: 'api' });
+    expect(loopLines()).toHaveLength(2);
   });
 });

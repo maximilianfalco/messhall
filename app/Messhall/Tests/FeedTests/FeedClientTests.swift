@@ -92,6 +92,15 @@ struct FeedClientTests {
     #expect(request.httpBody == Data(#"{"role":"reviewer"}"#.utf8))
   }
 
+  @Test("a remove deletes the member's path")
+  func remove() throws {
+    let request = try client(key: "k1").request(.remove(room: "ops", member: "api"))
+
+    #expect(request.httpMethod == "DELETE")
+    #expect(request.url?.absoluteString == "http://127.0.0.1:7796/api/rooms/ops/members/api")
+    #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
+  }
+
   @Test("a missing key file says to start the daemon")
   func missingKey() throws {
     #expect(throws: FeedClient.KeyMissing.self) { try client(key: nil).request(.snapshot) }

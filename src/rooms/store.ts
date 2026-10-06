@@ -16,12 +16,12 @@ import {
   TEXT_MAX_CHARS,
   UNASSIGNED_ROLE,
 } from '../../contracts/room.ts';
-import { READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
+import { LOOP_GUARD_LINES, READ_LIMIT, SEARCH_LIMIT, STALE_AFTER_MS } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
 import { createEventBus } from './events.js';
-import { canAssignRole, nextPresence, parseMentions } from './rules.js';
+import { canAssignRole, loopPair, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -93,6 +93,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     ),
     latest: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id'),
     latestSummary: db.prepare("SELECT * FROM messages WHERE room_id = ? AND kind = 'summary' ORDER BY id DESC LIMIT 1"),
+    lastPosts: db.prepare(
+      `SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} ORDER BY id DESC LIMIT ?) ORDER BY id`,
+    ),
     latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
     leave: db.prepare("UPDATE members SET left_at = ?, presence = 'left' WHERE room_id = ? AND name = ?"),
     liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
@@ -101,6 +104,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     messagesBefore: db.prepare(
       'SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND id < ? ORDER BY id DESC LIMIT ?) ORDER BY id',
     ),
+    paused: db.prepare('SELECT name, paused_with FROM members WHERE room_id = ? AND paused_with IS NOT NULL'),
+    pause: db.prepare('UPDATE members SET paused_with = ? WHERE room_id = ? AND name = ?'),
+    unpauseAll: db.prepare('UPDATE members SET paused_with = NULL WHERE room_id = ?'),
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
@@ -217,6 +223,30 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       const candidate = `${name.slice(0, NAME_MAX - suffix.length)}${suffix}`;
       if (!findMember(room, candidate)) return candidate;
     }
+  }
+
+  function drop(room: Room, member: Member, emit: Emit) {
+    sql.removeMember.run(room.id, member.name);
+    emit({ change: 'removed', member, room: room.name, type: 'member' });
+  }
+
+  const pausedIn = (room: Room) =>
+    Object.fromEntries(sql.paused.all(room.id).map(row => [String(row.name), String(row.paused_with)]));
+
+  // Two agents trading lines alone pause each other once, and the human hears about it in the same write.
+  function guardLoop(room: Room, emit: Emit) {
+    const pair = loopPair({
+      lines: LOOP_GUARD_LINES,
+      posts: sql.lastPosts.all(room.id, LOOP_GUARD_LINES).map(toMessage),
+    });
+    if (!pair) return;
+    const [a, b] = pair;
+    const paused = pausedIn(room);
+    if (paused[a] === b && paused[b] === a) return;
+    sql.pause.run(b, room.id, a);
+    sql.pause.run(a, room.id, b);
+    const text = `@${HUMAN_NAME} ${a} and ${b} have traded ${LOOP_GUARD_LINES} lines with no one else, their doorbells are paused`;
+    post(room, SYSTEM_NAME, 'system', text, [HUMAN_NAME], emit);
   }
 
   // Finds the room and a member still in it, the gate every member call goes through.
@@ -399,6 +429,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return row ? toMessage(row) : undefined;
     },
 
+    /** Who each paused member is paused with in a room. Lines between them ring nobody until the human posts. */
+    pausedWith(roomName: string) {
+      const room = findRoom(roomName);
+      return room ? pausedIn(room) : {};
+    },
+
     /** Every room by name, closed ones too, with how many member posts it holds. */
     listRooms() {
       return sql.rooms.all().map(row => roomSummarySchema.parse(withStanding(row)));
@@ -435,6 +471,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const message = post(room, member, kind, text, parseMentions({ names, text }), emit);
         sql.setDone.run(kind === 'done' ? 1 : 0, room.id, from);
         setPresence(room, member, 'active', emit, true);
+        if (human) sql.unpauseAll.run(room.id);
+        else guardLoop(room, emit);
         if (!room.standing && kind === 'done' && Number(sql.agentsNotDone.get(room.id)?.n) === 0) {
           close(room, 'all done, room closed', emit);
         }
@@ -531,17 +569,31 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Drops agents left or gone for 30 minutes. Their posts keep the sender's name and type, and a rejoin starts fresh. */
+    /** Drops agents left or gone for 5 minutes. Their posts keep the sender's name and type, and a rejoin starts fresh. */
     clearStale() {
       return transaction(emit => {
         const cutoff = new Date(now().getTime() - STALE_AFTER_MS).toISOString();
         return sql.stale.all(cutoff).map(row => {
           const member = toMember(row);
           const room = roomById(member.room_id);
-          sql.removeMember.run(member.room_id, member.name);
-          emit({ change: 'removed', member, room: room.name, type: 'member' });
+          drop(room, member, emit);
           return { name: member.name, room: room.name };
         });
+      });
+    },
+
+    /** Drops a left or gone member now, the way `clearStale` does later. A member still here is refused. */
+    removeMember({ member: name, room: roomName }: { member: string; room: string }) {
+      return transaction(emit => {
+        const room = findRoom(roomName);
+        if (!room) return { ok: false, reason: 'no_room' } as const;
+        const member = findMember(room, name);
+        if (!member) return { ok: false, reason: 'no_member' } as const;
+        if (member.presence !== 'left' && member.presence !== 'gone') {
+          return { ok: false, reason: 'still_here' } as const;
+        }
+        drop(room, member, emit);
+        return { member, ok: true } as const;
       });
     },
 
