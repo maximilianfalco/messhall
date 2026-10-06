@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { proofLines } from '../../tools/dev/commands/channel.js';
-import { dialogKeys } from '../../tools/dev/lib/claudeTmux.js';
+import { dialogKeys, inputText } from '../../tools/dev/lib/claudeTmux.js';
+
+const paneFixture = (name: string) => readFileSync(new URL(`fixtures/panes/${name}.txt`, import.meta.url), 'utf8');
 
 const TRUST = ` Accessing workspace:
  /private/var/folders/xy/T/messhall-channel-cwd-abc
@@ -43,6 +47,30 @@ describe('dialogKeys', () => {
 
   it('does nothing on the normal prompt', () => {
     expect(dialogKeys('> \n  ? for shortcuts')).toStrictEqual({ kind: 'none' });
+  });
+});
+
+describe('inputText', () => {
+  it('is empty once the prompt was sent', () => {
+    expect(inputText(paneFixture('empty'))).toBe('');
+  });
+
+  it('reads a one line prompt left in the box', () => {
+    expect(inputText(paneFixture('stuck-one-line'))).toBe('merged it, close the row and clean up');
+  });
+
+  it('joins a wrapped prompt left in the box', () => {
+    expect(inputText(paneFixture('stuck-wrapped'))).toBe(
+      'the network dropped and your last request failed. carry on from where you stopped: check git status, finish the work, run the gate and open the PR',
+    );
+  });
+
+  it('reads a prompt held as pasted text', () => {
+    expect(inputText(paneFixture('stuck-paste'))).toBe('[Pasted text #1 +3 lines]');
+  });
+
+  it('is empty when no input box shows', () => {
+    expect(inputText(paneFixture('dialog'))).toBe('');
   });
 });
 

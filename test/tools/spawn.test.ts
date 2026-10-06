@@ -4,7 +4,7 @@ import type { RunResult } from '../../tools/dev/lib/run.js';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { flockStop, seatRun, seatThenAssign, spawnRun } from '../../tools/dev/commands/spawn.js';
+import { flockStop, nudgeRun, seatRun, seatThenAssign, spawnRun } from '../../tools/dev/commands/spawn.js';
 import { claudeArgv } from '../../tools/dev/lib/claudeTmux.js';
 import {
   parseFlock,
@@ -262,6 +262,42 @@ describe('flockStop', () => {
     expect(outcome.code).toBe(0);
     expect(outcome.report).not.toContain('release');
     expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-seat-reviewer-1']);
+  });
+});
+
+describe('nudgeRun', () => {
+  const STUCK = ['─'.repeat(40), '❯ carry on', '─'.repeat(40)].join('\n');
+  const EMPTY = ['─'.repeat(40), '❯ ', '─'.repeat(40)].join('\n');
+  const paneAfter = (panes: string[]) =>
+    vi.fn<Runner>(args => Promise.resolve(result(args[0] === 'capture-pane' ? (panes.shift() ?? EMPTY) : '')));
+
+  it('refuses a session tmux does not have', async () => {
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('', 1)));
+    const outcome = await nudgeRun({ session: 'messhall-B82', settleMs: 0, text: 'carry on', tmux });
+    expect(outcome.code).toBe(1);
+    expect(tmux).toHaveBeenCalledTimes(1);
+  });
+
+  it('types the text, then sends a lone Enter until the box is empty', async () => {
+    const tmux = paneAfter([STUCK, EMPTY]);
+    const outcome = await nudgeRun({ session: 'messhall-B82', settleMs: 0, text: 'carry on', tmux });
+    expect(outcome.code).toBe(0);
+    expect(tmux.mock.calls.map(([args]) => args.join(' '))).toStrictEqual([
+      'has-session -t messhall-B82',
+      'send-keys -t messhall-B82 -l carry on',
+      'send-keys -t messhall-B82 Enter',
+      'capture-pane -p -t messhall-B82',
+      'send-keys -t messhall-B82 Enter',
+      'capture-pane -p -t messhall-B82',
+    ]);
+  });
+
+  it('says the prompt is stuck when Enter never empties the box', async () => {
+    const tmux = paneAfter(Array.from({ length: 10 }, () => STUCK));
+    const outcome = await nudgeRun({ session: 'messhall-B82', settleMs: 0, text: 'carry on', tmux });
+    expect(outcome.code).toBe(1);
+    expect(outcome.report).toContain('stuck');
+    expect(tmux.mock.calls.filter(([args]) => args.includes('Enter'))).toHaveLength(5);
   });
 });
 

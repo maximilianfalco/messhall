@@ -1,0 +1,9 @@
+⏺ Still seated in #dev and waiting.
+
+✻ Baked for 2m 4s · done 8:41 PM
+                                                                            Update available! Run: brew upgrade claude-code@latest
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ merged it, close the row and clean up
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ➜ demo git:(main)  tokens: 76/turn · 340.9k/session · 34% ctx
+  ⏵⏵ auto mode on · 1 MCP task · ← 3 agents
