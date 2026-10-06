@@ -290,7 +290,7 @@ struct MemberStrip: View {
   }
 }
 
-/// Gone and left agents as one chip with their avatars stacked. A click shows or hides them beside it.
+/// Away and left agents as one chip with their avatars stacked. A click shows or hides them beside it.
 /// Clear All removes them all from the room.
 struct AwayChip: View {
   let members: [Member]
@@ -307,7 +307,7 @@ struct AwayChip: View {
         .buttonStyle(.plain)
         .font(.caption.weight(.medium))
         .foregroundStyle(.secondary)
-        .help("Remove every gone and left agent from the room")
+        .help("Remove every away and left agent from the room")
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 6)
@@ -324,7 +324,7 @@ struct AwayChip: View {
           }
         }
         VStack(alignment: .leading, spacing: 1) {
-          Text("\(members.count) gone")
+          Text("\(members.count) away")
             .font(.callout.weight(.medium))
           HStack(spacing: 4) {
             Image(systemName: "chevron.right")
@@ -341,7 +341,7 @@ struct AwayChip: View {
     }
     .buttonStyle(.plain)
     .help(members.map(\.name).joined(separator: ", "))
-    .accessibilityLabel("\(members.count) gone: \(members.map(\.name).joined(separator: ", "))")
+    .accessibilityLabel("\(members.count) away: \(members.map(\.name).joined(separator: ", "))")
     .accessibilityHint(open ? "Hides them" : "Shows them")
   }
 }

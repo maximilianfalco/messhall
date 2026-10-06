@@ -69,6 +69,42 @@ describe('openDb', () => {
     db.close();
   });
 
+  it('turns gone into away in members and stored events, and gives every member an empty seat key', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    old.function('client_label', { varargs: true }, () => null);
+    MIGRATIONS.slice(0, 11).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = 11;
+      INSERT INTO rooms (id, name, created_at) VALUES ('r1', 'demo', 't0');
+      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, gone_at) VALUES
+        ('r1', 'api', 'claude', 't0', 't1', 'gone', 't1'), ('r1', 'web', 'codex', 't0', 't2', 'idle', NULL);
+      INSERT INTO events (kind, payload, created_at) VALUES
+        ('member', '{"type":"member","change":"joined","room":"demo","member":{"name":"api","presence":"gone"}}', 't0'),
+        ('presence', '{"type":"presence","name":"api","from":"gone","to":"active"}', 't0'),
+        ('presence', '{"type":"presence","name":"web","from":"idle","to":"gone"}', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect(
+      db
+        .prepare('select name, presence, seat_key from members order by name')
+        .all()
+        .map(row => ({ ...row })),
+    ).toStrictEqual([
+      { name: 'api', presence: 'away', seat_key: null },
+      { name: 'web', presence: 'idle', seat_key: null },
+    ]);
+    expect(
+      db
+        .prepare('select payload from events order by seq')
+        .all()
+        .map(row => JSON.parse(String(row.payload))),
+    ).toMatchObject([{ member: { presence: 'away' } }, { from: 'away', to: 'active' }, { from: 'idle', to: 'away' }]);
+    db.close();
+  });
+
   it('refuses a db written by a newer messhall', () => {
     const db = openDb({ dataDir });
     db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`);
@@ -119,7 +155,7 @@ describe('openDb', () => {
         .map(row => ({ ...row })),
     ).toStrictEqual([
       { name: 'api', presence: 'left' },
-      { name: 'web', presence: 'gone' },
+      { name: 'web', presence: 'away' },
     ]);
     db.close();
   });
@@ -229,32 +265,6 @@ describe('openDb', () => {
     ).toStrictEqual([
       { name: 'api', role: 'unassigned' },
       { name: 'orchestrator', role: 'orchestrator' },
-    ]);
-    db.close();
-  });
-
-  it('stamps members already gone with their last call as when they went gone', () => {
-    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
-    old.function('client_label', { varargs: true }, () => null);
-    MIGRATIONS.slice(0, 8).forEach(sql => old.exec(sql));
-    old.exec(`
-      PRAGMA user_version = 8;
-      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
-      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence) VALUES
-        ('r1', 'api', 'claude', 't0', 't1', 'gone'), ('r1', 'web', 'codex', 't0', 't2', 'idle');
-    `);
-    old.close();
-
-    const db = openDb({ dataDir });
-
-    expect(
-      db
-        .prepare('select name, gone_at from members order by name')
-        .all()
-        .map(row => ({ ...row })),
-    ).toStrictEqual([
-      { gone_at: 't1', name: 'api' },
-      { gone_at: null, name: 'web' },
     ]);
     db.close();
   });

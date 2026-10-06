@@ -38,6 +38,32 @@ async function nameFromRoots(server: McpServer, ctx: ServerContext) {
   return uri?.startsWith('file:') ? roleFromFolder(path.basename(fileURLToPath(uri))) : undefined;
 }
 
+/** Binds a seat the store just gave this session. Any other session holding the name lets go, so only one posts as it. */
+export function bindSeat({
+  client,
+  kind,
+  name,
+  room,
+  session,
+  sessions,
+  store,
+  threadId,
+}: Pick<ToolDeps, 'session' | 'sessions' | 'store'> & {
+  client: { name: string } | undefined;
+  kind: AgentKind;
+  name: string;
+  room: string;
+  threadId?: string;
+}) {
+  sessions
+    .sessionsFor({ name, room })
+    .filter(entry => entry.session !== session)
+    .forEach(entry => entry.session.unbind(room));
+  const newest = store.listMessages({ limit: 1, room });
+  const mark = newest.ok ? (newest.messages.at(-1)?.id ?? 0) : 0;
+  session.bind({ channel: ringsByChannel({ client: client?.name, kind }), kind, mark, name, room, threadId });
+}
+
 const summaryBlock = (summary: Message | undefined) =>
   summary
     ? [
@@ -66,26 +92,17 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
     if (!held) {
       const holders = sessions.sessionsFor({ name: as, room: input.room });
       const holderDead = holders.every(entry => entry.session.dead());
-      const joined = store.joinRoom({ as, client, holderDead, kind, room: input.room });
+      // Codex sends no seat header, so its thread id is its seat key.
+      const seat = session.seat ?? input.thread_id;
+      const joined = store.joinRoom({ as, client, holderDead, kind, room: input.room, seatKey: seat });
       if (!joined.ok && joined.reason === 'name_reserved') {
         return refuse(`${RESERVED_NAMES.join(', ')} are reserved. pick another name.`);
       }
       if (!joined.ok && joined.reason === 'room_closed') return refuse('room is closed, ask the human to reopen.');
       if (!joined.ok) return refuse(`name taken, try ${joined.suggestion}.`);
       reconnected = joined.change === 'reconnected';
-      // A takeover leaves the old session bound, so drop it there before it can post as this name.
-      holders.forEach(entry => entry.session.unbind(input.room));
     }
-    const newest = store.listMessages({ limit: 1, room: input.room });
-    const mark = newest.ok ? (newest.messages.at(-1)?.id ?? 0) : 0;
-    session.bind({
-      channel: ringsByChannel({ client: client?.name, kind }),
-      kind,
-      mark,
-      name: as,
-      room: input.room,
-      threadId,
-    });
+    bindSeat({ client, kind, name: as, room: input.room, session, sessions, store, threadId });
 
     const members = store.listMembers(input.room);
     const me = members.find(member => member.name === as)!;

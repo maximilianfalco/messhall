@@ -23,7 +23,7 @@ export interface LaunchDeps {
   fetch: Parameters<typeof probeHealth>[0]['fetch'];
   log: (line: string) => void;
   run: typeof runCommand;
-  spawn: (argv: string[], cwd: string) => Promise<number>;
+  spawn: (argv: string[], cwd: string, env: Record<string, string>) => Promise<number>;
   url: string;
 }
 
@@ -60,7 +60,7 @@ async function missingEntry(agent: 'claude' | 'codex', deps: LaunchDeps) {
     : null;
 }
 
-/** Prints the command and the first prompt, then runs it and returns its exit code.
+/** Prints the command and the first prompt, then runs it with `env` on top of ours and returns its exit code.
  * Refuses with one line when the brief is not a file, the daemon is down or the agent has no messhall entry. `print` skips the last two. */
 export async function launch(
   {
@@ -68,9 +68,18 @@ export async function launch(
     argv,
     brief,
     cwd,
+    env = {},
     print,
     prompt,
-  }: { agent: 'claude' | 'codex'; argv: string[]; brief: string | null; cwd: string; print: boolean; prompt: string },
+  }: {
+    agent: 'claude' | 'codex';
+    argv: string[];
+    brief: string | null;
+    cwd: string;
+    env?: Record<string, string>;
+    print: boolean;
+    prompt: string;
+  },
   deps: LaunchDeps,
 ) {
   if (brief && !statSync(brief, { throwIfNoEntry: false })?.isFile()) {
@@ -89,13 +98,14 @@ export async function launch(
       return 1;
     }
   }
-  deps.log(`cd ${shellLine([cwd])} && ${shellLine(argv)}`);
+  const assigns = Object.entries(env).map(([name, value]) => `${name}=${shellLine([value])} `);
+  deps.log(`cd ${shellLine([cwd])} && ${assigns.join('')}${shellLine(argv)}`);
   deps.log(pc.dim(`first prompt: ${prompt}`));
-  return print ? 0 : deps.spawn(argv, cwd);
+  return print ? 0 : deps.spawn(argv, cwd, env);
 }
 
 /** Runs `argv` in the foreground on this terminal and resolves with its exit code. */
-function runForeground(argv: string[], cwd: string) {
+function runForeground(argv: string[], cwd: string, env: Record<string, string>) {
   return new Promise<number>(resolve => {
     // The agent owns the terminal, so ctrl-c is for it, not for us.
     const ignore = () => {};
@@ -104,7 +114,7 @@ function runForeground(argv: string[], cwd: string) {
       process.off('SIGINT', ignore);
       resolve(code);
     };
-    const child = spawn(argv[0]!, argv.slice(1), { cwd, stdio: 'inherit' });
+    const child = spawn(argv[0]!, argv.slice(1), { cwd, env: { ...process.env, ...env }, stdio: 'inherit' });
     child.on('error', error => {
       console.error(pc.red(`could not start ${argv[0]}: ${error.message}`));
       finish(127);

@@ -211,9 +211,9 @@ describe('nextPresence', () => {
     ['active', 2, 'idle'],
     ['waiting', 10, 'waiting'],
     ['idle', 29, 'idle'],
-    ['idle', 30, 'gone'],
-    ['waiting', 30, 'gone'],
-    ['gone', 1, 'gone'],
+    ['idle', 30, 'away'],
+    ['waiting', 30, 'away'],
+    ['away', 1, 'away'],
   ] as const)('moves %s after %i minutes to %s', (presence, after, expected) => {
     expect(nextPresence({ member: member({ name: 'api', presence }), now: minutes(after) })).toBe(expected);
   });

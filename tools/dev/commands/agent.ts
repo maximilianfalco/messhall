@@ -31,6 +31,7 @@ interface AgentOptions {
   role: string;
   room: string;
   say?: string;
+  seat?: string;
   signal?: AbortSignal;
   timeout?: number;
   url: string;
@@ -50,7 +51,7 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 
 /**
  * Join, post, then wait and read once, or with `catchUp` read every page without waiting.
- * Leaves at the end, so the room reads left, not gone.
+ * Leaves at the end, so the room reads left, not away.
  */
 async function joinAndRead(
   client: Client,
@@ -148,6 +149,7 @@ export async function agentRun({
   role,
   room,
   say,
+  seat,
   signal = new AbortController().signal,
   timeout,
   url,
@@ -164,7 +166,7 @@ export async function agentRun({
   const key = readKey(keyFile);
   if (!key) return { code: 1, report: bad(`no agent key at ${keyFile}. start the daemon once to make it`) };
 
-  const target = { key, name: client ?? 'messhall-dev', url };
+  const target = { key, name: client ?? 'messhall-dev', seat, url };
   const session = await withAgentSession(target, mcp =>
     following
       ? joinAndFollow(mcp, { open: () => openAgentSession(target), pause, postFifo, role, room, signal, write })
@@ -190,11 +192,11 @@ export async function agentRun({
         : `${role} ${name}`;
   const lines = session.value.flatMap(reply => [reply.isError ? bad(label(reply)) : ok(label(reply)), reply.text, '']);
   const left = session.value.some(reply => reply.name === 'leave' && !reply.isError);
-  lines.push(dim(left ? `session ended, ${role} left #${room}` : `session ended, ${role} is gone from #${room}`));
+  lines.push(dim(left ? `session ended, ${role} left #${room}` : `session ended, ${role} is away from #${room}`));
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--seat <key>] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
@@ -212,6 +214,7 @@ export function registerAgent(program: Command) {
     .option('--post-fifo <path>', 'with --follow, post each line written to this named pipe (made if missing)')
     .option('--timeout <s>', 'wait timeout in seconds', value => Number(value))
     .option('--client <name>', 'clientInfo name to send at initialize, to act as another agent')
+    .option('--seat <key>', 'seat key header to send, as messhall claude does, so the seat comes back after a drop')
     .option('--url <url>', 'daemon url', daemonUrl())
     .option('--key-file <file>', 'agent key file', path.join(dataDir(), KEY_FILES.agent))
     .action(async (role: string, options: Omit<AgentOptions, 'role'>) => {

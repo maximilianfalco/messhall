@@ -65,7 +65,7 @@ extension FeedStore {
     }
   }
 
-  /// Removes left or gone members as the human, one by one, and takes each out at once. Returns the first refusal, or nil.
+  /// Removes left or away members as the human, one by one, and takes each out at once. Returns the first refusal, or nil.
   public func remove(_ members: [String], room: String, via client: FeedClient) async -> String? {
     let seat = HumanSeat(client: client)
     for name in members {

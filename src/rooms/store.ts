@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   HUMAN_NAME,
+  memberKindSchema,
   memberSchema,
   ORCHESTRATOR_ROLE,
   messageSchema,
@@ -41,6 +42,13 @@ interface NewRoom {
 }
 type Row = Record<string, unknown>;
 
+interface Reclaim {
+  existing: Member;
+  holderDead: boolean;
+  room: Room;
+  seatKey: string | undefined;
+}
+
 const NAME_MAX = 40;
 // Only member posts count toward the summary schedule. Daemon lines and summaries do not.
 const IS_POST = "kind IN ('chat', 'done')";
@@ -61,6 +69,8 @@ const toMessage = (row: Row) =>
 const ftsQuery = (q: string) => Array.from(q.matchAll(/[\p{L}\p{N}_]+/gu), ([word]) => `"${word}"*`).join(' ');
 
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
+// Only agents hold a seat key, never the human seat.
+const AGENT_KIND = memberKindSchema.exclude(['human']);
 
 const isReserved = (name: string) => (RESERVED_NAMES as readonly string[]).includes(name);
 
@@ -81,7 +91,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     countPosts: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST}`),
     countPostsUpTo: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST} AND id <= ?`),
     insertMember: db.prepare(
-      'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, client_name, client_version, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, cursor, client_name, client_version, role, seat_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ),
     insertMessage: db.prepare(
       'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at, from_kind, from_client_label) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
@@ -111,7 +121,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
-      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, left_at = NULL, gone_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
+      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = 0 WHERE room_id = ? AND name = ?",
     ),
     reopen: db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
@@ -123,20 +133,22 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'SELECT messages.*, rooms.name AS room FROM messages_fts JOIN messages ON messages.id = messages_fts.rowid JOIN rooms ON rooms.id = messages.room_id WHERE messages_fts MATCH ? AND (? IS NULL OR rooms.id = ?) ORDER BY messages.id DESC LIMIT ?',
     ),
     removeMember: db.prepare('DELETE FROM members WHERE room_id = ? AND name = ?'),
-    seen: db.prepare(
-      'UPDATE members SET presence = ?, last_seen_at = ?, gone_at = NULL WHERE room_id = ? AND name = ?',
+    seatKey: db.prepare('SELECT seat_key FROM members WHERE room_id = ? AND name = ?'),
+    seats: db.prepare(
+      'SELECT rooms.name AS room, members.name, members.kind FROM members JOIN rooms ON rooms.id = members.room_id WHERE seat_key = ? AND left_at IS NULL ORDER BY rooms.name, members.name',
     ),
+    seen: db.prepare('UPDATE members SET presence = ?, last_seen_at = ? WHERE room_id = ? AND name = ?'),
     setRole: db.prepare(
       'UPDATE members SET role = ?, role_instructions = ?, role_set_by = ? WHERE room_id = ? AND name = ?',
     ),
     setMuted: db.prepare('UPDATE members SET muted = ? WHERE room_id = ? AND name = ?'),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
-    setPresence: db.prepare('UPDATE members SET presence = ?, gone_at = ? WHERE room_id = ? AND name = ?'),
+    setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
     stale: db.prepare(
-      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE kind != 'human' AND coalesce(left_at, gone_at) <= ? ORDER BY rooms.name, members.name",
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE kind != 'human' AND left_at <= ? ORDER BY rooms.name, members.name",
     ),
     sweepable: db.prepare(
-      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence != 'gone' ORDER BY rooms.name, members.name",
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence != 'away' ORDER BY rooms.name, members.name",
     ),
     unseen: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? AND from_name != ? ORDER BY id LIMIT ?'),
   };
@@ -181,15 +193,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   function setPresence(room: Room, member: Member, to: Presence, emit: Emit, seen: boolean) {
     if (seen) sql.seen.run(to, stamp(), room.id, member.name);
     if (member.presence === to) return;
-    if (!seen) sql.setPresence.run(to, to === 'gone' ? stamp() : null, room.id, member.name);
+    if (!seen) sql.setPresence.run(to, room.id, member.name);
     emit({ from: member.presence, name: member.name, room: room.name, to, type: 'presence' });
-    if (to === 'gone') systemLine(room, `${member.name} is gone`, emit);
+    if (to === 'away') systemLine(room, `${member.name} is away`, emit);
   }
 
   function addHuman(room: Room, emit: Emit) {
     const existing = findMember(room, HUMAN_NAME);
     if (existing) return existing;
-    sql.insertMember.run(room.id, HUMAN_NAME, 'human', stamp(), stamp(), 'idle', 0, null, null, UNASSIGNED_ROLE);
+    sql.insertMember.run(room.id, HUMAN_NAME, 'human', stamp(), stamp(), 'idle', 0, null, null, UNASSIGNED_ROLE, null);
     const member = findMember(room, HUMAN_NAME)!;
     emit({ change: 'joined', member, room: room.name, type: 'member' });
     return member;
@@ -227,9 +239,24 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     }
   }
 
+  // A keyed seat goes back only to its own key. A keyless one has no owner to check, so an away or dead holder lets go.
+  function reclaims({ existing, holderDead, room, seatKey }: Reclaim) {
+    const key = sql.seatKey.get(room.id, existing.name)?.seat_key;
+    if (typeof key === 'string') return key === seatKey;
+    return existing.presence === 'away' || holderDead;
+  }
+
   function drop(room: Room, member: Member, emit: Emit) {
     sql.removeMember.run(room.id, member.name);
     emit({ change: 'removed', member, room: room.name, type: 'member' });
+  }
+
+  function kick(room: Room, name: string, emit: Emit) {
+    const member = findMember(room, name);
+    if (!member) return { ok: false, reason: 'no_member' } as const;
+    if (member.kind === 'human') return { ok: false, reason: 'human' } as const;
+    drop(room, member, emit);
+    return { member, ok: true } as const;
   }
 
   const pausedIn = (room: Room) =>
@@ -303,9 +330,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     },
 
     /**
-     * Joins `as` to the room, making the room on first join. A gone holder, or one whose session is
-     * dead (`holderDead`), is taken over with its cursor ("reconnected"). A live holder gives
-     * `name_taken` with a free name to try. A closed standing room waits for the human to reopen it.
+     * Joins `as` to the room, making the room on first join. A seat still held goes back, with its cursor
+     * and role ("reconnected"), only to the same `seatKey`. A keyless seat goes to any caller once it is
+     * away or its session is dead (`holderDead`). Anyone else gets `name_taken` with a free name to try.
+     * A closed standing room waits for the human to reopen it.
      */
     joinRoom({
       as,
@@ -313,19 +341,21 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       holderDead = false,
       kind,
       room: roomName,
+      seatKey,
     }: {
       as: string;
       client?: { name: string; version: string };
       holderDead?: boolean;
       kind: AgentKind;
       room: string;
+      seatKey?: string;
     }) {
       if (isReserved(as)) return { ok: false, reason: 'name_reserved' } as const;
       return transaction(emit => {
         const room = findRoom(roomName) ?? makeRoom({ createdBy: as, name: roomName }, emit);
         if (room.standing && room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
         const existing = findMember(room, as);
-        if (existing && existing.left_at === null && existing.presence !== 'gone' && !holderDead) {
+        if (existing && existing.left_at === null && !reclaims({ existing, holderDead, room, seatKey })) {
           return { ok: false, reason: 'name_taken', suggestion: suggestName(room, as) } as const;
         }
         const change: MemberChange = existing?.left_at === null ? 'reconnected' : 'joined';
@@ -333,8 +363,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const cursor = Number(latestSummaryRow(room)?.covers_id ?? 0);
         const [name, version] = [client?.name ?? null, client?.version ?? null];
         const role = as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
-        if (existing) sql.rejoin.run(kind, name, version, stamp(), room.id, as);
-        else sql.insertMember.run(room.id, as, kind, stamp(), stamp(), 'active', cursor, name, version, role);
+        const seatKeyOrNull = seatKey ?? null;
+        if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), room.id, as);
+        else {
+          const at = stamp();
+          sql.insertMember.run(room.id, as, kind, at, at, 'active', cursor, name, version, role, seatKeyOrNull);
+        }
         const member = findMember(room, as)!;
         emit({ change, member, room: room.name, type: 'member' });
         systemLine(room, `${as} ${change}`, emit);
@@ -566,28 +600,28 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Marks every agent still in a room gone, with one line per open room. For daemon start, when no session is left. */
-    markAllGone() {
+    /** Marks every agent still in a room away, with one line per open room. For daemon start, when no session is left. */
+    markAllAway() {
       return transaction(emit => {
         const changes = sql.sweepable.all().map(row => {
           const member = toMember(row);
-          sql.setPresence.run('gone', stamp(), member.room_id, member.name);
+          sql.setPresence.run('away', member.room_id, member.name);
           const room = roomById(member.room_id);
-          emit({ from: member.presence, name: member.name, room: room.name, to: 'gone', type: 'presence' });
-          const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to: 'gone' };
+          emit({ from: member.presence, name: member.name, room: room.name, to: 'away', type: 'presence' });
+          const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to: 'away' };
           return { change, room };
         });
         const open = changes.filter(({ room }) => room.closed_at === null);
         Map.groupBy(open, ({ room }) => room.id).forEach(group => {
           const names = group.map(({ change }) => change.name);
           const verb = names.length > 1 ? 'are' : 'is';
-          systemLine(group[0]!.room, `messhall restarted, ${LIST.format(names)} ${verb} gone`, emit);
+          systemLine(group[0]!.room, `messhall restarted, ${LIST.format(names)} ${verb} away`, emit);
         });
         return changes.map(({ change }) => change);
       });
     },
 
-    /** Moves agents along with the clock: active to idle at 2 minutes, anything to gone at 30. The human is left alone. */
+    /** Moves agents along with the clock: active to idle at 2 minutes, anything to away at 30. The human is left alone. */
     sweepPresence() {
       return transaction(emit => {
         const at = now();
@@ -603,7 +637,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Drops agents left or gone for 5 minutes. Their posts keep the sender's name and type, and a rejoin starts fresh. */
+    /** Drops agents who left 5 minutes ago. Away seats stay. Posts keep the sender's name and type, and a rejoin starts fresh. */
     clearStale() {
       return transaction(emit => {
         const cutoff = new Date(now().getTime() - STALE_AFTER_MS).toISOString();
@@ -616,19 +650,34 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Drops a left or gone member now, the way `clearStale` does later. A member still here is refused. */
+    /** Drops any agent seat now, left, away or still here, the way the human kicks. The human seat is refused. */
     removeMember({ member: name, room: roomName }: { member: string; room: string }) {
       return transaction(emit => {
         const room = findRoom(roomName);
         if (!room) return { ok: false, reason: 'no_room' } as const;
-        const member = findMember(room, name);
-        if (!member) return { ok: false, reason: 'no_member' } as const;
-        if (member.presence !== 'left' && member.presence !== 'gone') {
-          return { ok: false, reason: 'still_here' } as const;
-        }
-        drop(room, member, emit);
-        return { member, ok: true } as const;
+        return kick(room, name, emit);
       });
+    },
+
+    /** Drops any agent seat now with a line naming `by`. Only an orchestrator in the room may, so `by` is checked first. */
+    kickMember({ by, member: name, room: roomName }: { by: string; member: string; room: string }) {
+      return transaction(emit => {
+        const found = seat(roomName, by);
+        if (!found.ok) return found;
+        if (!canAssignRole({ by: found.member })) return { ok: false, reason: 'not_allowed' } as const;
+        const kicked = kick(found.room, name, emit);
+        if (kicked.ok) systemLine(found.room, `${name} was kicked by ${by}`, emit);
+        return kicked;
+      });
+    },
+
+    /** The seats a key holds, away ones too, by room. Left seats are not held. */
+    seatsOf(key: string) {
+      return sql.seats.all(key).map(row => ({
+        kind: AGENT_KIND.parse(row.kind),
+        name: String(row.name),
+        room: String(row.room),
+      }));
     },
 
     /** What a summary needs: posts so far, how many the last summary covered, that summary and the posts after it. */
@@ -647,12 +696,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       } as const;
     },
 
-    /** Records a call: `active` for any call, `waiting` while blocked in wait, `gone` on session close. */
+    /** Records a call: `active` for any call, `waiting` while blocked in wait, `away` on session close. */
     touch({ as, room: roomName, state }: { as: string; room: string; state: TouchState }) {
       return transaction(emit => {
         const found = seat(roomName, as);
         if (!found.ok) return found;
-        setPresence(found.room, found.member, state, emit, state !== 'gone');
+        setPresence(found.room, found.member, state, emit, state !== 'away');
         return { member: findMember(found.room, as)!, ok: true } as const;
       });
     },

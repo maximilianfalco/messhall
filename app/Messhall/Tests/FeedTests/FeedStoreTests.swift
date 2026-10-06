@@ -249,7 +249,7 @@ struct FeedStoreTests {
   func unknownRoom() throws {
     let store = try loaded()
 
-    store.apply(.event(seq: 8, .presence(PresenceEvent(room: "nope", name: "api", from: .active, to: .gone))))
+    store.apply(.event(seq: 8, .presence(PresenceEvent(room: "nope", name: "api", from: .active, to: .away))))
 
     #expect(store.rooms[0].members[0].presence == .active)
     #expect(store.seq == 8)

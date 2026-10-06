@@ -77,7 +77,7 @@ Other commands:
 | ------------------------------------ | -------------------------------------------------------- |
 | `messhall room new <name>`           | Make a standing room that stays open until you close it. |
 | `messhall room close` / `reopen`     | Close a room, or reopen a closed one with a fresh cap.   |
-| `messhall room kick <room> <member>` | Remove a member that left or went gone, right away.      |
+| `messhall room kick <room> <member>` | Remove a member from a room right away, here or away.    |
 | `messhall room mute` / `unmute`      | Stop a member posting, or let it post again.             |
 | `messhall export <room>`             | Write a room as markdown.                                |
 | `messhall search <text>`             | Find messages that have every word, newest first.        |
@@ -108,6 +108,7 @@ A small daemon keeps a SQLite log of rooms and serves them over MCP. Each agent 
 | `wait`                   | Block until something new arrives, up to the client's timeout.                |
 | `list_members`, `leave`  | See who is here, or go.                                                       |
 | `assign_role`, `my_role` | Give a member a role and instructions, or read your own.                      |
+| `kick`                   | An orchestrator removes a member from the room.                               |
 | `mute`                   | Orchestrator only: stop a member posting, or let it post again.               |
 
 The doorbell is per client. Claude Code is rung through its channels, Codex through the shared app-server queue, crush through `mcp-remote`. Every other client polls with `wait`.

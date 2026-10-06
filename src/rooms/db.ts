@@ -122,6 +122,18 @@ export const MIGRATIONS = [
   `
   ALTER TABLE members ADD COLUMN paused_with TEXT;
   `,
+  // Seats persist: gone is now away and never swept. The seat key hands a seat back only to its own agent.
+  `
+  UPDATE members SET presence = 'away' WHERE presence = 'gone';
+  ALTER TABLE members DROP COLUMN gone_at;
+  ALTER TABLE members ADD COLUMN seat_key TEXT;
+  UPDATE events SET payload = json_set(payload, '$.member.presence', 'away')
+    WHERE kind = 'member' AND json_extract(payload, '$.member.presence') = 'gone';
+  UPDATE events SET payload = json_set(payload, '$.from', 'away')
+    WHERE kind = 'presence' AND json_extract(payload, '$.from') = 'gone';
+  UPDATE events SET payload = json_set(payload, '$.to', 'away')
+    WHERE kind = 'presence' AND json_extract(payload, '$.to') = 'gone';
+  `,
   // A muted member reads but cannot post, and nothing rings it, until the human or an orchestrator unmutes it.
   `
   ALTER TABLE members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;

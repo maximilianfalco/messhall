@@ -280,12 +280,22 @@ describe('DELETE /api/rooms/:name/members/:member', () => {
     expect(memberNames()).toStrictEqual(['human']);
   });
 
-  it('answers 409 for a member that is still here and keeps it', async () => {
+  it('drops a member that is still here, since the human can kick any agent seat', async () => {
     store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
 
     const res = await deleteAs('/api/rooms/demo/members/api', feed.headers('human'));
 
+    expect(res.status).toBe(200);
+    expect(memberNames()).toStrictEqual(['human']);
+  });
+
+  it('answers 409 for the human seat and keeps it', async () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    const res = await deleteAs('/api/rooms/demo/members/human', feed.headers('human'));
+
     expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toStrictEqual({ error: 'the human seat cannot be removed' });
     expect(memberNames()).toStrictEqual(['api', 'human']);
   });
 

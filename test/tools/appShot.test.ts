@@ -118,7 +118,7 @@ describe('seedShotRooms', () => {
     );
   });
 
-  it('leaves gone agents beside a live one in the handoff room, for the gone chip', () => {
+  it('leaves away agents beside a live one in the handoff room, for the away chip', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');
 
@@ -130,13 +130,13 @@ describe('seedShotRooms', () => {
 
     expect(members.map(member => `${member.name} ${member.presence}`)).toStrictEqual([
       'api idle',
-      'design gone',
-      'docs gone',
+      'design away',
+      'docs away',
       'human active',
     ]);
   });
 
-  it('keeps every left and gone agent through the first 3 minutes of a shot run', () => {
+  it('keeps every left and away agent through the first 3 minutes of a shot run', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');
 

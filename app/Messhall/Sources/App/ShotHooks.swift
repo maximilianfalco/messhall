@@ -22,7 +22,7 @@
     /// where the anchor row sat before and after, and shows the oldest lines.
     static let pageTopNote = UserDefaults.standard.string(forKey: "shotPageTop")
 
-    /// `-shotOpenFolds YES`: every run of presence lines and the gone chip start open, so a shot shows what is inside.
+    /// `-shotOpenFolds YES`: every run of presence lines and the away chip start open, so a shot shows what is inside.
     static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
 
     /// `-shotDraft <text>`: the composer opens with this typed, so a draft ending in `@` shows the mention picker.
@@ -94,7 +94,7 @@
       }
     }
 
-    /// `-shotRemove <member>`: removes a left or gone member of the `-shotRoom` room through the same path as its X.
+    /// `-shotRemove <member>`: removes a left or away member of the `-shotRoom` room through the same path as its X.
     static func remove(_ member: String, room: String?, store: FeedStore, client: FeedClient) async {
       guard let room else { return }
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }

@@ -25,10 +25,11 @@ public struct Fold: Equatable, Sendable {
 /// The newest run shows its lines while it has fewer than this many.
 public let foldOpenBelow = 3
 
-private let presenceEndings = [" joined", " reconnected", " left", " is gone"]
+// Rooms from before seats persisted still hold "is gone" lines.
+private let presenceEndings = [" joined", " reconnected", " left", " is away", " is gone"]
 
 extension Message {
-  /// A joined, left, gone or reconnected line. Room lines are not, so they never fold.
+  /// A joined, left, away or reconnected line. Room lines are not, so they never fold.
   public var isPresence: Bool {
     guard kind == .system, !text.hasPrefix("#") else { return false }
     return presenceEndings.contains { text.hasSuffix($0) } || text.contains(" left: ")

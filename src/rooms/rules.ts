@@ -1,7 +1,7 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
 import { ALL_MENTION, HUMAN_NAME, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
-import { GONE_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
+import { AWAY_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
 const MENTION = /(?<![\w.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])/g;
@@ -45,15 +45,15 @@ export function loopPair({ lines, posts }: { lines: number; posts: Message[] }) 
   return a && b && !rest.length ? ([a, b] as const) : null;
 }
 
-/** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns gone at 30. */
+/** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns away at 30. */
 export function nextPresence({ member, now }: { member: Pick<Member, 'last_seen_at' | 'presence'>; now: Date }) {
   const silent = now.getTime() - Date.parse(member.last_seen_at);
-  if (silent >= GONE_AFTER_MS) return 'gone';
+  if (silent >= AWAY_AFTER_MS) return 'away';
   if (member.presence === 'active' && silent >= IDLE_AFTER_MS) return 'idle';
   return member.presence;
 }
 
-/** Only the human seat and an orchestrator hand out roles and mutes, so an agent cannot promote itself. */
+/** Only the human seat and an orchestrator hand out roles, mutes or kick, so an agent cannot promote itself. */
 export function canAssignRole({ by }: { by: Pick<Member, 'kind' | 'role'> }) {
   return by.kind === 'human' || by.role === ORCHESTRATOR_ROLE;
 }

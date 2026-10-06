@@ -105,12 +105,18 @@ describe('runRoom', () => {
     ]);
   });
 
-  it('passes on the refusal to kick a member that is still here', async () => {
+  it('kicks a member that is still here', async () => {
     feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
 
-    await expect(room({ action: 'kick', member: 'api', name: 'checkout' })).resolves.toStrictEqual({
+    await expect(room({ action: 'kick', member: 'api', name: 'checkout' })).resolves.toMatchObject({ code: 0 });
+  });
+
+  it('passes on the refusal to kick the human seat', async () => {
+    feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+
+    await expect(room({ action: 'kick', member: 'human', name: 'checkout' })).resolves.toStrictEqual({
       code: 1,
-      output: ['messhall refused: api is still here, only a left or gone member can be removed'],
+      output: ['messhall refused: the human seat cannot be removed'],
     });
   });
 

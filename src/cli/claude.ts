@@ -1,7 +1,9 @@
 import type { LaunchDeps, LaunchOptions } from './launch.js';
 import type { Command } from 'commander';
 
-import { SERVER_NAME } from '../mcp/constants.js';
+import { randomUUID } from 'node:crypto';
+
+import { SEAT_ENV, SERVER_NAME } from '../mcp/constants.js';
 
 import { BRIEF_HELP, briefLine, DEFAULT_ROOM, launch, launchDeps, launchTarget } from './launch.js';
 
@@ -29,12 +31,21 @@ export function claudeArgv({ extra, ...seat }: Seat & { extra: string[] }) {
   ];
 }
 
-/** Starts Claude Code in the room with the doorbell on, in the foreground. */
+/** Starts Claude Code in the room with the doorbell on, in the foreground. A fresh seat key per run lets
+ * the daemon hand this session its seat back after a reconnect or a restart. */
 export function runClaude(options: LaunchOptions & { extra: string[] }, deps: LaunchDeps) {
   const { cwd, ...seat } = launchTarget(options, deps.cwd);
   const argv = claudeArgv({ ...seat, extra: options.extra });
   return launch(
-    { agent: 'claude', argv, brief: seat.brief, cwd, print: options.print, prompt: claudePrompt(seat) },
+    {
+      agent: 'claude',
+      argv,
+      brief: seat.brief,
+      cwd,
+      env: { [SEAT_ENV]: randomUUID() },
+      print: options.print,
+      prompt: claudePrompt(seat),
+    },
     deps,
   );
 }
