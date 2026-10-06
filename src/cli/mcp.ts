@@ -8,7 +8,8 @@ import path from 'node:path';
 import { confirm as clackConfirm, isCancel } from '@clack/prompts';
 import pc from 'picocolors';
 
-import { codexConfigPath, daemonUrl, dataDir } from '../config.js';
+import { createCodexClient } from '../codex/client.js';
+import { codexConfigPath, codexControlSocket, daemonUrl, dataDir } from '../config.js';
 import { readBlock, withBlock, withoutBlock } from '../lib/codexToml.js';
 import { runCommand } from '../lib/run.js';
 import { SERVER_NAME, TEXT_BUDGET } from '../mcp/constants.js';
@@ -208,7 +209,8 @@ async function toolChecks(): Promise<Check[]> {
   const session = createSession({ id: 'doctor', now });
   const sessions = createSessionRegistry<{ session: McpSession }>();
   const store = createRoomStore({ db, now });
-  const client = await connectInMemory(() => createMesshallServer({ now, session, sessions, store }));
+  const codex = createCodexClient({ socketPath: codexControlSocket() });
+  const client = await connectInMemory(() => createMesshallServer({ codex, now, session, sessions, store }));
   try {
     const { tools } = await client.listTools();
     return tools.map(tool => {
@@ -217,6 +219,7 @@ async function toolChecks(): Promise<Check[]> {
     });
   } finally {
     await client.close();
+    codex.close();
     db.close();
     rmSync(home, { force: true, recursive: true });
   }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { mcpHarness, type McpHarness } from './harness.js';
+import { LIVE_THREAD, mcpHarness, type McpHarness } from './harness.js';
 
 let harness: McpHarness;
 
@@ -25,6 +25,18 @@ describe('list_members', () => {
       '- api (other, active), last seen 2026-01-01T10:00:00.000Z',
       '- human (human, idle), last seen 2026-01-01T10:00:00.000Z',
     ]);
+  });
+
+  it('marks a codex member without a working thread as having no doorbell', async () => {
+    const rung = await harness.agent();
+    await rung.call('join', { as: 'api', kind: 'codex', room: 'checkout', thread_id: LIVE_THREAD });
+    const unrung = await harness.agent();
+    await unrung.call('join', { as: 'web', kind: 'codex', room: 'checkout' });
+
+    const result = await unrung.call('list_members', { room: 'checkout' });
+
+    expect(result.text).toContain('- api (codex, active), last seen');
+    expect(result.text).toContain('- web (codex (no doorbell), active, you), last seen');
   });
 
   it('says when the room does not exist', async () => {

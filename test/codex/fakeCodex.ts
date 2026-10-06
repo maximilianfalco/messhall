@@ -1,3 +1,5 @@
+import type { CodexClient, CodexMethod } from '../../src/codex/client.js';
+
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -104,3 +106,25 @@ export function fakeTimers() {
 }
 
 export type FakeCodex = Awaited<ReturnType<typeof fakeCodex>>;
+
+/** A stand-in for the client: threads by id with their status, and every call it got. */
+export function fakeCodexRpc({ threads = {} }: { threads?: Record<string, 'idle' | 'notLoaded'> } = {}) {
+  const calls: { method: CodexMethod; params: unknown }[] = [];
+  const failing = new Set<CodexMethod>();
+  const request = (async (method: CodexMethod, params: { threadId?: string }) => {
+    calls.push({ method, params });
+    const status = threads[params.threadId ?? ''];
+    if (failing.has(method) || !status) return { error: 'thread not loaded', ok: false };
+    const thread = { id: params.threadId, status: { type: status } };
+    const queued = { queuedSubmission: { clientUserMessageId: 'ring', id: 'q1', input: [] } };
+    return { ok: true, result: method === 'thread/read' ? { thread } : queued };
+  }) as CodexClient['request'];
+  return {
+    calls,
+    /** Makes every later call to `method` fail, as a closed socket or a gone thread would. */
+    fail(method: CodexMethod) {
+      failing.add(method);
+    },
+    request,
+  };
+}

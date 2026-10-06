@@ -40,9 +40,10 @@ export function renderRead({
   ].join('\n');
 }
 
-/** `web (codex, waiting)`, with `you` on the caller's own line. */
-export function memberLabel({ as, member }: { as?: string; member: Member }) {
+/** `web (codex, waiting)`, with `you` on the caller's own line and `(no doorbell)` on an unrung kind. */
+export function memberLabel({ as, member, noDoorbell }: { as?: string; member: Member; noDoorbell?: boolean }) {
   const you = member.name === as ? ', you' : '';
   const done = member.done ? ', done' : '';
-  return `${member.name} (${member.kind}, ${member.presence}${done}${you})`;
+  const kind = noDoorbell ? `${member.kind} (no doorbell)` : member.kind;
+  return `${member.name} (${kind}, ${member.presence}${done}${you})`;
 }

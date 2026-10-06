@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { GONE_AFTER_MS } from '../../src/config.js';
 
-import { mcpHarness, type McpHarness } from './harness.js';
+import { CLOSED_THREAD, LIVE_THREAD, mcpHarness, type McpHarness } from './harness.js';
 
 let harness: McpHarness;
 
@@ -121,11 +121,43 @@ describe('join', () => {
     });
   });
 
-  it('stores the codex thread id on the session', async () => {
+  it('checks the codex thread with thread/read, stores it and reports the doorbell', async () => {
     const codex = await harness.agent();
 
-    await codex.call('join', { as: 'web', kind: 'codex', room: 'checkout', thread_id: 'thread-123' });
+    const result = await codex.call('join', { as: 'web', kind: 'codex', room: 'checkout', thread_id: LIVE_THREAD });
 
-    expect(codex.session.threadId).toBe('thread-123');
+    expect(harness.codex.calls).toStrictEqual([{ method: 'thread/read', params: { threadId: LIVE_THREAD } }]);
+    expect(codex.session.threadId).toBe(LIVE_THREAD);
+    expect(result.text).toContain('doorbell: codex');
+  });
+
+  it.each([
+    ['codex does not know', 'thread-123'],
+    ['codex has not loaded', CLOSED_THREAD],
+  ])('records no doorbell for a thread %s', async (_why, threadId) => {
+    const codex = await harness.agent();
+
+    const result = await codex.call('join', { as: 'web', kind: 'codex', room: 'checkout', thread_id: threadId });
+
+    expect(result.isError).toBe(false);
+    expect(codex.session.threadId).toBeUndefined();
+    expect(result.text).toContain('doorbell: none (call wait)');
+  });
+
+  it('tells a codex member with no thread id that it has no doorbell', async () => {
+    const codex = await harness.agent();
+
+    const result = await codex.call('join', { as: 'web', kind: 'codex', room: 'checkout' });
+
+    expect(harness.codex.calls).toStrictEqual([]);
+    expect(result.text).toContain('doorbell: none (call wait)');
+  });
+
+  it('leaves the doorbell line out for other kinds', async () => {
+    const claude = await harness.agent();
+
+    const result = await claude.call('join', { as: 'web', kind: 'claude', room: 'checkout' });
+
+    expect(result.text).not.toContain('doorbell:');
   });
 });

@@ -1,6 +1,7 @@
 import type { Handler } from '../daemon/router.js';
 import type { RoomStore } from '../rooms/store.js';
 import type { McpSession } from './session.js';
+import type { ToolDeps } from './tools/registry.js';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -53,7 +54,15 @@ async function readJson(req: IncomingMessage) {
  * The `/mcp` endpoint: one transport and one McpServer per `Mcp-Session-Id`. A session ends on
  * DELETE, on transport close, or after 30 idle minutes, and its members turn gone.
  */
-export function createMcpEndpoint({ now, store }: { now: () => Date; store: RoomStore }) {
+export function createMcpEndpoint({
+  codex,
+  now,
+  store,
+}: {
+  codex: ToolDeps['codex'];
+  now: () => Date;
+  store: RoomStore;
+}) {
   const sessions = createSessionRegistry<McpEntry>();
   const hostOk = localhostHostValidation();
   const originOk = localhostOriginValidation();
@@ -75,7 +84,7 @@ export function createMcpEndpoint({ now, store }: { now: () => Date; store: Room
       return;
     }
     const session = createSession({ id: randomUUID(), now });
-    const server = createMesshallServer({ now, session, sessions, store });
+    const server = createMesshallServer({ codex, now, session, sessions, store });
     const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: () => session.id });
     const entry: McpEntry = { server, session, transport };
     transport.onclose = () => end(entry);

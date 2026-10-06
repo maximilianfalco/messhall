@@ -1,3 +1,4 @@
+import type { CodexClient } from '../../codex/client.js';
 import type { RoomStore } from '../../rooms/store.js';
 import type { ToolName } from '../constants.js';
 import type { McpSession, SessionRegistry } from '../session.js';
@@ -7,6 +8,7 @@ import { logger } from '../../lib/logger.js';
 import { TOOL_ANNOTATIONS, TOOL_TITLES } from '../constants.js';
 
 export interface ToolDeps {
+  codex: Pick<CodexClient, 'request'>;
   now: () => Date;
   session: McpSession;
   sessions: Pick<SessionRegistry<{ session: McpSession }>, 'sessionsFor'>;

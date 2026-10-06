@@ -6,7 +6,9 @@ import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
 import { createClaudeRinger } from '../channels/claude.js';
-import { CLI_VERSION, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
+import { createCodexClient } from '../codex/client.js';
+import { createCodexRinger } from '../codex/ringer.js';
+import { CLI_VERSION, codexControlSocket, DAEMON_HOST, PRESENCE_SWEEP_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringers.js';
 import { feedRoutes } from '../feed/routes.js';
@@ -93,8 +95,12 @@ export async function startDaemon({
   const keys = loadKeys({ dataDir });
   const db = openDb({ dataDir });
   const store = createRoomStore({ db, now });
-  const mcp = createMcpEndpoint({ now, store });
-  const ringers = createRingers([createClaudeRinger({ sessionsFor: mcp.sessionsFor })]);
+  const codex = createCodexClient({ socketPath: codexControlSocket() });
+  const mcp = createMcpEndpoint({ codex, now, store });
+  const ringers = createRingers([
+    createClaudeRinger({ sessionsFor: mcp.sessionsFor }),
+    createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),
+  ]);
   const stopDoorbell = startDoorbell({ now, ringers, store });
   const startedAt = now().getTime();
 
@@ -123,6 +129,7 @@ export async function startDaemon({
     async close() {
       clearInterval(sweep);
       stopDoorbell();
+      codex.close();
       await mcp.close();
       await new Promise<void>(resolve => {
         server.close(() => resolve());

@@ -7,6 +7,7 @@ import { CHANNEL_METHOD, createClaudeRinger } from '../../src/channels/claude.js
 import { createMesshallServer } from '../../src/mcp/server.js';
 import { createSession, createSessionRegistry } from '../../src/mcp/session.js';
 import { connectInMemory } from '../../src/mcp/testing.js';
+import { fakeCodexRpc } from '../codex/fakeCodex.js';
 import { scratchStore } from '../rooms/scratch.js';
 
 const RING = {
@@ -67,7 +68,13 @@ describe('createClaudeRinger', () => {
     const session = createSession({ id: 's1', now: scratch.clock.now });
     session.bind({ kind: 'claude', name: 'web', room: 'checkout' });
     const sessions = createSessionRegistry<{ session: typeof session }>();
-    const server = createMesshallServer({ now: scratch.clock.now, session, sessions, store: scratch.store });
+    const server = createMesshallServer({
+      codex: fakeCodexRpc(),
+      now: scratch.clock.now,
+      session,
+      sessions,
+      store: scratch.store,
+    });
     const client = await connectInMemory(() => server);
     const received: unknown[] = [];
     client.setNotificationHandler(

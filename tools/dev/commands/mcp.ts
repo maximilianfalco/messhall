@@ -5,6 +5,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { createCodexClient } from '../../../src/codex/client.js';
+import { codexControlSocket } from '../../../src/config.js';
 import { TEXT_BUDGET, TOOL_NAMES } from '../../../src/mcp/constants.js';
 import { createMesshallServer } from '../../../src/mcp/server.js';
 import { createSession, createSessionRegistry } from '../../../src/mcp/session.js';
@@ -62,7 +64,8 @@ export async function mcpReport({ as, input, room, tool }: McpOptions) {
   const session = createSession({ id: 'dev', now });
   const sessions = createSessionRegistry<{ session: McpSession }>();
   sessions.add({ session });
-  const client = await connectInMemory(() => createMesshallServer({ now, session, sessions, store }));
+  const codex = createCodexClient({ socketPath: codexControlSocket() });
+  const client = await connectInMemory(() => createMesshallServer({ codex, now, session, sessions, store }));
   try {
     if (!tool) {
       const { tools } = await client.listTools();
@@ -101,6 +104,7 @@ export async function mcpReport({ as, input, room, tool }: McpOptions) {
     return { code: result.isError ? 1 : 0, report: [...lines, '', result.isError ? bad(tool) : ok(tool)].join('\n') };
   } finally {
     await client.close();
+    codex.close();
     db.close();
     rmSync(home, { force: true, recursive: true });
   }
