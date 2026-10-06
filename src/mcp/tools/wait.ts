@@ -10,7 +10,8 @@ import { PROGRESS_EVERY_MS, SHORT_WAIT_CLIENTS, WAIT_DEFAULT_S } from '../consta
 
 import { notJoined, refuse, registerRoomTool, reply } from './registry.js';
 
-const NOTHING_YET = 'nothing yet, call wait again.';
+/** What wait says on a timeout. Any other text that is not an error means it woke. */
+export const NOTHING_YET = 'nothing yet, call wait again.';
 
 interface Hit {
   message: Message;

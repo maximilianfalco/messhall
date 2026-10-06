@@ -6,8 +6,8 @@ import { Socket } from 'node:net';
 import { createInterface } from 'node:readline';
 
 import { callTool } from '../../../src/mcp/oneshot.js';
+import { NOTHING_YET } from '../../../src/mcp/tools/wait.js';
 
-const NOTHING_YET = 'nothing yet';
 const MORE = 'more are waiting';
 const FENCE = /^`{3,}$/;
 
@@ -79,7 +79,7 @@ export async function follow({
     const waited = await callTool(client, 'wait', { room }, { signal }).catch(() => {});
     if (!waited || signal.aborted) return undefined;
     if (waited.isError) return waited.text;
-    const refused = waited.text.startsWith(NOTHING_YET) ? undefined : await drain();
+    const refused = waited.text === NOTHING_YET ? undefined : await drain();
     return refused ?? round();
   };
   try {

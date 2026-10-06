@@ -40,13 +40,13 @@ async function start() {
 
 const agentKey = () => readFileSync(path.join(home, KEY_FILES.agent), 'utf8').trim();
 
-async function initialize(url: string, protocolVersion: string) {
+async function initialize(url: string, protocolVersion: string, clientName = 'probe') {
   const res = await fetch(`${url}/mcp`, {
     body: JSON.stringify({
       id: 1,
       jsonrpc: '2.0',
       method: 'initialize',
-      params: { capabilities: {}, clientInfo: { name: 'probe', version: '0' }, protocolVersion },
+      params: { capabilities: {}, clientInfo: { name: clientName, version: '0' }, protocolVersion },
     }),
     headers: {
       accept: 'application/json, text/event-stream',
@@ -73,6 +73,7 @@ async function pinnedClient(url: string, version: string) {
 
 describe('protocol negotiation on /mcp', () => {
   it.each([
+    ['2025-03-26', '2025-03-26'],
     ['2025-06-18', '2025-06-18'],
     ['2025-11-25', '2025-11-25'],
     ['2026-07-28', '2025-11-25'],
@@ -84,7 +85,7 @@ describe('protocol negotiation on /mcp', () => {
     expect(result.protocolVersion).toBe(answered);
   });
 
-  it.each(['2025-06-18', '2025-11-25'])('declares the channel capability on %s', async asked => {
+  it.each(['2025-03-26', '2025-06-18', '2025-11-25'])('declares the channel capability on %s', async asked => {
     const url = await start();
 
     const { result } = await initialize(url, asked);
@@ -92,15 +93,27 @@ describe('protocol negotiation on /mcp', () => {
     expect(result.capabilities.experimental).toStrictEqual({ 'claude/channel': {} });
   });
 
-  it('lets an sdk client pinned to 2025-06-18 list the seven tools and join', async () => {
+  it('keeps Claude Code on 2025-11-25 with the channel', async () => {
     const url = await start();
 
-    const pinned = await pinnedClient(url, '2025-06-18');
-    const { tools } = await pinned.listTools();
-    const joined = await pinned.callTool({ arguments: { as: 'gemini', room: 'checkout' }, name: 'join' });
+    const { result } = await initialize(url, '2025-11-25', 'claude-code');
 
-    expect(pinned.getNegotiatedProtocolVersion()).toBe('2025-06-18');
-    expect(tools.map(tool => tool.name)).toStrictEqual([...TOOL_NAMES]);
-    expect(Boolean(joined.isError)).toBe(false);
+    expect(result.protocolVersion).toBe('2025-11-25');
+    expect(result.capabilities.experimental).toStrictEqual({ 'claude/channel': {} });
   });
+
+  it.each(['2025-03-26', '2025-06-18'])(
+    'lets an sdk client pinned to %s list the seven tools and join',
+    async version => {
+      const url = await start();
+
+      const pinned = await pinnedClient(url, version);
+      const { tools } = await pinned.listTools();
+      const joined = await pinned.callTool({ arguments: { as: 'gemini', room: 'checkout' }, name: 'join' });
+
+      expect(pinned.getNegotiatedProtocolVersion()).toBe(version);
+      expect(tools.map(tool => tool.name)).toStrictEqual([...TOOL_NAMES]);
+      expect(Boolean(joined.isError)).toBe(false);
+    },
+  );
 });
