@@ -1,6 +1,7 @@
+import { SdkErrorCode, SdkHttpError } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { joinPostLeave } from '../../src/mcp/oneshot.js';
+import { joinPostLeave, lostSession } from '../../src/mcp/oneshot.js';
 
 import { mcpHarness, type McpHarness } from './harness.js';
 
@@ -90,5 +91,31 @@ describe('joinPostLeave', () => {
     const result = await joinPostLeave({ as: 'api', client, room: 'checkout', text: 'hello' });
 
     expect(result.replies.map(reply => [reply.name, reply.isError])).toStrictEqual([['join', true]]);
+  });
+});
+
+const httpError = (status: number) =>
+  new SdkHttpError(SdkErrorCode.ClientHttpNotImplemented, `Error POSTing to endpoint: ${status}`, { status });
+const refused = () =>
+  new TypeError('fetch failed', { cause: Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }) });
+
+describe('lostSession', () => {
+  it.each([
+    ['a 404 session not found', httpError(404)],
+    ['a 5xx', httpError(503)],
+    ['a refused connection', refused()],
+    ['a failed stream reconnect', new Error('Failed to reconnect SSE stream: fetch failed', { cause: refused() })],
+    ['used up stream retries', new Error('Maximum reconnection attempts (2) exceeded.')],
+  ])('is true for %s', (_case, error) => {
+    expect(lostSession(error)).toBe(true);
+  });
+
+  it.each([
+    ['a 400', httpError(400)],
+    ['a 401', httpError(401)],
+    ['a plain error', new Error('boom')],
+    ['a string', 'nope'],
+  ])('is false for %s', (_case, error) => {
+    expect(lostSession(error)).toBe(false);
   });
 });

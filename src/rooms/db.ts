@@ -95,6 +95,14 @@ export const MIGRATIONS = [
     '$.message.from_client_label', (SELECT from_client_label FROM messages WHERE id = json_extract(events.payload, '$.message.id'))
   ) WHERE kind = 'message';
   `,
+  // What each member does here. Stored member events get it too, so replay still parses.
+  `
+  ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT 'unassigned';
+  UPDATE members SET role = 'orchestrator' WHERE name = 'orchestrator';
+  UPDATE events SET payload = json_set(
+    payload, '$.member.role', CASE json_extract(payload, '$.member.name') WHEN 'orchestrator' THEN 'orchestrator' ELSE 'unassigned' END
+  ) WHERE kind = 'member';
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

@@ -15,6 +15,8 @@ public final class FeedStore {
   public private(set) var seq = 0
   public private(set) var phase = Phase.connecting
   public private(set) var loaded = false
+  /// Rooms with an older page on its way.
+  public private(set) var loadingOlder: Set<String> = []
   /// When the current stream opened. Events stamped before it are a replay.
   @ObservationIgnored public internal(set) var liveSince = Date.distantFuture
   /// Called for each feed event, before it applies, with the room as it was.
@@ -38,7 +40,8 @@ public final class FeedStore {
     phase = .live
     switch update {
     case .snapshot(let snapshot):
-      rooms = snapshot.rooms.sorted { $0.name < $1.name }
+      rooms = snapshot.rooms.map(keepingOlderPages).sorted { $0.name < $1.name }
+      loadingOlder = []
       seq = snapshot.seq
       loaded = true
     case .event(let seq, let event):
@@ -46,6 +49,38 @@ public final class FeedStore {
       apply(event)
       self.seq = max(self.seq, seq)
     }
+  }
+
+  /// Marks the room as loading and returns the id to page below, or nil when it has nothing older or is loading.
+  func beginLoadingOlder(_ name: String) -> Int? {
+    guard let room = room(named: name), room.hasMore, !loadingOlder.contains(name) else { return nil }
+    loadingOlder.insert(name)
+    return room.oldestLoadedId
+  }
+
+  func endLoadingOlder(_ name: String) {
+    loadingOlder.remove(name)
+  }
+
+  /// Puts an older page above the loaded lines. An empty page means the top is reached.
+  func prepend(_ older: [Message], to name: String) {
+    loadingOlder.remove(name)
+    update(name) { room in
+      let oldest = room.oldestLoadedId ?? Int.max
+      let page = older.filter { $0.id < oldest }
+      if page.isEmpty { room.firstMessageId = room.oldestLoadedId }
+      room.messages = page + room.messages
+    }
+  }
+
+  /// A reloaded snapshot keeps the older pages already shown, but only when they join up with it with no gap.
+  private func keepingOlderPages(_ fresh: SnapshotRoom) -> SnapshotRoom {
+    guard let first = fresh.oldestLoadedId, let shown = room(named: fresh.name),
+      shown.messages.contains(where: { $0.id == first })
+    else { return fresh }
+    var room = fresh
+    room.messages = shown.messages.filter { $0.id < first } + fresh.messages
+    return room
   }
 
   /// Adds a message the human just posted, before its event comes back.

@@ -1,14 +1,16 @@
 import type { Daemon } from '../../src/daemon/server.js';
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { stripVTControlCharacters } from 'node:util';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { KEY_FILES } from '../../src/daemon/keys.js';
+import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { agentRun } from '../../tools/dev/commands/agent.js';
 import { roomReport } from '../../tools/dev/commands/room.js';
@@ -35,6 +37,55 @@ afterEach(async () => {
 const keyFile = () => path.join(home, KEY_FILES.agent);
 
 describe('agentRun', () => {
+  it('posts the role line and sets the role when it joins as the orchestrator', async () => {
+    await agentRun({ keyFile: keyFile(), role: 'reviewer-1', room: 'dev', say: 'hi', url: daemon.url });
+
+    const result = await agentRun({
+      assign: 'reviewer-1=reviewer',
+      keyFile: keyFile(),
+      role: 'orchestrator',
+      room: 'dev',
+      say: '@reviewer-1 your role: reviewer',
+      url: daemon.url,
+    });
+
+    const text = stripVTControlCharacters(result.report);
+    expect(result.code).toBe(0);
+    expect(text).toContain('reviewer-1 is now reviewer in #dev.');
+    expect(text).toContain('left #dev.');
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'dev' }).report)).toMatch(
+      /reviewer-1\s+other\s+messhall-dev \S+\s+reviewer/,
+    );
+  });
+
+  it('refuses a role from a member who is not the orchestrator, and still leaves', async () => {
+    const result = await agentRun({
+      assign: 'api=reviewer',
+      keyFile: keyFile(),
+      role: 'api',
+      room: 'dev',
+      url: daemon.url,
+    });
+
+    const text = stripVTControlCharacters(result.report);
+    expect(result.code).toBe(1);
+    expect(text).toContain('only the human or an orchestrator can set roles in #dev.');
+    expect(text).toContain('left #dev.');
+  });
+
+  it('refuses an assign that is not member=role before it connects', async () => {
+    const result = await agentRun({
+      assign: 'reviewer',
+      keyFile: keyFile(),
+      role: 'orchestrator',
+      room: 'dev',
+      url: daemon.url,
+    });
+
+    expect(result.code).toBe(1);
+    expect(stripVTControlCharacters(result.report)).toContain('--assign takes <member>=<role>');
+  });
+
   it('joins, posts and prints what came back', async () => {
     const result = await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: 'hello', url: daemon.url });
 
@@ -160,6 +211,88 @@ describe('agentRun', () => {
     expect(room).toMatch(/system +web left/);
     expect(room).not.toMatch(/web is gone|web reconnected/);
   });
+
+  async function startFollow() {
+    const fifo = path.join(home, 'post.fifo');
+    const printed: string[] = [];
+    const stop = new AbortController();
+    const pause = vi.fn<(ms: number) => Promise<void>>(async () => {
+      await delay(10);
+    });
+    const following = agentRun({
+      follow: true,
+      keyFile: keyFile(),
+      pause,
+      postFifo: fifo,
+      role: 'web',
+      room: 'checkout',
+      signal: stop.signal,
+      url: daemon.url,
+      write: line => printed.push(line),
+    });
+    await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'web', room: 'checkout' })).toHaveLength(1));
+    await vi.waitFor(() => expect(existsSync(fifo)).toBe(true));
+    return { fifo, following, pause, printed, stop };
+  }
+
+  async function stillFollowing({ fifo, printed }: { fifo: string; printed: string[] }, tag: string) {
+    await vi.waitFor(() => expect(printed.join('')).toMatch(/reconnected after \d+ s\n/), { timeout: 10_000 });
+    await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', say: `@web ${tag}`, url: daemon.url });
+    await vi.waitFor(() => expect(printed.join('')).toContain(`@web ${tag}`));
+    writeFileSync(fifo, `fifo after ${tag}\n`);
+    await vi.waitFor(() =>
+      expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toContain(
+        `fifo after ${tag}`,
+      ),
+    );
+  }
+
+  const dropSession = (id: string) =>
+    new Promise<void>((resolve, reject) => {
+      const req = request(
+        {
+          headers: { [KEY_HEADER]: readFileSync(keyFile(), 'utf8').trim(), 'mcp-session-id': id },
+          host: '127.0.0.1',
+          method: 'DELETE',
+          path: '/mcp',
+          port: daemon.port,
+        },
+        res => res.resume().on('end', resolve),
+      );
+      req.on('error', reject).end();
+    });
+
+  it('rejoins after its session is dropped and keeps reading and posting', async () => {
+    const seat = await startFollow();
+
+    await dropSession(daemon.sessionsFor({ name: 'web', room: 'checkout' })[0]!.session.id);
+
+    await stillFollowing(seat, 'after the drop');
+    seat.stop.abort();
+    const result = await seat.following;
+    expect(result.code).toBe(0);
+    expect(seat.printed.filter(line => line.startsWith('reconnected after'))).toHaveLength(1);
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toMatch(
+      /system +web left/,
+    );
+  }, 20_000);
+
+  it('waits out a daemon restart with backoff, then rejoins and keeps the fifo', async () => {
+    const seat = await startFollow();
+    const port = daemon.port;
+
+    await daemon.close();
+    await vi.waitFor(() => expect(seat.pause.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 10_000 });
+    const restarted = await startDaemon({ dataDir: home, now: () => new Date(), port });
+    if (!restarted.ok) throw new Error(restarted.reason);
+    ({ daemon } = restarted);
+
+    await stillFollowing(seat, 'after the restart');
+    seat.stop.abort();
+    const result = await seat.following;
+    expect(result.code).toBe(0);
+    expect(seat.pause.mock.calls[0]?.[0]).toBe(2000);
+  }, 20_000);
 
   it('leaves and exits 0 when the follow process gets SIGTERM', async () => {
     const child = spawn(

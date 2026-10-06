@@ -17,6 +17,10 @@
     /// `-shotScrollTop YES`: the transcript opens at its first message, so an agent post shows the jump pill.
     static let startAtTop = UserDefaults.standard.bool(forKey: "shotScrollTop")
 
+    /// `-shotPageTop <file>`: scrolls the transcript to the top so an older page loads, then notes in the file
+    /// where the anchor row sat before and after, and shows the oldest lines.
+    static let pageTopNote = UserDefaults.standard.string(forKey: "shotPageTop")
+
     /// `-shotOpenFolds YES`: every run of presence lines starts open, so a shot shows the lines inside.
     static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
 

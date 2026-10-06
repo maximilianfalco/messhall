@@ -202,6 +202,11 @@
           "description": "What the member is doing now.",
           "$ref": "#/$defs/Presence"
         },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "What the member does here. Starts unassigned, orchestrator for a member named orchestrator."
+        },
         "room_id": {
           "type": "string",
           "description": "Room id."
@@ -219,6 +224,7 @@
         "left_at",
         "name",
         "presence",
+        "role",
         "room_id"
       ],
       "additionalProperties": false
@@ -231,9 +237,10 @@
           "enum": [
             "joined",
             "left",
-            "reconnected"
+            "reconnected",
+            "role"
           ],
-          "description": "joined, left or reconnected."
+          "description": "joined, left, reconnected, or role when its role was set."
         },
         "member": {
           "description": "The member after the change.",
@@ -247,7 +254,7 @@
         "type": {
           "type": "string",
           "const": "member",
-          "description": "A member came or went."
+          "description": "A member came, went or got a role."
         }
       },
       "required": [
@@ -622,6 +629,19 @@
             "null"
           ]
         },
+        "first_message_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Id of the oldest message in the room, system lines too. Null while it has none."
+        },
         "message_count": {
           "type": "integer",
           "minimum": 0,
@@ -638,6 +658,7 @@
         "name",
         "standing",
         "topic",
+        "first_message_id",
         "message_count"
       ],
       "additionalProperties": false
@@ -838,6 +859,19 @@
             "null"
           ]
         },
+        "first_message_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Id of the oldest message in the room, system lines too. Null while it has none."
+        },
         "message_count": {
           "type": "integer",
           "minimum": 0,
@@ -868,6 +902,7 @@
         "name",
         "standing",
         "topic",
+        "first_message_id",
         "message_count",
         "members",
         "messages"

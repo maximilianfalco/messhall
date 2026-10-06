@@ -11,6 +11,7 @@
       "closed_at": null,
       "message_cap": 200,
       "message_count": 1,
+      "first_message_id": 1,
       "members": [
         {
           "room_id": "r1",
@@ -20,6 +21,7 @@
           "client_name": "claude-code",
           "client_version": "2.1.289",
           "presence": "active",
+          "role": "reviewer",
           "cursor": 2,
           "done": false,
           "joined_at": "2026-01-01T09:00:00.000Z",
@@ -34,6 +36,7 @@
           "client_name": null,
           "client_version": null,
           "presence": "idle",
+          "role": "unassigned",
           "cursor": 0,
           "done": false,
           "joined_at": "2026-01-01T09:00:00.000Z",

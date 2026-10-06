@@ -11,6 +11,7 @@ const room = (overrides: Partial<RoomSummary> = {}): RoomSummary => ({
   closed_at: null,
   created_at: '2026-01-01T10:00:00.000Z',
   created_by: 'api',
+  first_message_id: 1,
   id: 'room-1',
   message_cap: 200,
   message_count: 3,
@@ -32,6 +33,7 @@ const member = (overrides: Partial<Member> = {}): Member => ({
   left_at: null,
   name: 'api',
   presence: 'active',
+  role: 'unassigned',
   room_id: 'room-1',
   ...overrides,
 });

@@ -7,7 +7,7 @@ struct MentionTests {
   private func member(_ name: String, kind: MemberKind = .claude, presence: Presence = .active) -> Member {
     Member(
       roomId: "r1", name: name, kind: kind, clientLabel: nil, clientName: nil, clientVersion: nil,
-      presence: presence, cursor: 0, done: false, joinedAt: "t0", lastSeenAt: "t0", leftAt: nil)
+      presence: presence, role: "unassigned", cursor: 0, done: false, joinedAt: "t0", lastSeenAt: "t0", leftAt: nil)
   }
 
   private func chat(_ text: String, mentions: [String]) -> Message {

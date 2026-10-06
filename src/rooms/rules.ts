@@ -1,6 +1,6 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
-import { ALL_MENTION, HUMAN_NAME } from '../../contracts/room.ts';
+import { ALL_MENTION, HUMAN_NAME, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { CAP_WARN_RATIO, GONE_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
@@ -35,4 +35,9 @@ export function nextPresence({ member, now }: { member: Pick<Member, 'last_seen_
   if (silent >= GONE_AFTER_MS) return 'gone';
   if (member.presence === 'active' && silent >= IDLE_AFTER_MS) return 'idle';
   return member.presence;
+}
+
+/** Only the human seat and an orchestrator hand out roles, so an agent cannot promote itself. */
+export function canAssignRole({ by }: { by: Pick<Member, 'kind' | 'role'> }) {
+  return by.kind === 'human' || by.role === ORCHESTRATOR_ROLE;
 }

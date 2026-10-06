@@ -67,6 +67,21 @@ struct FeedStoreTests {
     #expect(store.rooms[0].members[2].presence == .waiting)
   }
 
+  @Test("a role event updates the member and adds no line")
+  func role() throws {
+    let store = try loaded()
+    let json = try Fixture.text("MemberEvent")
+      .replacingOccurrences(of: #""change": "joined""#, with: #""change": "role""#)
+      .replacingOccurrences(of: #""role": "unassigned""#, with: #""role": "reviewer""#)
+    store.apply(.event(seq: 8, try event("MemberEvent")))
+
+    store.apply(.event(seq: 9, try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8))))
+
+    #expect(store.rooms[0].members.map(\.name) == ["api", "human", "web"])
+    #expect(store.rooms[0].members.map(\.role) == ["reviewer", "unassigned", "reviewer"])
+    #expect(store.rooms[0].messages.map(\.id) == [1, 2])
+  }
+
   @Test("a presence event changes one member")
   func presence() throws {
     let store = try loaded()

@@ -58,6 +58,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'expanded-dark', openFolds: true, room: 'handoff' },
   { appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' },
   { appearance: 'dark', draft: 'over to @a', name: 'picker-dark', room: 'checkout' },
+  { appearance: 'light', name: 'history-light', pageTop: true, room: 'history' },
+  { appearance: 'dark', name: 'history-dark', pageTop: true, room: 'history' },
   { appearance: 'light', name: 'settings-appearance-light', settings: 'appearance' },
   { appearance: 'dark', name: 'settings-appearance-dark', settings: 'appearance' },
   { appearance: 'light', name: 'settings-avatars-light', settings: 'avatars' },
@@ -89,6 +91,9 @@ const run = promisify(execFile);
 const CLAUDE = { name: 'claude-code', version: '2.1.289' };
 // Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
 const CHANGELOG_PAGES = Array.from({ length: 24 }, (_, i) => `api reference part ${i + 1}`);
+// More posts than the snapshot's last 50, so scrolling to the top pages older ones in.
+const HISTORY_POSTS = 120;
+const HISTORY_TASKS = ['read the plan', 'wrote the test', 'ran the suite', 'fixed the lint', 'opened the diff'];
 
 /** The id of the app's main window in a `windows.swift` listing: the largest window on a window layer. */
 export function pickWindow(listing: string) {
@@ -141,7 +146,20 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
   ]);
 }
 
-/** Seeds six rooms on a fresh db so every screen has something to show. Presence follows `now`. */
+/** A room longer than the snapshot, two agents taking turns on numbered steps. */
+function seedHistory({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
+  const room = 'history';
+  store.joinRoom({ as: 'planner', client: CLAUDE, kind: 'claude', room });
+  Array.from({ length: HISTORY_POSTS }, (_, i) => {
+    step(5_000);
+    if (i === 1) store.joinRoom({ as: 'builder', client: CLAUDE, kind: 'claude', room });
+    const task = HISTORY_TASKS[i % HISTORY_TASKS.length];
+    const from = i % 2 ? 'builder' : 'planner';
+    return store.postMessage({ from, room, text: `step ${i + 1} of ${HISTORY_POSTS}: ${task}` });
+  });
+}
+
+/** Seeds seven rooms on a fresh db so every screen has something to show. Presence follows `now`. */
 export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) {
   let at = now.getTime() - 20 * 60_000;
   const db = openDb({ dataDir });
@@ -150,6 +168,9 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     at += ms;
   };
   try {
+    at -= 20 * 60_000;
+    seedHistory({ step, store });
+    at = now.getTime() - 20 * 60_000;
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'docs-sync' });
     store.postMessage({ from: 'writer', room: 'docs-sync', text: 'drafting the changelog for the currency change' });
     CHANGELOG_PAGES.forEach((page, i) => {
@@ -237,6 +258,7 @@ type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number] | typeof RECORD
 
 const shotFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.png`);
 const windowFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.window`);
+const anchorFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.anchor`);
 
 /** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
 async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<string | undefined> {
@@ -268,6 +290,7 @@ export function shotArgs(shot: Shot) {
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
+    ...('pageTop' in shot ? ['-shotPageTop', anchorFile(shot)] : []),
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
   ];
 }
@@ -315,6 +338,7 @@ async function shoot({
 }) {
   rmSync(shotFile(shot), { force: true });
   rmSync(windowFile(shot), { force: true });
+  rmSync(anchorFile(shot), { force: true });
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
@@ -343,6 +367,10 @@ async function shoot({
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
     if ('newRoom' in shot) return (await waitFile(file)) ?? file;
     await sleep(SETTLE_MS);
+    if ('pageTop' in shot) {
+      const missing = await waitFile(anchorFile(shot));
+      if (missing) return `no older page landed: ${missing}`;
+    }
     const target = 'settings' in shot ? await settingsWindow(shot) : String(id);
     if (!/^\d+$/.test(target)) return target;
     await run('screencapture', ['-o', '-x', '-l', target, file]);
@@ -447,7 +475,11 @@ async function appShot({ home, port, sidebar }: { home: string; port: number; si
     ? bad(`apps from ${app} still running after the run: ${strays.join(', ')}`)
     : ok(`no app from ${app} left running`);
   const code = failed.length || left.length || strays.length ? 1 : 0;
-  return { code, report: [table, '', verdict, quit, stray].join('\n') };
+  const anchors = SHOTS.filter(shot => 'pageTop' in shot).flatMap(shot => {
+    const note = statSync(anchorFile(shot), { throwIfNoEntry: false }) && readFileSync(anchorFile(shot), 'utf8');
+    return note ? [`${shot.name}: ${note.trim()}`] : [];
+  });
+  return { code, report: [table, '', ...anchors, verdict, quit, stray].join('\n') };
 }
 
 /** Registers `app-shot [--port <n>] [--home <dir>] [--sidebar]`. */

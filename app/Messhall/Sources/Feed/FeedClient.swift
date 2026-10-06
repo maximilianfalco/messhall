@@ -4,6 +4,7 @@ import Foundation
 public struct FeedClient: Sendable {
   public enum Route: Sendable {
     case snapshot
+    case history(room: String, before: Int, limit: Int)
     case events(after: Int)
     case post(room: String, text: String)
     case newRoom(NewRoom)
@@ -35,6 +36,10 @@ public struct FeedClient: Sendable {
     switch route {
     case .snapshot:
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/snapshot"))
+    case .history(let room, let before, let limit):
+      let page = [URLQueryItem(name: "before", value: String(before)), URLQueryItem(name: "limit", value: String(limit))]
+      request = URLRequest(
+        url: config.baseURL.appendingPathComponent("api/rooms/\(room)/messages").appending(queryItems: page))
     case .events(let after):
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/events"), timeoutInterval: Self.streamTimeout)
       request.setValue("text/event-stream", forHTTPHeaderField: "accept")

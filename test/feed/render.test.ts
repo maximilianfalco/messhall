@@ -34,6 +34,7 @@ const member = (overrides: Partial<Member> = {}): Member => ({
   left_at: null,
   name: 'api',
   presence: 'active',
+  role: 'unassigned',
   room_id: 'room-1',
   ...overrides,
 });
@@ -80,6 +81,7 @@ describe('renderEvent', () => {
     ['joined', member({ kind: 'codex', name: 'web' }), '       + web joined (codex)'],
     ['left', member({ left_at: AT }), '       - api left'],
     ['reconnected', member(), '       + api reconnected (claude)'],
+    ['role', member({ name: 'reviewer-1', role: 'reviewer' }), '       * reviewer-1 is now reviewer'],
   ] as const)('renders a member who %s', (change, who, line) => {
     expect(render({ change, member: who, room: 'checkout', type: 'member' }, 'checkout')).toStrictEqual([line]);
   });
@@ -124,11 +126,13 @@ const snapshot: Snapshot = {
         member({ kind: 'human', name: 'human', presence: 'idle' }),
         member({ kind: 'other', left_at: AT, name: 'ci', presence: 'left' }),
       ],
+      first_message_id: 1,
       message_count: 2,
       messages: [message(), message({ from: 'human', id: 2, text: 'nice' })],
     },
     {
       ...room({ closed_at: AT, created_by: 'human', id: 'room-2', name: 'search', standing: true }),
+      first_message_id: null,
       members: [],
       message_count: 0,
       messages: [],

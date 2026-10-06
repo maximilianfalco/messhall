@@ -41,7 +41,7 @@ export function roomReport({
       .get(roomId);
     const members = db
       .prepare(
-        'SELECT name, kind, client_name, client_version, presence, cursor, last_seen_at, left_at FROM members WHERE room_id = ? ORDER BY name',
+        'SELECT name, kind, client_name, client_version, role, presence, cursor, last_seen_at, left_at FROM members WHERE room_id = ? ORDER BY name',
       )
       .all(roomId);
     const messages = db
@@ -55,11 +55,12 @@ export function roomReport({
       `#${name} ${state}, ${Number(posts?.n)}/${Number(room.message_cap)} posts, made by ${String(room.created_by)}, ${room.standing === 1 ? 'standing' : 'not standing'}`,
       '',
       formatTable(
-        ['member', 'kind', 'client', 'presence', 'cursor', 'last seen', 'left'],
+        ['member', 'kind', 'client', 'role', 'presence', 'cursor', 'last seen', 'left'],
         members.map(row => [
           String(row.name),
           String(row.kind),
           [row.client_name, row.client_version].filter(part => part !== null).join(' '),
+          String(row.role),
           String(row.presence),
           String(row.cursor),
           String(row.last_seen_at),

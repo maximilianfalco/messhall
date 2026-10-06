@@ -150,7 +150,7 @@ describe('openDb', () => {
     ).toStrictEqual([
       {
         change: 'joined',
-        member: { client_label: null, client_name: null, client_version: null, name: 'api' },
+        member: { client_label: null, client_name: null, client_version: null, name: 'api', role: 'unassigned' },
         room: 'demo',
         type: 'member',
       },
@@ -192,6 +192,44 @@ describe('openDb', () => {
       from_kind: 'other',
       id: 1,
     });
+    db.close();
+  });
+
+  it('gives members and stored member events a role, orchestrator for a member named orchestrator', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    old.function('client_label', { varargs: true }, () => null);
+    MIGRATIONS.slice(0, 6).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = 6;
+      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
+      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence) VALUES
+        ('r1', 'api', 'claude', 't0', 't0', 'active'), ('r1', 'orchestrator', 'claude', 't0', 't0', 'active');
+      INSERT INTO events (kind, payload, created_at) VALUES
+        ('member', '{"type":"member","change":"joined","room":"demo","member":{"name":"api"}}', 't0'),
+        ('member', '{"type":"member","change":"joined","room":"demo","member":{"name":"orchestrator"}}', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect(
+      db
+        .prepare('select name, role from members order by name')
+        .all()
+        .map(row => ({ ...row })),
+    ).toStrictEqual([
+      { name: 'api', role: 'unassigned' },
+      { name: 'orchestrator', role: 'orchestrator' },
+    ]);
+    expect(
+      db
+        .prepare('select payload from events order by seq')
+        .all()
+        .map(row => JSON.parse(String(row.payload)).member),
+    ).toStrictEqual([
+      { name: 'api', role: 'unassigned' },
+      { name: 'orchestrator', role: 'orchestrator' },
+    ]);
     db.close();
   });
 });
