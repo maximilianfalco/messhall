@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -39,6 +40,33 @@ describe('openDb', () => {
     expect(version(second)).toBe(MIGRATIONS.length);
     expect(second.prepare('select count(*) as n from events').get()?.n).toBe(1);
     second.close();
+  });
+
+  it('backfills who made each room and the stored room events when it adds created_by', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    old.exec(MIGRATIONS[0]!);
+    old.exec('PRAGMA user_version = 1');
+    old.exec(`
+      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
+      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence) VALUES
+        ('r1', 'human', 'human', 't0', 't0', 'idle'), ('r1', 'web', 'codex', 't2', 't2', 'active'),
+        ('r1', 'api', 'claude', 't1', 't1', 'active');
+      INSERT INTO events (kind, payload, created_at) VALUES ('room', '{"type":"room","change":"created","room":{"name":"demo"}}', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect({ ...db.prepare('select created_by, standing from rooms').get() }).toStrictEqual({
+      created_by: 'api',
+      standing: 0,
+    });
+    expect(JSON.parse(String(db.prepare('select payload from events').get()?.payload)).room).toStrictEqual({
+      created_by: 'api',
+      name: 'demo',
+      standing: false,
+    });
+    db.close();
   });
 
   it('refuses a db written by a newer messhall', () => {

@@ -32,10 +32,16 @@ export const memberKindSchema = z
 
 export const roomSchema = z.object({
   closed_at: timestampSchema.nullable().describe('When the room closed, null while it is open.'),
-  created_at: timestampSchema.describe('When the first member joined.'),
+  created_at: timestampSchema.describe('When the room was made.'),
+  created_by: z.string().describe('Who made the room: human, or the name of the agent whose join made it.'),
   id: z.string().describe('Room id.'),
   message_cap: z.number().int().positive().describe('Posts allowed before the room closes.'),
   name: nameSchema.describe('Room name, unique.'),
+  standing: z
+    .boolean()
+    .describe(
+      'True for a room the human made. It stays open when every agent is done, until its cap or the human closes it.',
+    ),
   topic: z.string().nullable().describe('What the room is for, null when unset.'),
 });
 

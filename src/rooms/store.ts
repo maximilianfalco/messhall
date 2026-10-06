@@ -30,11 +30,19 @@ export interface PresenceChange {
 }
 
 type Emit = (event: BusEvent) => void;
+
+interface NewRoom {
+  cap?: number;
+  createdBy: string;
+  name: string;
+  topic?: string;
+}
 type Row = Record<string, unknown>;
 
 const NAME_MAX = 40;
 
-const toRoom = (row: Row) => roomSchema.parse(row);
+const withStanding = (row: Row) => ({ ...row, standing: row.standing === 1 });
+const toRoom = (row: Row) => roomSchema.parse(withStanding(row));
 const toMember = (row: Row) => memberSchema.parse({ ...row, done: row.done === 1 });
 const toMessage = (row: Row) =>
   messageSchema.parse({ ...row, from: row.from_name, mentions: parseStoredJson(String(row.mentions)) });
@@ -61,7 +69,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     insertMessage: db.prepare(
       'INSERT INTO messages (room_id, from_name, kind, text, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
     ),
-    insertRoom: db.prepare('INSERT INTO rooms (id, name, created_at, message_cap) VALUES (?, ?, ?, ?)'),
+    insertRoom: db.prepare(
+      'INSERT INTO rooms (id, name, topic, created_at, message_cap, created_by, standing) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ),
     latest: db.prepare('SELECT * FROM (SELECT * FROM messages WHERE room_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id'),
     latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
     leave: db.prepare("UPDATE members SET left_at = ?, presence = 'gone' WHERE room_id = ? AND name = ?"),
@@ -136,8 +146,18 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     return member;
   }
 
-  function createRoom(name: string, emit: Emit) {
-    sql.insertRoom.run(randomUUID(), name, stamp(), DEFAULT_MESSAGE_CAP);
+  // Only a room the human makes is standing.
+  function makeRoom({ cap, createdBy, name, topic }: NewRoom, emit: Emit) {
+    const standing = createdBy === HUMAN_NAME;
+    sql.insertRoom.run(
+      randomUUID(),
+      name,
+      topic ?? null,
+      stamp(),
+      cap ?? DEFAULT_MESSAGE_CAP,
+      createdBy,
+      standing ? 1 : 0,
+    );
     const room = findRoom(name)!;
     emit({ change: 'created', room, type: 'room' });
     addHuman(room, emit);
@@ -178,6 +198,35 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   return {
     events: { bounds: bus.bounds, on: bus.on, since: bus.since },
 
+    /** Closes an open room by hand with a system line. */
+    closeRoom(roomName: string) {
+      return transaction(emit => {
+        const room = findRoom(roomName);
+        if (!room) return { ok: false, reason: 'no_room' } as const;
+        if (room.closed_at !== null) return { ok: false, reason: 'closed' } as const;
+        close(room, `#${room.name} closed by the human`, emit);
+        return { ok: true, room: roomById(room.id) } as const;
+      });
+    },
+
+    /** Makes a room with the human seat. A room the human makes is standing: only its cap or the human closes it. */
+    createRoom({
+      cap,
+      created_by: createdBy,
+      name,
+      topic,
+    }: {
+      cap?: number;
+      created_by: string;
+      name: string;
+      topic?: string;
+    }) {
+      return transaction(emit => {
+        if (findRoom(name)) return { ok: false, reason: 'exists' } as const;
+        return { ok: true, room: makeRoom({ cap, createdBy, name, topic }, emit) } as const;
+      });
+    },
+
     /** Adds the human seat to a room that lacks it. Rooms made by `joinRoom` already have it. */
     ensureHuman(roomName: string) {
       return transaction(emit => {
@@ -189,12 +238,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
 
     /**
      * Joins `as` to the room, making the room on first join. A gone holder is taken over with its
-     * cursor ("reconnected"), a live holder gives `name_taken` with a free name to try.
+     * cursor ("reconnected"), a live holder gives `name_taken` with a free name to try. A closed
+     * standing room waits for the human to reopen it.
      */
     joinRoom({ as, kind, room: roomName }: { as: string; kind: AgentKind; room: string }) {
       if (isReserved(as)) return { ok: false, reason: 'name_reserved' } as const;
       return transaction(emit => {
-        const room = findRoom(roomName) ?? createRoom(roomName, emit);
+        const room = findRoom(roomName) ?? makeRoom({ createdBy: as, name: roomName }, emit);
+        if (room.standing && room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
         const existing = findMember(room, as);
         if (existing && existing.left_at === null && existing.presence !== 'gone') {
           return { ok: false, reason: 'name_taken', suggestion: suggestName(room, as) } as const;
@@ -236,14 +287,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return { messages: rows.map(toMessage), ok: true } as const;
     },
 
-    /** Every room by name, with how many posts count toward its cap. */
+    /** Every room by name, closed ones too, with how many posts count toward its cap. */
     listRooms() {
-      return sql.rooms.all().map(row => roomSummarySchema.parse(row));
+      return sql.rooms.all().map(row => roomSummarySchema.parse(withStanding(row)));
     },
 
     /**
-     * Posts as a member. Mentions are read against current members. Closes the room at its cap or
-     * when every agent is done. Only the human can post into a closed room, and that reopens it.
+     * Posts as a member. Mentions are read against current members. Closes the room at its cap, or
+     * when every agent is done unless the room is standing. Only the human can post into a closed room, and that reopens it.
      */
     postMessage({
       done = false,
@@ -286,7 +337,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         } else if (cap === 'warn') {
           systemLine(room, `#${room.name} is at ${count}/${room.message_cap}, wrap up`, emit);
         }
-        if (cap !== 'full' && kind === 'done' && Number(sql.agentsNotDone.get(room.id)?.n) === 0) {
+        if (cap !== 'full' && !room.standing && kind === 'done' && Number(sql.agentsNotDone.get(room.id)?.n) === 0) {
           close(room, 'all done, room closed', emit);
         }
         return { message, ok: true } as const;

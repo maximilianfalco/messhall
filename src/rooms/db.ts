@@ -46,6 +46,20 @@ export const MIGRATIONS = [
   );
   CREATE INDEX events_created_at ON events (created_at);
   `,
+  // Old rooms were all made by an agent's first join. Stored room events get the fields too, so replay still parses.
+  `
+  ALTER TABLE rooms ADD COLUMN created_by TEXT NOT NULL DEFAULT 'messhall';
+  ALTER TABLE rooms ADD COLUMN standing INTEGER NOT NULL DEFAULT 0;
+  UPDATE rooms SET created_by = coalesce(
+    (SELECT name FROM members WHERE room_id = rooms.id AND kind != 'human' ORDER BY joined_at LIMIT 1),
+    'messhall'
+  );
+  UPDATE events SET payload = json_set(
+    payload,
+    '$.room.created_by', coalesce((SELECT created_by FROM rooms WHERE name = json_extract(payload, '$.room.name')), 'messhall'),
+    '$.room.standing', json('false')
+  ) WHERE kind = 'room';
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {
