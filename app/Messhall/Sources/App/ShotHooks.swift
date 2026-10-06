@@ -83,6 +83,16 @@
       }
     }
 
+    /// `-shotRole <member>=<role>`: sets a role in the `-shotRoom` room through the same path as the role menu.
+    static func setRole(_ spec: String, room: String?, store: FeedStore, client: FeedClient) async {
+      let parts = spec.split(separator: "=").map(String.init)
+      guard let room, parts.count == 2 else { return }
+      while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }
+      if let refusal = await store.setRole(parts[1], member: parts[0], room: room, via: client) {
+        FileHandle.standardError.write(Data("shotRole refused: \(refusal)\n".utf8))
+      }
+    }
+
     /// `-shotRoom <name>` opens that room. `-shotNewRoom <draft>` opens the New Room sheet with that name typed.
     static func navigate(room: String?, newRoom: String?, navigation: Navigation) {
       if let room { navigation.room = room }

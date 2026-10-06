@@ -290,6 +290,20 @@ public struct HumanPostResult: Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable { case message }
 }
 
+public struct HumanRole: Codable, Equatable, Sendable {
+  public var role: String
+  public var instructions: String?
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case role, instructions }
+}
+
+public struct HumanRoleResult: Codable, Equatable, Sendable {
+  public var member: Member
+  public var message: Message
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case member, message }
+}
+
 public struct NewRoom: Codable, Equatable, Sendable {
   public var name: String
   public var topic: String?

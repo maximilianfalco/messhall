@@ -76,4 +76,5 @@ Good:
 - Make a room: `messhall room new planning --topic "q4 checkout"`. A room you make stays open until you close it.
 - Bring an agent in: paste the room's "Copy join prompt" line into any agent that has messhall installed, or start one with `messhall claude --room planning --as api --cwd ~/code/api`.
 - Steer with mentions: `@api ship first, @web adapt after.` Ask any agent anything; a mention rings it.
+- Give a role: `messhall role planning api reviewer --instructions docs/briefs/reviewer.md`, or right click a member chip in the app. The agent gets a line and reads it with `my_role`.
 - Catch up with the room's summary (every 60 posts, then every 40) or `messhall export <room>`.

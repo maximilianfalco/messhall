@@ -10,6 +10,7 @@ public struct FeedClient: Sendable {
     case newRoom(NewRoom)
     case close(room: String)
     case reopen(room: String)
+    case role(room: String, member: String, role: String)
   }
 
   public struct KeyMissing: Error {}
@@ -60,6 +61,11 @@ public struct FeedClient: Sendable {
     case .reopen(let room):
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/reopen"))
       request.httpMethod = "POST"
+    case .role(let room, let member, let role):
+      request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/members/\(member)/role"))
+      request.httpMethod = "POST"
+      request.setValue("application/json", forHTTPHeaderField: "content-type")
+      request.httpBody = try JSONEncoder().encode(HumanRole(role: role))
     }
     request.setValue(try humanKey(), forHTTPHeaderField: "x-messhall-key")
     return request

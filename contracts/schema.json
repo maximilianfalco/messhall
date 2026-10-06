@@ -129,6 +129,44 @@
       ],
       "additionalProperties": false
     },
+    "HumanRole": {
+      "type": "object",
+      "properties": {
+        "instructions": {
+          "description": "What the member should do in this role, 1 to 4,000 chars. Left out clears any earlier ones.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The role to give the member."
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "HumanRoleResult": {
+      "type": "object",
+      "properties": {
+        "member": {
+          "description": "The member with its new role.",
+          "$ref": "#/$defs/Member"
+        },
+        "message": {
+          "description": "The line from human that mentions the member, so it reads its role.",
+          "$ref": "#/$defs/Message"
+        }
+      },
+      "required": [
+        "member",
+        "message"
+      ],
+      "additionalProperties": false
+    },
     "Member": {
       "type": "object",
       "properties": {
