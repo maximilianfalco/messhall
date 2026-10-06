@@ -1,4 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -42,5 +43,23 @@ describe('logger', () => {
 
     const line = readFileSync(path.join(home, 'logs', 'daemon.log'), 'utf8');
     expect(JSON.parse(line)).toMatchObject({ level: 'info', message: 'daemon up', port: 7707 });
+  });
+
+  it('writes each line once when stderr already is the log file', () => {
+    const file = path.join(home, 'logs', 'daemon.log');
+    mkdirSync(path.dirname(file));
+    const fd = openSync(file, 'a');
+    const script = "const { logger } = await import('./src/lib/logger.ts'); logger.info('once');";
+
+    const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
+      cwd: path.resolve(import.meta.dirname, '../..'),
+      env: { ...process.env, MESSHALL_HOME: home },
+      stdio: ['ignore', 'ignore', fd],
+    });
+    closeSync(fd);
+
+    expect(child.status).toBe(0);
+    const lines = readFileSync(file, 'utf8').trim().split('\n');
+    expect(lines.map(line => (JSON.parse(line) as { message: string }).message)).toStrictEqual(['once']);
   });
 });

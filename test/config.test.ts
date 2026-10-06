@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CLI_VERSION, dataDir, DEFAULT_PORT, logDir } from '../src/config.js';
+import { CLI_VERSION, daemonPort, dataDir, DEFAULT_PORT, launchAgentPath, logDir } from '../src/config.js';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -38,5 +38,25 @@ describe('config', () => {
   it('keeps logs under MESSHALL_HOME when it is set', () => {
     vi.stubEnv('MESSHALL_HOME', '/tmp/messhall-test-home');
     expect(logDir()).toBe('/tmp/messhall-test-home/logs');
+  });
+
+  it('uses MESSHALL_PORT when it is set', () => {
+    vi.stubEnv('MESSHALL_PORT', '7797');
+    expect(daemonPort()).toBe(7797);
+  });
+
+  it('uses the default port when MESSHALL_PORT is empty', () => {
+    vi.stubEnv('MESSHALL_PORT', '');
+    expect(daemonPort()).toBe(DEFAULT_PORT);
+  });
+
+  it.each(['abc', '-1', '65536', '77.5'])('refuses MESSHALL_PORT %s', port => {
+    vi.stubEnv('MESSHALL_PORT', port);
+    expect(() => daemonPort()).toThrow(/MESSHALL_PORT/);
+  });
+
+  it('puts the LaunchAgent in the user Library', () => {
+    vi.stubEnv('HOME', '/Users/someone');
+    expect(launchAgentPath()).toBe('/Users/someone/Library/LaunchAgents/dev.messhall.daemon.plist');
   });
 });
