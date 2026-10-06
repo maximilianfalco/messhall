@@ -1,10 +1,10 @@
 import type { LaunchDeps, LaunchOptions } from './launch.js';
 import type { Command } from 'commander';
 
-import { briefLine, DEFAULT_ROOM, launch, launchDeps, launchTarget } from './launch.js';
+import { BRIEF_HELP, briefLine, DEFAULT_ROOM, launch, launchDeps, launchTarget } from './launch.js';
 
 interface Seat {
-  brief?: string;
+  brief?: string | null;
   name: string;
   room: string;
 }
@@ -35,10 +35,7 @@ export function registerCodex(program: Command) {
     .option('--room <room>', `room to join, ${DEFAULT_ROOM} by default`)
     .option('--as <name>', 'name in the room, the cwd folder by default')
     .option('--cwd <dir>', 'folder to start codex in')
-    .option(
-      '--brief <file>',
-      'instructions to read and follow after the join, docs/briefs/orchestrator.md for --as orchestrator',
-    )
+    .option('--brief <file>', BRIEF_HELP)
     .option('--print', 'only print the command and the first prompt')
     .action(async (options: Omit<LaunchOptions, 'print'> & { print?: boolean }) => {
       process.exitCode = await runCodex({ ...options, print: Boolean(options.print) }, launchDeps());

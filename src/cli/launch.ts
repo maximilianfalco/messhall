@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import pc from 'picocolors';
 
+import { ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { codexConfigPath, daemonUrl } from '../config.js';
 import { packageRoot } from '../lib/packageRoot.js';
 import { runCommand } from '../lib/run.js';
@@ -13,7 +14,8 @@ import { readClaudeEntry, readCodexEntry } from './mcp.js';
 import { probeHealth } from './status.js';
 
 export const DEFAULT_ROOM = 'lobby';
-const ORCHESTRATOR = 'orchestrator';
+export const BRIEF_HELP =
+  'instructions to read and follow after the join, docs/briefs/orchestrator.md for --as orchestrator';
 
 export interface LaunchDeps {
   codexConfig: string;
@@ -35,17 +37,18 @@ export interface LaunchOptions {
 
 export const briefLine = (brief: string) => `Then read the brief at ${brief} and follow it in the room.`;
 
+function briefPath(brief: string | undefined, name: string, base: string) {
+  if (brief) return path.resolve(base, brief);
+  if (name === ORCHESTRATOR_ROLE) return path.join(packageRoot(), 'docs', 'briefs', 'orchestrator.md');
+  return null;
+}
+
 /** The seat an agent starts in: folder, room, name and brief. The name is the folder's name unless `as` is given.
  * The brief is a full path from `base`, and the orchestrator name gets the shipped orchestrator brief when none is given. */
 export function launchTarget(options: LaunchOptions, base: string) {
   const cwd = path.resolve(base, options.cwd ?? '.');
   const name = options.as ?? path.basename(cwd);
-  const brief = options.brief
-    ? path.resolve(base, options.brief)
-    : name === ORCHESTRATOR
-      ? path.join(packageRoot(), 'docs', 'briefs', 'orchestrator.md')
-      : undefined;
-  return { brief, cwd, name, room: options.room ?? DEFAULT_ROOM };
+  return { brief: briefPath(options.brief, name, base), cwd, name, room: options.room ?? DEFAULT_ROOM };
 }
 
 async function missingEntry(agent: 'claude' | 'codex', deps: LaunchDeps) {
@@ -67,7 +70,7 @@ export async function launch(
     cwd,
     print,
     prompt,
-  }: { agent: 'claude' | 'codex'; argv: string[]; brief?: string; cwd: string; print: boolean; prompt: string },
+  }: { agent: 'claude' | 'codex'; argv: string[]; brief: string | null; cwd: string; print: boolean; prompt: string },
   deps: LaunchDeps,
 ) {
   if (brief && !statSync(brief, { throwIfNoEntry: false })?.isFile()) {
