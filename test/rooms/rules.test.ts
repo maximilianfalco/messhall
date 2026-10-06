@@ -2,7 +2,14 @@ import type { Member, Message } from '../../contracts/room.ts';
 
 import { describe, expect, it } from 'vitest';
 
-import { canAssignRole, concerns, loopPair, nextPresence, parseMentions } from '../../src/rooms/rules.js';
+import {
+  canAssignRole,
+  concerns,
+  loopPair,
+  missingMentions,
+  nextPresence,
+  parseMentions,
+} from '../../src/rooms/rules.js';
 
 const T0 = '2026-01-01T10:00:00.000Z';
 const minutes = (count: number) => new Date(Date.parse(T0) + count * 60_000);
@@ -52,6 +59,19 @@ describe('parseMentions', () => {
   });
 });
 
+describe('missingMentions', () => {
+  it.each([
+    ['@web the schema moved', []],
+    ['@web and @ghost, look', ['ghost']],
+    ['@ghost then @ghost and @mobile', ['ghost', 'mobile']],
+    ['@all wrap up', []],
+    ['mail a@b.com or x@ghost.io', []],
+    ['no mentions here', []],
+  ])('reads %j as %j', (text, expected) => {
+    expect(missingMentions({ names: ['api', 'web', 'human'], text })).toStrictEqual(expected);
+  });
+});
+
 describe('concerns', () => {
   const three = [...ROOM, member({ name: 'infra' })];
 
@@ -94,6 +114,43 @@ describe('concerns', () => {
 
   it('concerns the only other agent in a room of two', () => {
     expect(concerns({ pausedWith: {}, member: ROOM[2]!, members: ROOM, message: message({ from: 'api' }) })).toBe(true);
+  });
+
+  it('concerns the other agent and never the observer in a room of two agents and an observer', () => {
+    const members = [...ROOM, member({ name: 'watch', role: 'observer' })];
+    const line = message({ from: 'api' });
+
+    expect(members.map(m => concerns({ member: m, members, message: line, pausedWith: {} }))).toStrictEqual([
+      false,
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it('concerns no agent on an unmentioned observer line', () => {
+    const members = [...ROOM, member({ name: 'watch', role: 'observer' })];
+    const line = message({ from: 'watch' });
+
+    expect(members.map(m => concerns({ member: m, members, message: line, pausedWith: {} }))).toStrictEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('concerns an observer when mentioned', () => {
+    const members = [...ROOM, member({ name: 'watch', role: 'observer' })];
+
+    expect(
+      concerns({
+        member: members[3]!,
+        members,
+        message: message({ from: 'api', mentions: ['watch'] }),
+        pausedWith: {},
+      }),
+    ).toBe(true);
   });
 
   it('skips an unmentioned agent in a room of three', () => {

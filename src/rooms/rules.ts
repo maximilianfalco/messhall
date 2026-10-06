@@ -1,16 +1,30 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
-import { ALL_MENTION, HUMAN_NAME, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
+import { ALL_MENTION, HUMAN_NAME, OBSERVER_ROLE, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { AWAY_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
 const MENTION = /(?<![\w.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])/g;
 
+function splitMentions({ names, text }: { names: string[]; text: string }) {
+  const known = new Set([...names, ALL_MENTION]);
+  const found = Array.from(new Set(Array.from(text.matchAll(MENTION), match => match[1]!)));
+  return { known: found.filter(name => known.has(name)), missing: found.filter(name => !known.has(name)) };
+}
+
 /** Names mentioned with `@` that are in `names`, plus `all`, in first-seen order. */
 export function parseMentions({ names, text }: { names: string[]; text: string }) {
-  const known = new Set([...names, ALL_MENTION]);
-  const found = Array.from(text.matchAll(MENTION), match => match[1]!).filter(name => known.has(name));
-  return Array.from(new Set(found));
+  return splitMentions({ names, text }).known;
+}
+
+/** Names mentioned with `@` that are not in `names`, so nobody gets rung for them. */
+export function missingMentions({ names, text }: { names: string[]; text: string }) {
+  return splitMentions({ names, text }).missing;
+}
+
+/** True for a member that counts as an agent: not the human seat and not an observer. */
+export function isAgent(member: Pick<Member, 'kind' | 'role'>) {
+  return member.kind !== 'human' && member.role !== OBSERVER_ROLE;
 }
 
 /** True when the message is one the member should answer: a mention, `@all`, the human, or a room of two agents.
@@ -30,7 +44,7 @@ export function concerns({
   if (member.muted || pausedWith[member.name] === message.from) return false;
   if (message.mentions.includes(member.name) || message.mentions.includes(ALL_MENTION)) return true;
   if (message.from === HUMAN_NAME) return true;
-  const agents = members.filter(other => other.kind !== 'human' && other.left_at === null).map(other => other.name);
+  const agents = members.filter(other => isAgent(other) && other.left_at === null).map(other => other.name);
   return agents.length === 2 && agents.includes(member.name) && agents.includes(message.from);
 }
 

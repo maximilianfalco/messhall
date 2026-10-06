@@ -57,6 +57,15 @@ describe('joinRoom', () => {
     expect(texts('demo')).toStrictEqual(['messhall: api joined']);
   });
 
+  it('seats a member with observe as an observer, on a new seat and on a rejoin', () => {
+    store().joinRoom({ as: 'watch', kind: 'claude', observe: true, room: 'demo' });
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    store().joinRoom({ as: 'api', kind: 'claude', observe: true, room: 'demo' });
+
+    expect([memberOf('demo', 'watch')!.role, memberOf('demo', 'api')!.role]).toStrictEqual(['observer', 'observer']);
+  });
+
   it('keeps the client name and version, labeled from the known clients', () => {
     store().joinRoom({ as: 'web', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'demo' });
 
@@ -325,6 +334,25 @@ describe('postMessage', () => {
       ok: false,
       reason: 'room_closed',
     });
+  });
+
+  it('closes the room when both agents are done with an observer still in it', () => {
+    joinBoth();
+    store().joinRoom({ as: 'watch', kind: 'claude', observe: true, room: 'demo' });
+
+    post('api', 'done here', true);
+    post('web', 'done too', true);
+
+    expect(texts('demo').at(-1)).toBe('messhall: all done, room closed');
+  });
+
+  it('keeps a room open when only an observer is done', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().joinRoom({ as: 'watch', kind: 'claude', observe: true, room: 'demo' });
+
+    post('watch', 'seen enough', true);
+
+    expect(store().listRooms()[0]!.closed_at).toBeNull();
   });
 
   it('reopens a closed room when the human posts', () => {
