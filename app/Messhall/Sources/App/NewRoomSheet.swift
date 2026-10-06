@@ -38,7 +38,9 @@ struct NewRoomSheet: View {
         Button("Cancel") { dismiss() }
       }
       ToolbarItem(placement: .confirmationAction) {
-        Button("Create Room", action: create).disabled(!canCreate)
+        Button("Create Room", action: create)
+          .keyboardShortcut(.defaultAction)
+          .disabled(!canCreate)
       }
     }
   }

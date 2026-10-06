@@ -8,6 +8,7 @@ import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
 import {
   checkShotHome,
+  isAccessory,
   leftoverApps,
   pickWindow,
   seedShotRooms,
@@ -101,8 +102,8 @@ describe('shotArgs', () => {
 
   it('opens the transcript at the top so a post shows the jump pill', () => {
     expect(
-      shotArgs({ appearance: 'light', name: 'pill-light', post: true, room: 'docs-sync', scrollTop: true }),
-    ).toStrictEqual(expect.arrayContaining(['-shotScrollTop', 'YES', '-shotRoom', 'docs-sync', '-shotPost']));
+      shotArgs({ agentPost: true, appearance: 'light', name: 'pill-light', room: 'docs-sync', scrollTop: true }),
+    ).toStrictEqual(expect.arrayContaining(['-shotScrollTop', 'YES', '-shotRoom', 'docs-sync']));
   });
 
   it('passes the room to open and the New Room draft', () => {
@@ -123,5 +124,12 @@ describe('strayApps', () => {
 
   it('gives none when every app from the run quit', () => {
     expect(strayApps({ after: [61116], before: [61116] })).toStrictEqual([]);
+  });
+});
+
+describe('isAccessory', () => {
+  it('accepts an accessory app and refuses a Dock app', () => {
+    expect(isAccessory('"ApplicationType"="UIElement"')).toBe(true);
+    expect(isAccessory('"ApplicationType"="Foreground"')).toBe(false);
   });
 });

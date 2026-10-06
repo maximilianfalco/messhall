@@ -38,14 +38,15 @@ struct RoomDetail: View {
       ToolbarItem { MuteButton(room: room.name) }
       ToolbarItem {
         if room.isOpen {
-          Button("Close Room", systemImage: "lock") { confirmingClose = true }
+          Button("Close Room", systemImage: "lock", action: toggle)
             .help("Close #\(room.name)")
         } else {
-          Button("Reopen Room", systemImage: "lock.open") { change(.reopen(room.name)) }
+          Button("Reopen Room", systemImage: "lock.open", action: toggle)
             .help("Reopen #\(room.name)")
         }
       }
     }
+    .focusedSceneValue(\.roomToggle, RoomToggle(isOpen: room.isOpen, run: toggle))
     .confirmationDialog("Close #\(room.name)?", isPresented: $confirmingClose) {
       Button("Close Room") { change(.close(room.name)) }
     } message: {
@@ -60,8 +61,31 @@ struct RoomDetail: View {
     }
   }
 
+  private func toggle() {
+    if room.isOpen { confirmingClose = true } else { change(.reopen(room.name)) }
+  }
+
   private func change(_ action: RoomAction) {
     Task { refusal = await store.change(action, via: client) }
+  }
+}
+
+/// The open room's Close or Reopen action, so the menu bar can offer it too.
+struct RoomToggle {
+  let isOpen: Bool
+  let run: () -> Void
+}
+
+extension FocusedValues {
+  @Entry var roomToggle: RoomToggle?
+}
+
+struct RoomToggleCommand: View {
+  @FocusedValue(\.roomToggle) private var toggle
+
+  var body: some View {
+    Button(toggle?.isOpen == false ? "Reopen Room" : "Close Room\u{2026}") { toggle?.run() }
+      .disabled(toggle == nil)
   }
 }
 

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
 
+import { runPost } from '../../../src/cli/post.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
@@ -23,6 +24,8 @@ const WINDOW_WITHIN_MS = 30_000;
 // Time for the snapshot to load and the transcript to scroll before the shot.
 const SETTLE_MS = 2500;
 const POST_TEXT = 'thanks both. ship it once the e2e run is green';
+// Lands below a transcript scrolled to the top, so the jump pill shows.
+const AGENT_POST = { as: 'writer', room: 'docs-sync', text: 'the glossary page is updated too' };
 
 const SHOTS = [
   { appearance: 'light', name: 'window-light' },
@@ -35,8 +38,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
   { appearance: 'light', name: 'closed-light', room: 'billing' },
   { appearance: 'dark', name: 'closed-dark', room: 'billing' },
-  { appearance: 'light', name: 'pill-light', post: true, room: 'docs-sync', scrollTop: true },
-  { appearance: 'dark', name: 'pill-dark', post: true, room: 'docs-sync', scrollTop: true },
+  { agentPost: true, appearance: 'light', name: 'pill-light', room: 'docs-sync', scrollTop: true },
+  { agentPost: true, appearance: 'dark', name: 'pill-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', muted: true, name: 'muted-light' },
   { appearance: 'dark', muted: true, name: 'muted-dark' },
 ] as const;
@@ -49,6 +52,7 @@ const DOWN_SHOTS = [
 ] as const;
 
 const QUIT_WITHIN_MS = 5000;
+const CAPTURE_TRIES = 8;
 
 const run = promisify(execFile);
 // Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
@@ -175,6 +179,11 @@ export function strayApps({ after, before }: { after: number[]; before: number[]
   return after.filter(pid => !before.includes(pid));
 }
 
+/** Whether an `lsappinfo info -only ApplicationType` line says the app runs as an accessory, with no Dock icon. */
+export function isAccessory(lsappinfo: string) {
+  return /"ApplicationType"\s*=\s*"UIElement"/.test(lsappinfo);
+}
+
 /** Pids running this build's app binary, matched by its full path. */
 function appPids(app: string) {
   const result = spawnSync('pgrep', ['-f', path.join(app, 'Contents', 'MacOS', 'Messhall')], { encoding: 'utf8' });
@@ -189,14 +198,15 @@ async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS)
   return waitWindow(pid, deadline);
 }
 
-/** `screencapture -l` fails while a sheet is still sliding in, so it gets a few tries. */
-async function capture(id: number, file: string, tries = 3): Promise<void> {
+/** `screencapture -l` fails now and then while a sheet is up, so it gets a few tries. Gives the last error text. */
+async function capture(id: number, file: string, tries = CAPTURE_TRIES): Promise<string | undefined> {
   try {
     await run('screencapture', ['-o', '-x', '-l', String(id), file]);
   } catch (error) {
-    if (tries <= 1) throw error;
+    const reason = `screencapture failed: ${String(error).trim().split('\n').at(-1)}`;
+    if (tries <= 1) return reason;
     await sleep(1000);
-    await capture(id, file, tries - 1);
+    return capture(id, file, tries - 1);
   }
 }
 
@@ -219,10 +229,20 @@ async function shoot({
   try {
     const id = await waitWindow(child.pid ?? 0);
     if (id === undefined) return `no window within ${WINDOW_WITHIN_MS}ms`;
+    const { stdout: info } = await run('lsappinfo', ['info', '-only', 'ApplicationType', String(child.pid)]);
+    if (!isAccessory(info)) return `not an accessory app, it would show in the Dock: ${info.trim()}`;
+    if ('agentPost' in shot) {
+      await sleep(SETTLE_MS);
+      const posted = await runPost({
+        ...AGENT_POST,
+        dataDir: env.MESSHALL_HOME ?? '',
+        url: `http://127.0.0.1:${env.MESSHALL_PORT}`,
+      });
+      if (posted.code !== 0) return `agent post failed: ${posted.output}`;
+    }
     await sleep(SETTLE_MS);
     const file = path.join(OUT_DIR, `${shot.name}.png`);
-    await capture(id, file);
-    return file;
+    return (await capture(id, file)) ?? file;
   } finally {
     child.kill('SIGTERM');
     await Promise.race([exited, sleep(QUIT_WITHIN_MS)]);

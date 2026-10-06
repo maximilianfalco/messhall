@@ -6,6 +6,9 @@
   /// Debug-only launch hooks for `pnpm messhall-dev app-shot`, which cannot click a window or the menu bar.
   @MainActor
   enum ShotHooks {
+    /// True when app-shot launched this copy. It then runs with no Dock icon and never takes focus.
+    static let isShot = CommandLine.arguments.contains { $0.hasPrefix("-shot") || $0 == "-renderStatus" }
+
     /// `-shotAppearance light|dark`: a launch arg cannot flip the system setting, so the app is set instead.
     static func forceAppearance(_ name: String?) {
       switch name {
@@ -15,15 +18,13 @@
       }
     }
 
-    /// `-shotScrollTop YES`: the transcript opens at its first message, so a post shows the jump pill.
+    /// `-shotScrollTop YES`: the transcript opens at its first message, so an agent post shows the jump pill.
     static let startAtTop = UserDefaults.standard.bool(forKey: "shotScrollTop")
 
-    /// `-shotPost <text>`: posts into the open room, or the first open one, through the same path as the post box.
-    static func post(_ text: String, store: FeedStore, client: FeedClient, navigation: Navigation) async {
+    /// `-shotPost <text>`: posts into the first open room through the same path as the post box.
+    static func post(_ text: String, store: FeedStore, client: FeedClient) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }
-      // Gives the window time to scroll to the top first.
-      if startAtTop { try? await Task.sleep(for: .seconds(1)) }
-      guard let room = store.room(named: navigation.room) ?? store.rooms.first(where: \.isOpen) else { return }
+      guard let room = store.rooms.first(where: \.isOpen) else { return }
       if let refusal = await store.post(text, room: room.name, via: client) {
         FileHandle.standardError.write(Data("shotPost refused: \(refusal)\n".utf8))
       }

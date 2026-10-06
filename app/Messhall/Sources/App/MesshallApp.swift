@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   func applicationWillFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
     #if DEBUG
+      if ShotHooks.isShot { NSApp.setActivationPolicy(.accessory) }
       if let dir = UserDefaults.standard.string(forKey: "renderStatus") {
         ShotHooks.renderStatus(into: URL(fileURLWithPath: dir))
         exit(0)
@@ -39,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     Task { await store.run(client) }
     #if DEBUG
       if let text = UserDefaults.standard.string(forKey: "shotPost") {
-        Task { await ShotHooks.post(text, store: store, client: client, navigation: navigation) }
+        Task { await ShotHooks.post(text, store: store, client: client) }
       }
       ShotHooks.navigate(
         room: UserDefaults.standard.string(forKey: "shotRoom"),
@@ -82,7 +83,10 @@ struct MesshallApp: App {
     .defaultSize(width: 980, height: 640)
     .commands {
       SidebarCommands()
-      CommandGroup(replacing: .newItem) { NewRoomCommand(navigation: delegate.navigation) }
+      CommandGroup(replacing: .newItem) {
+        NewRoomCommand(navigation: delegate.navigation)
+        RoomToggleCommand()
+      }
     }
 
     MenuBarExtra {
