@@ -135,7 +135,7 @@ describe('wait', () => {
 
     expect(waiting.value).toStrictEqual({
       isError: false,
-      text: '2 new in #checkout (web mentioned you). Call read_since.',
+      text: '2 new since your last read in #checkout (web mentioned you). Call read_since.',
     });
   });
 
@@ -145,7 +145,39 @@ describe('wait', () => {
 
     const result = await api.call('wait', { room: 'checkout' }, LONG);
 
-    expect(result.text).toBe('1 new in #checkout (human posted). Call read_since.');
+    expect(result.text).toBe('1 new since your last read in #checkout (human posted). Call read_since.');
+  });
+
+  it('calls posts from before this session joined the backlog', async () => {
+    const first = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await first.call('leave', { room: 'checkout' });
+    await web.call('post', { room: 'checkout', text: 'the schema moved' });
+    await web.call('post', { room: 'checkout', text: 'and the docs' });
+    const api = await harness.joined('checkout', 'api');
+
+    const result = await api.call('wait', { room: 'checkout' }, LONG);
+
+    expect(result.text).toBe(
+      '2 unread from before you joined this session (backlog) in #checkout (web posted). Call read_since.',
+    );
+  });
+
+  it('counts new and backlog apart when both are unread', async () => {
+    const first = await harness.joined('checkout', 'api');
+    const web = await harness.joined('checkout', 'web');
+    await harness.joined('checkout', 'ios');
+    await first.call('leave', { room: 'checkout' });
+    await web.call('post', { room: 'checkout', text: 'old news' });
+    const api = await harness.joined('checkout', 'api');
+
+    const waiting = pending(api.call('wait', { room: 'checkout' }, LONG));
+    await web.call('post', { room: 'checkout', text: '@api fresh news' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(waiting.value?.text).toBe(
+      '1 new since your last read and 1 unread from before you joined this session (backlog) in #checkout (web mentioned you). Call read_since.',
+    );
   });
 
   it('waits on every joined room when room is left out', async () => {
@@ -159,7 +191,7 @@ describe('wait', () => {
     await other.call('post', { room: 'billing', text: 'invoice ids are uuids' });
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(waiting.value?.text).toBe('1 new in #billing (web posted). Call read_since.');
+    expect(waiting.value?.text).toBe('1 new since your last read in #billing (web posted). Call read_since.');
   });
 
   it('marks the member waiting while blocked and active after', async () => {
