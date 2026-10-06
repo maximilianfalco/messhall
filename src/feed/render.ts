@@ -32,8 +32,10 @@ function messageLine({ message, tag }: { message: Message; tag: string }) {
 const memberLine = (member: Member, change: MemberChange) =>
   `${MEMBER_MARKS[change]} ${member.name} ${change}${change === 'left' ? '' : ` (${member.kind})`}`;
 
-const roomLabel = (room: Snapshot['rooms'][number]) =>
-  `${room.closed_at ? 'closed' : 'open'}, ${room.message_count}/${room.message_cap} posts`;
+type SnapshotRoom = Snapshot['rooms'][number];
+
+const stateOf = (room: SnapshotRoom) => [room.closed_at ? 'closed' : 'open', ...(room.standing ? ['standing'] : [])];
+const postsOf = (room: SnapshotRoom) => `${room.message_count}/${room.message_cap} posts`;
 
 const memberList = (members: Member[]) =>
   members.map(item => (item.kind === 'human' ? nameOf(item.name) : `${nameOf(item.name)} ${item.presence}`)).join(', ');
@@ -56,7 +58,7 @@ export function renderSnapshot({ room, snapshot }: { room?: string; snapshot: Sn
   if (!rooms.length) return [pc.dim('no rooms yet')];
   return rooms.flatMap((item, index) => [
     ...(index ? [''] : []),
-    `${pc.bold(`#${item.name}`)}  ${pc.dim([roomLabel(item), item.topic].filter(Boolean).join(', '))}`,
+    `${pc.bold(`#${item.name}`)}  ${pc.dim([...stateOf(item), postsOf(item), item.topic].filter(Boolean).join(', '))}`,
     `${GUTTER}${item.members.length ? memberList(item.members) : pc.dim('nobody here')}`,
     ...item.messages.map(message => messageLine({ message, tag: '' })),
   ]);
@@ -65,8 +67,8 @@ export function renderSnapshot({ room, snapshot }: { room?: string; snapshot: Sn
 /** One line per room, for `/rooms`. */
 export function renderRooms({ snapshot }: { snapshot: Snapshot }) {
   if (!snapshot.rooms.length) return [pc.dim('no rooms yet')];
-  return snapshot.rooms.map(
-    item =>
-      `${pc.bold(`#${item.name}`)}  ${pc.dim(`${item.closed_at ? 'closed' : 'open'}, ${item.members.length} members, ${item.message_count}/${item.message_cap} posts`)}`,
-  );
+  return snapshot.rooms.map(item => {
+    const parts = [...stateOf(item), `${item.members.length} members`, postsOf(item), item.topic];
+    return `${pc.bold(`#${item.name}`)}  ${pc.dim(parts.filter(Boolean).join(', '))}`;
+  });
 }
