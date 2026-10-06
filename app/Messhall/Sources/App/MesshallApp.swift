@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    notifier.requestPermission()
+    Task { await notifier.requestPermission() }
     store.onEvent = { [notifier, unowned store] event, room in
       notifier.notify(event, room: room, liveSince: store.liveSince)
     }
@@ -87,6 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     #else
       trackHotkey()
     #endif
+  }
+
+  /// The human may have changed the app's notifications in System Settings while away.
+  func applicationDidBecomeActive(_ notification: Notification) {
+    Task { await notifier.refreshBlock() }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
@@ -146,6 +151,7 @@ struct MesshallApp: App {
 
     Settings {
       SettingsView(store: delegate.store, settings: delegate.settings)
+        .environment(delegate.notifier)
     }
 
     MenuBarExtra {

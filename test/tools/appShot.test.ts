@@ -255,6 +255,12 @@ describe('shotArgs', () => {
     ).toStrictEqual(expect.arrayContaining(['-shotRemove', 'docs', '-shotRoom', 'handoff']));
   });
 
+  it('tells the app which block macOS puts on its banners for the blocked shots', () => {
+    expect(shotArgs({ appearance: 'light', name: 'notify-blocked-light', notify: 'denied' })).toStrictEqual(
+      expect.arrayContaining(['-shotNotify', 'denied']),
+    );
+  });
+
   it('builds the app as if for an older contract for the older-app shot', () => {
     expect(shotArgs({ appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' })).toStrictEqual(
       expect.arrayContaining(['-shotContract', '0', '-shotRoom', 'checkout']),

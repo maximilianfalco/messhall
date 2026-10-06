@@ -11,6 +11,7 @@ struct RoomDetail: View {
   @State private var query = ""
   @State private var draft = Self.startDraft
   @FocusState private var composing: Bool
+  @Environment(Notifier.self) private var notifier
 
   #if DEBUG
     private static let startDraft = ShotHooks.draft ?? ""
@@ -28,6 +29,7 @@ struct RoomDetail: View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       if store.phase == .outdated || store.behind { OlderAppBanner() }
+      if let block = notifier.windowBlock { NotifyBanner(block: block) }
       RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(
         live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil,

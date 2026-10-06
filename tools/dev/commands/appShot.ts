@@ -80,6 +80,10 @@ const SHOTS = [
   { appearance: 'light', menuOpen: true, name: 'menu-open-light' },
   { appearance: 'dark', menuOpen: true, name: 'menu-open-dark' },
   { appearance: 'light', hotkey: true, name: 'hotkey-light' },
+  { appearance: 'light', name: 'notify-blocked-light', notify: 'denied' },
+  { appearance: 'dark', name: 'notify-blocked-dark', notify: 'denied' },
+  { appearance: 'light', name: 'settings-notify-blocked-light', notify: 'denied', settings: 'notifications' },
+  { appearance: 'dark', name: 'settings-notify-asked-dark', notify: 'notAsked', settings: 'notifications' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -300,7 +304,7 @@ async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS):
   return waitFile(file, deadline);
 }
 
-/** The launch args for one shot. The real app shares the bundle id, so a window closed there would stay shut here. */
+/** The launch args for one shot. The real app may share the bundle id, so a window closed there would stay shut here. */
 export function shotArgs(shot: Shot) {
   return [
     '-ApplePersistenceIgnoreState',
@@ -331,6 +335,7 @@ export function shotArgs(shot: Shot) {
     ...('menuOpen' in shot ? ['-shotMenu', 'YES'] : []),
     ...('hotkey' in shot ? ['-shotHotkey', hotkeyFile(shot)] : []),
     ...('contract' in shot ? ['-shotContract', String(shot.contract)] : []),
+    ...('notify' in shot ? ['-shotNotify', shot.notify] : []),
   ];
 }
 
@@ -478,7 +483,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, the New Room sheet, a standing room, a closed room, each Settings pane, the older-app notice and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, the New Room sheet, a standing room, a closed room, each Settings pane, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -544,7 +549,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker, New Room sheet, standing and closed rooms, each Settings pane, older-app notice and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker, New Room sheet, standing and closed rooms, each Settings pane, older-app and blocked-notifications notices and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

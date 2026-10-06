@@ -7,8 +7,16 @@ import UserNotifications
 @Observable
 final class Notifier {
   nonisolated static let roomKey = "room"
+  // A shot app never asks and shows only the block it is told, so no prompt pops up and no shot hangs on this Mac.
+  #if DEBUG
+    private static let isShot = ShotHooks.isShot
+  #else
+    private static let isShot = false
+  #endif
 
   @ObservationIgnored private let settings: AppSettings
+  /// What macOS does with our banners, read on launch and each time the app comes forward.
+  private(set) var block: NotifyBlock?
 
   init(settings: AppSettings) {
     self.settings = settings
@@ -23,21 +31,57 @@ final class Notifier {
 
   func toggleMute(_ room: String) { settings.snapshot.toggleMute(room) }
 
+  /// The block worth showing in the window. With Messhall's own switch off, no banner is the plan.
+  var windowBlock: NotifyBlock? { enabled ? block : nil }
+
   /// The system shows its prompt only while the answer is not set, so this asks at most once.
-  func requestPermission() {
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+  func requestPermission() async {
+    if !Self.isShot {
+      _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+    }
+    await refreshBlock()
+  }
+
+  func refreshBlock() async {
+    #if DEBUG
+      if Self.isShot {
+        block = ShotHooks.notifyBlock
+        return
+      }
+    #endif
+    let current = await UNUserNotificationCenter.current().notificationSettings()
+    block = notifyBlock(status: current.authorizationStatus, alerts: current.alertSetting, style: current.alertStyle)
+  }
+
+  func openSystemSettings() {
+    let id = Bundle.main.bundleIdentifier ?? ""
+    guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)") else {
+      return
+    }
+    NSWorkspace.shared.open(url)
+  }
+
+  /// Skips the switch and the mutes on purpose: it checks only what macOS does.
+  func sendTest() {
+    post(title: "Messhall", body: "Test notification. Banners work.", room: nil)
   }
 
   func notify(_ event: BusEvent, room: SnapshotRoom?, liveSince: Date) {
     let state = NotifyState(
       room: room, mutedRooms: settings.snapshot.mutedRooms, enabled: enabled, liveSince: liveSince)
     guard let note = notificationFor(event: event, state: state) else { return }
+    post(title: note.title, body: note.body, room: note.room)
+  }
+
+  private func post(title: String, body: String, room: String?) {
     let content = UNMutableNotificationContent()
-    content.title = note.title
-    content.body = note.body
+    content.title = title
+    content.body = body
     content.sound = .default
-    content.threadIdentifier = note.room
-    content.userInfo = [Self.roomKey: note.room]
+    if let room {
+      content.threadIdentifier = room
+      content.userInfo = [Self.roomKey: room]
+    }
     UNUserNotificationCenter.current().add(
       UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
   }
@@ -61,5 +105,38 @@ struct MuteButton: View {
     }
     .disabled(!notifier.enabled)
     .help(help)
+  }
+}
+
+/// The fix for a block: the macOS prompt while it can still show, else System Settings.
+struct NotifyFixButton: View {
+  let block: NotifyBlock
+  @Environment(Notifier.self) private var notifier
+
+  var body: some View {
+    if block.canAsk {
+      Button("Allow Notifications") { Task { await notifier.requestPermission() } }
+    } else {
+      Button("Open System Settings") { notifier.openSystemSettings() }
+    }
+  }
+}
+
+/// A one-line strip over the room while macOS drops the app's banners.
+struct NotifyBanner: View {
+  let block: NotifyBlock
+
+  var body: some View {
+    HStack {
+      Label(block.notice, systemImage: "bell.slash")
+        .lineLimit(1)
+      Spacer()
+      NotifyFixButton(block: block)
+        .controlSize(.small)
+    }
+    .font(.callout)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 6)
+    .background(.orange.opacity(0.15))
   }
 }

@@ -16,6 +16,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Messhall"
 cp Messhall/Resources/Info.plist "$APP/Contents/Info.plist"
+# macOS lost the real app's banners once every deleted worktree build sat in LaunchServices under the same id.
+# So only the main checkout (where .git is a folder) builds dev.messhall.app.
+if [ -f ../.git ]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier dev.messhall.app.worktree" \
+    -c "Set :CFBundleDisplayName Messhall Worktree" "$APP/Contents/Info.plist"
+fi
 # Ad hoc is enough for a local Debug build. Headroom's signing identity is for installed release builds.
 codesign --force --sign - "$APP" 2>/dev/null
 echo "$PWD/$APP"

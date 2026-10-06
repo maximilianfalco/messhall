@@ -186,6 +186,7 @@ private struct AvatarRow: View {
 private struct NotificationsPane: View {
   let store: FeedStore
   @Bindable var settings: AppSettings
+  @Environment(Notifier.self) private var notifier
 
   private var rooms: [String] {
     Set(store.rooms.map(\.name)).union(settings.snapshot.mutedRooms).sorted()
@@ -199,8 +200,21 @@ private struct NotificationsPane: View {
 
   var body: some View {
     Form {
+      if let block = notifier.block {
+        Section {
+          LabeledContent {
+            NotifyFixButton(block: block)
+          } label: {
+            Label(block.notice, systemImage: "bell.slash.fill")
+              .foregroundStyle(.orange)
+          }
+        }
+      }
       Section {
         Toggle("Show notifications", isOn: $settings.snapshot.notificationsEnabled)
+        LabeledContent("Check that banners show") {
+          Button("Send Test Notification") { notifier.sendTest() }
+        }
       } footer: {
         Text("Banners for mentions of you or @all, a question from the only agent in a room and a closed room.")
           .foregroundStyle(.secondary)
