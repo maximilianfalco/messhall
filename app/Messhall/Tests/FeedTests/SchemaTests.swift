@@ -23,6 +23,7 @@ private let schema: SchemaFile = {
 
 private let models: [String: [String]] = [
   "FeedError": FeedError.CodingKeys.allCases.map(\.rawValue),
+  "History": History.CodingKeys.allCases.map(\.rawValue),
   "HumanPost": HumanPost.CodingKeys.allCases.map(\.rawValue),
   "HumanPostResult": HumanPostResult.CodingKeys.allCases.map(\.rawValue),
   "CloseResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
@@ -47,7 +48,7 @@ private let enums: [String: [String]] = [
 ]
 
 private let unused: Set = [
-  "BusEvent", "Health", "History", "RoomSummary", "SearchHit", "SearchResult", "SequencedEvent",
+  "BusEvent", "Health", "RoomSummary", "SearchHit", "SearchResult", "SequencedEvent",
 ]
 
 @Suite("contracts/schema.json")

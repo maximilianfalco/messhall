@@ -71,6 +71,25 @@ describe('GET /api/snapshot', () => {
     ]);
   });
 
+  it('gives each room the id of its first message, so a client knows when older pages run out', async () => {
+    seed('alpha', 2);
+    seed('beta', 60);
+
+    const body = snapshotSchema.parse(await (await get('/api/snapshot')).json());
+
+    const beta = body.rooms[1]!;
+    expect(body.rooms.map(room => room.first_message_id)).toStrictEqual([1, 4]);
+    expect(beta.messages[0]!.id).toBeGreaterThan(beta.first_message_id!);
+  });
+
+  it('gives a room with no messages a null first message id', async () => {
+    store().createRoom({ created_by: 'human', name: 'quiet' });
+
+    const body = snapshotSchema.parse(await (await get('/api/snapshot')).json());
+
+    expect(body.rooms.map(room => [room.name, room.first_message_id])).toStrictEqual([['quiet', null]]);
+  });
+
   it('caps each room at its last 50 messages', async () => {
     seed('demo', 60);
 
@@ -110,11 +129,58 @@ describe('GET /api/rooms/:name/messages', () => {
     await expect(texts(await get('/api/rooms/demo/messages'))).resolves.toHaveLength(50);
   });
 
-  it.each(['after=-1', 'limit=0', 'limit=two', 'after=1.5'])('refuses %s with 400', async query => {
-    seed();
+  it('gives the page just below a before id, oldest first', async () => {
+    seed('demo', 5);
 
-    expect((await get(`/api/rooms/demo/messages?${query}`)).status).toBe(400);
+    await expect(texts(await get('/api/rooms/demo/messages?before=5&limit=2'))).resolves.toStrictEqual([
+      'post 2',
+      'post 3',
+    ]);
   });
+
+  it('gives what is left when fewer than limit sit below before', async () => {
+    seed('demo', 3);
+
+    await expect(texts(await get('/api/rooms/demo/messages?before=3&limit=10'))).resolves.toStrictEqual([
+      'api joined',
+      'post 1',
+    ]);
+  });
+
+  it('keeps a before page to its own room', async () => {
+    seed('demo', 2);
+    seed('other', 2);
+
+    await expect(texts(await get('/api/rooms/other/messages?before=100'))).resolves.toStrictEqual([
+      'api joined',
+      'post 1',
+      'post 2',
+    ]);
+  });
+
+  it('caps a before page at 200', async () => {
+    seed('demo', 205);
+
+    await expect(texts(await get('/api/rooms/demo/messages?before=1000&limit=500'))).resolves.toHaveLength(200);
+  });
+
+  it('takes a before page with the human key', async () => {
+    seed('demo', 2);
+
+    await expect(texts(await get('/api/rooms/demo/messages?before=3', 'human'))).resolves.toStrictEqual([
+      'api joined',
+      'post 1',
+    ]);
+  });
+
+  it.each(['after=-1', 'limit=0', 'limit=two', 'after=1.5', 'before=0', 'before=x', 'after=1&before=5'])(
+    'refuses %s with 400',
+    async query => {
+      seed();
+
+      expect((await get(`/api/rooms/demo/messages?${query}`)).status).toBe(400);
+    },
+  );
 
   it.each(['/api/rooms/nope/messages', '/api/rooms/Bad_Name/messages', '/api/rooms/demo/other', '/api/rooms/demo'])(
     'answers 404 for %s',

@@ -32,6 +32,15 @@ struct FeedClientTests {
     #expect(request.value(forHTTPHeaderField: "accept") == "text/event-stream")
   }
 
+  @Test("an older page asks for the messages below an id, with a limit")
+  func history() throws {
+    let request = try client(key: "k1").request(.history(room: "checkout", before: 51, limit: 100))
+
+    #expect(request.httpMethod == "GET")
+    #expect(request.url?.absoluteString == "http://127.0.0.1:7796/api/rooms/checkout/messages?before=51&limit=100")
+    #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
+  }
+
   @Test("the snapshot is a plain keyed GET")
   func snapshot() throws {
     let request = try client(key: "k1").request(.snapshot)

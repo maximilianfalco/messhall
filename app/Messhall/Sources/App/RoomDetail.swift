@@ -24,7 +24,7 @@ struct RoomDetail: View {
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
-        columnsChangedAt: columnsChangedAt)
+        columnsChangedAt: columnsChangedAt, older: older)
         .id(room.name)
       Divider()
       if room.isOpen {
@@ -64,6 +64,15 @@ struct RoomDetail: View {
     } message: {
       Text(refusal ?? "")
     }
+  }
+
+  // A filter reads only the loaded lines, so it never pages.
+  private var older: OlderPages {
+    let name = room.name
+    return OlderPages(
+      hasMore: room.hasMore && query.trimmingCharacters(in: .whitespaces).isEmpty,
+      loading: store.loadingOlder.contains(name),
+      load: { [store, client] in Task { await store.loadOlder(room: name, via: client) } })
   }
 
   private func toggle() {
@@ -264,15 +273,35 @@ struct PresenceDot: View {
   }
 }
 
+/// Older pages above the loaded lines: whether there are more, whether one is on its way, and how to ask.
+struct OlderPages {
+  let hasMore: Bool
+  let loading: Bool
+  let load: () -> Void
+}
+
+/// Where rows sat on screen when an older page was asked for. A class, so a scroll writes it without a redraw.
+@MainActor
+final class ScrollMarks {
+  var frames: [Int: CGRect] = [:]
+  var viewport = 0.0
+  var wantsPage = false
+  var pending: (messageId: Int, rowId: Int)?
+}
+
 struct Transcript: View {
   let room: String
   let messages: [Message]
   let members: [Member]
   let query: String
   let columnsChangedAt: Date?
+  let older: OlderPages
   @State private var nearBottom = true
   @State private var showPill = false
   @State private var opened: [Int: Bool] = [:]
+  @State private var marks = ScrollMarks()
+  @State private var ready = false
+  @State private var anchorRow: Int?
 
   private static let end = "end"
 
@@ -289,22 +318,40 @@ struct Transcript: View {
       EmptyTranscript(room: room, copy: .pick(members: members))
         .frame(maxHeight: .infinity)
     } else {
+      let rows = items
+      let watched: Set<Int?> = [rows.first?.id, anchorRow]
+      let (hasMore, loading) = (older.hasMore, older.loading)
       ScrollViewReader { proxy in
         ScrollView {
           VStack(spacing: 0) {
+            if older.hasMore { OlderPagesRow(loading: older.loading) }
             VStack(alignment: .leading, spacing: 6) {
-              ForEach(items) { item in
-                switch item {
-                case .message(let message):
-                  MessageRow(message: message, sender: members.first { $0.name == message.from }).id(item.id)
-                case .fold(let fold):
-                  let open = isOpen(fold)
-                  FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }.id(item.id)
+              ForEach(rows) { item in
+                Group {
+                  switch item {
+                  case .message(let message):
+                    MessageRow(message: message, sender: members.first { $0.name == message.from })
+                  case .fold(let fold):
+                    let open = isOpen(fold)
+                    FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }
+                  }
                 }
+                .id(item.id)
+                .modifier(RowMark(id: item.id, marks: watched.contains(item.id) ? marks : nil))
               }
             }
             .padding(16)
             Color.clear.frame(height: 1).id(Self.end)
+          }
+          .onGeometryChange(for: TopEdge.self) { geometry in
+            let visible = geometry.bounds(of: .scrollView) ?? .zero
+            let load = Paging.shouldLoad(
+              visibleTop: visible.minY, viewportHeight: visible.height, hasMore: hasMore, loading: loading)
+            return TopEdge(load: load, viewport: visible.height)
+          } action: { edge in
+            marks.viewport = edge.viewport
+            marks.wantsPage = edge.load
+            if edge.load { loadOlder(rows) }
           }
           // A Bool, so a column slide that keeps the view at the bottom writes no state each frame.
           .onGeometryChange(for: Bool.self) { geometry in
@@ -325,6 +372,9 @@ struct Transcript: View {
           }
         }
         .onAppear { start(proxy) }
+        .onChange(of: older.loading) { _, loading in
+          if !loading { keepPlace(proxy) }
+        }
         .onChange(of: messages.last?.id) { before, after in
           let fromHuman = messages.last?.from == humanName
           let wait = Follow.wait(columnsChangedAt: columnsChangedAt, now: .now)
@@ -343,8 +393,19 @@ struct Transcript: View {
 
   private func start(_ proxy: ScrollViewProxy) {
     scroll(proxy, animated: false)
+    // The first layout can sit at the top before the bottom anchor lands, so paging waits a turn.
+    DispatchQueue.main.async {
+      ready = true
+      if marks.wantsPage { loadOlder(items) }
+    }
     #if DEBUG
       // The bottom anchor wins the first layout, so the shot scrolls up a beat later.
+      if ShotHooks.pageTopNote != nil {
+        Task {
+          try? await Task.sleep(for: .milliseconds(500))
+          proxy.scrollTo(items.first?.id, anchor: .top)
+        }
+      }
       if ShotHooks.startAtTop {
         Task {
           try? await Task.sleep(for: .milliseconds(500))
@@ -353,6 +414,46 @@ struct Transcript: View {
       }
     #endif
   }
+
+  private func loadOlder(_ rows: [TranscriptItem]) {
+    guard ready, marks.pending == nil, let first = messages.first, let row = rows.first else { return }
+    marks.pending = (first.id, row.id)
+    older.load()
+  }
+
+  /// After an older page lands, puts the row that was first back where it was on screen.
+  private func keepPlace(_ proxy: ScrollViewProxy) {
+    guard let pending = marks.pending else { return }
+    marks.pending = nil
+    guard let before = marks.frames[pending.rowId], messages.first.map({ $0.id < pending.messageId }) == true,
+      let anchor = Paging.anchor(firstMessageId: pending.messageId, in: items)
+    else { return }
+    anchorRow = anchor
+    let aim = Paging.aim(gap: before.minY, rowHeight: before.height, viewportHeight: marks.viewport)
+    // The next turn, so the new rows have their sizes before the scroll aims.
+    DispatchQueue.main.async {
+      proxy.scrollTo(anchor, anchor: UnitPoint(x: 0.5, y: aim))
+      #if DEBUG
+        if let note = ShotHooks.pageTopNote { noteAnchor(anchor, before: before.minY, to: note, proxy) }
+      #endif
+    }
+  }
+
+  #if DEBUG
+    /// Writes where the anchor row sat before and after the page, then shows the oldest lines for the shot.
+    private func noteAnchor(_ anchor: Int, before: Double, to file: String, _ proxy: ScrollViewProxy) {
+      Task {
+        try? await Task.sleep(for: .milliseconds(400))
+        let after = marks.frames[anchor]?.minY ?? .nan
+        let text = String(
+          format: "anchor row %d top %.1f pt before the page, %.1f pt after, %d messages loaded", anchor, before, after,
+          messages.count)
+        proxy.scrollTo(items.first?.id, anchor: .top)
+        try? await Task.sleep(for: .milliseconds(400))
+        try? text.write(toFile: file, atomically: true, encoding: .utf8)
+      }
+    }
+  #endif
 
   private func isOpen(_ fold: Fold) -> Bool {
     #if DEBUG
@@ -377,6 +478,41 @@ struct Transcript: View {
       return
     }
     withAnimation(.easeOut) { proxy.scrollTo(Self.end, anchor: .bottom) }
+  }
+}
+
+private struct TopEdge: Equatable {
+  let load: Bool
+  let viewport: Double
+}
+
+/// Notes a row's frame on screen, for the rows paging needs to put back in place.
+private struct RowMark: ViewModifier {
+  let id: Int
+  let marks: ScrollMarks?
+
+  func body(content: Content) -> some View {
+    if let marks {
+      content.onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView) } action: { marks.frames[id] = $0 }
+    } else {
+      content
+    }
+  }
+}
+
+/// A thin row above the oldest loaded line. It keeps its height, so the spinner showing never moves the lines.
+struct OlderPagesRow: View {
+  let loading: Bool
+
+  var body: some View {
+    ProgressView()
+      .controlSize(.small)
+      .opacity(loading ? 1 : 0)
+      .frame(maxWidth: .infinity)
+      .frame(height: 28)
+      .padding(.top, 8)
+      .accessibilityLabel("Loading earlier messages")
+      .accessibilityHidden(!loading)
   }
 }
 
