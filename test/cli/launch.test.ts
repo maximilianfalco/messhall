@@ -34,6 +34,7 @@ let home: string;
 let repo: string;
 let logs: string[];
 let spawned: { argv: string[]; cwd: string }[];
+let envs: Record<string, string>[];
 
 beforeEach(() => {
   home = mkdtempSync(path.join(tmpdir(), 'messhall-launch-'));
@@ -41,6 +42,7 @@ beforeEach(() => {
   mkdirSync(repo);
   logs = [];
   spawned = [];
+  envs = [];
 });
 
 const output = () => stripVTControlCharacters(logs.join('\n'));
@@ -57,8 +59,9 @@ function deps(overrides: Partial<LaunchDeps> = {}): LaunchDeps {
     fetch: healthy,
     log: line => logs.push(line),
     run: FOUND,
-    spawn: (argv, cwd) => {
+    spawn: (argv, cwd, env) => {
       spawned.push({ argv, cwd });
+      envs.push(env);
       return Promise.resolve(3);
     },
     url: URL_BASE,
@@ -135,6 +138,16 @@ describe('runClaude', () => {
     expect(spawned).toStrictEqual([
       { argv: claudeArgv({ extra: [], name: 'reviewer', room: 'checkout' }), cwd: other },
     ]);
+  });
+
+  it('gives each claude its own seat key in MESSHALL_SEAT and prints it on the command', async () => {
+    await runClaude({ extra: [], print: false }, deps());
+    await runClaude({ extra: [], print: false }, deps());
+
+    const [first, second] = envs.map(env => env.MESSHALL_SEAT);
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second).not.toBe(first);
+    expect(output()).toContain(`MESSHALL_SEAT=${first} claude --dangerously-load-development-channels`);
   });
 
   it('names the agent after the --cwd folder when --as is left out', async () => {
@@ -215,6 +228,7 @@ describe('runCodex', () => {
     const code = await runCodex({ print: false, room: 'checkout' }, deps());
 
     expect(code).toBe(3);
+    expect(envs).toStrictEqual([{}]);
     expect(spawned).toStrictEqual([{ argv: codexArgv({ name: 'checkout-api', room: 'checkout' }), cwd: repo }]);
     expect(output()).toContain('codex ');
   });

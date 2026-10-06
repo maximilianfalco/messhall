@@ -68,6 +68,8 @@ export function clientType(name: string): KnownClient {
 }
 // Lowercase, the way node hands request headers over. The launcher's per-agent key, so a seat survives a reconnect.
 export const SEAT_HEADER = 'x-messhall-seat';
+// The env var `messhall claude` sets and Claude Code puts in that header.
+export const SEAT_ENV = 'MESSHALL_SEAT';
 export const PROGRESS_EVERY_MS = 30_000;
 export const ROOTS_TIMEOUT_MS = 5000;
 

@@ -204,6 +204,45 @@ describe('agentRun', () => {
     );
   });
 
+  it('sends the seat key, so the same key takes the seat back and another key is refused', async () => {
+    await agentRun({ keyFile: keyFile(), role: 'orchestrator', room: 'checkout', url: daemon.url });
+    const following = new AbortController();
+    const seated = agentRun({
+      follow: true,
+      keyFile: keyFile(),
+      role: 'web',
+      room: 'checkout',
+      seat: 'seat-a',
+      signal: following.signal,
+      url: daemon.url,
+      write: () => {},
+    });
+    await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'web', room: 'checkout' })).toHaveLength(1));
+    daemon.sessionsFor({ name: 'web', room: 'checkout' })[0]!.session.unbind('checkout');
+
+    const stranger = await agentRun({
+      keyFile: keyFile(),
+      role: 'web',
+      room: 'checkout',
+      seat: 'seat-b',
+      url: daemon.url,
+    });
+    const back = await agentRun({
+      keyFile: keyFile(),
+      role: 'web',
+      room: 'checkout',
+      say: 'back',
+      seat: 'seat-a',
+      url: daemon.url,
+    });
+    following.abort();
+    await seated;
+
+    expect(stripVTControlCharacters(stranger.report)).toContain('name taken, try web-2.');
+    expect(back.code).toBe(0);
+    expect(stripVTControlCharacters(roomReport({ dataDir: home, name: 'checkout' }).report)).toContain('back');
+  });
+
   it('sends the client name it was given at initialize', async () => {
     await agentRun({ client: 'claude-code', keyFile: keyFile(), role: 'api', room: 'checkout', url: daemon.url });
 
