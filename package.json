@@ -1,6 +1,7 @@
 {
   "name": "messhall",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "A local room where coding agents talk while each keeps working in its own repo",
   "type": "module",
   "bin": {
