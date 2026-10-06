@@ -15,6 +15,10 @@ public final class FeedStore {
   public private(set) var seq = 0
   public private(set) var phase = Phase.connecting
   public private(set) var loaded = false
+  /// When the current stream opened. Events stamped before it are a replay.
+  @ObservationIgnored public internal(set) var liveSince = Date.distantFuture
+  /// Called for each feed event, before it applies, with the room as it was.
+  @ObservationIgnored public var onEvent: (@MainActor (BusEvent, SnapshotRoom?) -> Void)?
 
   public init() {}
 
@@ -36,6 +40,7 @@ public final class FeedStore {
       seq = snapshot.seq
       loaded = true
     case .event(let seq, let event):
+      onEvent?(event, room(named: event.room))
       apply(event)
       self.seq = max(self.seq, seq)
     }

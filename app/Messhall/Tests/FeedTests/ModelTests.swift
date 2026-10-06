@@ -28,6 +28,14 @@ struct ModelTests {
     #expect(event.type == type)
   }
 
+  @Test("decode a member who left with presence left")
+  func memberLeft() throws {
+    let member = try Fixture.decode(Member.self, "Member")
+
+    #expect(member.presence == .left)
+    #expect(member.leftAt != nil)
+  }
+
   @Test("decode the post result and the error body")
   func humanSeat() throws {
     #expect(try Fixture.decode(HumanPostResult.self, "HumanPostResult").message.from == "human")

@@ -176,4 +176,22 @@ struct FeedStoreTests {
     #expect(snapshot == .snapshot(try Fixture.decode(Snapshot.self, "Snapshot")))
     #expect(try FeedUpdate.decode(.ping) == nil)
   }
+
+  @Test("onEvent sees each feed event with the room as it was before, and never a snapshot or a local post")
+  func onEvent() throws {
+    let store = try loaded()
+    var seen: [(BusEvent, Int?)] = []
+    store.onEvent = { event, room in seen.append((event, room?.messages.count)) }
+    let message = try event("MessageEvent")
+
+    store.apply(.event(seq: 8, message))
+    store.add(
+      Message(
+        id: 20, roomId: "r1", from: "human", kind: .chat, text: "hi", mentions: [],
+        createdAt: "2026-01-01T09:04:00.000Z"), to: "checkout")
+    store.apply(.snapshot(try Fixture.decode(Snapshot.self, "Snapshot")))
+
+    #expect(seen.map(\.0) == [message])
+    #expect(seen.map(\.1) == [2])
+  }
 }

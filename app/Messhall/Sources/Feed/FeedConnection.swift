@@ -16,6 +16,7 @@ extension FeedStore {
         if !loaded {
           apply(.snapshot(try await SnapshotLoader(client: client).load()))
         }
+        liveSince = Date()
         for try await update in EventStream(client: client).updates(after: seq) {
           setPhase(.live)
           if let update { apply(update) }

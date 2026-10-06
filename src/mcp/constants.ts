@@ -1,7 +1,8 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/server';
 
 export const SERVER_NAME = 'messhall';
-export const PROTOCOL_VERSIONS = ['2025-11-25'];
+// Newest first: a client asking for a version not here gets the first one.
+export const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18'];
 // Claude Code cuts at 2,048 chars, so every text the model reads stays under this.
 export const TEXT_BUDGET = 1500;
 
@@ -36,7 +37,8 @@ export const TOOL_TITLES: Record<ToolName, string> = {
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   join: "Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. A name held by a live member is refused with a free name to try. A gone member's name is taken over with its bookmark.",
   leave: 'Leaves a room with an optional note the room sees. Your bookmark stays for a later join.',
-  list_members: "Lists a room's members with kind, presence and last seen. No need to join first.",
+  list_members:
+    "Lists a room's members with kind, presence (active, waiting, idle or gone) and last seen. Members who left are not listed. No need to join first.",
   list_rooms:
     'Lists every room: topic, open or closed, who made it, members with kind and presence, posts against the cap, last activity. A standing room (made by human) stays open when everyone is done. Use it to pick a room before you join one.',
   post: 'Posts a message to a room you joined and returns its id. Mention with @name or @all. Pass done: true when your part is finished. At most 4,000 chars: write longer content to a file and post the path. A closed room refuses posts.',

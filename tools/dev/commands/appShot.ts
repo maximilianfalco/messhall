@@ -35,12 +35,18 @@ const SHOTS = [
   { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
   { appearance: 'light', name: 'closed-light', room: 'billing' },
   { appearance: 'dark', name: 'closed-dark', room: 'billing' },
+  { appearance: 'light', muted: true, name: 'muted-light' },
+  { appearance: 'dark', muted: true, name: 'muted-dark' },
 ] as const;
+// The room the window opens on, muted through the app's own defaults key.
+const MUTED_ARGS = ['-mutedRooms', '(checkout)'];
 // Shot after the daemon stops, so the window shows its empty state.
 const DOWN_SHOTS = [
   { appearance: 'light', name: 'down-light' },
   { appearance: 'dark', name: 'down-dark' },
 ] as const;
+
+const QUIT_WITHIN_MS = 5000;
 
 const run = promisify(execFile);
 
@@ -111,7 +117,56 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
   }
 }
 
+/** Kills each launched app that is still alive and returns those pids, so a shot run never leaves one behind. */
+export function leftoverApps({
+  isAlive,
+  kill,
+  launched,
+}: {
+  isAlive: (pid: number) => boolean;
+  kill: (pid: number) => void;
+  launched: number[];
+}) {
+  const left = launched.filter(isAlive);
+  left.forEach(kill);
+  return left;
+}
+
+function processAlive(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 type Shot = (typeof SHOTS)[number] | (typeof DOWN_SHOTS)[number];
+
+/** The launch args for one shot. The real app shares the bundle id, so a window closed there would stay shut here. */
+export function shotArgs(shot: Shot) {
+  return [
+    '-ApplePersistenceIgnoreState',
+    'YES',
+    '-shotAppearance',
+    shot.appearance,
+    ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
+    ...('muted' in shot ? MUTED_ARGS : []),
+    ...('room' in shot ? ['-shotRoom', shot.room] : []),
+    ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom] : []),
+  ];
+}
+
+/** App pids from this checkout's build that started during the run. Ones already running, like the real app, stay out. */
+export function strayApps({ after, before }: { after: number[]; before: number[] }) {
+  return after.filter(pid => !before.includes(pid));
+}
+
+/** Pids running this build's app binary, matched by its full path. */
+function appPids(app: string) {
+  const result = spawnSync('pgrep', ['-f', path.join(app, 'Contents', 'MacOS', 'Messhall')], { encoding: 'utf8' });
+  return result.stdout.split('\n').filter(Boolean).map(Number);
+}
 
 async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS): Promise<number | undefined> {
   const { stdout } = await run('swift', [WINDOWS_SCRIPT, String(pid)]);
@@ -121,15 +176,19 @@ async function waitWindow(pid: number, deadline = Date.now() + WINDOW_WITHIN_MS)
   return waitWindow(pid, deadline);
 }
 
-async function shoot({ app, env, shot }: { app: string; env: NodeJS.ProcessEnv; shot: Shot }) {
-  const args = [
-    '-shotAppearance',
-    shot.appearance,
-    ...('post' in shot ? ['-shotPost', POST_TEXT] : []),
-    ...('room' in shot ? ['-shotRoom', shot.room] : []),
-    ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom] : []),
-  ];
-  const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), args, { env, stdio: 'ignore' });
+async function shoot({
+  app,
+  env,
+  launched,
+  shot,
+}: {
+  app: string;
+  env: NodeJS.ProcessEnv;
+  launched: number[];
+  shot: Shot;
+}) {
+  const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
+  if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
     child.once('exit', resolve);
   });
@@ -142,14 +201,25 @@ async function shoot({ app, env, shot }: { app: string; env: NodeJS.ProcessEnv; 
     return file;
   } finally {
     child.kill('SIGTERM');
-    await exited;
+    await Promise.race([exited, sleep(QUIT_WITHIN_MS)]);
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   }
 }
 
 /** One app at a time, since each shot finds the window by the app's pid. */
-const shootAll = ({ app, env, shots }: { app: string; env: NodeJS.ProcessEnv; shots: readonly Shot[] }) =>
+const shootAll = ({
+  app,
+  env,
+  launched,
+  shots,
+}: {
+  app: string;
+  env: NodeJS.ProcessEnv;
+  launched: number[];
+  shots: readonly Shot[];
+}) =>
   shots.reduce<Promise<string[][]>>(
-    async (done, shot) => [...(await done), [shot.name, await shoot({ app, env, shot })]],
+    async (done, shot) => [...(await done), [shot.name, await shoot({ app, env, launched, shot })]],
     Promise.resolve([]),
   );
 
@@ -159,7 +229,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label, the window, a post, a muted room, the New Room sheet, a standing room, a closed room and the daemon-down state in light and dark. */
 async function appShot({ home, port }: { home: string; port: number }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -175,14 +245,16 @@ async function appShot({ home, port }: { home: string; port: number }) {
 
   const env = { ...process.env, MESSHALL_HOME: home, MESSHALL_PORT: String(port) };
   const rows: string[][] = [];
+  const launched: number[] = [];
+  const before = appPids(app);
   try {
     spawnSync(path.join(app, 'Contents', 'MacOS', 'Messhall'), ['-renderStatus', OUT_DIR], { env });
     rows.push(['menu-light', path.join(OUT_DIR, 'menu-light.png')], ['menu-dark', path.join(OUT_DIR, 'menu-dark.png')]);
-    rows.push(...(await shootAll({ app, env, shots: SHOTS })));
+    rows.push(...(await shootAll({ app, env, launched, shots: SHOTS })));
   } finally {
     await daemon.stop();
   }
-  rows.push(...(await shootAll({ app, env, shots: DOWN_SHOTS })));
+  rows.push(...(await shootAll({ app, env, launched, shots: DOWN_SHOTS })));
   const sized = rows.map(([name = '', file = '']) => {
     const size = file.startsWith('/')
       ? `${Math.round((statSync(file, { throwIfNoEntry: false })?.size ?? 0) / 1000)} kB`
@@ -190,9 +262,18 @@ async function appShot({ home, port }: { home: string; port: number }) {
     return [name, file, size];
   });
   const failed = sized.filter(([, file, size]) => !file?.startsWith('/') || size === '0 kB');
+  const left = leftoverApps({ isAlive: processAlive, kill: pid => process.kill(pid, 'SIGKILL'), launched });
+  const strays = strayApps({ after: appPids(app), before });
   const table = formatTable(['shot', 'file', 'size'], sized);
   const verdict = failed.length ? bad(`${failed.length} shots failed`) : ok(`${sized.length} shots in ${OUT_DIR}`);
-  return { code: failed.length ? 1 : 0, report: [table, '', verdict].join('\n') };
+  const quit = left.length
+    ? bad(`${left.length} launched apps did not quit and were killed: ${left.join(', ')}`)
+    : ok(`all ${launched.length} launched apps quit`);
+  const stray = strays.length
+    ? bad(`apps from ${app} still running after the run: ${strays.join(', ')}`)
+    : ok(`no app from ${app} left running`);
+  const code = failed.length || left.length || strays.length ? 1 : 0;
+  return { code, report: [table, '', verdict, quit, stray].join('\n') };
 }
 
 /** Registers `app-shot [--port <n>] [--home <dir>]`. */
@@ -200,7 +281,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, New Room sheet, standing and closed rooms and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar, window, post, a muted room, New Room sheet, standing and closed rooms and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

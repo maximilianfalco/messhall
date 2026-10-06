@@ -96,4 +96,31 @@ describe('openDb', () => {
     ).toStrictEqual([{ covers_id: null, text: 'hi' }]);
     db.close();
   });
+
+  it('indexes the messages a db already had and marks members who left as left', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    MIGRATIONS.slice(0, 3).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = 3;
+      INSERT INTO rooms (id, name, created_at, message_cap) VALUES ('r1', 'demo', 't0', 200);
+      INSERT INTO members (room_id, name, kind, joined_at, last_seen_at, presence, left_at) VALUES
+        ('r1', 'api', 'claude', 't0', 't0', 'gone', 't1'), ('r1', 'web', 'codex', 't0', 't0', 'gone', NULL);
+      INSERT INTO messages (room_id, from_name, kind, text, created_at) VALUES ('r1', 'api', 'chat', 'prices in cents', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    expect(db.prepare("select rowid from messages_fts where messages_fts match 'cents'").all()).toHaveLength(1);
+    expect(
+      db
+        .prepare('select name, presence from members order by name')
+        .all()
+        .map(row => ({ ...row })),
+    ).toStrictEqual([
+      { name: 'api', presence: 'left' },
+      { name: 'web', presence: 'gone' },
+    ]);
+    db.close();
+  });
 });

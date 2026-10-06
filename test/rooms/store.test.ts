@@ -576,3 +576,109 @@ describe('summaries', () => {
     });
   });
 });
+
+describe('leaving', () => {
+  const presenceOf = (name: string) =>
+    scratch.db
+      .prepare(
+        'select presence from members join rooms on rooms.id = members.room_id where rooms.name = ? and members.name = ?',
+      )
+      .get('demo', name)?.presence;
+
+  it('marks a member who left as left, not gone, in the row and the member event', () => {
+    joinBoth();
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    expect(presenceOf('api')).toBe('left');
+    expect(seen.map(item => item.event)).toContainEqual(
+      expect.objectContaining({
+        change: 'left',
+        member: expect.objectContaining({ presence: 'left' }),
+        type: 'member',
+      }),
+    );
+    expect(texts('demo')).not.toContain('messhall: api is gone');
+  });
+
+  it('leaves a left member alone in the sweep', () => {
+    joinBoth();
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    scratch.clock.advance(31 * 60_000);
+    const changes = store().sweepPresence();
+
+    expect(changes.map(change => change.name)).toStrictEqual(['web']);
+    expect(presenceOf('api')).toBe('left');
+  });
+
+  it('clears left when the member joins again', () => {
+    joinBoth();
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect(presenceOf('api')).toBe('active');
+  });
+});
+
+describe('searchMessages', () => {
+  function seedTwoRooms() {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+    store().joinRoom({ as: 'web', kind: 'codex', room: 'billing' });
+    store().postMessage({ from: 'api', room: 'checkout', text: 'prices move to cents' });
+    store().postMessage({ from: 'web', room: 'billing', text: 'invoices stay in dollars' });
+    store().postMessage({ from: 'web', room: 'billing', text: 'ok, cents in billing too' });
+  }
+  const hits = (query: Parameters<RoomStore['searchMessages']>[0]) => {
+    const result = store().searchMessages(query);
+    return result.ok ? result.messages.map(message => [message.room, message.from, message.text]) : result.reason;
+  };
+
+  it('finds a word in every room, newest first, with the room name', () => {
+    seedTwoRooms();
+
+    expect(hits({ q: 'cents' })).toStrictEqual([
+      ['billing', 'web', 'ok, cents in billing too'],
+      ['checkout', 'api', 'prices move to cents'],
+    ]);
+  });
+
+  it('keeps to one room when asked', () => {
+    seedTwoRooms();
+
+    expect(hits({ q: 'cents', room: 'checkout' })).toStrictEqual([['checkout', 'api', 'prices move to cents']]);
+  });
+
+  it('matches word starts, any case, and needs every word', () => {
+    seedTwoRooms();
+
+    expect(hits({ q: 'CENT billing' })).toStrictEqual([['billing', 'web', 'ok, cents in billing too']]);
+  });
+
+  it('takes at most limit hits', () => {
+    seedTwoRooms();
+
+    expect(hits({ limit: 1, q: 'cents' })).toStrictEqual([['billing', 'web', 'ok, cents in billing too']]);
+  });
+
+  it.each(['"', 'cents AND', 'NEAR(', '*', '  '])('treats %j as plain text and never throws', q => {
+    seedTwoRooms();
+
+    expect(() => store().searchMessages({ q })).not.toThrow();
+  });
+
+  it('finds nothing for a query with no words', () => {
+    seedTwoRooms();
+
+    expect(hits({ q: '-- ?' })).toStrictEqual([]);
+  });
+
+  it('says when the room does not exist', () => {
+    seedTwoRooms();
+
+    expect(hits({ q: 'cents', room: 'nope' })).toBe('no_room');
+  });
+});

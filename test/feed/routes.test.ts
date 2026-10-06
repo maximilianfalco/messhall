@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { historySchema, snapshotSchema } from '../../contracts/feed.ts';
+import { historySchema, searchResultSchema, snapshotSchema } from '../../contracts/feed.ts';
 
 import { feedServer } from './feedServer.js';
 
@@ -118,15 +118,70 @@ describe('read route keys', () => {
     ['/api/snapshot', 'human'],
     ['/api/rooms/demo/messages', 'agent'],
     ['/api/rooms/demo/messages', 'human'],
+    ['/api/search?q=post', 'agent'],
+    ['/api/search?q=post', 'human'],
   ] as const)('lets %s through with the %s key', async (path, kind) => {
     seed();
 
     expect((await get(path, kind)).status).toBe(200);
   });
 
-  it.each(['/api/snapshot', '/api/rooms/demo/messages', '/api/events'])('refuses %s with no key', async path => {
-    seed();
+  it.each(['/api/snapshot', '/api/rooms/demo/messages', '/api/events', '/api/search?q=post'])(
+    'refuses %s with no key',
+    async path => {
+      seed();
 
-    expect((await fetch(`${feed.url}${path}`)).status).toBe(401);
+      expect((await fetch(`${feed.url}${path}`)).status).toBe(401);
+    },
+  );
+});
+
+describe('GET /api/search', () => {
+  const hits = async (res: Response) =>
+    searchResultSchema.parse(await res.json()).messages.map(message => [message.room, message.text]);
+
+  function seedCents() {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
+    store().joinRoom({ as: 'web', kind: 'codex', room: 'billing' });
+    store().postMessage({ from: 'api', room: 'checkout', text: 'prices move to cents' });
+    store().postMessage({ from: 'web', room: 'billing', text: 'cents in billing too' });
+  }
+
+  it('gives matches from every room, newest first, with the room on each', async () => {
+    seedCents();
+
+    await expect(hits(await get('/api/search?q=cents'))).resolves.toStrictEqual([
+      ['billing', 'cents in billing too'],
+      ['checkout', 'prices move to cents'],
+    ]);
+  });
+
+  it('keeps to one room and a limit', async () => {
+    seedCents();
+
+    await expect(hits(await get('/api/search?q=cents&room=checkout'))).resolves.toStrictEqual([
+      ['checkout', 'prices move to cents'],
+    ]);
+    await expect(hits(await get('/api/search?q=cents&limit=1'))).resolves.toStrictEqual([
+      ['billing', 'cents in billing too'],
+    ]);
+  });
+
+  it('caps the limit at 200', async () => {
+    seed('demo', 205);
+
+    await expect(hits(await get('/api/search?q=post&limit=500'))).resolves.toHaveLength(200);
+  });
+
+  it.each(['', 'q=', 'q=cents&limit=0', 'q=cents&room=Bad_Name'])('refuses %j with 400', async query => {
+    seedCents();
+
+    expect((await get(`/api/search?${query}`)).status).toBe(400);
+  });
+
+  it('answers 404 for a room that does not exist', async () => {
+    seedCents();
+
+    expect((await get('/api/search?q=cents&room=nope')).status).toBe(404);
   });
 });

@@ -1,4 +1,4 @@
-import type { History } from '../../contracts/feed.ts';
+import type { History, SearchResult } from '../../contracts/feed.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
 import type { RoomStore } from '../rooms/store.js';
@@ -6,7 +6,8 @@ import type { Every } from './sse.js';
 
 import { z } from 'zod';
 
-import { FEED_PAGE_DEFAULT, FEED_PAGE_MAX } from '../config.js';
+import { nameSchema } from '../../contracts/room.ts';
+import { FEED_PAGE_DEFAULT, FEED_PAGE_MAX, SEARCH_LIMIT } from '../config.js';
 import { sendJson } from '../daemon/router.js';
 
 import { roomTarget } from './http.js';
@@ -17,6 +18,12 @@ import { eventStream, intervalTimer } from './sse.js';
 const pageQuerySchema = z.object({
   after: z.coerce.number().int().nonnegative().optional(),
   limit: z.coerce.number().int().positive().default(FEED_PAGE_DEFAULT),
+});
+
+const searchQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().default(SEARCH_LIMIT),
+  q: z.string().trim().min(1),
+  room: nameSchema.optional(),
 });
 
 /** Every feed route. Reads take either key, the human-seat writes take the human key only. */
@@ -50,10 +57,24 @@ export function feedRoutes({
     else sendJson(res, 404, { error: 'no such room' });
   };
 
+  const search: Handler = (req, res) => {
+    const { searchParams } = new URL(req.url ?? '/', 'http://127.0.0.1');
+    const query = searchQuerySchema.safeParse(Object.fromEntries(searchParams));
+    if (!query.success) {
+      sendJson(res, 400, { error: 'q is the text to find, room a room name and limit a positive whole number' });
+      return;
+    }
+    const { limit, q, room } = query.data;
+    const result = store.searchMessages({ limit: Math.min(limit, FEED_PAGE_MAX), q, room });
+    if (result.ok) sendJson(res, 200, { messages: result.messages } satisfies SearchResult);
+    else sendJson(res, 404, { error: 'no such room' });
+  };
+
   const routes: Route[] = [
     { handle: read((_req, res) => sendJson(res, 200, buildSnapshot({ store }))), method: 'GET', path: '/api/snapshot' },
     { handle: read(eventStream({ every, now, store })), method: 'GET', path: '/api/events' },
     { handle: read(history), method: 'GET', path: '/api/rooms/*' },
+    { handle: read(search), method: 'GET', path: '/api/search' },
     ...humanRoutes({ keys, store }),
   ];
   return routes;
