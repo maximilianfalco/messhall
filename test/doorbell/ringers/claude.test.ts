@@ -1,14 +1,14 @@
-import type { ChannelEntry } from '../../src/channels/claude.js';
+import type { ChannelEntry } from '../../../src/doorbell/ringers/claude.js';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { CHANNEL_METHOD, createClaudeRinger } from '../../src/channels/claude.js';
-import { createMesshallServer } from '../../src/mcp/server.js';
-import { createSession, createSessionRegistry } from '../../src/mcp/session.js';
-import { connectInMemory } from '../../src/mcp/testing.js';
-import { fakeCodexRpc } from '../codex/fakeCodex.js';
-import { scratchStore } from '../rooms/scratch.js';
+import { CHANNEL_METHOD, createClaudeRinger } from '../../../src/doorbell/ringers/claude.js';
+import { createMesshallServer } from '../../../src/mcp/server.js';
+import { createSession, createSessionRegistry } from '../../../src/mcp/session.js';
+import { connectInMemory } from '../../../src/mcp/testing.js';
+import { fakeCodexRpc } from '../../codex/fakeCodex.js';
+import { scratchStore } from '../../rooms/scratch.js';
 
 const RING = {
   member: { name: 'web', rooms: ['checkout'] },

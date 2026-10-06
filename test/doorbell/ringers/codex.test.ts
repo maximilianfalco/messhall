@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createCodexClient } from '../../src/codex/client.js';
-import { createCodexRinger } from '../../src/codex/ringer.js';
-import { createSession } from '../../src/mcp/session.js';
-import { LIVE_THREAD, mcpHarness, type McpHarness } from '../mcp/harness.js';
-
-import { fakeCodex, fakeCodexRpc, fakeTimers } from './fakeCodex.js';
+import { createCodexClient } from '../../../src/codex/client.js';
+import { createCodexRinger } from '../../../src/doorbell/ringers/codex.js';
+import { createSession } from '../../../src/mcp/session.js';
+import { fakeCodex, fakeCodexRpc, fakeTimers } from '../../codex/fakeCodex.js';
+import { LIVE_THREAD, mcpHarness, type McpHarness } from '../../mcp/harness.js';
 
 const RING = {
   member: { name: 'web', rooms: ['checkout'] },
