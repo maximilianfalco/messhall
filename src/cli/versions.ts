@@ -1,3 +1,4 @@
+import type { Build } from '../../contracts/health.ts';
 import type { Runner } from '../lib/run.js';
 
 import path from 'node:path';
@@ -15,12 +16,9 @@ const appPlistSchema = z.object({
   MesshallFeedContract: z.number().int().optional(),
 });
 
-/** A commit stamp. Null when git was not there to ask. */
-export type Build = { commit: string; committed_at: string } | null;
-
-/** What one side runs. Undefined fields mean the side predates the stamp, so it is the old one. */
+/** What one side runs. A null build means git was not there to ask. Undefined means the side predates the stamp. */
 export interface Stamp {
-  build: Build | undefined;
+  build: Build | null | undefined;
   contract: number | undefined;
 }
 
@@ -73,7 +71,13 @@ export function versionWarnings({
 export async function appStamp({ plistPath, run }: { plistPath: string; run: Runner }): Promise<Stamp | undefined> {
   const result = await run('plutil', ['-convert', 'json', '-o', '-', plistPath]);
   if (result.code !== 0) return undefined;
-  const parsed = appPlistSchema.safeParse(JSON.parse(result.stdout));
+  let json: unknown;
+  try {
+    json = JSON.parse(result.stdout);
+  } catch {
+    return undefined;
+  }
+  const parsed = appPlistSchema.safeParse(json);
   if (!parsed.success) return undefined;
   const { MesshallCommit: commit, MesshallCommittedAt: committedAt, MesshallFeedContract: contract } = parsed.data;
   if (contract === undefined) return { build: undefined, contract };
