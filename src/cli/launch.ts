@@ -10,7 +10,7 @@ import { packageRoot } from '../lib/packageRoot.js';
 import { runCommand } from '../lib/run.js';
 import { shellLine } from '../lib/shell.js';
 
-import { readClaudeEntry, readCodexEntry } from './mcp.js';
+import { readClaudeEntry, readCodexEntry, SEATLESS_LINE } from './mcp.js';
 import { probeHealth } from './status.js';
 
 export const DEFAULT_ROOM = 'lobby';
@@ -53,7 +53,9 @@ export function launchTarget(options: LaunchOptions, base: string) {
 
 async function missingEntry(agent: 'claude' | 'codex', deps: LaunchDeps) {
   if (agent === 'claude') {
-    return (await readClaudeEntry(deps.run)) ? null : 'claude code has no messhall entry. run messhall mcp install';
+    const entry = await readClaudeEntry(deps.run);
+    if (!entry) return 'claude code has no messhall entry. run messhall mcp install';
+    return entry.seat ? null : SEATLESS_LINE;
   }
   return readCodexEntry(deps.codexConfig) === null
     ? `codex has no messhall entry in ${deps.codexConfig}. run messhall mcp install`

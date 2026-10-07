@@ -4,15 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { startDoorbell } from '../../src/doorbell/doorbell.js';
 import { createRingers } from '../../src/doorbell/ringer.js';
+import { logger } from '../../src/lib/logger.js';
 import { scratchStore } from '../rooms/scratch.js';
 
 type Scratch = ReturnType<typeof scratchStore>;
 
-function setup(scratch: Scratch) {
+function setup(scratch: Scratch, { online = () => true }: { online?: () => boolean } = {}) {
   const rung: RingInput[] = [];
   const ringer: Ringer = {
     kinds: ['claude'],
     ring: input => {
+      if (!online()) return Promise.resolve(0);
       rung.push(input);
       return Promise.resolve(1);
     },
@@ -164,6 +166,40 @@ describe('startDoorbell', () => {
     await advance(2000);
     scratch.store.readUnseen({ as: 'web', room: 'checkout' });
     await advance(30_000);
+    expect(rung).toStrictEqual([]);
+    stop();
+  });
+
+  it('holds a ring that reaches no session and sends it once the seat comes back', async () => {
+    let online = false;
+    const info = vi.spyOn(logger, 'info');
+    const { advance, rung, stop } = setup(scratch, { online: () => online });
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web are you there?' });
+    await advance(3000);
+    expect(rung).toStrictEqual([]);
+    expect(info).toHaveBeenCalledWith('doorbell held, no session', expect.objectContaining({ name: 'web' }));
+    expect(info).not.toHaveBeenCalledWith('doorbell rang', expect.anything());
+
+    online = true;
+    scratch.store.touch({ as: 'web', room: 'checkout', state: 'away' });
+    scratch.store.joinRoom({ as: 'web', kind: 'claude', room: 'checkout' });
+    await advance(0);
+    expect(rung.map(ring => [ring.member.name, ring.text])).toStrictEqual([
+      ['web', 'messhall: 1 new in #checkout, api mentioned you. Call read_since.'],
+    ]);
+    stop();
+  });
+
+  it('drops a held ring once the member leaves', async () => {
+    let online = false;
+    const { advance, rung, stop } = setup(scratch, { online: () => online });
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web are you there?' });
+    await advance(3000);
+
+    scratch.store.leaveRoom({ as: 'web', room: 'checkout' });
+    online = true;
+    scratch.store.joinRoom({ as: 'web', kind: 'claude', room: 'checkout' });
+    await advance(0);
     expect(rung).toStrictEqual([]);
     stop();
   });
