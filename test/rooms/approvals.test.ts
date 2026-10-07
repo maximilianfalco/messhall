@@ -77,7 +77,9 @@ describe('openApproval', () => {
 
   it('expires the older ask of the same session, since Claude Code opens one dialog at a time', () => {
     const [older] = ask();
+    scratch.clock.advance(1000);
     ask({ requestId: 'other', session: 'session-2' });
+    scratch.clock.advance(1000);
 
     ask({ requestId: 'fghij', tool: 'Write' });
 
