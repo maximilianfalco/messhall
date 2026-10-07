@@ -7,6 +7,7 @@ struct MainWindow: View {
   @Bindable var navigation: Navigation
   @State private var columns = NavigationSplitViewVisibility.automatic
   @State private var columnsChangedAt: Date?
+  @Environment(\.openURL) private var openURL
 
   private var selection: Binding<String?> {
     Binding(
@@ -28,6 +29,12 @@ struct MainWindow: View {
             ToolbarItem {
               Button("New Room", systemImage: "plus") { navigation.newRoomDraft = "" }
                 .help("New Room (\u{2318}N)")
+            }
+            ToolbarItem {
+              Button { openURL(RepoLink.url) } label: {
+                Label { Text("Open on GitHub") } icon: { GitHubMark().frame(width: 16, height: 16) }
+              }
+              .help("Open on GitHub")
             }
           }
       } detail: {
