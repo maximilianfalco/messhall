@@ -20,8 +20,11 @@ export function registerListMembers(server: McpServer, deps: ToolDeps, descripti
       }
       const as = session.rooms.get(room);
       const members = store.listMembers(room);
-      const rung = (name: string) => sessions.sessionsFor({ name, room }).some(entry => entry.session.threadId);
-      const noDoorbell = (member: Member) => member.kind === 'codex' && !rung(member.name);
+      const noDoorbell = (member: Member) => {
+        const held = sessions.sessionsFor({ name: member.name, room }).map(entry => entry.session);
+        if (member.kind === 'codex') return !held.some(one => one.threadId);
+        return held.some(one => one.doorbell === 'off') && !held.some(one => one.doorbell === 'on');
+      };
       return reply(
         [
           `#${room}, ${members.length} members:`,

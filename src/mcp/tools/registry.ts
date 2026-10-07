@@ -4,8 +4,9 @@ import type { ToolName } from '../constants.js';
 import type { McpSession, SessionRegistry } from '../session.js';
 import type { CallToolResult, McpServer, ServerContext, StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 
+import { checkDoorbell } from '../../doorbell/ringers/channel.js';
 import { logger } from '../../lib/logger.js';
-import { TOOL_ANNOTATIONS, TOOL_TITLES } from '../constants.js';
+import { DOORBELL_OFF, TOOL_ANNOTATIONS, TOOL_TITLES } from '../constants.js';
 import { reattachSeats } from '../seats.js';
 
 export interface ToolDeps {
@@ -30,7 +31,16 @@ export function removedFrom(session: McpSession, room: string) {
   return refuse(`you were removed from #${room} by the human or an orchestrator. call join to come back.`);
 }
 
-/** Registers one tool with its title and annotations. A throw becomes an isError reply, so a tool never throws. */
+// Says once, on the next reply, that the test ring got no answer, since nothing can ring the agent to tell it.
+function withDoorbellNotice(session: McpSession, result: CallToolResult): CallToolResult {
+  if (!session.tellDoorbellOff()) return result;
+  return { ...result, content: [...result.content, { text: DOORBELL_OFF, type: 'text' }] };
+}
+
+/**
+ * Registers one tool with its title and annotations. A throw becomes an isError reply, so a tool never throws.
+ * After the call, a channel session that just took a seat gets its doorbell check ring.
+ */
 export function registerRoomTool<Input, Output>(
   server: McpServer,
   name: ToolName,
@@ -48,7 +58,9 @@ export function registerRoomTool<Input, Output>(
       reattachSeats({ ...deps, server });
       deps.session.seen();
       try {
-        return await handler(input, ctx);
+        const result = await handler(input, ctx);
+        checkDoorbell({ server, session: deps.session });
+        return withDoorbellNotice(deps.session, result);
       } catch (error) {
         const failure = error instanceof Error ? error : new Error(String(error));
         logger.error(failure, { message: 'mcp tool failed', session: deps.session.id, tool: name });

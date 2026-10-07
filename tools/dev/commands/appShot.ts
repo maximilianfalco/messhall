@@ -408,7 +408,7 @@ const LONG_ASK = [
 ].join('\n');
 
 /** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release, two questions in #launch and agreements in #contract. Runs after the daemon starts, since its start marks
- * every agent away and expires every pending ask. */
+ * every agent reconnecting and expires every pending ask. */
 export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
   const db = openDb({ dataDir });
   try {

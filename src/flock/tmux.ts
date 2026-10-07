@@ -20,6 +20,8 @@ const LOGIN = /Select login method|Please run \/login|Invalid API key|OAuth erro
 const SELECTED = '❯';
 const CODEX_SELECTED = '›';
 const RULE = /^─{20,}$/;
+// A numbered pick or a dialog footer: typed keys there would choose an option, not reach the input box.
+const MENU = /^\s*❯\s*\d+\.|Enter to confirm|Esc to cancel/m;
 // oxlint-disable-next-line no-control-regex
 const DIM_RUN = /\x1b\[2m.*?(\x1b\[0m|$)/gm;
 // oxlint-disable-next-line no-control-regex
@@ -95,3 +97,19 @@ export async function typePrompt(
 /** The error line for a prompt that is still in the input box after every Enter. */
 export const stuckLine = (session: string) =>
   `the prompt is stuck in the input box of tmux session ${session} after ${SUBMIT_TRIES} enters`;
+
+/** True when the pane shows a menu or a dialog, so nothing gets typed into it. */
+export const menuOpen = (pane: string) => MENU.test(pane.replace(STYLE, ''));
+
+/** Types `text` into an agent's pane only when nothing else is there. A menu would take the keys as a pick,
+ * and a draft in the input box would go out with the text. */
+export async function typeIfClear(
+  session: string,
+  text: string,
+  { run = tmux, settleMs }: { run?: Tmux; settleMs?: number } = {},
+): Promise<'draft' | 'menu' | 'sent' | 'stuck'> {
+  const screen = (await run(['capture-pane', '-p', '-e', '-t', session])).stdout;
+  if (menuOpen(screen)) return 'menu';
+  if (inputText(screen)) return 'draft';
+  return typePrompt(session, text, { run, settleMs });
+}

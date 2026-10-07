@@ -39,7 +39,7 @@ describe('createCodexRinger', () => {
 
     client.close();
     await codex.cleanup();
-    expect(reached).toBe(1);
+    expect(reached).toStrictEqual({ sessions: 1, unconfirmed: 0 });
     expect(codex.frames.filter(frame => frame.method === 'thread/queue/add')).toStrictEqual([
       {
         id: 2,
@@ -72,7 +72,7 @@ describe('createCodexRinger', () => {
 
     const reached = await ringer.ring({ ...RING, member: { name: 'web', rooms: ['checkout', 'auth'] } });
 
-    expect(reached).toBe(1);
+    expect(reached).toStrictEqual({ sessions: 1, unconfirmed: 0 });
     expect(codex.calls.map(call => call.method)).toStrictEqual(['thread/queue/add']);
   });
 
@@ -88,7 +88,10 @@ describe('createCodexRinger', () => {
 
     client.close();
     await codex.cleanup();
-    expect([first, second]).toStrictEqual([0, 0]);
+    expect([first, second]).toStrictEqual([
+      { sessions: 0, unconfirmed: 0 },
+      { sessions: 0, unconfirmed: 0 },
+    ]);
     expect(session.threadId).toBeUndefined();
     const logged = vi
       .mocked(process.stderr.write)
@@ -117,7 +120,7 @@ describe('a codex member after a failed ring', () => {
     harness.codex.fail('thread/queue/add');
     const ringer = createCodexRinger({ codex: harness.codex, sessionsFor: harness.sessions.sessionsFor });
 
-    await expect(ringer.ring(RING)).resolves.toBe(0);
+    await expect(ringer.ring(RING)).resolves.toStrictEqual({ sessions: 0, unconfirmed: 0 });
     const listed = await api.call('list_members', { room: 'checkout' });
     const waiting = web.call('wait', { room: 'checkout' }, { timeout: 600_000 });
     await vi.advanceTimersByTimeAsync(0);

@@ -6,10 +6,16 @@ export interface RingInput {
   text: string;
 }
 
-/** Delivers a ring to the agent kinds it serves. Resolves to how many sessions it reached, never rejects. */
+/** How many sessions a ring reached, and how many of those never answered their doorbell check. */
+export interface RingResult {
+  sessions: number;
+  unconfirmed: number;
+}
+
+/** Delivers a ring to the agent kinds it serves. Never rejects. */
 export interface Ringer {
   kinds: AgentKind[];
-  ring(input: RingInput): Promise<number>;
+  ring(input: RingInput): Promise<RingResult>;
 }
 
 /** The ringers by agent kind. A kind with no ringer is never rung and falls back to wait. */

@@ -87,6 +87,7 @@ export const claudeBin = (options: { exists?: (file: string) => boolean } = {}) 
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const AWAY_AFTER_MS = 30 * 60_000;
+export const RECONNECT_MS = 2 * 60_000;
 // A seat keyed by a join's seat token goes to anyone after this long away with no live session, so a lost token frees it.
 export const SEAT_TOKEN_FREE_AFTER_MS = 30 * 60_000;
 // A member who left this long drops out of the room, so standing rooms do not pile up old agents.
@@ -109,6 +110,8 @@ export const REVIEW_NUDGE_WINDOW_MS = 60 * 60_000;
 export const SPAWN_READY_MS = 2 * 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.
 export const SESSION_DEAD_MS = 60_000;
+// A channel session that has not answered its test ring this long reads as no doorbell.
+export const DOORBELL_CHECK_MS = 30_000;
 export const EVENT_KEEP_MS = 7 * 24 * 60 * 60_000;
 export const DB_FILE = 'messhall.db';
 export const DB_BUSY_TIMEOUT_MS = 5000;

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { dialogKeys, inputText } from '../../src/flock/tmux.js';
+import { dialogKeys, inputText, menuOpen, typeIfClear } from '../../src/flock/tmux.js';
 
 const paneFixture = (name: string) => readFileSync(new URL(`fixtures/panes/${name}.txt`, import.meta.url), 'utf8');
 
@@ -92,5 +92,49 @@ describe('inputText', () => {
 
   it('is empty when no input box shows', () => {
     expect(inputText(paneFixture('dialog'))).toBe('');
+  });
+});
+
+describe('menuOpen', () => {
+  it('sees a numbered menu or a dialog footer, not an empty input box', () => {
+    expect(menuOpen(' Do you want to proceed?\n ❯ 1. Yes\n   2. No\n\n Esc to cancel · Tab to amend')).toBe(true);
+    expect(menuOpen(' ❯ No, exit\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel')).toBe(true);
+    expect(menuOpen(paneFixture('empty'))).toBe(false);
+  });
+});
+
+describe('typeIfClear', () => {
+  const pane = (screen: string) => {
+    const sent: string[][] = [];
+    const run = (args: string[]) => {
+      if (args[0] === 'send-keys') sent.push(args);
+      const stdout = args[0] === 'capture-pane' && !sent.length ? screen : paneFixture('empty');
+      return Promise.resolve({ code: 0, stderr: '', stdout });
+    };
+    return { run, sent };
+  };
+
+  it('types and submits the text into an empty input box', async () => {
+    const { run, sent } = pane(paneFixture('placeholder'));
+
+    await expect(typeIfClear('=s:', 'wake up', { run, settleMs: 0 })).resolves.toBe('sent');
+    expect(sent).toStrictEqual([
+      ['send-keys', '-t', '=s:', '-l', 'wake up'],
+      ['send-keys', '-t', '=s:', 'Enter'],
+    ]);
+  });
+
+  it('types nothing into a pane that shows a menu, since a key there would pick an option', async () => {
+    const { run, sent } = pane(' Do you want to proceed?\n ❯ 1. Yes\n   2. No\n\n Esc to cancel');
+
+    await expect(typeIfClear('=s:', 'wake up', { run, settleMs: 0 })).resolves.toBe('menu');
+    expect(sent).toStrictEqual([]);
+  });
+
+  it('types nothing over a draft, which would go out with the text', async () => {
+    const { run, sent } = pane(paneFixture('stuck-one-line'));
+
+    await expect(typeIfClear('=s:', 'wake up', { run, settleMs: 0 })).resolves.toBe('draft');
+    expect(sent).toStrictEqual([]);
   });
 });

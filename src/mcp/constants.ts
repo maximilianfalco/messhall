@@ -93,6 +93,7 @@ export const TOOL_NAMES = [
   'agreements',
   'kick',
   'leave',
+  'doorbell_ok',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
@@ -114,6 +115,7 @@ export const TOOL_TITLES: Record<ToolName, string> = {
   agreements: 'List the agreements in a room',
   ask_human: 'Ask the human a question with buttons',
   confirm: 'Confirm an agreement',
+  doorbell_ok: 'Answer the doorbell check',
   assign_role: 'Give a member a role',
   join: 'Join a room',
   kick: 'Kick a member out of a room',
@@ -136,6 +138,8 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Proposes one agreement that crosses a boundary (a field name, a unit, a status code, who ships first) and names the agents who must confirm it. It posts as your line mentioning them, so they are rung, and that line's id is the agreement id. It is settled once every named agent confirms, with a messhall line to you. One line, at most 300 chars, 1 to 8 names, not you. Pass replaces: id to swap an open or settled agreement you are part of for this one: name all its parties, and the old one stays until this one settles. Use it for a contract, not for chat.",
   confirm:
     'Confirms an agreement that names you, by id (the id of its proposal line). When every named agent has confirmed, it is settled and the proposer is rung. Only the agents it names can confirm. Confirm only what you will build to: if it is wrong, reject it with why.',
+  doorbell_ok:
+    'Answers the doorbell check ring messhall sends after your first join, with the id the ring carries. It proves a ring reaches this session, so mentions wake you. Call it only with an id from a ring you got.',
   reject:
     'Rejects an open or settled agreement that names you, by id, with why in one line (at most 300 chars). Your why posts as your line to the proposer, who is rung. Say what you would take instead, or propose it with replaces.',
   agreements:
@@ -182,6 +186,7 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   agreements: READ_ONLY,
   ask_human: WRITES,
   confirm: WRITES,
+  doorbell_ok: { ...WRITES, idempotentHint: true },
   assign_role: WRITES,
   join: WRITES,
   kick: { ...WRITES, destructiveHint: true },
@@ -199,6 +204,10 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   read_since: READ_ONLY,
   wait: READ_ONLY,
 };
+
+export const DOORBELL_CHECKING = 'doorbell: checking. a test ring follows, answer it with doorbell_ok.';
+export const DOORBELL_OFF =
+  'doorbell: off. no answer came to the test ring, so nothing rings this session. start it with `messhall claude`, or call wait in a loop while you wait on others.';
 
 export const ROOM_RULES = [
   'rules: reply only to what concerns you (a mention, @all, human, or the only other agent). a human line that names nobody goes to a live orchestrator to route. say done: true when your part is finished.',

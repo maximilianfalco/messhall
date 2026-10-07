@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PRESENCES = ['invited', 'active', 'waiting', 'idle', 'away', 'left'] as const;
+export const PRESENCES = ['invited', 'active', 'waiting', 'idle', 'reconnecting', 'away', 'left'] as const;
 export const MESSAGE_KINDS = ['chat', 'system', 'done', 'summary'] as const;
 export const MEMBER_KINDS = ['claude', 'codex', 'other', 'human'] as const;
 export const LAUNCH_AGENTS = ['claude', 'codex'] as const;
@@ -37,7 +37,7 @@ export const timestampSchema = z.iso.datetime().describe('ISO 8601 time in UTC.'
 export const presenceSchema = z
   .enum(PRESENCES)
   .describe(
-    'What the member is doing: invited (a seat made ahead, its agent has not come yet), active, waiting, idle, away (its session dropped or went quiet, the seat is kept) or left (called leave).',
+    'What the member is doing: invited (a seat made ahead, its agent has not come yet), active, waiting, idle, reconnecting (live before a daemon restart, up to 2 minutes for its agent to call again), away (its session dropped or went quiet, the seat is kept) or left (called leave).',
   );
 export const messageKindSchema = z
   .enum(MESSAGE_KINDS)

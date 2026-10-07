@@ -1,6 +1,6 @@
 import type { AgentKind } from '../../contracts/room.ts';
 
-import { SESSION_DEAD_MS } from '../config.js';
+import { DOORBELL_CHECK_MS, SESSION_DEAD_MS } from '../config.js';
 
 /**
  * What the daemon knows about one MCP session: the name it holds in each room, its agent kind,
@@ -11,6 +11,7 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
   const marks = new Map<string, number>();
   let called = false;
   let channel = false;
+  let check: { acked: boolean; id: string; sentAt: number; told: boolean } | undefined;
   let kind: AgentKind = 'other';
   let lastSeen = now().getTime();
   let open = 0;
@@ -32,6 +33,28 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
       channel = binding.channel ?? false;
       // A codex thread id is only passed once thread/read has checked it.
       if (binding.threadId) ({ threadId } = binding);
+    },
+    /** Starts the doorbell check: the test ring `ring` went out now and waits for doorbell_ok. */
+    checkDoorbell(ring: string) {
+      check = { acked: false, id: ring, sentAt: now().getTime(), told: false };
+    },
+    /** Takes the answer to the test ring. A late answer still counts. False when `ring` is not the ring sent. */
+    ackDoorbell(ring: string) {
+      if (check?.id !== ring) return false;
+      check.acked = true;
+      return true;
+    },
+    /** Whether the test ring got an answer: on, still checking, or off after the check timed out. */
+    get doorbell(): 'checking' | 'off' | 'on' | 'unchecked' {
+      if (!check) return 'unchecked';
+      if (check.acked) return 'on';
+      return now().getTime() - check.sentAt >= DOORBELL_CHECK_MS ? 'off' : 'checking';
+    },
+    /** True the first time it is asked after the doorbell reads off, so the agent is told once. */
+    tellDoorbellOff() {
+      if (!check || check.told || this.doorbell !== 'off') return false;
+      check.told = true;
+      return true;
     },
     /** Forgets the codex thread after a ring failed, so the member falls back to wait. */
     dropThread() {
@@ -63,7 +86,7 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     get channel() {
       return channel;
     },
-    /** True when a ringer can reach this session: a Claude channel or a checked codex thread. */
+    /** True when a ringer can reach this session: a Claude channel, even one that failed its check, or a checked codex thread. */
     get ringable() {
       return channel || (kind === 'codex' && threadId !== undefined);
     },

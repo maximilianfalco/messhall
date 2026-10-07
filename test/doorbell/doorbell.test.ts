@@ -9,14 +9,17 @@ import { scratchStore } from '../rooms/scratch.js';
 
 type Scratch = ReturnType<typeof scratchStore>;
 
-function setup(scratch: Scratch, { online = () => true }: { online?: () => boolean } = {}) {
+function setup(
+  scratch: Scratch,
+  { online = () => true, unconfirmed = 0 }: { online?: () => boolean; unconfirmed?: number } = {},
+) {
   const rung: RingInput[] = [];
   const ringer: Ringer = {
     kinds: ['claude'],
     ring: input => {
-      if (!online()) return Promise.resolve(0);
+      if (!online()) return Promise.resolve({ sessions: 0, unconfirmed: 0 });
       rung.push(input);
-      return Promise.resolve(1);
+      return Promise.resolve({ sessions: 1, unconfirmed });
     },
   };
   let timers: { fire: () => void; when: number }[] = [];
@@ -46,7 +49,7 @@ function setup(scratch: Scratch, { online = () => true }: { online?: () => boole
 
 describe('createRingers', () => {
   it('finds a ringer under each kind it serves', () => {
-    const ring = () => Promise.resolve(0);
+    const ring = () => Promise.resolve({ sessions: 0, unconfirmed: 0 });
     const channel: Ringer = { kinds: ['claude', 'other'], ring };
     const codex: Ringer = { kinds: ['codex'], ring };
     const ringers = createRingers([channel, codex]);
@@ -175,6 +178,17 @@ describe('startDoorbell', () => {
     scratch.store.readUnseen({ as: 'web', room: 'checkout' });
     await advance(30_000);
     expect(rung).toStrictEqual([]);
+    stop();
+  });
+
+  it('logs a ring that reached only sessions with no doorbell as unconfirmed', async () => {
+    const info = vi.spyOn(logger, 'info');
+    const { advance, rung, stop } = setup(scratch, { unconfirmed: 1 });
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web are you there?' });
+    await advance(3000);
+    expect(rung).toHaveLength(1);
+    expect(info).toHaveBeenCalledWith('doorbell rang, unconfirmed', expect.objectContaining({ name: 'web' }));
+    expect(info).not.toHaveBeenCalledWith('doorbell rang', expect.anything());
     stop();
   });
 
