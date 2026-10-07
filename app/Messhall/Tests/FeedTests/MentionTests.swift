@@ -83,6 +83,20 @@ struct MentionTests {
     #expect(appendMention("web", to: draft) == expected)
   }
 
+  @Test(
+    "a draft of only mentions has nothing to say",
+    arguments: ["@lang-switch", "@lang-switch ", " @api  @web\n", "@all", "@ghost"])
+  func onlyMentionsDraft(draft: String) {
+    #expect(onlyMentions(draft))
+  }
+
+  @Test(
+    "a draft with any words besides its mentions has something to say",
+    arguments: ["@api hi", "hi @api", "@api ?", "mail dev@web", "@Web", ""])
+  func saysSomething(draft: String) {
+    #expect(!onlyMentions(draft))
+  }
+
   @Test("a message splits into text and the mentions it stored")
   func runs() {
     let message = chat("@web the schema moved, @all see #12 and @ghost", mentions: ["web", "all"])

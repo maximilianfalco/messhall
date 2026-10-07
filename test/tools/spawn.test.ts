@@ -316,6 +316,14 @@ describe('flockStop', () => {
     expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', 'messhall-B82']);
   });
 
+  it('says how to clean the row worktree app build before the worktree goes', async () => {
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('')));
+    const queue = vi.fn<Runner>(() => Promise.resolve(result(LISTING)));
+    const outcome = await flockStop({ queue, target: 'b80', tmux });
+    expect(outcome.report).toContain('make app-clean WORKTREE=.worktrees/f8-follow-reconnect');
+    expect(queue).toHaveBeenCalledWith(['show', '--all']);
+  });
+
   it('stops a seated agent by name', async () => {
     const tmux = vi.fn<Runner>(() => Promise.resolve(result('')));
     const outcome = await flockStop({ target: 'reviewer-1', tmux });
