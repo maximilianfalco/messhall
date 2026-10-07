@@ -10,10 +10,11 @@ import { runCommand } from '../lib/run.js';
 import { readClaudeEntry, SEATLESS_LINE } from './mcp.js';
 import { localStamps, versionWarnings, type Stamp } from './versions.js';
 
-// Claude Code gives up its event stream when the daemon goes, and opens a new one only on its next call.
-const IDLE_LINE = 'an idle claude gets no ring until its next messhall call. restart between tasks, or nudge them';
+// Claude Code gives up its event stream when the daemon goes. The daemon wakes the spawned ones it can find in tmux.
+const IDLE_LINE =
+  'spawned agents get a wake line once the daemon is up. any other idle claude gets no ring until its next messhall call, so nudge it';
 
-/** Loads the LaunchAgent if `stop` unloaded it, then restarts the daemon. Warns when the Claude entry
+/** Loads the LaunchAgent if `stop` unloaded it, then restarts the daemon, which wakes spawned seats. Warns when the Claude entry
  * has no seat header, since every claude seat then stays away after this restart, and when the built app
  * no longer matches the code the daemon now runs. */
 export async function runStart({

@@ -12,8 +12,10 @@ import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringer.js';
 import { createChannelRinger } from '../doorbell/ringers/channel.js';
 import { createCodexRinger } from '../doorbell/ringers/codex.js';
+import { wakeSeats } from '../doorbell/wake.js';
 import { feedRoutes } from '../feed/routes.js';
 import { createSpawner } from '../flock/spawner.js';
+import { tmux as runTmux, type Tmux } from '../flock/tmux.js';
 import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';
 import { runCommand } from '../lib/run.js';
@@ -97,12 +99,14 @@ export async function startDaemon({
   now,
   port,
   sweepEveryMs = SWEEP_EVERY_MS,
+  tmux = runTmux,
 }: {
   dataDir: string;
   findPortHolder?: (port: number) => Promise<string | undefined>;
   now: () => Date;
   port: number;
   sweepEveryMs?: number;
+  tmux?: Tmux;
 }) {
   // Bind first, so a second daemon on a taken port never opens the db.
   const server = createServer();
@@ -156,6 +160,11 @@ export async function startDaemon({
     }
     mcp.sweep().catch((error: unknown) => logger.error(asError(error), { message: 'mcp session sweep failed' }));
   }, sweepEveryMs);
+
+  // A spawned agent idle at the restart lost its event stream, so nothing rings it until it is woken.
+  wakeSeats({ codex, dataDir, seats: store.reconnectingSeats(), tmux })
+    .then(woken => woken.forEach(target => logger.info('woke a seat after the restart', target)))
+    .catch((error: unknown) => logger.error(asError(error), { message: 'wake after restart failed' }));
 
   logger.info('daemon up', {
     claude,

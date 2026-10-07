@@ -225,6 +225,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     sweepable: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence NOT IN ('away', 'invited') ORDER BY rooms.name, members.name",
     ),
+    reconnecting: db.prepare(
+      "SELECT rooms.name AS room, members.name, members.kind, members.seat_key FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND presence = 'reconnecting' ORDER BY rooms.name, members.name",
+    ),
     unseen: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? AND from_name != ? ORDER BY id LIMIT ?'),
   };
 
@@ -1195,6 +1198,16 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         });
         return changes.map(({ change }) => change);
       });
+    },
+
+    /** The seats still reconnecting, with the kind and seat key the wake needs to reach each agent. */
+    reconnectingSeats() {
+      return sql.reconnecting.all().map(row => ({
+        kind: AGENT_KIND.parse(row.kind),
+        name: String(row.name),
+        room: String(row.room),
+        seatKey: typeof row.seat_key === 'string' ? row.seat_key : null,
+      }));
     },
 
     /** Moves agents along with the clock: active to idle at 2 minutes, anything to away at 30 unless `ringable`

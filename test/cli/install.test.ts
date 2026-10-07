@@ -170,7 +170,7 @@ describe('runStart with the claude entry', () => {
     expect(result.report).toContain('no seat header, so a seat is lost on a daemon restart. run messhall mcp install');
   });
 
-  it('says an idle claude is not rung until its next call, and no more with the seat header', async () => {
+  it('says spawned agents get woken and any other idle claude waits for its next call', async () => {
     const { launchctl } = fakeLaunchctl({ plistPath });
 
     const result = await runStart({ app: undefined, installed: INSTALLED, launchctl, plistPath, run: SEATED });
@@ -178,7 +178,7 @@ describe('runStart with the claude entry', () => {
     expect(result.report).toBe(
       [
         'messhall started. check it with messhall status',
-        'an idle claude gets no ring until its next messhall call. restart between tasks, or nudge them',
+        'spawned agents get a wake line once the daemon is up. any other idle claude gets no ring until its next messhall call, so nudge it',
       ].join('\n'),
     );
   });

@@ -1,6 +1,6 @@
 import type { Daemon } from '../../src/daemon/server.js';
 
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -12,6 +12,8 @@ import { CLI_VERSION, DB_FILE, SWEEP_EVERY_MS } from '../../src/config.js';
 import { currentBuild } from '../../src/daemon/build.js';
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
+import { wakeText } from '../../src/doorbell/wake.js';
+import { SEAT_HEADER, SERVER_NAME } from '../../src/mcp/constants.js';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
 
@@ -40,8 +42,8 @@ afterEach(async () => {
   rmSync(home, { force: true, recursive: true });
 });
 
-async function start() {
-  const started = await startDaemon({ dataDir: home, now, port: 0 });
+async function start(tmux?: Parameters<typeof startDaemon>[0]['tmux']) {
+  const started = await startDaemon({ dataDir: home, now, port: 0, tmux });
   if (!started.ok) throw new Error(`daemon did not start: ${started.reason}`);
   daemon = started.daemon;
   return started.daemon;
@@ -152,6 +154,30 @@ describe('startDaemon', () => {
     const side = sideStore();
     expect(side.store.listMembers('demo').find(member => member.name === 'api')?.presence).toBe('reconnecting');
     side.db.close();
+  });
+
+  it('wakes a spawned claude that sat in a room before the restart through its tmux pane', async () => {
+    const before = sideStore();
+    before.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-api' });
+    before.db.close();
+    const config = path.join(home, 'spawn', 'demo_api-mcp.json');
+    mkdirSync(path.dirname(config));
+    writeFileSync(
+      config,
+      JSON.stringify({ mcpServers: { [SERVER_NAME]: { headers: { [SEAT_HEADER]: 'seat-api' } } } }),
+    );
+    const sent: string[][] = [];
+    const tmux = (args: string[]) => {
+      if (args[0] === 'send-keys') sent.push(args);
+      const stdout = args[0] === 'list-panes' ? `messhall_demo_api\tclaude --mcp-config '${config}'` : '';
+      return Promise.resolve({ code: 0, stderr: '', stdout });
+    };
+
+    await start(tmux);
+
+    await vi.waitFor(() =>
+      expect(sent).toContainEqual(['send-keys', '-t', '=messhall_demo_api:', '-l', wakeText(['demo'])]),
+    );
   });
 
   it('sweeps presence on its interval with its own clock', async () => {
