@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { menuOpen, tmuxSeats, wakeList, wakeSeats, wakeText } from '../../src/doorbell/wake.js';
+import { tmuxSeats, wakeList, wakeSeats, wakeText } from '../../src/doorbell/wake.js';
 import { SEAT_HEADER, SERVER_NAME } from '../../src/mcp/constants.js';
 
 const SPAWN_DIR = '/Users/me/Library/Application Support/messhall/spawn';
@@ -67,14 +67,6 @@ describe('wakeText', () => {
     expect(wakeText(['dev', 'ops'])).toBe(
       'messhall restarted. call read_since on #dev and #ops, then carry on with your work.',
     );
-  });
-});
-
-describe('menuOpen', () => {
-  it('sees a numbered menu or a dialog footer, not an empty input box', () => {
-    expect(menuOpen(MENU_PANE)).toBe(true);
-    expect(menuOpen(' ❯ No, exit\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel')).toBe(true);
-    expect(menuOpen(IDLE_PANE)).toBe(false);
   });
 });
 

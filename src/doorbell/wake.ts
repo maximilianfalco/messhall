@@ -7,13 +7,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { SPAWN_DIR } from '../flock/spawner.js';
-import { tmux as runTmux, typePrompt } from '../flock/tmux.js';
+import { tmux as runTmux, typeIfClear } from '../flock/tmux.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
 const PANE_FORMAT = '#{session_name}\t#{pane_start_command}';
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
-// A numbered pick or a dialog footer: typed keys there would choose an option, not reach the input box.
-const MENU = /^\s*❯\s*\d+\.|Enter to confirm|Esc to cancel/m;
 
 export interface WakeSeat {
   kind: AgentKind;
@@ -85,11 +83,8 @@ export function wakeList({ seats, tmux }: { seats: WakeSeat[]; tmux: Map<string,
 export const wakeText = (rooms: string[]) =>
   `messhall restarted. call read_since on ${LIST.format(rooms.map(room => `#${room}`))}, then carry on with your work.`;
 
-/** True when the pane shows a menu or a dialog, so nothing gets typed into it. */
-export const menuOpen = (pane: string) => MENU.test(pane);
-
 /** Wakes every seat it can reach after a restart: types the wake line into a spawned claude's tmux pane, or
- * queues it on a codex thread. A pane showing a menu is left alone. Never rejects. */
+ * queues it on a codex thread. A pane showing a menu or a draft is left alone. Never rejects. */
 export async function wakeSeats({
   codex,
   dataDir,
@@ -117,9 +112,7 @@ export async function wakeSeats({
       return added.ok ? 'sent' : 'failed';
     }
     // A bare name falls back to a prefix match, which would hit another seat's session.
-    const exact = `=${target}:`;
-    if (menuOpen((await tmux(['capture-pane', '-p', '-t', exact])).stdout)) return 'menu';
-    return typePrompt(exact, text, { run: tmux, settleMs });
+    return typeIfClear(`=${target}:`, text, { run: tmux, settleMs });
   };
   return Promise.all(
     wakeList({ seats, tmux: sessions }).map(async target => ({
