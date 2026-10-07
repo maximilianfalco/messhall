@@ -31,7 +31,6 @@ struct QuestionCard: View {
         Text(question.question)
           .font(.callout)
           .textSelection(.enabled)
-          .fixedSize(horizontal: false, vertical: true)
         ViewThatFits(in: .horizontal) {
           HStack(spacing: 8) { options }
           VStack(alignment: .leading, spacing: 6) { options }
