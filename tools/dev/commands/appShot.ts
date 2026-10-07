@@ -110,6 +110,16 @@ const SHOTS = [
   { appearance: 'dark', name: 'question-dark', room: 'launch' },
   { appearance: 'light', name: 'agreements-light', room: 'contract' },
   { appearance: 'dark', name: 'agreements-dark', room: 'contract' },
+  { agents: true, appearance: 'light', name: 'agents-light', pullRequests: true, room: 'launch' },
+  { agents: true, appearance: 'dark', name: 'agents-dark', openFolds: true, pullRequests: true, room: 'launch' },
+  {
+    agents: true,
+    appearance: 'light',
+    name: 'agents-still-light',
+    pullRequests: true,
+    reduceMotion: true,
+    room: 'launch',
+  },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -401,6 +411,10 @@ export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
     });
     store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room: 'launch' });
     store.joinRoom({ as: 'web', client: CLAUDE, kind: 'claude', room: 'launch' });
+    store.setStatus({ as: 'api', room: 'launch', status: 'staging green on https://github.com/acme/shop/pull/41' });
+    store.setStatus({ as: 'deployer', room: 'deploy', status: 'waiting for the go to migrate staging' });
+    store.touch({ as: 'reviewer', room: 'reviews', state: 'active' });
+    store.setStatus({ as: 'reviewer', room: 'reviews', status: 'reading the rounding diff' });
     store.askQuestion({
       as: 'api',
       options: ['ship it', 'wait for review'],
@@ -524,6 +538,8 @@ export function shotArgs(shot: Shot) {
     ...('hotkey' in shot ? ['-shotHotkey', hotkeyFile(shot)] : []),
     ...('contract' in shot ? ['-shotContract', String(shot.contract)] : []),
     ...('notify' in shot ? ['-shotNotify', shot.notify] : []),
+    ...('agents' in shot ? ['-shotAgents', 'YES'] : []),
+    ...('reduceMotion' in shot ? ['-shotReduceMotion', 'YES'] : []),
     ...('pullRequests' in shot ? ['-shotPullRequests', JSON.stringify(JSON.stringify(PULL_REQUEST_ANSWERS))] : []),
   ];
 }
