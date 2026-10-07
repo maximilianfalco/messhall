@@ -1073,6 +1073,12 @@ struct PostBox: View {
 
   private var selected: String? { pickedMention(highlight, in: candidates) }
 
+  // One text line tall, so the send button centers on the draft's last line, however many lines it has.
+  private static let lineHeight: CGFloat = {
+    let font = NSFont.preferredFont(forTextStyle: .body)
+    return (font.ascender - font.descender + font.leading).rounded(.up)
+  }()
+
   /// The post box floats as one card over the bottom of the room, with the send button inside it.
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
@@ -1094,19 +1100,19 @@ struct PostBox: View {
           dismissedOn = text
           return .handled
         }
-        .padding(.vertical, 4)
         Button(action: send) {
           Image(systemName: "arrow.up.circle.fill")
             .font(.title2)
         }
         .buttonStyle(.borderless)
+        .frame(height: Self.lineHeight)
         .disabled(trimmed.isEmpty || sending)
         .accessibilityLabel("Send")
         .help("Send as human")
       }
       .padding(.leading, 12)
       .padding(.trailing, 8)
-      .padding(.vertical, 6)
+      .padding(.vertical, 10)
       .background(.background, in: RoundedRectangle(cornerRadius: 14))
       .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
       .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
