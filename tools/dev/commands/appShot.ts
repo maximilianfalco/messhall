@@ -98,6 +98,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'notify-blocked-dark', notify: 'denied' },
   { appearance: 'light', name: 'settings-notify-blocked-light', notify: 'denied', settings: 'notifications' },
   { appearance: 'dark', name: 'settings-notify-asked-dark', notify: 'notAsked', settings: 'notifications' },
+  { appearance: 'light', name: 'pr-cards-light', pullRequests: true, room: 'reviews' },
+  { appearance: 'dark', name: 'pr-cards-dark', pullRequests: true, room: 'reviews' },
   { appearance: 'light', name: 'ask-light', room: 'deploy' },
   { appearance: 'dark', name: 'ask-dark', room: 'deploy' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
@@ -121,6 +123,39 @@ const DOWN_SHOTS = [
   { appearance: 'light', name: 'down-light' },
   { appearance: 'dark', name: 'down-dark' },
 ] as const;
+
+const check = (conclusion: string) => ({ __typename: 'CheckRun', conclusion, status: 'COMPLETED' });
+/** What `gh pr view --json` answers for each PR the reviews room links. A link left out reads as unreadable. */
+export const PULL_REQUEST_ANSWERS = {
+  'https://github.com/acme/shop/pull/41': {
+    isDraft: false,
+    labels: [],
+    state: 'OPEN',
+    statusCheckRollup: [check('SUCCESS'), check('SUCCESS')],
+    title: 'Store order totals in minor units',
+  },
+  'https://github.com/acme/shop/pull/42': {
+    isDraft: false,
+    labels: [{ name: 'human veto' }],
+    state: 'OPEN',
+    statusCheckRollup: [check('SUCCESS'), check('FAILURE')],
+    title: 'Check the agent key once per request',
+  },
+  'https://github.com/acme/shop/pull/43': {
+    isDraft: true,
+    labels: [],
+    state: 'OPEN',
+    statusCheckRollup: [{ __typename: 'CheckRun', conclusion: '', status: 'IN_PROGRESS' }],
+    title: 'Refund flow',
+  },
+  'https://github.com/acme/web/pull/38': {
+    isDraft: false,
+    labels: [],
+    state: 'MERGED',
+    statusCheckRollup: [check('SUCCESS')],
+    title: 'Format prices from minor units',
+  },
+} as const;
 
 const QUIT_WITHIN_MS = 5000;
 // The window's own layer (0, or 3 once floated for a recording), never the menu bar label's 25.
@@ -190,6 +225,27 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
   ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'away' }));
 }
 
+/** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft, and one gh cannot read. */
+function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
+  const room = 'reviews';
+  const [open, failing, draft, merged] = ['shop/pull/41', 'shop/pull/42', 'shop/pull/43', 'web/pull/38'].map(
+    pr => `https://github.com/acme/${pr}`,
+  );
+  ['api', 'web', 'reviewer'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room }));
+  const unreadable = 'https://github.com/acme/docs/pull/7';
+  const lines: [string, string][] = [
+    ['api', `ready for review: ${open} @reviewer`],
+    ['web', `merged: ${merged}, prices read minor units now`],
+    ['web', `the docs change is ${unreadable}, gh cannot see that repo so it stays a plain link`],
+    ['api', `ci is red on ${failing}, it touches the key check so it waits for @human`],
+    ['reviewer', `where we are: ${draft} ${open} ${merged} ${failing} ${unreadable}`],
+  ];
+  lines.forEach(([from, text]) => {
+    step(10_000);
+    store.postMessage({ from, room, text });
+  });
+}
+
 /** A room longer than the snapshot, two agents taking turns on numbered steps. */
 function seedHistory({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'history';
@@ -214,6 +270,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
   try {
     at -= 20 * 60_000;
     seedHistory({ step, store });
+    seedReviews({ step, store });
     at = now.getTime() - 20 * 60_000;
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'docs-sync' });
     store.postMessage({ from: 'writer', room: 'docs-sync', text: 'drafting the changelog for the currency change' });
@@ -386,6 +443,7 @@ export function shotArgs(shot: Shot) {
     ...('hotkey' in shot ? ['-shotHotkey', hotkeyFile(shot)] : []),
     ...('contract' in shot ? ['-shotContract', String(shot.contract)] : []),
     ...('notify' in shot ? ['-shotNotify', shot.notify] : []),
+    ...('pullRequests' in shot ? ['-shotPullRequests', JSON.stringify(JSON.stringify(PULL_REQUEST_ANSWERS))] : []),
   ];
 }
 
@@ -538,7 +596,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, Shift Return making a new line at the end and mid-draft, the New Room sheet, a standing room, a closed room, each Settings pane, a tool ask card, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `only`, just the named shots. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, Shift Return making a new line at the end and mid-draft, the New Room sheet, a standing room, a closed room, PR cards, each Settings pane, a tool ask card, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `only`, just the named shots. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, only, port, sidebar }: { home: string; only?: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -609,7 +667,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker and Return on it, Shift Return, New Room sheet, standing and closed rooms, each Settings pane, older-app and blocked-notifications notices and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker and Return on it, Shift Return, New Room sheet, standing and closed rooms, PR cards, each Settings pane, older-app and blocked-notifications notices and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)

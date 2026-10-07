@@ -13,6 +13,7 @@ import {
   MENU_LAYERS,
   pickShots,
   pickWindow,
+  PULL_REQUEST_ANSWERS,
   seedShotAsk,
   seedShotRooms,
   shotArgs,
@@ -73,6 +74,7 @@ describe('seedShotRooms', () => {
       ['history', true, 'planner', false],
       ['kickoff', true, 'human', true],
       ['release-notes', true, 'human', true],
+      ['reviews', true, 'api', false],
     ]);
     expect(
       members.map(member => `${member.name} ${member.kind} ${member.presence} ${member.client_label}`),
@@ -88,6 +90,25 @@ describe('seedShotRooms', () => {
     ).toStrictEqual(['script']);
     expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
     expect(docs.ok && docs.messages.findIndex(message => message.from === 'human')).toBe(7);
+  });
+
+  it('leaves a reviews room whose lines link known PRs, one line with more than three and one PR gh cannot read', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+
+    seedShotRooms({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => now });
+    const page = store.listMessages({ limit: 50, room: 'reviews' });
+    db.close();
+    const linked = (page.ok ? page.messages : []).map(
+      message => message.text.match(/https:\/\/github\.com\/\S+\/pull\/\d+/g) ?? [],
+    );
+    const known = Object.keys(PULL_REQUEST_ANSWERS);
+
+    expect(new Set(linked.flat())).toStrictEqual(new Set([...known, 'https://github.com/acme/docs/pull/7']));
+    expect(linked.some(links => links.length > 3)).toBe(true);
   });
 
   it('leaves a human-made room with no agents and no posts', () => {
@@ -329,6 +350,15 @@ describe('shotArgs', () => {
   it('types the draft into the composer so the mention picker shows', () => {
     expect(shotArgs({ appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' })).toStrictEqual(
       expect.arrayContaining(['-shotDraft', 'thanks @', '-shotRoom', 'checkout']),
+    );
+  });
+
+  it('hands the app gh answers for the PR card shot so it never asks GitHub', () => {
+    const args = shotArgs({ appearance: 'light', name: 'pr-cards-light', pullRequests: true, room: 'reviews' });
+
+    expect(args).toStrictEqual(expect.arrayContaining(['-shotRoom', 'reviews']));
+    expect(JSON.parse(JSON.parse(args[args.indexOf('-shotPullRequests') + 1] ?? ''))).toStrictEqual(
+      PULL_REQUEST_ANSWERS,
     );
   });
 
