@@ -6,6 +6,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import {
+  approvalEventSchema,
   busEventSchema,
   memberEventSchema,
   messageEventSchema,
@@ -14,10 +15,12 @@ import {
   sequencedEventSchema,
 } from '../../../contracts/events.ts';
 import {
+  approvalResultSchema,
   closeResultSchema,
   feedErrorSchema,
   historySchema,
   humanPostResultSchema,
+  humanApprovalSchema,
   humanPostSchema,
   humanRoleResultSchema,
   humanRoleSchema,
@@ -33,6 +36,7 @@ import {
 } from '../../../contracts/feed.ts';
 import { healthSchema } from '../../../contracts/health.ts';
 import {
+  approvalSchema,
   memberKindSchema,
   memberSchema,
   messageKindSchema,
@@ -47,11 +51,15 @@ import { ok } from '../lib/print.js';
 export const SCHEMA_PATH = path.join(REPO_ROOT, 'contracts', 'schema.json');
 
 export const CONTRACTS = {
+  Approval: approvalSchema,
+  ApprovalEvent: approvalEventSchema,
+  ApprovalResult: approvalResultSchema,
   BusEvent: busEventSchema,
   CloseResult: closeResultSchema,
   FeedError: feedErrorSchema,
   Health: healthSchema,
   History: historySchema,
+  HumanApproval: humanApprovalSchema,
   HumanPost: humanPostSchema,
   HumanPostResult: humanPostResultSchema,
   HumanRole: humanRoleSchema,

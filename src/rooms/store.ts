@@ -1,10 +1,11 @@
 import type { BusEvent, MemberChange } from '../../contracts/events.ts';
-import type { AgentKind, Launch, Member, MessageKind, Presence, Room } from '../../contracts/room.ts';
+import type { AgentKind, ApprovalBehavior, Launch, Member, MessageKind, Presence, Room } from '../../contracts/room.ts';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { randomUUID } from 'node:crypto';
 
 import {
+  approvalSchema,
   HUMAN_NAME,
   launchSchema,
   memberKindSchema,
@@ -20,6 +21,8 @@ import {
   UNASSIGNED_ROLE,
 } from '../../contracts/room.ts';
 import {
+  APPROVAL_TEXT_MAX,
+  APPROVAL_TTL_MS,
   INVITE_TTL_MS,
   LOOP_GUARD_BACKSTOP,
   LOOP_GUARD_LINES,
@@ -79,6 +82,9 @@ const toMessage = (row: Row) =>
 // Each word becomes a quoted prefix term, so FTS5 syntax in a query is just text.
 const ftsQuery = (q: string) => Array.from(q.matchAll(/[\p{L}\p{N}_]+/gu), ([word]) => `"${word}"*`).join(' ');
 
+const ANSWERED = { allow: 'allowed', deny: 'denied' } as const;
+const clip = (text: string) => text.slice(0, APPROVAL_TEXT_MAX);
+
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
 // Only agents hold a seat key, never the human seat.
 const AGENT_KIND = memberKindSchema.exclude(['human']);
@@ -94,6 +100,24 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   const stamp = () => now().toISOString();
 
   const sql = {
+    answerApproval: db.prepare(
+      "UPDATE approvals SET state = ?, answered_at = ? WHERE id = ? AND state = 'pending' RETURNING *",
+    ),
+    expireAllApprovals: db.prepare(
+      "UPDATE approvals SET state = 'expired', answered_at = ? WHERE state = 'pending' RETURNING *",
+    ),
+    expireOldApprovals: db.prepare(
+      "UPDATE approvals SET state = 'expired', answered_at = ? WHERE state = 'pending' AND created_at <= ? RETURNING *",
+    ),
+    expireSessionApprovals: db.prepare(
+      "UPDATE approvals SET state = 'expired', answered_at = ? WHERE state = 'pending' AND session = ? RETURNING *",
+    ),
+    insertApproval: db.prepare(
+      "INSERT INTO approvals (id, room_id, member, session, request_id, tool, description, input_preview, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?) RETURNING *",
+    ),
+    pendingApprovals: db.prepare(
+      "SELECT * FROM approvals WHERE room_id = ? AND state = 'pending' ORDER BY created_at, id",
+    ),
     allMembers: db.prepare('SELECT * FROM members WHERE room_id = ? ORDER BY name'),
     closeRoom: db.prepare('UPDATE rooms SET closed_at = ? WHERE id = ?'),
     countPosts: db.prepare(`SELECT count(*) AS n FROM messages WHERE room_id = ? AND ${IS_POST}`),
@@ -198,6 +222,17 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     return row ? toRoom(row) : undefined;
   };
   const roomById = (id: string) => toRoom(sql.roomById.get(id)!);
+  const toApproval = (row: Row) => approvalSchema.parse({ ...row, room: roomById(String(row.room_id)).name });
+  // Puts each changed row on the feed and lists each ask once, however many rooms it sits in.
+  const settled = (rows: Row[], emit: Emit) => {
+    const asks = new Map<string, { requestId: string; session: string }>();
+    rows.forEach(row => {
+      const approval = toApproval(row);
+      emit({ approval, room: approval.room, type: 'approval' });
+      asks.set(approval.id, { requestId: String(row.request_id), session: String(row.session) });
+    });
+    return [...asks.values()];
+  };
   const findMember = (room: Room, name: string) => {
     const row = sql.member.get(room.id, name);
     return row ? toMember(row) : undefined;
@@ -792,9 +827,80 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Marks every agent still in a room away, with one line per open room. For daemon start, when no session is left. */
+    /** Records an agent's tool ask on every seat its session holds, under one new id. A seat not in the room is skipped. */
+    openApproval({
+      description,
+      inputPreview,
+      requestId,
+      seats,
+      session,
+      tool,
+    }: {
+      description: string;
+      inputPreview: string;
+      requestId: string;
+      seats: { name: string; room: string }[];
+      session: string;
+      tool: string;
+    }) {
+      return transaction(emit => {
+        const id = randomUUID();
+        const at = stamp();
+        return seats.flatMap(({ name, room: roomName }) => {
+          const room = findRoom(roomName);
+          const member = room && findMember(room, name);
+          if (!room || !member || member.left_at !== null) return [];
+          const row = sql.insertApproval.get(
+            id,
+            room.id,
+            name,
+            session,
+            requestId,
+            clip(tool),
+            clip(description),
+            clip(inputPreview),
+            at,
+          )!;
+          const approval = toApproval(row);
+          emit({ approval, room: room.name, type: 'approval' });
+          return [approval];
+        });
+      });
+    },
+
+    /** Answers a pending ask by its exact id, once. Hands back the session and request id the verdict goes to. */
+    answerApproval({ behavior, id }: { behavior: ApprovalBehavior; id: string }) {
+      return transaction(emit => {
+        const rows = sql.answerApproval.all(ANSWERED[behavior], stamp(), id);
+        const [ask] = settled(rows, emit);
+        if (!ask) return { ok: false, reason: 'no_approval' } as const;
+        return { approvals: rows.map(toApproval), ok: true, ...ask } as const;
+      });
+    },
+
+    /** Expires the asks of one ended session, or else every ask nobody answered in 10 minutes. Returns each ask to deny. */
+    expireApprovals({ session }: { session?: string } = {}) {
+      return transaction(emit => {
+        const at = now();
+        const rows =
+          session === undefined
+            ? sql.expireOldApprovals.all(at.toISOString(), new Date(at.getTime() - APPROVAL_TTL_MS).toISOString())
+            : sql.expireSessionApprovals.all(at.toISOString(), session);
+        return settled(rows, emit);
+      });
+    },
+
+    /** The asks in a room still waiting for the human, oldest first. */
+    pendingApprovals(roomName: string) {
+      const room = findRoom(roomName);
+      return room ? sql.pendingApprovals.all(room.id).map(toApproval) : [];
+    },
+
+    /** Marks every agent still in a room away, with one line per open room, and expires every pending ask.
+     * For daemon start, when no session is left. */
     markAllAway() {
       return transaction(emit => {
+        settled(sql.expireAllApprovals.all(stamp()), emit);
         const changes = sql.sweepable.all().map(row => {
           const member = toMember(row);
           sql.setPresence.run('away', member.room_id, member.name);

@@ -21,7 +21,10 @@ describe('createMesshallServer', () => {
 
     expect(client.getServerVersion()).toMatchObject({ name: 'messhall', version: CLI_VERSION });
     expect(client.getInstructions()).toBe(INSTRUCTIONS);
-    expect(client.getServerCapabilities()?.experimental).toStrictEqual({ 'claude/channel': {} });
+    expect(client.getServerCapabilities()?.experimental).toStrictEqual({
+      'claude/channel': {},
+      'claude/channel/permission': {},
+    });
   });
 
   it('lists exactly the seven room tools with their titles', async () => {
