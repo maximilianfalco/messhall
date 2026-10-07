@@ -12,6 +12,14 @@ import { launchAgentPlist, plistNodePath } from '../../src/lib/plist.js';
 
 import { fakeLaunchctl } from './launchd.js';
 
+const claudeEntry = (lines: string[]) => () =>
+  Promise.resolve({
+    code: 0,
+    stderr: '',
+    stdout: ['messhall:', '  URL: http://127.0.0.1:7787/mcp', ...lines].join('\n'),
+  });
+const SEATED = claudeEntry([`  X-Messhall-Seat: \${MESSHALL_SEAT:-}`]);
+
 const FIXTURE = readFileSync(new URL('fixtures/dev.messhall.daemon.plist', import.meta.url), 'utf8');
 const NODE = '/Users/someone/.nvm/versions/node/v22.21.0/bin/node';
 
@@ -109,7 +117,7 @@ describe('runStart', () => {
   it('tells you to install first when there is no plist', async () => {
     const { calls, launchctl } = fakeLaunchctl({ plistPath });
 
-    const result = await runStart({ launchctl, plistPath });
+    const result = await runStart({ launchctl, plistPath, run: SEATED });
 
     expect(result.code).toBe(1);
     expect(result.report).toContain('messhall install');
@@ -121,7 +129,7 @@ describe('runStart', () => {
     await install(fakeLaunchctl({ plistPath }).launchctl);
     const { calls, launchctl } = fakeLaunchctl({ codes: { print: 113 }, plistPath });
 
-    const result = await runStart({ launchctl, plistPath });
+    const result = await runStart({ launchctl, plistPath, run: SEATED });
 
     expect(result.code).toBe(0);
     expect(calls).toStrictEqual([
@@ -136,12 +144,41 @@ describe('runStart', () => {
     await install(fakeLaunchctl({ plistPath }).launchctl);
     const { calls, launchctl } = fakeLaunchctl({ plistPath });
 
-    await runStart({ launchctl, plistPath });
+    await runStart({ launchctl, plistPath, run: SEATED });
 
     expect(calls).toStrictEqual([
       'launchctl print gui/501/dev.messhall.daemon',
       'launchctl kickstart -k gui/501/dev.messhall.daemon',
     ]);
+  });
+});
+
+describe('runStart with the claude entry', () => {
+  beforeEach(async () => {
+    writeFileSync(cliPath, '');
+    await install(fakeLaunchctl({ plistPath }).launchctl);
+  });
+
+  it('warns when the claude entry has no seat header', async () => {
+    const { launchctl } = fakeLaunchctl({ plistPath });
+
+    const result = await runStart({ launchctl, plistPath, run: claudeEntry([]) });
+
+    expect(result.code).toBe(0);
+    expect(result.report).toContain('no seat header, so a seat is lost on a daemon restart. run messhall mcp install');
+  });
+
+  it('says an idle claude is not rung until its next call, and no more with the seat header', async () => {
+    const { launchctl } = fakeLaunchctl({ plistPath });
+
+    const result = await runStart({ launchctl, plistPath, run: SEATED });
+
+    expect(result.report).toBe(
+      [
+        'messhall started. check it with messhall status',
+        'an idle claude gets no ring until its next messhall call. restart between tasks, or nudge them',
+      ].join('\n'),
+    );
   });
 });
 
