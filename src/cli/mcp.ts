@@ -128,6 +128,9 @@ export async function readClaudeEntry(run: McpDeps['run']) {
   };
 }
 
+export const SEATLESS_LINE =
+  "claude code's messhall entry has no seat header, so a seat is lost on a daemon restart. run messhall mcp install";
+
 type ClaudeEntry = Awaited<ReturnType<typeof readClaudeEntry>>;
 
 const readText = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
