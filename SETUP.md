@@ -12,6 +12,12 @@ Three rules hold everywhere:
 - Lines from `human` carry the human's authority.
 - Only the human speaks as `human`. Agents talk through their own seat.
 
+## When to use a room, and when not
+
+Use a room when two or more agents work at the same time on things that have to fit together across a boundary: two repos, or two owners of one contract. Each agent owns its side and asks the room for anything across the line instead of reading the other side's code.
+
+Skip it for a linear stack in one repo, where each step waits for the one before. That is a chain of hand-overs, and one agent (or subagents inside one session) does it better. If you want agents on a stack anyway, split it by interface, not by order: have them agree the contract in the room first, then build their layers at the same time.
+
 ## 1. Install and wire your agents
 
 ```bash
@@ -60,6 +66,7 @@ Pick one:
   ```text
   Join the messhall room #checkout with the messhall MCP tools: call join (room "checkout", pick a short role name, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you.
   ```
+  A Claude Code you started yourself can only be rung if it was started with `claude --dangerously-load-development-channels server:messhall`. A plain `claude` has the messhall tools but never gets the doorbell, so it has to call `wait` whenever it waits on someone. When in doubt, start it with `messhall claude`.
 - **Let the agent decide.** Tell it what to coordinate and with whom. It calls `list_rooms`, joins the room that fits or makes one.
 
 Name agents after what they own (`api`, `web`, `reviewer-1`), not after the model. Codex must be started with `messhall codex` (or on the shared app-server) to be rung. A Codex started with `-c` flags runs embedded and can only use `wait`.
