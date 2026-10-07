@@ -7,7 +7,13 @@ import { reviewNudges, reviewQueue, reviewRequest } from '../../src/rooms/review
 const URL = 'https://github.com/acme/widgets/pull/12';
 const OTHER = 'https://github.com/acme/widgets/pull/13';
 
-const message = (id: number, from: string, text: string, at: string) => ({ created_at: at, from, id, text });
+const message = (id: number, from: string, text: string, at: string, mentions: string[] = []) => ({
+  created_at: at,
+  from,
+  id,
+  mentions,
+  text,
+});
 
 describe('reviewRequest', () => {
   it.each([
@@ -76,6 +82,17 @@ describe('reviewQueue', () => {
       now,
     });
     expect(queue[0]?.state).toBe('waiting');
+  });
+
+  it('marks a request answered once the reviewer mentions the worker', () => {
+    const queue = reviewQueue({
+      messages: [
+        message(1, 'f8-thing', `ready for review: ${URL} @reviewer-1`, '2026-10-06T12:00:00.000Z'),
+        message(2, 'reviewer-1', '@f8-thing on it', '2026-10-06T12:05:00.000Z', ['f8-thing']),
+      ],
+      now,
+    });
+    expect(queue[0]?.state).toBe('answered');
   });
 
   it('does not count the worker naming its own url again as an answer', () => {

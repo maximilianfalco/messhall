@@ -24,6 +24,7 @@ export interface RoomLine {
   created_at: string;
   from: string;
   id: number;
+  mentions: string[];
   text: string;
 }
 
@@ -44,13 +45,27 @@ function latestRequests<Line extends RoomLine>(messages: Line[]) {
   return [...latest.values()];
 }
 
-const namesUrl = ({ line, url, worker }: { line: RoomLine; url: string; worker: string }) =>
-  line.from !== worker && urlsIn(line.text).includes(url);
+/** True once a line after the request answers it: the reviewer mentions the worker, or anyone but the worker names the url. */
+function isAnswered({
+  messages,
+  request: { from: worker, id, reviewer, url },
+}: {
+  messages: RoomLine[];
+  request: RoomLine & { reviewer: string; url: string };
+}) {
+  return messages.some(
+    line =>
+      line.id > id &&
+      line.from !== worker &&
+      (urlsIn(line.text).includes(url) || (line.from === reviewer && line.mentions.includes(worker))),
+  );
+}
 
-/** The latest request per PR, oldest first. A later line naming the url from anyone but the worker answers it. */
+/** The latest request per PR, oldest first, with its state. */
 export function reviewQueue({ messages, now }: { messages: RoomLine[]; now: Date }) {
-  return latestRequests(messages).map(({ created_at: at, from, id, reviewer, round, url }) => {
-    const answered = messages.some(line => line.id > id && namesUrl({ line, url, worker: from }));
+  return latestRequests(messages).map(request => {
+    const { created_at: at, from, id, reviewer, round, url } = request;
+    const answered = isAnswered({ messages, request });
     const age = now.getTime() - Date.parse(at);
     const state: ReviewState = answered ? 'answered' : age >= REVIEW_STALE_MS ? 'stale' : 'waiting';
     return { ageMin: Math.floor(age / 60_000), from, id, reviewer, round, state, url };
@@ -70,18 +85,13 @@ function handoffTargets({ members, reviewer, worker }: { members: Member[]; revi
 
 /**
  * What to do about each unanswered review request: ring its reviewer again at 10 minutes, hand it to
- * others in one line at 15. A reply from the reviewer to the worker, or any line naming the url, answers it.
- * That includes the hand-off line itself, so a request gets one line at most.
+ * others in one line at 15. The hand-off line names the url, so it answers the request and never repeats.
  */
 export function reviewNudges({ members, messages, now }: { members: Member[]; messages: Message[]; now: Date }) {
-  return latestRequests(messages).flatMap<ReviewNudge>(({ created_at: at, from: worker, id, reviewer, url }) => {
+  return latestRequests(messages).flatMap<ReviewNudge>(request => {
+    const { created_at: at, from: worker, id, reviewer, url } = request;
     const age = now.getTime() - Date.parse(at);
-    if (age < REVIEW_STALE_MS || age >= REVIEW_NUDGE_WINDOW_MS) return [];
-    const answered = messages.some(
-      line =>
-        line.id > id && (namesUrl({ line, url, worker }) || (line.from === reviewer && line.mentions.includes(worker))),
-    );
-    if (answered) return [];
+    if (age < REVIEW_STALE_MS || age >= REVIEW_NUDGE_WINDOW_MS || isAnswered({ messages, request })) return [];
     if (age < REVIEW_HANDOFF_MS) return [{ id, kind: 'ring', reviewer, url, worker }];
     const mentions = handoffTargets({ members, reviewer, worker });
     const ask = mentions.length > 1 ? 'can one of you take it' : 'can you take it';
