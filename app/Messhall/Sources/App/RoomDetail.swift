@@ -56,10 +56,10 @@ struct RoomDetail: View {
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
         columnsChangedAt: columnsChangedAt, older: older, reveal: reveal)
         .id(room.name)
-      Divider()
       if room.isOpen {
         PostBox(room: room, store: store, client: client, text: $draft, focused: $composing)
       } else {
+        Divider()
         ClosedBar(reopen: { change(.reopen(room.name)) })
       }
     }
@@ -67,6 +67,7 @@ struct RoomDetail: View {
     .titleInHeader()
     .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
     .onChange(of: room.name) { query = "" }
+    .onChange(of: Seen(room: room.name, lastId: room.messages.last?.id), initial: true) { store.markSeen(room.name) }
     .toolbar {
       ToolbarItem { CopyJoinButton(room: room.name) }
       ToolbarItem { MuteButton(room: room.name) }
@@ -136,6 +137,12 @@ struct RoomDetail: View {
   private func answer(_ question: Question, option: Int) {
     Task { refusal = await store.answer(question, option: option, via: client) }
   }
+}
+
+/// What the shown room has loaded. A change means the human saw it, so the sidebar's unread badge clears.
+private struct Seen: Equatable {
+  let room: String
+  let lastId: Int?
 }
 
 /// The open room's Close or Reopen action, so the menu bar can offer it too.
@@ -392,13 +399,17 @@ struct MemberChip: View {
 
   var body: some View {
     HStack(spacing: 8) {
-      AvatarView(name: member.name, size: 26)
+      AvatarView(name: member.name, size: 26, presence: member.presence)
       VStack(alignment: .leading, spacing: 1) {
         HStack(spacing: 5) {
           Text(member.displayName)
             .font(.callout.weight(.medium))
           if let label = member.clientLabel {
             TypePill(label: label, name: member.name)
+          } else if member.kind != .human {
+            Image(systemName: member.kind.symbol)
+              .imageScale(.small)
+              .foregroundStyle(.secondary)
           }
           if let role = member.rolePill {
             RolePill(role: role)
@@ -410,16 +421,6 @@ struct MemberChip: View {
             AskPill()
           }
         }
-        HStack(spacing: 4) {
-          PresenceDot(presence: member.presence)
-          Text(member.presence.label)
-          if member.kind != .human, member.clientLabel == nil {
-            Image(systemName: member.kind.symbol)
-              .imageScale(.small)
-          }
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
         if member.status != nil {
           StatusLine(member: member)
         }
@@ -532,21 +533,6 @@ struct MutedPill: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
       .background(.orange.opacity(0.12), in: Capsule())
-  }
-}
-
-struct PresenceDot: View {
-  let presence: Presence
-
-  var body: some View {
-    Group {
-      if presence.isAway {
-        Circle().strokeBorder(presence.color, lineWidth: 1.5)
-      } else {
-        Circle().fill(presence.color)
-      }
-    }
-    .frame(width: 7, height: 7)
   }
 }
 
@@ -1087,6 +1073,7 @@ struct PostBox: View {
 
   private var selected: String? { pickedMention(highlight, in: candidates) }
 
+  /// The post box floats as one card over the bottom of the room, with the send button inside it.
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .bottom, spacing: 8) {
@@ -1107,19 +1094,22 @@ struct PostBox: View {
           dismissedOn = text
           return .handled
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
+        .padding(.vertical, 4)
         Button(action: send) {
           Image(systemName: "arrow.up.circle.fill")
-            .font(.title)
+            .font(.title2)
         }
         .buttonStyle(.borderless)
         .disabled(trimmed.isEmpty || sending)
         .accessibilityLabel("Send")
         .help("Send as human")
       }
+      .padding(.leading, 12)
+      .padding(.trailing, 8)
+      .padding(.vertical, 6)
+      .background(.background, in: RoundedRectangle(cornerRadius: 14))
+      .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
+      .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
       if let refusal {
         Text(refusal)
           .font(.caption)
@@ -1131,7 +1121,8 @@ struct PostBox: View {
       }
     }
     .padding(.horizontal, 16)
-    .padding(.vertical, 12)
+    .padding(.top, 4)
+    .padding(.bottom, 12)
     .overlay(alignment: .topLeading) {
       if !candidates.isEmpty {
         MentionPicker(names: candidates, selected: selected, members: room.members, pick: pick)

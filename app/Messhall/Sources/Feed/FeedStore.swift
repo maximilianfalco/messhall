@@ -23,6 +23,8 @@ public final class FeedStore {
   public private(set) var build: Build?
   /// Rooms with an older page on its way.
   public private(set) var loadingOlder: Set<String> = []
+  /// The last message id the human saw in each room. A room starts seen, so only live posts count as unread.
+  public private(set) var seen: [String: Int] = [:]
   /// When the current stream opened. Events stamped before it are a replay.
   @ObservationIgnored public internal(set) var liveSince = Date.distantFuture
   /// Called for each feed event, before it applies, with the room as it was.
@@ -50,6 +52,18 @@ public final class FeedStore {
     self.phase = phase
   }
 
+  /// Chat and done lines in the room since the human last looked at it.
+  public func unread(in name: String) -> Int {
+    guard let room = room(named: name), let seenId = seen[name] else { return 0 }
+    return unreadCount(messages: room.messages, seenId: seenId)
+  }
+
+  /// Marks everything loaded in the room as seen, while the room is on screen.
+  public func markSeen(_ name: String) {
+    guard let room = room(named: name) else { return }
+    seen[name] = room.messages.last?.id ?? 0
+  }
+
   /// Applies a snapshot or an event. Either one proves the daemon answers, so it also ends a down phase.
   public func apply(_ update: FeedUpdate) {
     phase = .live
@@ -57,6 +71,7 @@ public final class FeedStore {
     case .snapshot(let snapshot):
       rooms = snapshot.rooms.map(keepingOlderPages).sorted { $0.name < $1.name }
       loadingOlder = []
+      for room in rooms where seen[room.name] == nil { seen[room.name] = room.messages.last?.id ?? 0 }
       seq = snapshot.seq
       contractVersion = snapshot.contractVersion
       build = snapshot.build
@@ -161,6 +176,7 @@ public final class FeedStore {
       guard rooms.contains(where: { $0.name == e.room.name }) else {
         rooms.append(SnapshotRoom(room: e.room))
         rooms.sort { $0.name < $1.name }
+        seen[e.room.name] = 0
         return
       }
       update(e.room.name) { room in
