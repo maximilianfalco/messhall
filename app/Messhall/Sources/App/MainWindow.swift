@@ -39,7 +39,9 @@ struct MainWindow: View {
           }
       } detail: {
         if let room = store.room(named: selection.wrappedValue) {
-          RoomDetail(room: room, store: store, client: client, columnsChangedAt: columnsChangedAt)
+          RoomDetail(
+            room: room, store: store, client: client, columnsChangedAt: columnsChangedAt,
+            reveal: navigation.revealed?.room == room.name ? navigation.revealed : nil)
         } else {
           ContentUnavailableView {
             Label("No Rooms Yet", systemImage: "bubble.left.and.bubble.right")
@@ -48,6 +50,15 @@ struct MainWindow: View {
           } actions: {
             Button("New Room") { navigation.newRoomDraft = "" }
           }
+        }
+      }
+      .inspector(isPresented: $navigation.showsAgents) {
+        AgentsView(panel: AgentsPanel(rooms: store.rooms), navigation: navigation)
+          .inspectorColumnWidth(min: 260, ideal: 300, max: 460)
+      }
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          AgentsButton(working: AgentsPanel(rooms: store.rooms).working, navigation: navigation)
         }
       }
       .onChange(of: columns) { columnsChangedAt = .now }
