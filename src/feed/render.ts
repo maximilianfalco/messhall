@@ -17,6 +17,7 @@ const MEMBER_MARKS: Record<MemberChange, string> = {
   reconnected: '+',
   removed: '-',
   role: '*',
+  status: '·',
   unmuted: '*',
 };
 const ROOM_WORDS: Record<RoomChange, (room: Room) => string> = {
@@ -40,6 +41,8 @@ function messageLine({ message, tag }: { message: Message; tag: string }) {
 
 function memberLine(member: Member, change: MemberChange) {
   if (change === 'role') return `${MEMBER_MARKS.role} ${member.name} is now ${member.role}`;
+  if (change === 'status')
+    return `${MEMBER_MARKS.status} ${member.name} status${member.status ? `: ${member.status}` : ' cleared'}`;
   if (change === 'removed') return `${MEMBER_MARKS.removed} ${member.name} dropped out`;
   return `${MEMBER_MARKS[change]} ${member.name} ${change}${change === 'left' ? '' : ` (${member.kind})`}`;
 }

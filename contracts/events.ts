@@ -40,7 +40,9 @@ export const memberEventSchema = z.object({
     ),
   member: memberSchema.describe('The member after the change.'),
   room: nameSchema.describe('Room name.'),
-  type: z.literal('member').describe('A member was invited, came, went, dropped out, got a role, set its status or was muted.'),
+  type: z
+    .literal('member')
+    .describe('A member was invited, came, went, dropped out, got a role, set its status or was muted.'),
 });
 
 export const presenceEventSchema = z.object({
