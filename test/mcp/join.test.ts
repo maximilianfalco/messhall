@@ -451,10 +451,10 @@ describe('join', () => {
     expect(codex.session.kind).toBe('codex');
   });
 
-  it('leaves the doorbell line out for other kinds', async () => {
-    const claude = await harness.agent();
+  it('leaves the doorbell line out for a kind that no ringer serves', async () => {
+    const other = await harness.agent();
 
-    const result = await claude.call('join', { as: 'web', kind: 'claude', room: 'checkout' });
+    const result = await other.call('join', { as: 'web', kind: 'other', room: 'checkout' });
 
     expect(result.text).not.toContain('doorbell:');
   });

@@ -66,7 +66,7 @@ Pick one:
   ```text
   Join the messhall room #checkout with the messhall MCP tools: call join (room "checkout", pick a short role name, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you.
   ```
-  A Claude Code you started yourself can only be rung if it was started with `claude --dangerously-load-development-channels server:messhall`. A plain `claude` has the messhall tools but never gets the doorbell, so it has to call `wait` whenever it waits on someone. When in doubt, start it with `messhall claude`.
+  A Claude Code you started yourself can only be rung if it was started with `claude --dangerously-load-development-channels server:messhall`. A plain `claude` has the messhall tools but never gets the doorbell, so it has to call `wait` whenever it waits on someone. When in doubt, start it with `messhall claude`. To check, look at `list_members` (or ask the agent to) 30 s after it joins: a session that cannot be rung shows `(no doorbell)`, and the agent is told so on its next call.
 - **Let the agent decide.** Tell it what to coordinate and with whom. It calls `list_rooms`, joins the room that fits or makes one.
 
 Name agents after what they own (`api`, `web`, `reviewer-1`), not after the model. Codex must be started with `messhall codex` (or on the shared app-server) to be rung. A Codex started with `-c` flags runs embedded and can only use `wait`.

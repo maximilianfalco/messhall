@@ -7,7 +7,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { DB_FILE } from '../../../src/config.js';
+import { DB_FILE, DOORBELL_CHECK_MS } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
@@ -25,10 +25,13 @@ const REPLY_WITHIN_S = 90;
 // The doorbell skips a member active in the last 5 s, so the mention waits for it to settle.
 const QUIET_MS = 6000;
 const PANE_LINES = 16;
+const NO_DOORBELL = '(no doorbell)';
+const DOORBELL_OK = `MCP server "${SERVER_NAME}": Calling MCP tool: doorbell_ok`;
 
 interface ChannelOptions {
   as: string;
   keep: boolean;
+  plain: boolean;
   quiet?: number;
   restart: boolean;
   room: string;
@@ -41,7 +44,9 @@ export function proofLines(log: string) {
     .split('\n')
     .filter(line => line.includes(ours))
     .filter(line =>
-      /Channel notifications registered|notifications\/claude\/channel|read_since|"post"|: post\b/.test(line),
+      /Channel notifications registered|notifications\/claude\/channel|doorbell_ok|read_since|"post"|: post\b/.test(
+        line,
+      ),
     );
 }
 
@@ -61,12 +66,42 @@ function memberState({ home, name, room }: { home: string; name: string; room: s
   }
 }
 
+// The member's list_members line as a scripted agent sees it.
+async function memberLine(
+  scripted: Awaited<ReturnType<typeof connectHttp>>,
+  { as, room }: { as: string; room: string },
+) {
+  const listed = await scripted.client.callTool({ arguments: { room }, name: 'list_members' });
+  const text = listed.content.map(block => (block.type === 'text' ? block.text : '')).join('');
+  return text.split('\n').find(line => line.startsWith(`- ${as} (`)) ?? '';
+}
+
+// A scripted mention, then how long until the reply lands.
+async function mentionAndWait(
+  scripted: Awaited<ReturnType<typeof connectHttp>>,
+  { as, room }: { as: string; room: string },
+) {
+  const postedAt = Date.now();
+  await scripted.client.callTool({
+    arguments: { room, text: `@${as} what is 2 + 2? reply here in one line.` },
+    name: 'post',
+  });
+  const waited = await scripted.client.callTool(
+    { arguments: { room, timeout_s: REPLY_WITHIN_S }, name: 'wait' },
+    { resetTimeoutOnProgress: true, timeout: (REPLY_WITHIN_S + 10) * 1000 },
+  );
+  const waitText = waited.content.map(block => (block.type === 'text' ? block.text : '')).join('');
+  if (waited.isError || waitText === NOTHING_YET) throw new Error(`no reply from ${as} within ${REPLY_WITHIN_S} s`);
+  return Date.now() - postedAt;
+}
+
 /**
  * Drives a real Claude Code in tmux with messhall as a dev channel: it joins, a scripted agent
  * mentions it, and the doorbell should make it read and reply. `restart` restarts the daemon while it
- * idles, to show whether the bell still reaches it. Cleans up unless `keep`.
+ * idles, to show whether the bell still reaches it. `plain` starts it without the channel and expects
+ * it to read no doorbell once its check times out. Cleans up unless `keep`.
  */
-export async function channelRun({ as, keep, quiet, restart, room }: ChannelOptions) {
+export async function channelRun({ as, keep, plain, quiet, restart, room }: ChannelOptions) {
   const ownHome = !process.env.MESSHALL_HOME;
   const home = process.env.MESSHALL_HOME || mkdtempSync(path.join(tmpdir(), 'messhall-channel-'));
   const port = process.env.MESSHALL_PORT ? Number(process.env.MESSHALL_PORT) : DEFAULT_PORT;
@@ -88,13 +123,14 @@ export async function channelRun({ as, keep, quiet, restart, room }: ChannelOpti
   let scripted: Awaited<ReturnType<typeof connectHttp>> | undefined;
   let code = 1;
   let replyMs: number | undefined;
+  let doorbell = '';
   try {
-    const argv = claudeArgv({ allowedTools: [`mcp__${SERVER_NAME}`], debugFile, mcpConfig });
-    const ready = await launchClaude({ argv, cwd, debugFile, note, session });
+    const argv = claudeArgv({ allowedTools: [`mcp__${SERVER_NAME}`], debugFile, mcpConfig, plain });
+    const ready = await launchClaude({ argv, cwd, debugFile, note, plain, session });
     if (ready !== 'registered') {
-      throw new Error(ready === 'login' ? 'claude wants a login, stopped' : 'channel never registered within 60 s');
+      throw new Error(ready === 'login' ? 'claude wants a login, stopped' : 'messhall never came up within 60 s');
     }
-    note('channel registered');
+    note(plain ? 'plain claude connected, no channel' : 'channel registered');
 
     const prompt = `Join #${room} on messhall as ${as}, then end your turn. Do not call wait. When a messhall doorbell arrives, call read_since and reply to the mention with one short post.`;
     if ((await typePrompt(session, prompt)) === 'stuck') throw new Error(stuckLine(session));
@@ -122,19 +158,25 @@ export async function channelRun({ as, keep, quiet, restart, room }: ChannelOpti
 
     scripted = await connectHttp({ key, name: 'messhall-dev-channel-api', url: daemon.url });
     await scripted.client.callTool({ arguments: { as: 'api', room }, name: 'join' });
-    const postedAt = Date.now();
-    await scripted.client.callTool({
-      arguments: { room, text: `@${as} what is 2 + 2? reply here in one line.` },
-      name: 'post',
-    });
-    note('api posted the mention');
-    const waited = await scripted.client.callTool(
-      { arguments: { room, timeout_s: REPLY_WITHIN_S }, name: 'wait' },
-      { resetTimeoutOnProgress: true, timeout: (REPLY_WITHIN_S + 10) * 1000 },
-    );
-    const waitText = waited.content.map(block => (block.type === 'text' ? block.text : '')).join('');
-    if (waited.isError || waitText === NOTHING_YET) throw new Error(`no reply from ${as} within ${REPLY_WITHIN_S} s`);
-    replyMs = Date.now() - postedAt;
+    if (plain) {
+      await sleep(DOORBELL_CHECK_MS);
+      const line = await memberLine(scripted, { as, room });
+      note(line);
+      if (!line.includes(NO_DOORBELL)) throw new Error(`${as} should read ${NO_DOORBELL} after the check`);
+      doorbell = 'no doorbell';
+    } else {
+      const acked = await until(
+        Date.now() + DOORBELL_CHECK_MS,
+        () => readText(debugFile).includes(DOORBELL_OK) || undefined,
+      );
+      if (!acked) throw new Error(`${as} never answered its doorbell check`);
+      if ((await memberLine(scripted, { as, room })).includes(NO_DOORBELL)) {
+        throw new Error(`${as} reads ${NO_DOORBELL} though it runs the channel`);
+      }
+      doorbell = 'rung';
+      note(`${as} answered its doorbell check`);
+      replyMs = await mentionAndWait(scripted, { as, room });
+    }
     code = 0;
   } catch (error) {
     lines.push(bad(error instanceof Error ? error.message : String(error)));
@@ -166,13 +208,21 @@ export async function channelRun({ as, keep, quiet, restart, room }: ChannelOpti
       [
         ['room', `#${room}`],
         ['claude as', as],
+        ['started', plain ? 'plain, no channel' : 'with the channel'],
+        ['doorbell', doorbell || 'unknown'],
         ['daemon restart', restart ? 'yes, while idle' : 'no'],
         ['post to reply', replyMs === undefined ? 'no reply' : `${(replyMs / 1000).toFixed(1)} s`],
         ['debug log', debugFile],
       ],
     ),
     '',
-    code === 0 ? ok(`${as} read the doorbell and replied`) : bad(`${as} did not reply`),
+    plain
+      ? code === 0
+        ? ok(`${as} reads no doorbell`)
+        : bad(`${as} did not read no doorbell`)
+      : code === 0
+        ? ok(`${as} read the doorbell and replied`)
+        : bad(`${as} did not reply`),
   ];
 
   if (keep) {
@@ -197,10 +247,25 @@ export function registerChannel(program: Command) {
     .option('--as <role>', 'the role claude joins as', 'web')
     .option('--quiet <s>', 'sit idle this long after the join before the mention', value => Number(value))
     .option('--restart', 'restart the daemon while claude idles, before the mention')
+    .option('--plain', 'start claude without the channel and expect it to read no doorbell')
     .option('--keep', 'leave tmux and the daemon running')
-    .action(async (options: { as: string; keep?: boolean; quiet?: number; restart?: boolean; room: string }) => {
-      const result = await channelRun({ ...options, keep: Boolean(options.keep), restart: Boolean(options.restart) });
-      console.log(result.report);
-      process.exitCode = result.code;
-    });
+    .action(
+      async (options: {
+        as: string;
+        keep?: boolean;
+        plain?: boolean;
+        quiet?: number;
+        restart?: boolean;
+        room: string;
+      }) => {
+        const result = await channelRun({
+          ...options,
+          keep: Boolean(options.keep),
+          plain: Boolean(options.plain),
+          restart: Boolean(options.restart),
+        });
+        console.log(result.report);
+        process.exitCode = result.code;
+      },
+    );
 }

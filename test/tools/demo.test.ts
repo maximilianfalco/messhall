@@ -112,6 +112,21 @@ describe('claude launcher', () => {
     ]);
   });
 
+  it('leaves the dev channel out of a plain argv', () => {
+    expect(
+      claudeArgv({ allowedTools: ['mcp__messhall'], debugFile: '/d.log', mcpConfig: '/m.json', plain: true }),
+    ).toStrictEqual([
+      'claude',
+      '--mcp-config',
+      '/m.json',
+      '--strict-mcp-config',
+      '--allowedTools',
+      'mcp__messhall',
+      '--debug-file',
+      '/d.log',
+    ]);
+  });
+
   it('points the mcp config at the daemon with the key header', () => {
     expect(JSON.parse(mcpConfigJson({ key: 'k', url: 'http://127.0.0.1:7792' }))).toStrictEqual({
       mcpServers: { messhall: { headers: { [KEY_HEADER]: 'k' }, type: 'http', url: 'http://127.0.0.1:7792/mcp' } },
