@@ -138,17 +138,30 @@ export const PULL_REQUEST_ANSWERS = {
   },
   'https://github.com/acme/shop/pull/42': {
     isDraft: false,
-    labels: [{ name: 'human veto' }],
+    labels: [{ color: 'B60205', name: 'human veto' }],
     state: 'OPEN',
     statusCheckRollup: [check('SUCCESS'), check('FAILURE')],
     title: 'Check the agent key once per request',
   },
   'https://github.com/acme/shop/pull/43': {
     isDraft: true,
-    labels: [],
+    labels: [
+      { color: 'fbca04', name: 'app' },
+      { color: '0052cc', name: 'payments' },
+      { color: 'c5def5', name: 'needs design' },
+      { color: 'd73a4a', name: 'bug' },
+      { color: 'ededed', name: 'wontfix' },
+    ],
     state: 'OPEN',
     statusCheckRollup: [{ __typename: 'CheckRun', conclusion: '', status: 'IN_PROGRESS' }],
     title: 'Refund flow',
+  },
+  'https://github.com/acme/shop/pull/44': {
+    isDraft: false,
+    labels: [{ color: 'ededed', name: 'wontfix' }],
+    state: 'CLOSED',
+    statusCheckRollup: [],
+    title: 'Round totals in the browser',
   },
   'https://github.com/acme/web/pull/38': {
     isDraft: false,
@@ -227,12 +240,16 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
   ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'away' }));
 }
 
-/** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft, and one gh cannot read. */
+/** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft with five labels, a closed one, and one gh cannot read. */
 function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'reviews';
-  const [open, failing, draft, merged] = ['shop/pull/41', 'shop/pull/42', 'shop/pull/43', 'web/pull/38'].map(
-    pr => `https://github.com/acme/${pr}`,
-  );
+  const [open, failing, draft, closed, merged] = [
+    'shop/pull/41',
+    'shop/pull/42',
+    'shop/pull/43',
+    'shop/pull/44',
+    'web/pull/38',
+  ].map(pr => `https://github.com/acme/${pr}`);
   ['api', 'web', 'reviewer'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room }));
   const unreadable = 'https://github.com/acme/docs/pull/7';
   const lines: [string, string][] = [
@@ -240,6 +257,7 @@ function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomS
     ['web', `merged: ${merged}, prices read minor units now`],
     ['web', `the docs change is ${unreadable}, gh cannot see that repo so it stays a plain link`],
     ['api', `ci is red on ${failing}, it touches the key check so it waits for @human`],
+    ['web', `closed ${closed}, the api rounds now`],
     ['reviewer', `where we are: ${draft} ${open} ${merged} ${failing} ${unreadable}`],
   ];
   lines.forEach(([from, text]) => {

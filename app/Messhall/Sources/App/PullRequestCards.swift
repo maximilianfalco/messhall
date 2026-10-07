@@ -10,7 +10,7 @@ struct PullRequestCards: View {
   var body: some View {
     let cards = row.shown.compactMap(store.card(for:))
     if !cards.isEmpty {
-      VStack(alignment: .leading, spacing: 4) {
+      VStack(alignment: .leading, spacing: 8) {
         ForEach(cards, id: \.link) { PullRequestCardView(card: $0) }
         if row.more > 0 {
           Text("and \(row.more) more")
@@ -53,9 +53,10 @@ struct PullRequestCardView: View {
   var body: some View {
     Button { openURL(card.link.url) } label: {
       HStack(alignment: .top, spacing: 8) {
-        Image(systemName: card.state.symbol)
-          .foregroundStyle(card.state.color)
-          .frame(width: 16)
+        Octicon(name: card.state.icon)
+          .fill(card.state.color)
+          .frame(width: 16, height: 16)
+          .padding(.top, 1)
         VStack(alignment: .leading, spacing: 3) {
           Text(card.title)
             .fontWeight(.medium)
@@ -64,11 +65,15 @@ struct PullRequestCardView: View {
           HStack(spacing: 8) {
             Text(card.link.label)
             Text(card.state.title).foregroundStyle(card.state.color)
-            if let ci = card.ci.label {
-              Label(ci, systemImage: card.ci.symbol)
-                .foregroundStyle(card.ci.color)
+            if let ci = card.ci.label, let icon = card.ci.icon {
+              Label {
+                Text(ci)
+              } icon: {
+                Octicon(name: icon).fill(card.ci.color).frame(width: 12, height: 12)
+              }
+              .foregroundStyle(card.ci.color)
             }
-            if card.humanVeto { HumanVetoPill() }
+            LabelPills(labels: card.labels)
           }
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -91,20 +96,51 @@ struct PullRequestCardView: View {
   }
 
   private var spoken: String {
-    [card.title, card.link.label, card.state.title, card.ci.label, card.humanVeto ? "human veto" : nil]
+    ([card.title, card.link.label, card.state.title, card.ci.label] + card.labels.map(\.name))
       .compactMap { $0 }.joined(separator: ", ")
   }
 }
 
-/// Says the PR waits for the owner to merge it.
-private struct HumanVetoPill: View {
+/// The PR's labels in GitHub's colors: the first few, then one +N chip. Hover names them all.
+private struct LabelPills: View {
+  let labels: [PullRequestLabel]
+
   var body: some View {
-    Label("human veto", systemImage: "hand.raised.fill")
+    let row = LabelRow(labels: labels)
+    if !labels.isEmpty {
+      HStack(spacing: 4) {
+        ForEach(Array(row.shown.enumerated()), id: \.offset) { LabelPill(label: $0.element) }
+        if row.more > 0 {
+          Text("+\(row.more)")
+            .fixedSize()
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(.quaternary, in: Capsule())
+        }
+      }
+      .help(labels.map(\.name).joined(separator: ", "))
+    }
+  }
+}
+
+private struct LabelPill: View {
+  let label: PullRequestLabel
+
+  var body: some View {
+    let pill = Text(label.name)
+      .lineLimit(1)
+      .truncationMode(.tail)
+      .frame(maxWidth: 120)
       .fixedSize()
-      .foregroundStyle(.orange)
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
-      .background(.orange.opacity(0.12), in: Capsule())
+    if let color = label.color {
+      pill
+        .foregroundStyle(color.wantsDarkText ? Color.black : .white)
+        .background(Color(red: color.red, green: color.green, blue: color.blue), in: Capsule())
+    } else {
+      pill.foregroundStyle(.secondary).background(.quaternary, in: Capsule())
+    }
   }
 }
 
@@ -118,11 +154,12 @@ extension PullRequestState {
     }
   }
 
-  var symbol: String {
+  var icon: Octicon.Name {
     switch self {
-    case .open, .draft: "arrow.triangle.pull"
-    case .merged: "arrow.triangle.merge"
-    case .closed: "xmark.circle"
+    case .open: .pullRequest
+    case .draft: .draft
+    case .merged: .merged
+    case .closed: .closed
     }
   }
 
@@ -147,12 +184,12 @@ extension CIState {
     }
   }
 
-  var symbol: String {
+  var icon: Octicon.Name? {
     switch self {
-    case .passing: "checkmark.circle.fill"
-    case .failing: "xmark.circle.fill"
-    case .running: "clock.fill"
-    case .none: ""
+    case .passing: .checkPassed
+    case .failing: .checkFailed
+    case .running: .checkRunning
+    case .none: nil
     }
   }
 

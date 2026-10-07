@@ -52,7 +52,7 @@ struct PullRequestCardTests {
   }
 
   private func pr(state: String = "OPEN", draft: Bool = false, labels: [String] = [], checks: [String] = []) -> String {
-    let names = labels.map { #"{"name":"\#($0)"}"# }.joined(separator: ",")
+    let names = labels.joined(separator: ",")
     return #"{"title":"Add the cart total","state":"\#(state)","isDraft":\#(draft),"labels":[\#(names)],"#
       + #""statusCheckRollup":[\#(checks.joined(separator: ","))]}"#
   }
@@ -65,9 +65,31 @@ struct PullRequestCardTests {
     #expect(card(pr(state: "CLOSED"))?.state == .closed)
   }
 
-  @Test func humanVetoComesFromItsLabel() {
-    #expect(card(pr(labels: ["human veto", "app"]))?.humanVeto == true)
-    #expect(card(pr(labels: ["app"]))?.humanVeto == false)
+  @Test func readsEveryLabelWithItsColor() {
+    let labels = [
+      #"{"id":"LA_1","name":"human veto","description":"waits","color":"B60205"}"#,
+      #"{"id":"LA_2","name":"app","description":"","color":"fbca04"}"#,
+    ]
+
+    #expect(
+      card(pr(labels: labels))?.labels == [
+        PullRequestLabel(name: "human veto", color: LabelColor(red: 0xB6, green: 0x02, blue: 0x05)),
+        PullRequestLabel(name: "app", color: LabelColor(red: 0xFB, green: 0xCA, blue: 0x04)),
+      ])
+  }
+
+  @Test func aLabelWithABadColorHasNone() {
+    let labels = [#"{"name":"odd","color":"zzz"}"#, #"{"name":"bare"}"#]
+
+    #expect(
+      card(pr(labels: labels))?.labels == [
+        PullRequestLabel(name: "odd", color: nil), PullRequestLabel(name: "bare", color: nil),
+      ])
+  }
+
+  @Test func noLabelsIsAnEmptyList() {
+    #expect(card(pr())?.labels == [])
+    #expect(card(#"{"title":"x","state":"OPEN","isDraft":false}"#)?.labels == [])
   }
 
   @Test func ciFailsWhenAnyCheckFails() {
@@ -99,6 +121,29 @@ struct PullRequestCardTests {
   }
 }
 
+@Suite("pull request labels")
+struct PullRequestLabelTests {
+  private func labels(_ count: Int) -> [PullRequestLabel] {
+    (0..<count).map { PullRequestLabel(name: "label \($0)", color: nil) }
+  }
+
+  @Test func showsTheFirstFewThenCountsTheRest() {
+    let limit = LabelRow.limit
+
+    #expect(LabelRow(labels: []) == LabelRow(shown: [], more: 0))
+    #expect(LabelRow(labels: labels(1)) == LabelRow(shown: labels(1), more: 0))
+    #expect(LabelRow(labels: labels(limit)) == LabelRow(shown: labels(limit), more: 0))
+    #expect(LabelRow(labels: labels(limit + 3)) == LabelRow(shown: labels(limit), more: 3))
+  }
+
+  @Test func darkTextOnLightColorsAndLightTextOnDarkOnes() {
+    #expect(LabelColor(red: 0xFB, green: 0xCA, blue: 0x04).wantsDarkText)
+    #expect(LabelColor(red: 0xFF, green: 0xFF, blue: 0xFF).wantsDarkText)
+    #expect(!LabelColor(red: 0xB6, green: 0x02, blue: 0x05).wantsDarkText)
+    #expect(!LabelColor(red: 0x00, green: 0x52, blue: 0xCC).wantsDarkText)
+  }
+}
+
 @Suite("pull request store")
 @MainActor
 struct PullRequestStoreTests {
@@ -106,7 +151,7 @@ struct PullRequestStoreTests {
   private static let start = Date(timeIntervalSince1970: 1_000)
 
   private static func open(_ title: String) -> PullRequestCard {
-    PullRequestCard(link: link, title: title, state: .open, ci: .running, humanVeto: false)
+    PullRequestCard(link: link, title: title, state: .open, ci: .running, labels: [])
   }
 
   @Test func showsTheCardOnceRead() async {
@@ -160,7 +205,7 @@ struct PullRequestRefreshTests {
   private static let other = PullRequestLink(owner: "acme", repo: "shop", number: 2)
 
   private static func card(_ state: PullRequestState, _ ci: CIState, link: PullRequestLink = link) -> PullRequestCard {
-    PullRequestCard(link: link, title: "x", state: state, ci: ci, humanVeto: false)
+    PullRequestCard(link: link, title: "x", state: state, ci: ci, labels: [])
   }
 
   @Test func runningChecksRefreshSoon() {

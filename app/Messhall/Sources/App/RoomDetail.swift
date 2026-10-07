@@ -360,6 +360,8 @@ struct AwayChip: View {
           .foregroundStyle(.secondary)
         }
       }
+      // One layer before the fade, so a faded avatar never shows through the one on top.
+      .compositingGroup()
       .opacity(0.6)
       .contentShape(Rectangle())
     }
@@ -856,6 +858,7 @@ struct ChatRow: View {
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
         PullRequestCards(row: pullRequests)
+          .padding(.top, 10)
       }
       if line.mine { AvatarView(name: message.from) }
     }
