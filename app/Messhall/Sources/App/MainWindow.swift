@@ -5,9 +5,16 @@ struct MainWindow: View {
   let store: FeedStore
   let client: FeedClient
   @Bindable var navigation: Navigation
-  @State private var columns = NavigationSplitViewVisibility.automatic
+  @State private var columns = Self.startColumns
   @State private var columnsChangedAt: Date?
   @Environment(\.openURL) private var openURL
+
+  #if DEBUG
+    private static let startColumns: NavigationSplitViewVisibility =
+      ShotHooks.sidebarCollapsed ? .detailOnly : .automatic
+  #else
+    private static let startColumns = NavigationSplitViewVisibility.automatic
+  #endif
 
   private var selection: Binding<String?> {
     Binding(
@@ -25,18 +32,6 @@ struct MainWindow: View {
       NavigationSplitView(columnVisibility: $columns) {
         RoomList(rooms: store.rooms, selection: selection)
           .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
-          .toolbar {
-            ToolbarItem {
-              Button("New Room", systemImage: "plus") { navigation.newRoomDraft = "" }
-                .help("New Room (\u{2318}N)")
-            }
-            ToolbarItem {
-              Button { openURL(RepoLink.url) } label: {
-                Label { Text("Open on GitHub") } icon: { GitHubMark().frame(width: 16, height: 16) }
-              }
-              .help("Open on GitHub")
-            }
-          }
       } detail: {
         if let room = store.room(named: selection.wrappedValue) {
           RoomDetail(
@@ -56,8 +51,15 @@ struct MainWindow: View {
         AgentsView(panel: AgentsPanel(rooms: store.rooms), navigation: navigation)
           .inspectorColumnWidth(min: 260, ideal: 300, max: 460)
       }
+      // In the window toolbar, not the sidebar's, so they stay when the sidebar is collapsed.
       .toolbar {
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .primaryAction) {
+          Button("New Room", systemImage: "plus") { navigation.newRoomDraft = "" }
+            .help("New Room (\u{2318}N)")
+          Button { openURL(RepoLink.url) } label: {
+            Label { Text("Open on GitHub") } icon: { Image(nsImage: GitHubMark.image) }
+          }
+          .help("Open on GitHub")
           AgentsButton(working: AgentsPanel(rooms: store.rooms).working, navigation: navigation)
         }
       }

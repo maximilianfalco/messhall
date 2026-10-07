@@ -13,6 +13,7 @@ import { createRoomStore, type RoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, formatTable, ok } from '../lib/print.js';
 
+import { APP_IDS } from './appBuilds.js';
 import { spawnDaemon } from './daemon.js';
 
 const SHOT_PORT = 7796;
@@ -108,6 +109,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'ask-long-dark', room: 'release' },
   { appearance: 'light', name: 'question-light', room: 'launch' },
   { appearance: 'dark', name: 'question-dark', room: 'launch' },
+  { appearance: 'light', name: 'agreements-light', room: 'contract' },
+  { appearance: 'dark', name: 'agreements-dark', room: 'contract' },
   { agents: true, appearance: 'light', name: 'agents-light', pullRequests: true, room: 'launch' },
   { agents: true, appearance: 'dark', name: 'agents-dark', openFolds: true, pullRequests: true, room: 'launch' },
   {
@@ -118,6 +121,12 @@ const SHOTS = [
     reduceMotion: true,
     room: 'launch',
   },
+  { appearance: 'light', name: 'sidebar-collapsed-light', sidebarCollapsed: true },
+  { appearance: 'dark', name: 'sidebar-collapsed-dark', sidebarCollapsed: true },
+  { appearance: 'light', name: 'narrow-light', width: 720 },
+  { appearance: 'dark', name: 'narrow-dark', width: 720 },
+  { appearance: 'light', glyph: 0, name: 'glyph-0-light', room: 'launch' },
+  { appearance: 'light', glyph: 3, name: 'glyph-3-light', room: 'launch' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -383,7 +392,7 @@ const LONG_ASK = [
   'npm publish --access public" }',
 ].join('\n');
 
-/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release and two questions in #launch. Runs after the daemon starts, since its start marks
+/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release, two questions in #launch and agreements in #contract. Runs after the daemon starts, since its start marks
  * every agent away and expires every pending ask. */
 export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
   const db = openDb({ dataDir });
@@ -425,6 +434,23 @@ export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
       question: 'how should checkout tell people prices moved to cents?',
       room: 'launch',
     });
+    ['api', 'web', 'mobile'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room: 'contract' }));
+    const cents = store.proposeAgreement({
+      as: 'api',
+      room: 'contract',
+      text: 'order totals move to amount_minor, integer cents, with a 3 letter currency beside it',
+      with: ['web', 'mobile'],
+    });
+    if (cents.ok) {
+      ['web', 'mobile'].forEach(as => store.confirmAgreement({ as, id: cents.agreement.id, room: 'contract' }));
+    }
+    const refunds = store.proposeAgreement({
+      as: 'web',
+      room: 'contract',
+      text: 'refunds carry amount_minor too, api ships first and web adapts the formatter after',
+      with: ['api', 'mobile'],
+    });
+    if (refunds.ok) store.confirmAgreement({ as: 'api', id: refunds.agreement.id, room: 'contract' });
   } finally {
     db.close();
   }
@@ -486,6 +512,16 @@ async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS):
   return waitFile(file, deadline);
 }
 
+// AppKit saves these on every resize or collapse, and the shot app shares one bundle id across launches.
+const SAVED_LAYOUT = ['NSWindow Frame main', 'NSSplitView Subview Frames main, SidebarNavigationSplitView'];
+
+/** The `defaults` calls that forget the window frame and sidebar the last shot app saved. None for the real app. */
+export function layoutResets(bundleId: string) {
+  // A main checkout build shares the human's own app id, so its saved layout is the human's.
+  if (bundleId === APP_IDS[0]) return [];
+  return SAVED_LAYOUT.map(key => ['delete', bundleId, key]);
+}
+
 /** The launch args for one shot. The real app may share the bundle id, so a window closed there would stay shut here. */
 export function shotArgs(shot: Shot) {
   return [
@@ -520,6 +556,9 @@ export function shotArgs(shot: Shot) {
     ...('contract' in shot ? ['-shotContract', String(shot.contract)] : []),
     ...('notify' in shot ? ['-shotNotify', shot.notify] : []),
     ...('agents' in shot ? ['-shotAgents', 'YES'] : []),
+    ...('sidebarCollapsed' in shot ? ['-shotSidebarCollapsed', 'YES'] : []),
+    ...('width' in shot ? ['-shotWidth', String(shot.width)] : []),
+    ...('glyph' in shot ? ['-shotGlyph', String(shot.glyph)] : []),
     ...('reduceMotion' in shot ? ['-shotReduceMotion', 'YES'] : []),
     ...('pullRequests' in shot ? ['-shotPullRequests', JSON.stringify(JSON.stringify(PULL_REQUEST_ANSWERS))] : []),
   ];
@@ -584,6 +623,10 @@ async function shoot({
   rmSync(anchorFile(shot), { force: true });
   rmSync(hotkeyFile(shot), { force: true });
   rmSync(keysFile(shot), { force: true });
+  const bundleId = spawnSync('defaults', ['read', path.join(app, 'Contents', 'Info'), 'CFBundleIdentifier'], {
+    encoding: 'utf8',
+  }).stdout.trim();
+  layoutResets(bundleId).forEach(args => spawnSync('defaults', args, { stdio: 'ignore' }));
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {

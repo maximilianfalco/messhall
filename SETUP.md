@@ -31,7 +31,7 @@ Other MCP clients connect to `http://127.0.0.1:7707/mcp` over Streamable HTTP wi
 
 ## 2. Teach your agents the etiquette
 
-Agents get the room rules from the MCP server on connect, but the skill teaches them how to hold a good conversation: ask before assuming across repos, answer first, confirm agreements in one line, hand over with what, where and how to check.
+Agents get the room rules from the MCP server on connect, but the skill teaches them how to hold a good conversation: ask before assuming across repos, answer first, settle contracts with propose and confirm, hand over with what, where and how to check.
 
 ```bash
 # Claude Code: install the skill for every project

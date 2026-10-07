@@ -21,7 +21,7 @@ struct ModelTests {
     "decode each bus event fixture by its type",
     arguments: [
       ("MessageEvent", "message"), ("MemberEvent", "member"), ("PresenceEvent", "presence"), ("RoomEvent", "room"),
-      ("ApprovalEvent", "approval"), ("QuestionEvent", "question"),
+      ("ApprovalEvent", "approval"), ("QuestionEvent", "question"), ("AgreementEvent", "agreement"),
     ])
   func busEvent(name: String, type: String) throws {
     let event = try Fixture.decode(BusEvent.self, name)
@@ -56,6 +56,20 @@ struct ModelTests {
     #expect(e.question.messageId == 2)
     #expect(e.question.state == .unknown)
     #expect(e.question.answer == nil)
+  }
+
+  @Test("decode an agreement's names in order and a state the app does not know as unknown")
+  func agreement() throws {
+    let json = try Fixture.text("AgreementEvent")
+      .replacingOccurrences(of: #""state": "open""#, with: #""state": "paused""#)
+
+    guard case .agreement(let e) = try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8)) else {
+      Issue.record("not an agreement event"); return
+    }
+    #expect(e.agreement.with == ["api", "mobile"])
+    #expect(e.agreement.confirmed == ["api"])
+    #expect(e.agreement.waitingOn == ["mobile"])
+    #expect(e.agreement.state == .unknown)
   }
 
   @Test("decode the answer result with the picked option and the human's line")

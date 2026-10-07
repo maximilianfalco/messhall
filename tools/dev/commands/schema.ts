@@ -6,6 +6,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import {
+  agreementEventSchema,
   approvalEventSchema,
   busEventSchema,
   memberEventSchema,
@@ -39,6 +40,7 @@ import {
 } from '../../../contracts/feed.ts';
 import { healthSchema } from '../../../contracts/health.ts';
 import {
+  agreementSchema,
   approvalSchema,
   memberKindSchema,
   memberSchema,
@@ -55,6 +57,8 @@ import { ok } from '../lib/print.js';
 export const SCHEMA_PATH = path.join(REPO_ROOT, 'contracts', 'schema.json');
 
 export const CONTRACTS = {
+  Agreement: agreementSchema,
+  AgreementEvent: agreementEventSchema,
   AnswerResult: answerResultSchema,
   Approval: approvalSchema,
   ApprovalEvent: approvalEventSchema,

@@ -29,6 +29,8 @@ private let models: [String: [String]] = [
   "ApprovalEvent": ApprovalEvent.CodingKeys.allCases.map(\.rawValue),
   "ApprovalResult": ApprovalResult.CodingKeys.allCases.map(\.rawValue),
   "HumanApproval": HumanApproval.CodingKeys.allCases.map(\.rawValue),
+  "Agreement": Agreement.CodingKeys.allCases.map(\.rawValue),
+  "AgreementEvent": AgreementEvent.CodingKeys.allCases.map(\.rawValue),
   "AnswerResult": AnswerResult.CodingKeys.allCases.map(\.rawValue),
   "HumanAnswer": HumanAnswer.CodingKeys.allCases.map(\.rawValue),
   "Question": Question.CodingKeys.allCases.map(\.rawValue),

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  agreementSchema,
   approvalSchema,
   memberSchema,
   messageSchema,
@@ -72,6 +73,14 @@ export const questionEventSchema = z.object({
   type: z.literal('question').describe('An agent asked the human a question, or it was answered, expired or replaced.'),
 });
 
+export const agreementEventSchema = z.object({
+  agreement: agreementSchema.describe('The agreement after the change.'),
+  room: nameSchema.describe('Room name.'),
+  type: z
+    .literal('agreement')
+    .describe('An agent proposed an agreement, or it was confirmed, settled, rejected or replaced.'),
+});
+
 export const busEventSchema = z
   .discriminatedUnion('type', [
     messageEventSchema,
@@ -80,6 +89,7 @@ export const busEventSchema = z
     roomEventSchema,
     approvalEventSchema,
     questionEventSchema,
+    agreementEventSchema,
   ])
   .describe('One change in the room store.');
 

@@ -1,6 +1,6 @@
 import type { BusEvent } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
+import type { Agreement, Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
 
 import { stripVTControlCharacters } from 'node:util';
 
@@ -80,6 +80,22 @@ const question = (overrides: Partial<Question> = {}): Question => ({
   question: 'merge now?',
   room: 'checkout',
   state: 'open',
+  ...overrides,
+});
+
+const agreement = (overrides: Partial<Agreement> = {}): Agreement => ({
+  confirmed: [],
+  created_at: AT,
+  decided_at: null,
+  id: 14,
+  proposer: 'api',
+  rejected_by: null,
+  replaces: null,
+  room: 'checkout',
+  state: 'open',
+  text: 'amount_minor is integer cents',
+  why: null,
+  with: ['web', 'mobile'],
   ...overrides,
 });
 
@@ -186,11 +202,26 @@ describe('renderEvent questions', () => {
   });
 });
 
+describe('renderEvent agreements', () => {
+  it.each([
+    [{}, 'proposed by api, waiting on web and mobile'],
+    [{ confirmed: ['web'] }, 'confirmed by web, waiting on mobile'],
+    [{ confirmed: ['web', 'mobile'], state: 'settled' }, 'settled'],
+    [{ rejected_by: 'web', state: 'rejected', why: 'no' }, 'rejected by web'],
+    [{ state: 'replaced' }, 'replaced by a newer one'],
+  ] satisfies [Partial<Agreement>, string][])('shows an agreement %j', (overrides, words) => {
+    expect(render({ agreement: agreement(overrides), room: 'checkout', type: 'agreement' }, 'checkout')).toStrictEqual([
+      `       · agreement #14 ${words}`,
+    ]);
+  });
+});
+
 const snapshot: Snapshot = {
-  contract_version: 4,
+  contract_version: 5,
   rooms: [
     {
       ...room({ topic: 'ship the cart' }),
+      agreements: [agreement({ confirmed: ['web', 'mobile'], state: 'settled' })],
       approvals: [],
       members: [
         member(),
@@ -205,6 +236,7 @@ const snapshot: Snapshot = {
     },
     {
       ...room({ closed_at: AT, created_by: 'human', id: 'room-2', name: 'search', standing: true }),
+      agreements: [],
       approvals: [],
       first_message_id: null,
       members: [],
@@ -225,6 +257,7 @@ describe('renderSnapshot', () => {
       '10:04  api  hello',
       '10:04  human  nice',
       `       ? api asks you #12: merge now? 1. ship it  2. wait. messhall answer ${QUESTION_ID} <1-2>`,
+      '       = agreement #14 settled, api with web and mobile: amount_minor is integer cents',
       '',
       '#search  closed, standing, 0 posts',
       '       nobody here',

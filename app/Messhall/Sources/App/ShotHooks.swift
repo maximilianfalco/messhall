@@ -28,6 +28,21 @@
     /// `-shotOpenFolds YES`: every run of presence lines and the away chip start open, so a shot shows what is inside.
     static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
 
+    /// `-shotSidebarCollapsed YES`: the window opens with the sidebar hidden.
+    static let sidebarCollapsed = UserDefaults.standard.bool(forKey: "shotSidebarCollapsed")
+
+    /// `-shotGlyph <n>`: every status glyph stays on frame n, so two shots compare frames.
+    static let glyphFrame = UserDefaults.standard.string(forKey: "shotGlyph").flatMap(Int.init)
+
+    /// `-shotWidth <points>`: shrinks the window to that width, so a shot shows what fits there.
+    static func resize(width: Double) async {
+      while NSApp.windows.first(where: isPlain) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+      guard let window = NSApp.windows.first(where: isPlain) else { return }
+      var frame = window.frame
+      frame.size.width = width
+      window.setFrame(frame, display: true)
+    }
+
     /// `-shotAgents YES`: the window opens with the Agents panel shown.
     static let showsAgents = UserDefaults.standard.bool(forKey: "shotAgents")
 

@@ -83,7 +83,7 @@ public func notificationFor(event: BusEvent, state: NotifyState) -> Notification
     note.questionId = ask.id
     note.options = ask.options
     return note
-  case .member, .presence, .unknown:
+  case .member, .presence, .agreement, .unknown:
     return nil
   }
 }

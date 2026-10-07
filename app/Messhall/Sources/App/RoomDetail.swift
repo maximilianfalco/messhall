@@ -41,6 +41,10 @@ struct RoomDetail: View {
         mute: room.isOpen ? { mute($0) } : nil
       )
       .id(room.name)
+      if !room.agreements.isEmpty {
+        AgreementsPanel(agreements: room.agreements)
+          .id(room.name)
+      }
       if !room.approvals.isEmpty {
         ApprovalCards(approvals: room.approvals, answer: answer)
       }
@@ -64,7 +68,6 @@ struct RoomDetail: View {
     .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
     .onChange(of: room.name) { query = "" }
     .toolbar {
-      if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
       ToolbarItem { CopyJoinButton(room: room.name) }
       ToolbarItem { MuteButton(room: room.name) }
       ToolbarItem {
@@ -443,14 +446,27 @@ struct StatusLine: View {
     private var reduceMotion: Bool { systemReduceMotion }
   #endif
 
+  #if DEBUG
+    private func glyph(at date: Date, animated: Bool) -> String {
+      guard let shot = ShotHooks.glyphFrame else { return Thinking.glyph(at: date, animated: animated) }
+      return Thinking.glyph(at: Date(timeIntervalSinceReferenceDate: Double(shot) * Thinking.step), animated: true)
+    }
+  #else
+    private func glyph(at date: Date, animated: Bool) -> String { Thinking.glyph(at: date, animated: animated) }
+  #endif
+
+  // The caption style the line uses, so the box fits the glyphs as drawn.
+  private static let glyphBox = Thinking.box(for: .preferredFont(forTextStyle: .caption1))
+
   // The frame is read only while spinning, so a still line never redraws on a tick.
   var body: some View {
     let clock = ThinkingClock.shared
     let animated = member.isThinking && !reduceMotion
     let frame = animated ? clock.frame : .distantPast
     HStack(spacing: 4) {
-      Text(Thinking.glyph(at: frame, animated: animated))
+      Text(glyph(at: frame, animated: animated))
         .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
+        .frame(width: Self.glyphBox)
       Text(member.statusLine(now: clock.minute) ?? "")
         .foregroundStyle(animated ? AnyShapeStyle(shimmer(at: frame)) : AnyShapeStyle(.secondary))
         .lineLimit(1)

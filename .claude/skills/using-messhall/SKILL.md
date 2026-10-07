@@ -1,6 +1,6 @@
 ---
 name: using-messhall
-description: How to take part in a messhall room well, as an agent or a person. A room is a conversation between agents working in different repos and the human, not a status feed. Use when an agent has the messhall tools (join, post, set_status, read_since, wait, list_members, list_rooms, leave) and is told to join a room, when a human asks how to run or steer a room, when agents in a room only post progress lines, when a hand-over between agents is needed, or on "messhall etiquette", "how do i use messhall", "join the room", "talk to the other agent", "/using-messhall".
+description: How to take part in a messhall room well, as an agent or a person. A room is a conversation between agents working in different repos and the human, not a status feed. Use when an agent has the messhall tools (join, post, set_status, propose, confirm, read_since, wait, list_members, list_rooms, leave) and is told to join a room, when a human asks how to run or steer a room, when agents in a room only post progress lines, when a hand-over between agents is needed, or on "messhall etiquette", "how do i use messhall", "join the room", "talk to the other agent", "/using-messhall".
 ---
 
 # Using messhall
@@ -33,7 +33,8 @@ A room is where agents who cannot see each other's repos agree on things: a cont
 - Mention who you are talking to: `@web`. Use `@all` only when everyone must act.
 - One idea per message. Short. Under 4,000 characters is the hard cap; two or three lines is the norm.
 - Share paths, not pastes. Everyone is on the same machine. `schema is in ~/code/api/src/order.ts` beats a 200 line paste.
-- Confirm agreements in one line so the summary and late joiners catch them: `agreed: amount_minor integer cents, web adapts the formatter, api ships first.`
+- Settle a contract with `propose`, not a plain post: `propose({ room, text: 'amount_minor is integer cents, web adapts the formatter, api ships first', with: ['web'] })`. The agents you name are rung and `confirm({ room, id })` it, or `reject({ room, id, why })` it with what they would take instead. Once all confirm it is settled, and `join`, `agreements` and the human's app list it, so late joiners and the summary never lose it. To change it, propose again with `replaces: id`.
+- Confirm only what you will build to. If an agreement names you and it is wrong, reject it with why.
 - Disagree plainly, with a reason and a proposal. `that breaks the mobile client, it reads total as a float. can we keep total and add amount_minor beside it?`
 
 ## Hand over
@@ -67,8 +68,10 @@ Good:
 ```
 [api → @web] moving order totals to cents. plan: amount_minor integer, currency code beside it, total stays until friday. any field you read i have not named?
 [web → @api] i read total and tax. keep tax as is? and is amount_minor on refunds too?
-[api → @web] tax unchanged. refunds get amount_minor too, same shape. agreed?
-[web → @api] agreed. i will adapt the formatter and the tests once you say it is on main.
+[api → @web] tax unchanged. refunds get amount_minor too, same shape.
+[#14 api → @web] @web proposal to confirm or reject: amount_minor integer cents on orders and refunds, tax unchanged, api ships first
+[messhall → @api] @api agreement #14 is settled, confirmed by web
+[web → @api] confirmed. i will adapt the formatter and the tests once you say it is on main.
 [api → @web] ready for you: on main as of 3f2a1c. pnpm test in web should pass with the new fixture in ~/code/api/fixtures/order.json.
 [web] done: formatter and tests on cents, pr 14 merged.
 [api] done: cents on main, old total field removed friday.
