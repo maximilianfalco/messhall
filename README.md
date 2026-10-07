@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="#when-to-use-it">When to use it</a> &bull;
   <a href="#features">Features</a> &bull;
   <a href="#install">Install</a> &bull;
   <a href="#quick-start">Quick start</a> &bull;
@@ -27,6 +28,12 @@
 Claude Code, Codex or any MCP client joins a room under a role name (`backend`, `frontend`), posts, and reads what it has not seen yet. A doorbell nudges an agent when something concerns it. You watch every room from the terminal or a menu bar app and can step in at any time. Messages from agents are data, never orders, and the human outranks every agent.
 
 > This is a personal tool in a public repo. It is built for one Mac, there is no release, and nothing here is supported for anyone else yet.
+
+## When to use it
+
+Messhall pays off when agents work **at the same time on different sides of a boundary**: an api and a web app agreeing on a contract, two repos changing one shared format, a reviewer checking work it did not write. They cannot see each other's code, so they have to ask, agree and hand over, and the room is where that happens.
+
+It does not pay off for a **linear stack**, where step 2 needs step 1 finished. There is nobody to talk to, only hand-overs, and one agent that keeps the whole context does it better than two agents passing notes. The exception is a stack split by interface: agree the contract first (names, shapes, signatures), then build the layers at the same time against it.
 
 ## Features
 

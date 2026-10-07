@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DAEMON_HOST, SESSION_DEAD_MS } from '../../src/config.js';
+import { AWAY_AFTER_MS, DAEMON_HOST, SESSION_DEAD_MS } from '../../src/config.js';
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { connectHttp } from '../../src/mcp/testing.js';
@@ -45,8 +45,8 @@ afterEach(async () => {
   rmSync(home, { force: true, recursive: true });
 });
 
-async function start() {
-  const started = await startDaemon({ dataDir: home, now, port: 0 });
+async function start(sweepEveryMs?: number) {
+  const started = await startDaemon({ dataDir: home, now, port: 0, sweepEveryMs });
   if (!started.ok) throw new Error(`daemon did not start: ${started.reason}`);
   daemon = started.daemon;
   return started.daemon;
@@ -149,6 +149,23 @@ describe('the /mcp endpoint', () => {
 
     const found = daemon!.sessionsFor({ name: 'api', room: 'checkout' });
     expect(found.map(entry => entry.session.id)).toStrictEqual([api.transport.sessionId]);
+  });
+
+  it('shows a quiet seat its doorbell can reach as idle and one it cannot reach as away', async () => {
+    const { url } = await start(10);
+    const api = await agent(url);
+    const web = await agent(url);
+    const outsider = await agent(url);
+    await api.call('join', { as: 'api', kind: 'claude', room: 'checkout' });
+    await web.call('join', { as: 'web', kind: 'other', room: 'checkout' });
+
+    at += AWAY_AFTER_MS;
+
+    await vi.waitFor(async () => {
+      const members = (await outsider.call('list_members', { room: 'checkout' })).text;
+      expect(members).toContain('- api (messhall-http 0.1.0, idle)');
+      expect(members).toContain('- web (messhall-http 0.1.0, away)');
+    });
   });
 
   it('seats a client that comes back with its seat header after a restart, with its role, and no join', async () => {
@@ -375,6 +392,22 @@ describe('createMcpEndpoint sweep', () => {
     expect([early, swept]).toStrictEqual([0, 1]);
     expect(sessionOf('api')).toBeUndefined();
     expect(presenceOf('api')).toBe('away');
+  });
+
+  it('calls a seat ringable only while a live session can ring it', async () => {
+    const api = await agent(endpointUrl(), 'no-key-check-here');
+    const web = await agent(endpointUrl(), 'no-key-check-here');
+    await api.call('join', { as: 'api', kind: 'claude', room: 'checkout' });
+    await web.call('join', { as: 'web', kind: 'other', room: 'checkout' });
+    const before = ['api', 'web'].map(name => endpoint.ringable({ name, room: 'checkout' }));
+
+    await api.client.close();
+    await vi.waitFor(() => expect(sessionOf('api')?.open).toBe(0));
+    at += SESSION_DEAD_MS;
+    await endpoint.sweep();
+
+    expect(before).toStrictEqual([true, false]);
+    expect(endpoint.ringable({ name: 'api', room: 'checkout' })).toBe(false);
   });
 
   it('keeps a session whose stream is open however long it is quiet', async () => {

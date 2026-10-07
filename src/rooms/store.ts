@@ -826,15 +826,16 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Moves agents along with the clock: active to idle at 2 minutes, anything to away at 30. The human is left alone. */
-    sweepPresence() {
+    /** Moves agents along with the clock: active to idle at 2 minutes, anything to away at 30 unless `ringable`
+     * says its doorbell still reaches it. The human is left alone. */
+    sweepPresence({ ringable }: { ringable: (seat: { name: string; room: string }) => boolean }) {
       return transaction(emit => {
         const at = now();
         return sql.sweepable.all().flatMap(row => {
           const member = toMember(row);
-          const to = nextPresence({ member, now: at });
-          if (to === member.presence) return [];
           const room = roomById(member.room_id);
+          const to = nextPresence({ member, now: at, ringable: ringable({ name: member.name, room: room.name }) });
+          if (to === member.presence) return [];
           setPresence(room, member, to, emit, false);
           const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to };
           return [change];

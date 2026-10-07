@@ -134,7 +134,7 @@ describe('join', () => {
     await oldApi.call('read_since', { room: 'checkout' });
     await web.call('post', { room: 'checkout', text: 'two' });
     harness.clock.advance(AWAY_AFTER_MS);
-    harness.store.sweepPresence();
+    harness.store.sweepPresence({ ringable: () => false });
     const newApi = await harness.agent();
 
     const joined = await newApi.call('join', { as: 'api', room: 'checkout' });
@@ -295,7 +295,7 @@ describe('join', () => {
     const oldApi = await harness.joined('checkout', 'api');
     oldApi.session.hold();
     harness.clock.advance(IDLE_AFTER_MS);
-    harness.store.sweepPresence();
+    harness.store.sweepPresence({ ringable: () => false });
     const newApi = await harness.agent();
 
     const result = await newApi.call('join', { as: 'api', room: 'checkout' });
