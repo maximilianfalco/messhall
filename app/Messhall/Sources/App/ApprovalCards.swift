@@ -19,9 +19,12 @@ struct ApprovalCards: View {
 
 /// One ask: who asks, the tool, the agent's own summary and the call itself, with Deny and Allow.
 /// The summary and the call are the agent's text, so the call shows as plain monospaced text.
+/// Allow runs the whole call, so it is never cut: a long one scrolls in its box.
 struct ApprovalCard: View {
   let approval: Approval
   let answer: (Approval, Bool) -> Void
+
+  private static let previewHeight: CGFloat = 160
 
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
@@ -33,14 +36,16 @@ struct ApprovalCard: View {
           .font(.callout)
           .foregroundStyle(.secondary)
           .lineLimit(2)
-        Text(approval.inputPreview)
-          .font(.caption.monospaced())
-          .lineLimit(4)
-          .textSelection(.enabled)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(6)
-          .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-          .help(approval.inputPreview)
+        ScrollView {
+          Text(approval.inputPreview)
+            .font(.caption.monospaced())
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: Self.previewHeight)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(6)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
       }
       HStack(spacing: 8) {
         Button("Deny") { answer(approval, false) }

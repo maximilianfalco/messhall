@@ -207,6 +207,20 @@ describe('seedShotAsk', () => {
     expect(asks.map(ask => [ask.member, ask.tool, ask.state])).toStrictEqual([['deployer', 'Bash', 'pending']]);
     expect(presence).toBe('active');
   });
+
+  it('leaves a long ask in #release whose real tail sits past the first lines', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+    seedShotRooms({ dataDir, now });
+
+    seedShotAsk({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const [ask] = createRoomStore({ db, now: () => now }).pendingApprovals('release');
+    db.close();
+    expect(ask?.input_preview.split('\n').length).toBeGreaterThan(6);
+    expect(ask?.input_preview).toMatch(/git push --force origin main/);
+  });
 });
 
 describe('pickShots', () => {
@@ -217,6 +231,7 @@ describe('pickShots', () => {
   });
 
   it('takes only the named shots, in their own order', () => {
+    expect(pickShots('ask-dark,ask-light,ask-long-light').ok && pickShots('ask-long-light').ok).toBe(true);
     expect(pickShots('ask-dark,ask-light')).toMatchObject({
       ok: true,
       shots: [{ name: 'ask-light' }, { name: 'ask-dark' }],

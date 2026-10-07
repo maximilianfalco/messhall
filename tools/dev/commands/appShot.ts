@@ -102,6 +102,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'pr-cards-dark', pullRequests: true, room: 'reviews' },
   { appearance: 'light', name: 'ask-light', room: 'deploy' },
   { appearance: 'dark', name: 'ask-dark', room: 'deploy' },
+  { appearance: 'light', name: 'ask-long-light', room: 'release' },
+  { appearance: 'dark', name: 'ask-long-dark', room: 'release' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -334,7 +336,19 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
   }
 }
 
-/** Brings the deploy agent back and adds its pending tool ask. Runs after the daemon starts, since its start marks
+// Harmless first lines and the real step at the end, so the shot proves the card shows the whole call.
+const LONG_ASK = [
+  '{ "command": "set -e',
+  'pnpm install --frozen-lockfile',
+  'pnpm build',
+  'pnpm test',
+  'git tag v2.0.0',
+  'git push origin v2.0.0',
+  'git push --force origin main',
+  'npm publish --access public" }',
+].join('\n');
+
+/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release. Runs after the daemon starts, since its start marks
  * every agent away and expires every pending ask. */
 export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
   const db = openDb({ dataDir });
@@ -347,6 +361,15 @@ export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
       requestId: 'abcde',
       seats: [{ name: 'deployer', room: 'deploy' }],
       session: 'shot',
+      tool: 'Bash',
+    });
+    store.joinRoom({ as: 'shipper', client: CLAUDE, kind: 'claude', room: 'release' });
+    store.openApproval({
+      description: 'Tag and publish the release',
+      inputPreview: LONG_ASK,
+      requestId: 'fghij',
+      seats: [{ name: 'shipper', room: 'release' }],
+      session: 'shot-long',
       tool: 'Bash',
     });
   } finally {
