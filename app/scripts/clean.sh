@@ -4,8 +4,13 @@
 set -euo pipefail
 cd "${1:-$(dirname "$0")/../..}"
 
+# A worktree has a .git file. A folder means the main checkout, nothing means a typo in WORKTREE=.
 if [ -d .git ] && [ -z "${FORCE:-}" ]; then
   echo "$PWD is the main checkout, whose app the human runs. FORCE=1 make app-clean to clean it anyway." >&2
+  exit 1
+fi
+if [ ! -e .git ]; then
+  echo "$PWD is not a git worktree, nothing cleaned." >&2
   exit 1
 fi
 
