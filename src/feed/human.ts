@@ -9,6 +9,7 @@ import type {
   NewRoomResult,
   RemoveMemberResult,
   ReopenResult,
+  ReviewNudgesResult,
   SpawnResult,
 } from '../../contracts/feed.ts';
 import type { ApprovalBehavior } from '../../contracts/room.ts';
@@ -180,6 +181,13 @@ export function humanRoutes({
       if (result.ok) sendJson(res, 200, { room: result.room } satisfies ReopenResult);
       else if (result.reason === 'no_room') sendJson(res, 404, NO_ROOM);
       else sendJson(res, 409, { error: 'room is open' });
+      return;
+    }
+    if (target?.action === 'nudges-on' || target?.action === 'nudges-off') {
+      const on = target.action === 'nudges-on';
+      const result = store.setReviewNudges({ on, room: target.name });
+      if (result.ok) sendJson(res, 200, { review_nudges: on } satisfies ReviewNudgesResult);
+      else sendJson(res, 404, NO_ROOM);
       return;
     }
     if (target?.action !== 'messages') {
