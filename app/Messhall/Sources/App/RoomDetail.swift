@@ -64,7 +64,6 @@ struct RoomDetail: View {
     .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
     .onChange(of: room.name) { query = "" }
     .toolbar {
-      if #available(macOS 26, *) { ToolbarSpacer(.flexible) }
       ToolbarItem { CopyJoinButton(room: room.name) }
       ToolbarItem { MuteButton(room: room.name) }
       ToolbarItem {
