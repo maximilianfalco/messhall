@@ -6,7 +6,7 @@ import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 
 import { createCodexClient } from '../codex/client.js';
-import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, SWEEP_EVERY_MS } from '../config.js';
+import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, summariesOff, SWEEP_EVERY_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringer.js';
 import { createChannelRinger } from '../doorbell/ringers/channel.js';
@@ -108,7 +108,9 @@ export async function startDaemon({
   ]);
   const doorbell = startDoorbell({ now, ringers, store });
   const claude = claudeBin();
-  const stopSummaries = startSummaries({ claude: options => askClaude({ ...options, bin: claude }), store });
+  const stopSummaries = summariesOff()
+    ? () => {}
+    : startSummaries({ claude: options => askClaude({ ...options, bin: claude }), store });
   const startedAt = now().getTime();
   const url = `http://${DAEMON_HOST}:${bound.port}`;
 

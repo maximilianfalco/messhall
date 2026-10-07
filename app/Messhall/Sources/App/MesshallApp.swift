@@ -47,7 +47,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   private static func readPullRequest() -> PullRequestStore.Read {
     #if DEBUG
-      if let json = ShotHooks.pullRequests { return ShotHooks.readPullRequest(from: json) }
+      if let json = ShotHooks.pullRequests {
+        let read = ShotHooks.readPullRequest(from: json)
+        return { link in
+          PerfHooks.pullRequestReads += 1
+          return await read(link)
+        }
+      }
     #endif
     return Feed.readPullRequest
   }
@@ -109,6 +115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       }
       if let file = UserDefaults.standard.string(forKey: "shotSettings") {
         Task { await ShotHooks.openSettings(numberInto: file) }
+      }
+      if let file = PerfHooks.file {
+        Task { await PerfHooks.run(store: store, client: client, navigation: navigation, file: file) }
       }
       if UserDefaults.standard.bool(forKey: "shotMenu") { Task { await ShotHooks.openMenu() } }
       if let file = UserDefaults.standard.string(forKey: "shotHotkey") {

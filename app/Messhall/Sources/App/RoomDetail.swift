@@ -666,6 +666,9 @@ struct Transcript: View {
     DispatchQueue.main.async {
       ready = true
       if marks.wantsPage { loadOlder(items) }
+      #if DEBUG
+        PerfHooks.transcriptDidLayout()
+      #endif
     }
     #if DEBUG
       // The bottom anchor wins the first layout, so the shot scrolls up a beat later.
@@ -859,6 +862,9 @@ struct MessageRow: View {
   let sender: Member?
 
   var body: some View {
+    #if DEBUG
+      let _ = PerfHooks.countRow()
+    #endif
     switch message.kind {
     case .system, .unknown:
       Text("\(message.text)  \(message.time)")

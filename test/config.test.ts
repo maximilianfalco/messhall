@@ -2,7 +2,16 @@ import { readFileSync } from 'node:fs';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CLI_VERSION, claudeBin, daemonPort, dataDir, DEFAULT_PORT, launchAgentPath, logDir } from '../src/config.js';
+import {
+  CLI_VERSION,
+  claudeBin,
+  daemonPort,
+  dataDir,
+  DEFAULT_PORT,
+  launchAgentPath,
+  logDir,
+  summariesOff,
+} from '../src/config.js';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -53,6 +62,15 @@ describe('config', () => {
   it.each(['abc', '-1', '65536', '77.5'])('refuses MESSHALL_PORT %s', port => {
     vi.stubEnv('MESSHALL_PORT', port);
     expect(() => daemonPort()).toThrow(/MESSHALL_PORT/);
+  });
+
+  it('turns summaries off only when MESSHALL_SUMMARIES is off', () => {
+    vi.stubEnv('MESSHALL_SUMMARIES', 'off');
+    expect(summariesOff()).toBe(true);
+    vi.stubEnv('MESSHALL_SUMMARIES', '');
+    expect(summariesOff()).toBe(false);
+    vi.stubEnv('MESSHALL_SUMMARIES', 'on');
+    expect(summariesOff()).toBe(false);
   });
 
   it('puts the LaunchAgent in the user Library', () => {
