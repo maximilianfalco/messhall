@@ -32,6 +32,13 @@ const WINDOW_WITHIN_MS = 30_000;
 const SETTLE_MS = 2500;
 const POST_TEXT = 'thanks both. ship it once the e2e run is green';
 // Lands below a transcript scrolled to the top, so the jump pill shows.
+// A draft of four lines, so a shot shows where the send button sits once the box has grown.
+const FOUR_LINES = [
+  'ship it once the e2e run is green',
+  'then tag the release',
+  'and post the notes',
+  'thanks both',
+].join('\n');
 const AGENT_POST = { as: 'editor', room: 'docs-sync', text: 'the glossary page is updated too' };
 
 // The handoff shots go first, before the stale sweep drops the agents that left. Removed comes last, it changes the room.
@@ -62,6 +69,10 @@ const SHOTS = [
   { appearance: 'dark', name: 'human-row-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', name: 'empty-room-light', room: 'kickoff' },
   { appearance: 'dark', name: 'empty-room-dark', room: 'kickoff' },
+  { appearance: 'light', draft: 'ship it once the e2e run is green', name: 'compose-light', room: 'checkout' },
+  { appearance: 'dark', draft: 'ship it once the e2e run is green', name: 'compose-dark', room: 'checkout' },
+  { appearance: 'light', draft: FOUR_LINES, name: 'compose-lines-light', room: 'checkout' },
+  { appearance: 'dark', draft: FOUR_LINES, name: 'compose-lines-dark', room: 'checkout' },
   { appearance: 'light', draft: 'thanks @', name: 'picker-light', room: 'checkout' },
   { appearance: 'dark', draft: 'over to @a', name: 'picker-dark', room: 'checkout' },
   { appearance: 'light', keys: '@a|return', name: 'mention-pick-light', room: 'checkout' },
