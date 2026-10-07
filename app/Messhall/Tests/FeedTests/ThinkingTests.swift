@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Testing
 
 @testable import Feed
@@ -31,6 +31,15 @@ struct ThinkingTests {
     #expect(Thinking.shimmer(at: start) == 0)
     #expect(Thinking.shimmer(at: start + Thinking.sweep / 2) == 0.5)
     #expect(Thinking.shimmer(at: start + Thinking.sweep * 1.25) == 0.25)
+  }
+
+  @Test("every frame fits the glyph box, so the status text never moves as it spins")
+  func box() {
+    let font = NSFont.preferredFont(forTextStyle: .caption1)
+    let box = Thinking.box(for: font)
+    let widths = Thinking.frames.map { NSAttributedString(string: $0, attributes: [.font: font]).size().width }
+    #expect(widths.allSatisfy { $0 <= box })
+    #expect(box == widths.max().map { $0.rounded(.up) })
   }
 
   @Test("only an active member with a status is thinking", arguments: [

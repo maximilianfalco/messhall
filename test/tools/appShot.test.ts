@@ -9,6 +9,7 @@ import { createRoomStore } from '../../src/rooms/store.js';
 import {
   checkShotHome,
   isAccessory,
+  layoutResets,
   leftoverApps,
   MENU_LAYERS,
   pickShots,
@@ -277,6 +278,15 @@ describe('leftoverApps', () => {
 
   it('returns nothing when every launched app quit', () => {
     expect(leftoverApps({ isAlive: () => false, kill: () => {}, launched: [11, 12] })).toStrictEqual([]);
+  });
+});
+
+describe('layoutResets', () => {
+  it('deletes the saved window frame and sidebar, so a narrow or collapsed shot never carries into the next', () => {
+    expect(layoutResets('dev.messhall.app.worktree')).toStrictEqual([
+      ['delete', 'dev.messhall.app.worktree', 'NSWindow Frame main'],
+      ['delete', 'dev.messhall.app.worktree', 'NSSplitView Subview Frames main, SidebarNavigationSplitView'],
+    ]);
   });
 });
 

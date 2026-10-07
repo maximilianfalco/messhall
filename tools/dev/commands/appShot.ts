@@ -118,6 +118,12 @@ const SHOTS = [
     reduceMotion: true,
     room: 'launch',
   },
+  { appearance: 'light', name: 'sidebar-collapsed-light', sidebarCollapsed: true },
+  { appearance: 'dark', name: 'sidebar-collapsed-dark', sidebarCollapsed: true },
+  { appearance: 'light', name: 'narrow-light', width: 720 },
+  { appearance: 'dark', name: 'narrow-dark', width: 720 },
+  { appearance: 'light', glyph: 0, name: 'glyph-0-light', room: 'launch' },
+  { appearance: 'light', glyph: 3, name: 'glyph-3-light', room: 'launch' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -486,6 +492,14 @@ async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS):
   return waitFile(file, deadline);
 }
 
+// AppKit saves these on every resize or collapse, and the shot app shares one bundle id across launches.
+const SAVED_LAYOUT = ['NSWindow Frame main', 'NSSplitView Subview Frames main, SidebarNavigationSplitView'];
+
+/** The `defaults` calls that forget the window frame and sidebar the last shot app saved. */
+export function layoutResets(bundleId: string) {
+  return SAVED_LAYOUT.map(key => ['delete', bundleId, key]);
+}
+
 /** The launch args for one shot. The real app may share the bundle id, so a window closed there would stay shut here. */
 export function shotArgs(shot: Shot) {
   return [
@@ -520,6 +534,9 @@ export function shotArgs(shot: Shot) {
     ...('contract' in shot ? ['-shotContract', String(shot.contract)] : []),
     ...('notify' in shot ? ['-shotNotify', shot.notify] : []),
     ...('agents' in shot ? ['-shotAgents', 'YES'] : []),
+    ...('sidebarCollapsed' in shot ? ['-shotSidebarCollapsed', 'YES'] : []),
+    ...('width' in shot ? ['-shotWidth', String(shot.width)] : []),
+    ...('glyph' in shot ? ['-shotGlyph', String(shot.glyph)] : []),
     ...('reduceMotion' in shot ? ['-shotReduceMotion', 'YES'] : []),
     ...('pullRequests' in shot ? ['-shotPullRequests', JSON.stringify(JSON.stringify(PULL_REQUEST_ANSWERS))] : []),
   ];
@@ -583,6 +600,10 @@ async function shoot({
   rmSync(anchorFile(shot), { force: true });
   rmSync(hotkeyFile(shot), { force: true });
   rmSync(keysFile(shot), { force: true });
+  const bundleId = spawnSync('defaults', ['read', path.join(app, 'Contents', 'Info'), 'CFBundleIdentifier'], {
+    encoding: 'utf8',
+  }).stdout.trim();
+  layoutResets(bundleId).forEach(args => spawnSync('defaults', args, { stdio: 'ignore' }));
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
