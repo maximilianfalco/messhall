@@ -26,7 +26,7 @@ Sleep 500ms
 Enter
 Sleep 2s
 
-Type "git log -1 --format='%H %cI'; echo exit $?"
+Type "git --no-pager log -1 --format='%H %cI'; echo exit $?"
 Sleep 500ms
 Enter
 Sleep 2s
@@ -36,9 +36,9 @@ Sleep 500ms
 Enter
 Sleep 2s
 
+Sleep 5s
+
 Hide
 Type "kill $(lsof -t -iTCP:7801 -sTCP:LISTEN)"
 Enter
-Show
-
-Sleep 6s
+Sleep 1s
