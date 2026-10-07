@@ -5,6 +5,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { healthSchema } from '../../contracts/health.ts';
 import { daemonUrl, HEALTH_TIMEOUT_MS, launchAgentPath } from '../config.js';
 import { plistNodePath } from '../lib/plist.js';
+import { runCommand } from '../lib/run.js';
+
+import { localStamps, versionWarnings, type Stamp } from './versions.js';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -27,14 +30,18 @@ function uptime(seconds: number) {
     .join(' ');
 }
 
-/** The `status` report: up or down, the health numbers, and a warning when the LaunchAgent's node is gone. */
+/** The `status` report: up or down, the health numbers, and warnings for a gone LaunchAgent node or a side on old code. */
 export async function runStatus({
+  app,
   fetch,
+  installed,
   nodeExists,
   plist,
   url,
 }: {
+  app: Stamp | undefined;
   fetch: Fetch;
+  installed: Stamp;
   nodeExists: (file: string) => boolean;
   plist: string | undefined;
   url: string;
@@ -62,7 +69,8 @@ export async function runStatus({
     `rooms    ${health.rooms}`,
     `live     ${health.live_members} ${health.live_members === 1 ? 'member' : 'members'}`,
   ];
-  return { code: 0, report: [...lines, ...warning].join('\n') };
+  const daemon = { build: health.build, contract: health.contract_version };
+  return { code: 0, report: [...lines, ...warning, ...versionWarnings({ app, daemon, installed })].join('\n') };
 }
 
 /** Registers `status`. */
@@ -73,6 +81,7 @@ export function registerStatus(program: Command) {
     .action(async () => {
       const plistPath = launchAgentPath();
       const result = await runStatus({
+        ...(await localStamps(runCommand)),
         fetch,
         nodeExists: existsSync,
         plist: existsSync(plistPath) ? readFileSync(plistPath, 'utf8') : undefined,
