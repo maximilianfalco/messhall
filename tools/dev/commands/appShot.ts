@@ -13,6 +13,7 @@ import { createRoomStore, type RoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, formatTable, ok } from '../lib/print.js';
 
+import { APP_IDS } from './appBuilds.js';
 import { spawnDaemon } from './daemon.js';
 
 const SHOT_PORT = 7796;
@@ -495,8 +496,10 @@ async function waitFile(file: string, deadline = Date.now() + WINDOW_WITHIN_MS):
 // AppKit saves these on every resize or collapse, and the shot app shares one bundle id across launches.
 const SAVED_LAYOUT = ['NSWindow Frame main', 'NSSplitView Subview Frames main, SidebarNavigationSplitView'];
 
-/** The `defaults` calls that forget the window frame and sidebar the last shot app saved. */
+/** The `defaults` calls that forget the window frame and sidebar the last shot app saved. None for the real app. */
 export function layoutResets(bundleId: string) {
+  // A main checkout build shares the human's own app id, so its saved layout is the human's.
+  if (bundleId === APP_IDS[0]) return [];
   return SAVED_LAYOUT.map(key => ['delete', bundleId, key]);
 }
 

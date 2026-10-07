@@ -288,6 +288,10 @@ describe('layoutResets', () => {
       ['delete', 'dev.messhall.app.worktree', 'NSSplitView Subview Frames main, SidebarNavigationSplitView'],
     ]);
   });
+
+  it('never touches the real app, which the main checkout builds under its own id', () => {
+    expect(layoutResets('dev.messhall.app')).toStrictEqual([]);
+  });
 });
 
 describe('shotArgs', () => {
