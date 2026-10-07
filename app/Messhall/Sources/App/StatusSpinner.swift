@@ -40,6 +40,8 @@ final class SpinnerView: NSView {
   private var text = ""
   private var color = NSColor.labelColor
   private var frozen: Int?
+  /// What the running animations were built for, so a redraw that changes neither leaves them alone.
+  private var running: (frozen: Int?, width: CGFloat)?
 
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -130,7 +132,12 @@ final class SpinnerView: NSView {
   }
 
   /// Opacity keyframes on each glyph and one sliding band, both repeating on the render server.
+  /// Built once per frozen frame and band width, so a redraw never restarts them, and started from the wall
+  /// clock, so every spinner on screen stays in step.
   private func animate() {
+    let width = shine.bounds.width
+    if let running, running == (frozen, width) { return }
+    running = (frozen, width)
     for layer in glyphs { layer.removeAllAnimations() }
     shine.removeAllAnimations()
     CATransaction.begin()
@@ -149,15 +156,22 @@ final class SpinnerView: NSView {
       frames.calculationMode = .discrete
       frames.duration = Thinking.step * Double(Thinking.frames.count)
       frames.repeatCount = .infinity
+      frames.beginTime = Self.phased(start: frames.duration, on: layer)
       layer.add(frames, forKey: "spin")
     }
-    let width = shine.bounds.width
     guard width > 0 else { return }
     let sweep = CABasicAnimation(keyPath: "position.x")
     sweep.fromValue = shine.position.x - width
     sweep.toValue = shine.position.x + width
     sweep.duration = Thinking.sweep
     sweep.repeatCount = .infinity
+    sweep.beginTime = Self.phased(start: Thinking.sweep, on: shine)
     shine.add(sweep, forKey: "sweep")
+  }
+
+  /// A begin time in the layer's clock that puts a `cycle` long loop where the wall clock says it should be.
+  private static func phased(start cycle: TimeInterval, on layer: CALayer) -> CFTimeInterval {
+    let into = Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle)
+    return layer.convertTime(CACurrentMediaTime(), from: nil) - into
   }
 }

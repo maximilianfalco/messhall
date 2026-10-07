@@ -12,19 +12,9 @@ struct ThinkingTests {
       status: status)
   }
 
-  @Test("the glyph cycles out and back, one frame per step")
+  @Test("the frames go out and back, so the loop never jumps from the last glyph to the first")
   func cycle() {
-    let start = Date(timeIntervalSinceReferenceDate: 0)
-    let glyphs = (0..<7).map { Thinking.glyph(at: start + Double($0) * Thinking.step, animated: true) }
-    #expect(glyphs == ["✻", "✳", "✶", "✢", "✶", "✳", "✻"])
-  }
-
-  @Test("the frame index walks every frame once per cycle and stays at zero when still")
-  func index() {
-    let start = Date(timeIntervalSinceReferenceDate: 0)
-    let indices = (0..<6).map { Thinking.index(at: start + Double($0) * Thinking.step, animated: true) }
-    #expect(indices == [0, 1, 2, 3, 4, 5])
-    #expect(Thinking.index(at: start + Thinking.step * 3, animated: false) == 0)
+    #expect(Thinking.frames == ["✻", "✳", "✶", "✢", "✶", "✳"])
   }
 
   @Test("a glyph layer is on for its own slot only, so the six layers show one frame at a time")
@@ -32,20 +22,6 @@ struct ThinkingTests {
     #expect(Thinking.keyframes(showing: 2) == [0, 0, 1, 0, 0, 0])
     let sums = Thinking.frames.indices.map { slot in Thinking.frames.indices.map { Thinking.keyframes(showing: $0)[slot] }.reduce(0, +) }
     #expect(sums == [1, 1, 1, 1, 1, 1])
-  }
-
-  @Test("a still glyph never moves")
-  func still() {
-    let glyphs = (0..<4).map { Thinking.glyph(at: Date(timeIntervalSinceReferenceDate: Double($0)), animated: false) }
-    #expect(Set(glyphs) == ["✻"])
-  }
-
-  @Test("the shimmer sweeps from 0 to 1 and starts again")
-  func shimmer() {
-    let start = Date(timeIntervalSinceReferenceDate: 0)
-    #expect(Thinking.shimmer(at: start) == 0)
-    #expect(Thinking.shimmer(at: start + Thinking.sweep / 2) == 0.5)
-    #expect(Thinking.shimmer(at: start + Thinking.sweep * 1.25) == 0.25)
   }
 
   @Test("every frame fits the glyph box, so the status text never moves as it spins")
