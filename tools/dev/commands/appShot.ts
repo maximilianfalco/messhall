@@ -218,11 +218,13 @@ function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomS
     pr => `https://github.com/acme/${pr}`,
   );
   ['api', 'web', 'reviewer'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room }));
+  const unreadable = 'https://github.com/acme/docs/pull/7';
   const lines: [string, string][] = [
     ['api', `ready for review: ${open} @reviewer`],
     ['web', `merged: ${merged}, prices read minor units now`],
+    ['web', `the docs change is ${unreadable}, gh cannot see that repo so it stays a plain link`],
     ['api', `ci is red on ${failing}, it touches the key check so it waits for @human`],
-    ['reviewer', `where we are: ${open} ${merged} ${failing} ${draft} https://github.com/acme/docs/pull/7`],
+    ['reviewer', `where we are: ${draft} ${open} ${merged} ${failing} ${unreadable}`],
   ];
   lines.forEach(([from, text]) => {
     step(10_000);
