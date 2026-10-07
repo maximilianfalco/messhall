@@ -84,6 +84,7 @@
     }
 
     private static func idleCpu() async -> Double {
+      note("idle: clock ticking \(ThinkingClock.shared.isTicking), thinking \(ThinkingClock.shared.thinking), visible \(ThinkingClock.shared.visible)")
       let cpu = cpuSeconds()
       let wall = CACurrentMediaTime()
       try? await Task.sleep(for: .seconds(idleSeconds))

@@ -522,6 +522,14 @@ export function layoutResets(bundleId: string) {
   return SAVED_LAYOUT.map(key => ['delete', bundleId, key]);
 }
 
+/** Forgets the window frame and sidebar the last app from this build saved, so the next one opens on screen. */
+export function forgetLayout(app: string) {
+  const bundleId = spawnSync('defaults', ['read', path.join(app, 'Contents', 'Info'), 'CFBundleIdentifier'], {
+    encoding: 'utf8',
+  }).stdout.trim();
+  layoutResets(bundleId).forEach(args => spawnSync('defaults', args, { stdio: 'ignore' }));
+}
+
 /** The launch args for one shot. The real app may share the bundle id, so a window closed there would stay shut here. */
 export function shotArgs(shot: Shot) {
   return [
@@ -623,10 +631,7 @@ async function shoot({
   rmSync(anchorFile(shot), { force: true });
   rmSync(hotkeyFile(shot), { force: true });
   rmSync(keysFile(shot), { force: true });
-  const bundleId = spawnSync('defaults', ['read', path.join(app, 'Contents', 'Info'), 'CFBundleIdentifier'], {
-    encoding: 'utf8',
-  }).stdout.trim();
-  layoutResets(bundleId).forEach(args => spawnSync('defaults', args, { stdio: 'ignore' }));
+  forgetLayout(app);
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {

@@ -19,6 +19,7 @@ import {
   appPids,
   buildApp,
   checkShotHome,
+  forgetLayout,
   isAccessory,
   leftoverApps,
   PULL_REQUEST_ANSWERS,
@@ -260,6 +261,7 @@ function launch({
   env: NodeJS.ProcessEnv;
   launched: number[];
 }) {
+  forgetLayout(app);
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), args, { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
