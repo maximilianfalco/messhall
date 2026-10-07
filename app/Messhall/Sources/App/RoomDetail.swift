@@ -399,13 +399,17 @@ struct MemberChip: View {
 
   var body: some View {
     HStack(spacing: 8) {
-      AvatarView(name: member.name, size: 26)
+      AvatarView(name: member.name, size: 26, presence: member.presence)
       VStack(alignment: .leading, spacing: 1) {
         HStack(spacing: 5) {
           Text(member.displayName)
             .font(.callout.weight(.medium))
           if let label = member.clientLabel {
             TypePill(label: label, name: member.name)
+          } else if member.kind != .human {
+            Image(systemName: member.kind.symbol)
+              .imageScale(.small)
+              .foregroundStyle(.secondary)
           }
           if let role = member.rolePill {
             RolePill(role: role)
@@ -417,16 +421,6 @@ struct MemberChip: View {
             AskPill()
           }
         }
-        HStack(spacing: 4) {
-          PresenceDot(presence: member.presence)
-          Text(member.presence.label)
-          if member.kind != .human, member.clientLabel == nil {
-            Image(systemName: member.kind.symbol)
-              .imageScale(.small)
-          }
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
         if member.status != nil {
           StatusLine(member: member)
         }
@@ -541,21 +535,6 @@ struct MutedPill: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
       .background(.orange.opacity(0.12), in: Capsule())
-  }
-}
-
-struct PresenceDot: View {
-  let presence: Presence
-
-  var body: some View {
-    Group {
-      if presence.isAway {
-        Circle().strokeBorder(presence.color, lineWidth: 1.5)
-      } else {
-        Circle().fill(presence.color)
-      }
-    }
-    .frame(width: 7, height: 7)
   }
 }
 

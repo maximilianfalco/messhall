@@ -74,7 +74,7 @@ struct AgentRowView: View {
     VStack(alignment: .leading, spacing: 8) {
       Button(action: open) {
         HStack(alignment: .top, spacing: 8) {
-          AvatarView(name: member.name, size: 26)
+          AvatarView(name: member.name, size: 26, presence: member.presence, done: member.done)
           VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
               Text(member.name)
@@ -87,12 +87,6 @@ struct AgentRowView: View {
               }
             }
             .lineLimit(1)
-            HStack(spacing: 4) {
-              PresenceDot(presence: member.presence)
-              Text(member.done ? "Done" : member.presence.label)
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
             if member.status != nil {
               StatusLine(member: member, maxWidth: .infinity)
             }
