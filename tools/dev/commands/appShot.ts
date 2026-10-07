@@ -134,14 +134,20 @@ export const PULL_REQUEST_ANSWERS = {
   },
   'https://github.com/acme/shop/pull/42': {
     isDraft: false,
-    labels: [{ name: 'human veto' }],
+    labels: [{ color: 'B60205', name: 'human veto' }],
     state: 'OPEN',
     statusCheckRollup: [check('SUCCESS'), check('FAILURE')],
     title: 'Check the agent key once per request',
   },
   'https://github.com/acme/shop/pull/43': {
     isDraft: true,
-    labels: [],
+    labels: [
+      { color: 'fbca04', name: 'app' },
+      { color: '0052cc', name: 'payments' },
+      { color: 'c5def5', name: 'needs design' },
+      { color: 'd73a4a', name: 'bug' },
+      { color: 'ededed', name: 'wontfix' },
+    ],
     state: 'OPEN',
     statusCheckRollup: [{ __typename: 'CheckRun', conclusion: '', status: 'IN_PROGRESS' }],
     title: 'Refund flow',
@@ -223,7 +229,7 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
   ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'away' }));
 }
 
-/** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft, and one gh cannot read. */
+/** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft with five labels, and one gh cannot read. */
 function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'reviews';
   const [open, failing, draft, merged] = ['shop/pull/41', 'shop/pull/42', 'shop/pull/43', 'web/pull/38'].map(

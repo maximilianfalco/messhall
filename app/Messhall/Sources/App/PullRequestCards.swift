@@ -18,6 +18,7 @@ struct PullRequestCards: View {
             .foregroundStyle(.secondary)
         }
       }
+      .padding(.top, 5)
     }
   }
 }
@@ -67,7 +68,7 @@ struct PullRequestCardView: View {
               Label(ci, systemImage: card.ci.symbol)
                 .foregroundStyle(card.ci.color)
             }
-            if card.humanVeto { HumanVetoPill() }
+            LabelPills(labels: card.labels)
           }
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -90,20 +91,51 @@ struct PullRequestCardView: View {
   }
 
   private var spoken: String {
-    [card.title, card.link.label, card.state.title, card.ci.label, card.humanVeto ? "human veto" : nil]
+    ([card.title, card.link.label, card.state.title, card.ci.label] + card.labels.map(\.name))
       .compactMap { $0 }.joined(separator: ", ")
   }
 }
 
-/// Says the PR waits for the owner to merge it.
-private struct HumanVetoPill: View {
+/// The PR's labels in GitHub's colors: the first few, then one +N chip. Hover names them all.
+private struct LabelPills: View {
+  let labels: [PullRequestLabel]
+
   var body: some View {
-    Label("human veto", systemImage: "hand.raised.fill")
+    let row = LabelRow(labels: labels)
+    if !labels.isEmpty {
+      HStack(spacing: 4) {
+        ForEach(Array(row.shown.enumerated()), id: \.offset) { LabelPill(label: $0.element) }
+        if row.more > 0 {
+          Text("+\(row.more)")
+            .fixedSize()
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(.quaternary, in: Capsule())
+        }
+      }
+      .help(labels.map(\.name).joined(separator: ", "))
+    }
+  }
+}
+
+private struct LabelPill: View {
+  let label: PullRequestLabel
+
+  var body: some View {
+    let pill = Text(label.name)
+      .lineLimit(1)
+      .truncationMode(.tail)
+      .frame(maxWidth: 120)
       .fixedSize()
-      .foregroundStyle(.orange)
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
-      .background(.orange.opacity(0.12), in: Capsule())
+    if let color = label.color {
+      pill
+        .foregroundStyle(color.wantsDarkText ? Color.black : .white)
+        .background(Color(red: color.red, green: color.green, blue: color.blue), in: Capsule())
+    } else {
+      pill.foregroundStyle(.secondary).background(.quaternary, in: Capsule())
+    }
   }
 }
 
