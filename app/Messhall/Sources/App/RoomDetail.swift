@@ -406,6 +406,9 @@ struct MemberChip: View {
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+        if member.status != nil {
+          StatusLine(member: member)
+        }
       }
     }
     .padding(.horizontal, 10)
@@ -419,6 +422,22 @@ struct MemberChip: View {
 }
 
 /// The agent type next to a name, tinted with the member's avatar hue.
+/// The member's own status and its age. The age ticks each minute without a feed event.
+struct StatusLine: View {
+  let member: Member
+
+  var body: some View {
+    TimelineView(.periodic(from: .now, by: 60)) { context in
+      Text(member.statusLine(now: context.date) ?? "")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .truncationMode(.tail)
+        .frame(maxWidth: 240, alignment: .leading)
+    }
+  }
+}
+
 struct TypePill: View {
   let label: String
   let name: String

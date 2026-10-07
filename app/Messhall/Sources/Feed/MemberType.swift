@@ -26,14 +26,32 @@ extension Member {
     kind == .human ? nil : muted ? "Unmute" : "Mute"
   }
 
-  /// `web, opencode 1.18.34, waiting`. A member with no client says its kind instead.
+  /// `web, opencode 1.18.34, waiting, tests green`. A member with no client says its kind instead.
   public func spokenLabel(as displayName: String) -> String {
     "\(displayName), \(client ?? kind.rawValue), \(presence.rawValue)\(muted ? ", muted" : "")"
+      + (status.map { ", \($0)" } ?? "")
   }
 
-  /// `web runs on opencode 1.18.34 and is waiting`, the hover help on the chip.
+  /// `web runs on opencode 1.18.34 and is waiting: tests green`, the hover help on the chip.
   public func help(as displayName: String) -> String {
     "\(displayName) runs on \(client ?? kind.rawValue) and is \(presence.rawValue)\(muted ? ", muted" : "")"
+      + (status.map { ": \($0)" } ?? "")
+  }
+
+  /// `tests green · 3m ago`, the status under the presence on the chip. Nil when the member set none.
+  public func statusLine(now: Date) -> String? {
+    guard let status else { return nil }
+    let at = statusAt.flatMap { try? Date($0, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)) }
+    guard let at else { return status }
+    let minutes = Int(now.timeIntervalSince(at) / 60)
+    let age =
+      switch minutes {
+      case ..<1: "just now"
+      case ..<60: "\(minutes)m ago"
+      case ..<(24 * 60): "\(minutes / 60)h ago"
+      default: "\(minutes / (24 * 60))d ago"
+      }
+    return "\(status) · \(age)"
   }
 }
 

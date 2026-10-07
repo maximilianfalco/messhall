@@ -151,7 +151,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       `SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} ORDER BY id DESC LIMIT ?) ORDER BY id`,
     ),
     latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
-    leave: db.prepare("UPDATE members SET left_at = ?, presence = 'left' WHERE room_id = ? AND name = ?"),
+    leave: db.prepare(
+      "UPDATE members SET left_at = ?, presence = 'left', status = NULL, status_at = NULL WHERE room_id = ? AND name = ?",
+    ),
     liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
     member: db.prepare('SELECT * FROM members WHERE room_id = ? AND name = ?'),
     messagesAfter: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? ORDER BY id LIMIT ?'),
@@ -174,9 +176,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     unpauseAll: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ?'),
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
-    // A seat still held keeps its status. One that left starts without it.
     rejoin: db.prepare(
-      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = done * ?, status = iif(left_at IS NULL, status, NULL), status_at = iif(left_at IS NULL, status_at, NULL) WHERE room_id = ? AND name = ?",
+      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = done * ? WHERE room_id = ? AND name = ?",
     ),
     reopen: db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),

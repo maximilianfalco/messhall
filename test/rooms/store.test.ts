@@ -1489,13 +1489,17 @@ describe('status', () => {
     expect(memberOf('demo', 'api')).toMatchObject({ status: 'tests green' });
   });
 
-  it('drops the status after a leave', () => {
+  it('drops the status on a leave, so a later join starts without one', () => {
     joinBoth();
     setStatus();
-    store().leaveRoom({ as: 'api', room: 'demo' });
 
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    const left = store()
+      .listMembers('demo', { left: true })
+      .find(member => member.name === 'api');
     store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
 
+    expect(left).toMatchObject({ status: null, status_at: null });
     expect(memberOf('demo', 'api')).toMatchObject({ status: null, status_at: null });
   });
 
