@@ -129,9 +129,12 @@ export function createMcpEndpoint({
   };
 
   return {
-    /** Closes every session, marking their members away. */
+    /** Closes every session for a shutdown. Seats stay as they were, so the next start marks them reconnecting
+     * and wakes them, not away. */
     async close() {
-      await Promise.all(sessions.all().map(entry => entry.transport.close()));
+      const live = sessions.all();
+      live.forEach(entry => sessions.remove(entry.session.id));
+      await Promise.all(live.map(entry => entry.transport.close()));
     },
     handle,
     /** Closes dead sessions: no GET stream, no open request and no call for a minute. Returns how many closed. */
