@@ -335,6 +335,41 @@
     "Health": {
       "type": "object",
       "properties": {
+        "build": {
+          "description": "The code the daemon started on, null when it is not a git checkout. Missing means a daemon too old to say.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "commit": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$",
+                  "description": "The git commit the code was built from, 40 hex chars."
+                },
+                "committed_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                  "description": "When that commit was made, ISO 8601 in UTC. Later means newer code."
+                }
+              },
+              "required": [
+                "commit",
+                "committed_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contract_version": {
+          "description": "The feed contract the daemon speaks. Missing means a daemon too old to say.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
         "live_members": {
           "type": "integer",
           "minimum": 0,
@@ -1305,6 +1340,35 @@
     "Snapshot": {
       "type": "object",
       "properties": {
+        "build": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "commit": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$",
+                  "description": "The git commit the code was built from, 40 hex chars."
+                },
+                "committed_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                  "description": "When that commit was made, ISO 8601 in UTC. Later means newer code."
+                }
+              },
+              "required": [
+                "commit",
+                "committed_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The code the daemon started on, null when it is not a git checkout."
+        },
         "contract_version": {
           "type": "integer",
           "exclusiveMinimum": 0,
@@ -1331,6 +1395,7 @@
         }
       },
       "required": [
+        "build",
         "contract_version",
         "rooms",
         "seq",
