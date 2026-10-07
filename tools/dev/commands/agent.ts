@@ -1,8 +1,12 @@
 import type { Client } from '@modelcontextprotocol/client';
 import type { Command } from 'commander';
 
+import { randomInt } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+import { z } from 'zod';
 
 import { daemonUrl, dataDir } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
@@ -14,12 +18,18 @@ import {
   type AgentSession,
   type ToolReply,
 } from '../../../src/mcp/oneshot.js';
+import { PERMISSION_METHOD, PERMISSION_REQUEST_METHOD } from '../../../src/mcp/permission.js';
 import { follow } from '../lib/follow.js';
 import { bad, dim, ok } from '../lib/print.js';
 
 const MORE = 'more are waiting';
+// Claude Code's own request id alphabet: lowercase, no l.
+const ASK_LETTERS = 'abcdefghijkmnopqrstuvwxyz';
+const ASK_TIMEOUT_S = 120;
+const verdictSchema = z.object({ behavior: z.string(), request_id: z.string() });
 
 interface AgentOptions {
+  ask?: string;
   assign?: string;
   catchUp?: boolean;
   client?: string;
@@ -71,6 +81,42 @@ async function joinAndRead(
   else if (await step('wait', { room, timeout_s: timeout })) await step('read_since', { room });
   await step('leave', { room });
   return replies;
+}
+
+/** Joins, asks to run `command` the way Claude Code relays a permission dialog, waits for the verdict, then leaves. */
+async function joinAndAsk(
+  client: Client,
+  { command, role, room, timeout = ASK_TIMEOUT_S }: { command: string; role: string; room: string; timeout?: number },
+) {
+  const joined = await callTool(client, 'join', { as: role, room });
+  if (joined.isError) return [joined];
+  const requestId = Array.from({ length: 5 }, () => ASK_LETTERS[randomInt(ASK_LETTERS.length)]).join('');
+  const verdict = new Promise<string>(resolve => {
+    client.setNotificationHandler(PERMISSION_METHOD, { params: verdictSchema }, params => {
+      if (params.request_id === requestId) resolve(params.behavior);
+    });
+  });
+  const started = performance.now();
+  await client.notification({
+    method: PERMISSION_REQUEST_METHOD,
+    params: {
+      description: `Run ${command}`,
+      input_preview: `{ "command": ${JSON.stringify(command)} }`,
+      request_id: requestId,
+      tool_name: 'Bash',
+    },
+  });
+  const timer = new AbortController();
+  const behavior = await Promise.race([verdict, sleep(timeout * 1000, '', { signal: timer.signal }).catch(() => '')]);
+  // A live timer would hold the process open for the whole timeout.
+  timer.abort();
+  const asked: ToolReply = {
+    isError: !behavior,
+    name: 'ask',
+    seconds: (performance.now() - started) / 1000,
+    text: behavior ? `verdict ${behavior}` : `no verdict in ${timeout} s`,
+  };
+  return [joined, asked, await callTool(client, 'leave', { room })];
 }
 
 /** Joins, posts `say` if given, sets `member`'s role, then leaves even after a refusal. */
@@ -135,9 +181,10 @@ async function joinAndFollow(
 
 /**
  * A scripted agent over real HTTP MCP: joins `room` as `role`, posts `say`, and always leaves before the
- * session ends. `wait` blocks once, `catchUp` reads the backlog, `follow` holds the seat until `signal` aborts.
+ * session ends. `ask` waits up to `timeout` (120 s) for the human's verdict, `wait` blocks once, `catchUp` reads the backlog, `follow` holds the seat until `signal` aborts.
  */
 export async function agentRun({
+  ask,
   assign,
   instructions: instructionsFile,
   catchUp,
@@ -170,11 +217,13 @@ export async function agentRun({
   const session = await withAgentSession(target, mcp =>
     following
       ? joinAndFollow(mcp, { open: () => openAgentSession(target), pause, postFifo, role, room, signal, write })
-      : member && value
-        ? joinAssignLeave(mcp, { instructions, member, role, room, say, value })
-        : wait || catchUp
-          ? joinAndRead(mcp, { catchUp, role, room, say, timeout })
-          : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
+      : ask
+        ? joinAndAsk(mcp, { command: ask, role, room, timeout })
+        : member && value
+          ? joinAssignLeave(mcp, { instructions, member, role, room, say, value })
+          : wait || catchUp
+            ? joinAndRead(mcp, { catchUp, role, room, say, timeout })
+            : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
   );
   if (!session.ok) {
     return {
@@ -189,20 +238,23 @@ export async function agentRun({
       ? `${role} join #${room}`
       : name === 'wait'
         ? `${role} wait, blocked ${seconds.toFixed(1)} s`
-        : `${role} ${name}`;
+        : name === 'ask'
+          ? `${role} ask Bash: ${ask}`
+          : `${role} ${name}`;
   const lines = session.value.flatMap(reply => [reply.isError ? bad(label(reply)) : ok(label(reply)), reply.text, '']);
   const left = session.value.some(reply => reply.name === 'leave' && !reply.isError);
   lines.push(dim(left ? `session ended, ${role} left #${room}` : `session ended, ${role} is away from #${room}`));
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--seat <key>] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--ask <command>] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--seat <key>] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
     .description('A scripted agent over real HTTP MCP: join, post, wait, read, with how long wait blocked.')
     .requiredOption('--room <room>', 'room to join')
     .option('--say <text>', 'post this after joining')
+    .option('--ask <command>', 'ask to run this Bash command as Claude Code does, print the verdict, then leave')
     .option('--assign <member=role>', "set a member's role after the post, as the orchestrator does")
     .option('--instructions <file>', 'with --assign, send this file as the role instructions')
     .option('--wait', 'block until something concerns this agent, then read')

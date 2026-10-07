@@ -118,6 +118,11 @@ public final class FeedStore {
     apply(.room(RoomEvent(change: .topic, room: room)))
   }
 
+  /// Takes out asks the human just answered, before their events come back.
+  func settle(_ approvals: [Approval]) {
+    approvals.forEach { apply(.approval(ApprovalEvent(room: $0.room, approval: $0))) }
+  }
+
   private func apply(_ event: BusEvent) {
     switch event {
     case .message(let e):
@@ -149,6 +154,11 @@ public final class FeedStore {
         room.createdBy = e.room.createdBy
         room.standing = e.room.standing
         room.closedAt = e.room.closedAt
+      }
+    case .approval(let e):
+      update(e.room) { room in
+        room.approvals.removeAll { $0.id == e.approval.id }
+        if e.approval.state == .pending { room.approvals.append(e.approval) }
       }
     case .unknown:
       break

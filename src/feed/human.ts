@@ -1,4 +1,5 @@
 import type {
+  ApprovalResult,
   CloseResult,
   Flock,
   HumanPostResult,
@@ -9,23 +10,43 @@ import type {
   ReopenResult,
   SpawnResult,
 } from '../../contracts/feed.ts';
+import type { ApprovalBehavior } from '../../contracts/room.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
 import type { Spawner } from '../flock/spawner.js';
 import type { RoomStore } from '../rooms/store.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { humanPostSchema, humanRoleSchema, humanSpawnSchema, newRoomSchema } from '../../contracts/feed.ts';
+import {
+  humanApprovalSchema,
+  humanPostSchema,
+  humanRoleSchema,
+  humanSpawnSchema,
+  newRoomSchema,
+} from '../../contracts/feed.ts';
 import { HUMAN_NAME, nameSchema } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
-import { memberMuteTarget, memberRoleTarget, memberTarget, readJson, roomTarget } from './http.js';
+import { approvalTarget, memberMuteTarget, memberRoleTarget, memberTarget, readJson, roomTarget } from './http.js';
 
 const NO_ROOM = { error: 'no such room' };
 
+/** Sends the human's verdict to the agent session that asked. False when that session is gone. */
+export type Relay = (verdict: { behavior: ApprovalBehavior; requestId: string; session: string }) => Promise<boolean>;
+
 /** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
- * this runs, so no agent can speak as the human or start an agent. */
-export function humanRoutes({ keys, spawner, store }: { keys: Keys; spawner: Spawner; store: RoomStore }) {
+ * this runs, so no agent can speak as the human, start an agent or answer a tool ask. */
+export function humanRoutes({
+  keys,
+  relay,
+  spawner,
+  store,
+}: {
+  keys: Keys;
+  relay: Relay;
+  spawner: Spawner;
+  store: RoomStore;
+}) {
   const create: Handler = async (req, res) => {
     const body = await readJson(req);
     const parsed = newRoomSchema.safeParse(body.ok ? body.value : undefined);
@@ -172,6 +193,30 @@ export function humanRoutes({ keys, spawner, store }: { keys: Keys; spawner: Spa
     else sendJson(res, 409, { error: `post refused: ${result.reason}` });
   };
 
+  // The ask closes before the verdict goes, so two answers to one id can never both reach the agent.
+  const approve: Handler = async (req, res) => {
+    const id = approvalTarget(req);
+    if (!id) {
+      sendJson(res, 404, { error: 'not found' });
+      return;
+    }
+    const body = await readJson(req);
+    const parsed = humanApprovalSchema.safeParse(body.ok ? body.value : undefined);
+    if (!parsed.success) {
+      sendJson(res, 400, { error: 'send json { behavior }: allow or deny' });
+      return;
+    }
+    const { behavior } = parsed.data;
+    const answered = store.answerApproval({ behavior, id });
+    if (!answered.ok) {
+      sendJson(res, 404, { error: `no pending ask ${id}: wrong id, or it was answered or expired` });
+      return;
+    }
+    if (await relay({ behavior, requestId: answered.requestId, session: answered.session })) {
+      sendJson(res, 200, { approvals: answered.approvals } satisfies ApprovalResult);
+    } else sendJson(res, 410, { error: 'the agent that asked is gone, nothing ran' });
+  };
+
   const remove: Handler = async (req, res) => {
     const target = memberTarget(req);
     if (!target) {
@@ -193,6 +238,7 @@ export function humanRoutes({ keys, spawner, store }: { keys: Keys; spawner: Spa
     { handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', remove), method: 'DELETE', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', flock), method: 'GET', path: '/api/flock' },
+    { handle: keys.requireKey('human', approve), method: 'POST', path: '/api/approvals/*' },
   ];
   return routes;
 }

@@ -2,6 +2,120 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "messhall contracts",
   "$defs": {
+    "Approval": {
+      "type": "object",
+      "properties": {
+        "answered_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When it was answered or expired, null while pending."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When the agent asked."
+        },
+        "description": {
+          "type": "string",
+          "description": "The agent's own summary of the call. Untrusted text, never the command itself."
+        },
+        "id": {
+          "type": "string",
+          "description": "Approval id. The human answers this exact id."
+        },
+        "input_preview": {
+          "type": "string",
+          "description": "The tool arguments as JSON shaped text, like the command for Bash. Untrusted."
+        },
+        "member": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The seat whose agent asks."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room the seat is in."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "allowed",
+            "denied",
+            "expired"
+          ],
+          "description": "pending until the human answers, allowed or denied after, expired when nobody answered in time."
+        },
+        "tool": {
+          "type": "string",
+          "description": "The tool the agent wants to use, like Bash or Write."
+        }
+      },
+      "required": [
+        "answered_at",
+        "created_at",
+        "description",
+        "id",
+        "input_preview",
+        "member",
+        "room",
+        "state",
+        "tool"
+      ],
+      "additionalProperties": false
+    },
+    "ApprovalEvent": {
+      "type": "object",
+      "properties": {
+        "approval": {
+          "description": "The approval after the change.",
+          "$ref": "#/$defs/Approval"
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "type": {
+          "type": "string",
+          "const": "approval",
+          "description": "An agent asked to use a tool, or its ask was answered or expired."
+        }
+      },
+      "required": [
+        "approval",
+        "room",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "ApprovalResult": {
+      "type": "object",
+      "properties": {
+        "approvals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Approval"
+          },
+          "description": "The approval as answered, one per room its seat is in."
+        }
+      },
+      "required": [
+        "approvals"
+      ],
+      "additionalProperties": false
+    },
     "BusEvent": {
       "oneOf": [
         {
@@ -15,6 +129,9 @@
         },
         {
           "$ref": "#/$defs/RoomEvent"
+        },
+        {
+          "$ref": "#/$defs/ApprovalEvent"
         }
       ],
       "description": "One change in the room store."
@@ -98,6 +215,23 @@
       },
       "required": [
         "messages"
+      ],
+      "additionalProperties": false
+    },
+    "HumanApproval": {
+      "type": "object",
+      "properties": {
+        "behavior": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "description": "allow lets the one tool call run, deny refuses it."
+        }
+      },
+      "required": [
+        "behavior"
       ],
       "additionalProperties": false
     },
@@ -844,7 +978,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 1,
+          "x-current": 2,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {
@@ -939,6 +1073,13 @@
           "maximum": 9007199254740991,
           "description": "Posts from members, not daemon lines or summaries."
         },
+        "approvals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Approval"
+          },
+          "description": "Tool asks still waiting for the human, oldest first."
+        },
         "members": {
           "type": "array",
           "items": {
@@ -964,6 +1105,7 @@
         "topic",
         "first_message_id",
         "message_count",
+        "approvals",
         "members",
         "messages"
       ],

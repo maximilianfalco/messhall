@@ -77,7 +77,16 @@ export async function feedServer() {
       return Promise.resolve({ code: 0, stderr: '', stdout: '' });
     });
   const server: Server = createServer(
-    createRouter(feedRoutes({ every: timer.every, keys, now: scratch.clock.now, spawner, store: scratch.store })),
+    createRouter(
+      feedRoutes({
+        every: timer.every,
+        keys,
+        now: scratch.clock.now,
+        relay: () => Promise.resolve(true),
+        spawner,
+        store: scratch.store,
+      }),
+    ),
   );
   await new Promise<void>(resolve => {
     server.listen(0, '127.0.0.1', resolve);

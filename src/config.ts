@@ -88,6 +88,10 @@ export const SEAT_TOKEN_FREE_AFTER_MS = 30 * 60_000;
 export const STALE_AFTER_MS = 5 * 60_000;
 // An invite whose agent never made a call this long drops, so a failed launch does not hold the name.
 export const INVITE_TTL_MS = 10 * 60_000;
+// A tool ask nobody answers this long is denied, so a forgotten card cannot hold an agent forever.
+export const APPROVAL_TTL_MS = 10 * 60_000;
+// Claude Code caps each field near 3,500 chars, but a preview holds several fields.
+export const APPROVAL_TEXT_MAX = 8000;
 // Codex reads its first prompt and joins before its seat is taken, which is slower than a claude connect.
 export const SPAWN_READY_MS = 2 * 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.

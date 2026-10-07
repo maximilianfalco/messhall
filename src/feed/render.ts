@@ -1,6 +1,6 @@
 import type { BusEvent, MemberChange, RoomChange } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Member, Message, Room } from '../../contracts/room.ts';
+import type { Approval, Member, Message, Room } from '../../contracts/room.ts';
 
 import pc from 'picocolors';
 
@@ -44,6 +44,19 @@ function memberLine(member: Member, change: MemberChange) {
   return `${MEMBER_MARKS[change]} ${member.name} ${change}${change === 'left' ? '' : ` (${member.kind})`}`;
 }
 
+const APPROVAL_WORDS: Record<Exclude<Approval['state'], 'pending'>, string> = {
+  allowed: 'allowed',
+  denied: 'denied',
+  expired: 'expired, denied',
+};
+
+function approvalLine({ description, input_preview, member, state, tool }: Approval, tag: string) {
+  if (state === 'pending') {
+    return pc.yellow(`${GUTTER}${tag}? ${member} asks to use ${tool}: ${description} ${input_preview}`);
+  }
+  return pc.dim(`${GUTTER}${tag}· ${member} ${tool} ${APPROVAL_WORDS[state]}`);
+}
+
 type SnapshotRoom = Snapshot['rooms'][number];
 
 const stateOf = (room: SnapshotRoom) => [room.closed_at ? 'closed' : 'open', ...(room.standing ? ['standing'] : [])];
@@ -62,6 +75,7 @@ export function renderEvent({ event, room }: { event: BusEvent; room?: string })
   if (event.type === 'message') return [messageLine({ message: event.message, tag })];
   if (event.type === 'member') return [pc.dim(`${GUTTER}${tag}${memberLine(event.member, event.change)}`)];
   if (event.type === 'presence') return [pc.dim(`${GUTTER}${tag}· ${event.name} ${event.from} → ${event.to}`)];
+  if (event.type === 'approval') return [approvalLine(event.approval, tag)];
   return [pc.dim(`${GUTTER}· #${name} ${ROOM_WORDS[event.change](event.room)}`)];
 }
 

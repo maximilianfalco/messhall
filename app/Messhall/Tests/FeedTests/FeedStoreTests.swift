@@ -275,6 +275,43 @@ struct FeedStoreTests {
     #expect(FeedStore.downPhase(URLError(.cannotConnectToHost)) == .down("Messhall is not running."))
   }
 
+  @Test("a snapshot carries the asks still waiting on each seat")
+  func snapshotApprovals() throws {
+    let store = try loaded()
+
+    #expect(store.rooms[0].approvals.map(\.tool) == ["Bash"])
+    #expect(store.rooms[0].approvals(for: "api").map(\.tool) == ["Bash"])
+    #expect(store.rooms[0].approvals(for: "web").isEmpty)
+  }
+
+  @Test("a pending ask adds a card, and an answered or expired one takes it away", arguments: [
+    ApprovalState.allowed, .denied, .expired,
+  ])
+  func approvalEvents(state: ApprovalState) throws {
+    let store = try loaded()
+    let asked = try event("ApprovalEvent")
+    guard case .approval(let payload) = asked else { Issue.record("not an approval event"); return }
+
+    store.apply(.event(seq: 8, asked))
+    store.apply(.event(seq: 9, asked))
+    #expect(store.rooms[0].approvals.map(\.tool) == ["Bash", "Write"])
+
+    var answered = payload.approval
+    answered.state = state
+    store.apply(.event(seq: 10, .approval(ApprovalEvent(room: "checkout", approval: answered))))
+    #expect(store.rooms[0].approvals.map(\.tool) == ["Bash"])
+  }
+
+  @Test("an ask the human just answered leaves at once, before its event comes back")
+  func answeredLocally() throws {
+    let store = try loaded()
+    let result = try Fixture.decode(ApprovalResult.self, "ApprovalResult")
+
+    store.settle(result.approvals)
+
+    #expect(store.rooms[0].approvals.isEmpty)
+  }
+
   @Test("the app is behind when the daemon's contract is newer than the one it was built for")
   func behind() throws {
     let store = try loaded()

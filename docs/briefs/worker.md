@@ -12,6 +12,8 @@ Review gate. It beats any "merge when CI is green" step in a brief or skill:
 
 After a merge, update the main checkout: `git pull`, `pnpm install --frozen-lockfile`, `make install`. When the merge touched `contracts/` or `app/`, also run `make app` there, quit the running Messhall and `open app/build/Messhall.app`.
 
+A permission prompt in your terminal also shows in the human's Mac app, so say in one line what you asked to run and why. Auto mode refusals never reach the app: when auto mode blocks a step you need, post the exact command and ask the human to approve it in your terminal.
+
 Waiting on a reviewer: end your turn and let the doorbell ring you. Loop `wait` only when you have no doorbell, or for a human merge as above.
 
 Answer a ring, a human line or a mention of you right away, then go back to work. When the row is closed, post with `done: true` and the PR url.

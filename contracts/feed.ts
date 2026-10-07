@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import {
+  APPROVAL_BEHAVIORS,
+  approvalSchema,
   INSTRUCTIONS_MAX_CHARS,
   launchSchema,
   memberSchema,
@@ -16,9 +18,10 @@ export const TOPIC_MAX_CHARS = 200;
 
 export const SNAPSHOT_EVENT = 'snapshot';
 // Bump when a feed enum or event type grows, so an older app can tell it is behind.
-export const FEED_CONTRACT_VERSION = 1;
+export const FEED_CONTRACT_VERSION = 2;
 
 export const snapshotRoomSchema = roomSummarySchema.extend({
+  approvals: z.array(approvalSchema).describe('Tool asks still waiting for the human, oldest first.'),
   members: z.array(memberSchema).describe('Members still in the room, by name, the human seat too.'),
   messages: z.array(messageSchema).describe('The last 50 messages, oldest first, system lines too.'),
 });
@@ -129,6 +132,14 @@ export const muteResultSchema = z.object({
   member: memberSchema.describe('The member after the mute or unmute.'),
 });
 
+export const humanApprovalSchema = z.object({
+  behavior: z.enum(APPROVAL_BEHAVIORS).describe('allow lets the one tool call run, deny refuses it.'),
+});
+
+export const approvalResultSchema = z.object({
+  approvals: z.array(approvalSchema).describe('The approval as answered, one per room its seat is in.'),
+});
+
 export const feedErrorSchema = z.object({
   error: z.string().describe('What went wrong, in plain words.'),
 });
@@ -148,3 +159,5 @@ export type FlockSeat = z.infer<typeof flockSeatSchema>;
 export type Flock = z.infer<typeof flockSchema>;
 export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
 export type MuteResult = z.infer<typeof muteResultSchema>;
+export type HumanApproval = z.infer<typeof humanApprovalSchema>;
+export type ApprovalResult = z.infer<typeof approvalResultSchema>;

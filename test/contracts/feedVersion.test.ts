@@ -2,18 +2,24 @@ import { describe, expect, it } from 'vitest';
 
 import { busEventSchema, MEMBER_CHANGES, ROOM_CHANGES } from '../../contracts/events.ts';
 import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
-import { MEMBER_KINDS, MESSAGE_KINDS, PRESENCES } from '../../contracts/room.ts';
+import { APPROVAL_STATES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES } from '../../contracts/room.ts';
 import { contractSchema } from '../../tools/dev/commands/schema.js';
 
 describe('FEED_CONTRACT_VERSION', () => {
   it('moves with the feed enums, bump it when one of them grows', () => {
     expect({
-      enums: { MEMBER_CHANGES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES, ROOM_CHANGES },
+      enums: { APPROVAL_STATES, MEMBER_CHANGES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES, ROOM_CHANGES },
       event_types: busEventSchema.options.map(option => option.shape.type.value),
       version: FEED_CONTRACT_VERSION,
     }).toMatchInlineSnapshot(`
       {
         "enums": {
+          "APPROVAL_STATES": [
+            "pending",
+            "allowed",
+            "denied",
+            "expired",
+          ],
           "MEMBER_CHANGES": [
             "invited",
             "joined",
@@ -56,8 +62,9 @@ describe('FEED_CONTRACT_VERSION', () => {
           "member",
           "presence",
           "room",
+          "approval",
         ],
-        "version": 1,
+        "version": 2,
       }
     `);
   });

@@ -175,6 +175,31 @@ struct NotificationsTests {
     #expect(notificationFor(event: member, state: try state(room: room)) == nil)
   }
 
+  private func ask(state: ApprovalState = .pending, at: String = after) -> BusEvent {
+    .approval(
+      ApprovalEvent(
+        room: "checkout",
+        approval: Approval(
+          id: "a1", room: "checkout", member: "api", tool: "Bash", description: "Run the tests",
+          inputPreview: "{\"command\": \"pnpm test\"}", state: state, createdAt: at, answeredAt: nil)))
+  }
+
+  @Test("a new tool ask posts who asks and what it runs")
+  func toolAsk() throws {
+    #expect(
+      notificationFor(event: ask(), state: try state(room: room()))
+        == NotificationContent(room: "checkout", title: "#checkout", body: "api asks to use Bash: Run the tests"))
+  }
+
+  @Test("an answered ask, a replayed ask or one in a muted room does not post")
+  func quietAsks() throws {
+    let room = try room()
+
+    #expect(notificationFor(event: ask(state: .allowed), state: try state(room: room)) == nil)
+    #expect(notificationFor(event: ask(at: Self.before), state: try state(room: room)) == nil)
+    #expect(notificationFor(event: ask(), state: try state(room: room, muted: ["checkout"])) == nil)
+  }
+
   @Test("a body past 120 characters is cut with an ellipsis")
   func cutBody() throws {
     let text = "@human " + String(repeating: "a", count: 200)
