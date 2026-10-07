@@ -16,6 +16,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Messhall"
 cp Messhall/Resources/Info.plist "$APP/Contents/Info.plist"
+# The same stamp the daemon serves as build, so the app and messhall status can say which side is older.
+if COMMIT="$(git rev-parse HEAD 2>/dev/null)"; then
+  AT="$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%S.000Z)"
+  /usr/libexec/PlistBuddy -c "Add :MesshallCommit string $COMMIT" \
+    -c "Add :MesshallCommittedAt string $AT" "$APP/Contents/Info.plist"
+fi
 # macOS lost the real app's banners once every deleted worktree build sat in LaunchServices under the same id.
 # So only the main checkout (where .git is a folder) builds dev.messhall.app.
 if [ -f ../.git ]; then
