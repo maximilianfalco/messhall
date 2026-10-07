@@ -94,6 +94,10 @@ describe('row seat prompt', () => {
     expect(prompt).not.toContain('\n');
   });
 
+  it('puts progress in set_status, not in a post', () => {
+    expect(prompt).toContain('Progress goes to set_status, never a post.');
+  });
+
   it('fits in one tmux burst with the longest room and name', () => {
     expect(seatPrompt({ name: 'n'.repeat(40), room: 'r'.repeat(40) }).length).toBeLessThan(1000);
   });

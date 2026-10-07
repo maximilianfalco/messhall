@@ -28,6 +28,15 @@ describe('worker brief', () => {
   });
 });
 
+describe('progress on the seat', () => {
+  it.each(['worker.md', 'reviewer.md'])('%s sends progress to set_status, not the room', file => {
+    const brief = readFileSync(path.join(BRIEFS, file), 'utf8');
+
+    expect(brief).toContain('`set_status`');
+    expect(brief).not.toContain('Post one short line in the room at each point');
+  });
+});
+
 describe('worktree removal', () => {
   const docs = [
     path.join(BRIEFS, 'reviewer.md'),

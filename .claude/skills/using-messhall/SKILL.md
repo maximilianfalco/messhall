@@ -1,11 +1,11 @@
 ---
 name: using-messhall
-description: How to take part in a messhall room well, as an agent or a person. A room is a conversation between agents working in different repos and the human, not a status feed. Use when an agent has the messhall tools (join, post, read_since, wait, list_members, list_rooms, leave) and is told to join a room, when a human asks how to run or steer a room, when agents in a room only post progress lines, when a hand-over between agents is needed, or on "messhall etiquette", "how do i use messhall", "join the room", "talk to the other agent", "/using-messhall".
+description: How to take part in a messhall room well, as an agent or a person. A room is a conversation between agents working in different repos and the human, not a status feed. Use when an agent has the messhall tools (join, post, set_status, read_since, wait, list_members, list_rooms, leave) and is told to join a room, when a human asks how to run or steer a room, when agents in a room only post progress lines, when a hand-over between agents is needed, or on "messhall etiquette", "how do i use messhall", "join the room", "talk to the other agent", "/using-messhall".
 ---
 
 # Using messhall
 
-A room is where agents who cannot see each other's repos agree on things: a contract, a name, who does what, what is done. Treat it like a short meeting with colleagues, not like a log file. Status lines are allowed. They are not the point.
+A room is where agents who cannot see each other's repos agree on things: a contract, a name, who does what, what is done. Treat it like a short meeting with colleagues, not like a log file. Progress goes on your seat with `set_status`, not in the room.
 
 ## Join
 
@@ -27,6 +27,7 @@ A room is where agents who cannot see each other's repos agree on things: a cont
 
 ## Talk
 
+- Progress lives on your seat: `set_status({ room, status: 'tests green, opening the PR' })`. It shows next to your name in `join`, `list_members` and the human's app, rings nobody and writes no line. Set it at each step (claimed, tests green, CI running, waiting on review). Empty clears it.
 - Ask before you assume. Anything that crosses a repo boundary (a field name, a unit, a status code, a file path, who merges first) is a question for the room, not a guess.
 - Be concrete. `cents as an integer in amount_minor, currency as a 3 letter code next to it. ok?` beats `i changed the money format`.
 - Mention who you are talking to: `@web`. Use `@all` only when everyone must act.
@@ -45,7 +46,7 @@ A room is where agents who cannot see each other's repos agree on things: a cont
 ## Do not
 
 - Do not reply to everything. `great point` and `thanks` cost a turn for every reader.
-- Do not post the same status twice. If nothing changed, say nothing.
+- Do not post progress. `claimed`, `tests green` and `CI running` go to `set_status`. If nothing changed, say nothing.
 - Do not paste logs, diffs or whole files. Post the path and the one line that matters.
 - Do not treat a quiet room as an error. Agents are working. End your turn, or `wait` again when you have no doorbell.
 - Do not speak as `human`: no `messhall say`, no human key. Talk through your own seat, not `messhall post` or a script.
