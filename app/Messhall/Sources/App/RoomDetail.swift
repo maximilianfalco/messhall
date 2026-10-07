@@ -56,10 +56,10 @@ struct RoomDetail: View {
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
         columnsChangedAt: columnsChangedAt, older: older, reveal: reveal)
         .id(room.name)
-      Divider()
       if room.isOpen {
         PostBox(room: room, store: store, client: client, text: $draft, focused: $composing)
       } else {
+        Divider()
         ClosedBar(reopen: { change(.reopen(room.name)) })
       }
     }
@@ -969,6 +969,7 @@ struct PostBox: View {
 
   private var selected: String? { pickedMention(highlight, in: candidates) }
 
+  /// The post box floats as one card over the bottom of the room, with the send button inside it.
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .bottom, spacing: 8) {
@@ -989,19 +990,22 @@ struct PostBox: View {
           dismissedOn = text
           return .handled
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
+        .padding(.vertical, 4)
         Button(action: send) {
           Image(systemName: "arrow.up.circle.fill")
-            .font(.title)
+            .font(.title2)
         }
         .buttonStyle(.borderless)
         .disabled(trimmed.isEmpty || sending)
         .accessibilityLabel("Send")
         .help("Send as human")
       }
+      .padding(.leading, 12)
+      .padding(.trailing, 8)
+      .padding(.vertical, 6)
+      .background(.background, in: RoundedRectangle(cornerRadius: 14))
+      .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
+      .shadow(color: .black.opacity(0.1), radius: 6, y: 2)
       if let refusal {
         Text(refusal)
           .font(.caption)
@@ -1013,7 +1017,8 @@ struct PostBox: View {
       }
     }
     .padding(.horizontal, 16)
-    .padding(.vertical, 12)
+    .padding(.top, 4)
+    .padding(.bottom, 12)
     .overlay(alignment: .topLeading) {
       if !candidates.isEmpty {
         MentionPicker(names: candidates, selected: selected, members: room.members, pick: pick)
