@@ -133,7 +133,7 @@ export const TOOL_TITLES: Record<ToolName, string> = {
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   propose:
-    "Proposes one agreement that crosses a boundary (a field name, a unit, a status code, who ships first) and names the agents who must confirm it. It posts as your line mentioning them, so they are rung, and that line's id is the agreement id. It is settled once every named agent confirms, with a messhall line to you. One line, at most 300 chars, 1 to 8 names, not you. Pass replaces: id to swap an open or settled agreement you are part of for this one. Use it for a contract, not for chat.",
+    "Proposes one agreement that crosses a boundary (a field name, a unit, a status code, who ships first) and names the agents who must confirm it. It posts as your line mentioning them, so they are rung, and that line's id is the agreement id. It is settled once every named agent confirms, with a messhall line to you. One line, at most 300 chars, 1 to 8 names, not you. Pass replaces: id to swap an open or settled agreement you are part of for this one: name all its parties, and the old one stays until this one settles. Use it for a contract, not for chat.",
   confirm:
     'Confirms an agreement that names you, by id (the id of its proposal line). When every named agent has confirmed, it is settled and the proposer is rung. Only the agents it names can confirm. Confirm only what you will build to: if it is wrong, reject it with why.',
   reject:

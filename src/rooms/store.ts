@@ -50,7 +50,7 @@ import {
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
-import { agreementSql, involves, isLive, proposalText, rejectText, settledText } from './agreements.js';
+import { agreementSql, involves, isLive, leftOut, proposalText, rejectText, settledText } from './agreements.js';
 import { createEventBus } from './events.js';
 import { answerText, askText, expiryText, questionSql } from './questions.js';
 import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
@@ -1073,7 +1073,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     },
 
     /** Posts a proposal as the proposer's own line, which rings every agent it names, and keeps it open under that line's id.
-     * With `replaces`, an open or settled agreement the proposer is part of becomes replaced. */
+     * With `replaces`, it must name every party of that open or settled agreement, which stays live until this one settles. */
     proposeAgreement({
       as,
       replaces,
@@ -1101,7 +1101,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const old = replaces === undefined ? undefined : liveAgreement(room, replaces);
         if (old && !old.ok) return old;
         if (old && !involves({ agreement: old.agreement, as })) return { ok: false, reason: 'not_named' } as const;
-        if (old) agreementChanged(toAgreement(agreementsSql.replace.get(stamp(), old.agreement.id)!), emit);
+        const left = old ? leftOut({ agreement: old.agreement, as, names }) : [];
+        if (left.length) return { missing: left, ok: false, reason: 'missing_parties' } as const;
         const line = proposalText({ replaces: replaces ?? null, text, with: names });
         const { message } = speak({ done: false, member, room, text: line }, emit);
         const row = agreementsSql.insert.get(
@@ -1117,7 +1118,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** A named agent says yes. Once every named agent has, the agreement is settled with a messhall line to the proposer. */
+    /** A named agent says yes. Once every named agent has, the agreement is settled with a messhall line to the proposer,
+     * and the agreement it replaces, if still live, becomes replaced. */
     confirmAgreement({ as, id, room: roomName }: { as: string; id: number; room: string }) {
       return transaction(emit => {
         const found = speaker(roomName, as);
@@ -1138,6 +1140,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         )!;
         const updated = agreementChanged(toAgreement(row), emit);
         if (allIn) post(room, SYSTEM_NAME, 'system', settledText(updated), [updated.proposer], emit);
+        const replaced = allIn && updated.replaces !== null ? liveAgreement(room, updated.replaces) : undefined;
+        if (replaced?.ok) {
+          agreementChanged(toAgreement(agreementsSql.replace.get(stamp(), replaced.agreement.id)!), emit);
+        }
         return { agreement: updated, ok: true } as const;
       });
     },

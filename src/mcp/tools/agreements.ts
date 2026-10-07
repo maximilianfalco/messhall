@@ -73,6 +73,11 @@ export function registerPropose(server: McpServer, deps: ToolDeps, description: 
           `${LIST.format(missing)} ${what} in #${room}. name agents who are here, list_members shows them.`,
         );
       }
+      if (result.reason === 'missing_parties') {
+        return refuse(
+          `a replacement for #${replaces} names every party of it, so no side drops it alone. add ${LIST.format(result.missing)} to with.`,
+        );
+      }
       return refusal({ deps, id: replaces, reason: result.reason, room });
     },
   );

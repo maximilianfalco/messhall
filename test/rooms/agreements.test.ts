@@ -218,7 +218,12 @@ describe('rejectAgreement', () => {
 });
 
 describe('a proposal that replaces another', () => {
-  it('marks the old agreement replaced and names it on the new line', () => {
+  const states = () =>
+    store()
+      .agreementsIn('demo')
+      .map(item => [item.id, item.state]);
+
+  it('names the old agreement on the new line and keeps the old one live while the new one is open', () => {
     const old = proposed({ with: ['web'] });
     confirm('web', old.id);
 
@@ -226,11 +231,53 @@ describe('a proposal that replaces another', () => {
 
     expect(newer.replaces).toBe(old.id);
     expect(lastLine()?.text).toBe(`@api proposal to confirm or reject, replaces #${old.id}: amount_minor and currency`);
-    expect(
-      store()
-        .agreementsIn('demo')
-        .map(item => [item.id, item.state]),
-    ).toStrictEqual([[newer.id, 'open']]);
+    expect(states()).toStrictEqual([
+      [old.id, 'settled'],
+      [newer.id, 'open'],
+    ]);
+  });
+
+  it('marks the old agreement replaced once the new one settles', () => {
+    const seen: SequencedEvent[] = [];
+    const old = proposed({ with: ['web'] });
+    confirm('web', old.id);
+    const newer = proposed({ as: 'web', replaces: old.id, with: ['api'] });
+    store().events.on(event => seen.push(event));
+
+    confirm('api', newer.id);
+
+    expect(states()).toStrictEqual([[newer.id, 'settled']]);
+    expect(agreementEvents(seen)).toStrictEqual([
+      [newer.id, 'settled', ['api']],
+      [old.id, 'replaced', ['web']],
+    ]);
+  });
+
+  it('leaves the old agreement settled when the new one is rejected', () => {
+    const old = proposed({ with: ['web'] });
+    confirm('web', old.id);
+    const newer = proposed({ replaces: old.id, with: ['web'] });
+
+    store().rejectAgreement({ as: 'web', id: newer.id, room: 'demo', why: 'keep the old one' });
+
+    expect(states()).toStrictEqual([[old.id, 'settled']]);
+  });
+
+  it('refuses a replacement that leaves out a party of the old agreement and says who', () => {
+    const old = proposed({ with: ['web'] });
+    confirm('web', old.id);
+
+    expect(propose({ replaces: old.id, with: ['mobile'] })).toStrictEqual({
+      missing: ['web'],
+      ok: false,
+      reason: 'missing_parties',
+    });
+    expect(propose({ as: 'web', replaces: old.id, with: ['mobile'] })).toStrictEqual({
+      missing: ['api'],
+      ok: false,
+      reason: 'missing_parties',
+    });
+    expect(states()).toStrictEqual([[old.id, 'settled']]);
   });
 
   it('refuses a replacer the old agreement does not involve', () => {

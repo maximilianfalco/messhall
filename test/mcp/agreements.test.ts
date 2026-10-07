@@ -74,6 +74,21 @@ describe('propose', () => {
     });
   });
 
+  it('refuses a replacement that leaves out a party of the old agreement', async () => {
+    const { api, web } = await pair();
+    await seated('mobile');
+    await proposeCents(api);
+    const id = onlyId();
+    await web.call('confirm', { id, room: 'checkout' });
+
+    const result = await api.call('propose', { replaces: id, room: 'checkout', text: 'cents', with: ['mobile'] });
+
+    expect(result).toMatchObject({
+      isError: true,
+      text: `a replacement for #${id} names every party of it, so no side drops it alone. add web to with.`,
+    });
+  });
+
   it('refuses a room the caller has not joined', async () => {
     const api = await harness.agent();
 

@@ -28,6 +28,10 @@ export const isLive = ({ state }: Pick<Agreement, 'state'>) => state === 'open' 
 export const involves = ({ agreement, as }: { agreement: Agreement; as: string }) =>
   agreement.proposer === as || agreement.with.includes(as);
 
+/** The parties of an agreement a replacement leaves out. A replacement names them all, so no side drops a contract alone. */
+export const leftOut = ({ agreement, as, names }: { agreement: Agreement; as: string; names: readonly string[] }) =>
+  [agreement.proposer, ...agreement.with].filter(name => name !== as && !names.includes(name));
+
 /** The proposer's own line. It mentions every name, so the doorbell rings them. */
 export const proposalText = ({ replaces, text, with: names }: Pick<Agreement, 'replaces' | 'text' | 'with'>) =>
   `${names.map(name => `@${name}`).join(' ')} proposal to confirm or reject${replaces ? `, replaces #${replaces}` : ''}: ${text}`;
