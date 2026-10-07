@@ -7,10 +7,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { AWAY_AFTER_MS, DAEMON_HOST, SESSION_DEAD_MS } from '../../src/config.js';
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
+import { CHANNEL_METHOD } from '../../src/doorbell/ringers/channel.js';
 import { connectHttp } from '../../src/mcp/testing.js';
 import { createMcpEndpoint } from '../../src/mcp/transport.js';
 import { openDb } from '../../src/rooms/db.js';
@@ -62,6 +64,18 @@ async function agent(url: string, key = agentKey(), seat?: string) {
     return { isError: Boolean(result.isError), text: textOf(result) };
   };
   return { ...connected, call };
+}
+
+function ringsOf(client: Client) {
+  const rings: { content: string; meta: Record<string, string> }[] = [];
+  client.setNotificationHandler(
+    CHANNEL_METHOD,
+    { params: z.object({ content: z.string(), meta: z.record(z.string(), z.string()) }) },
+    params => {
+      rings.push(params);
+    },
+  );
+  return rings;
 }
 
 const initialize = (protocolVersion: string) => ({
@@ -156,8 +170,11 @@ describe('the /mcp endpoint', () => {
     const api = await agent(url);
     const web = await agent(url);
     const outsider = await agent(url);
+    const rings = ringsOf(api.client);
     await api.call('join', { as: 'api', kind: 'claude', room: 'checkout' });
     await web.call('join', { as: 'web', kind: 'other', room: 'checkout' });
+    await vi.waitFor(() => expect(rings).toHaveLength(1));
+    await api.call('doorbell_ok', { id: rings[0]!.meta.doorbell_check });
 
     at += AWAY_AFTER_MS;
 
@@ -165,6 +182,20 @@ describe('the /mcp endpoint', () => {
       const members = (await outsider.call('list_members', { room: 'checkout' })).text;
       expect(members).toContain('- api (messhall-http 0.1.0, idle)');
       expect(members).toContain('- web (messhall-http 0.1.0, away)');
+    });
+  });
+
+  it('shows a quiet claude that never answered its doorbell check as away with no doorbell', async () => {
+    const { url } = await start(10);
+    const api = await agent(url);
+    const outsider = await agent(url);
+    await api.call('join', { as: 'api', kind: 'claude', room: 'checkout' });
+
+    at += AWAY_AFTER_MS;
+
+    await vi.waitFor(async () => {
+      const members = (await outsider.call('list_members', { room: 'checkout' })).text;
+      expect(members).toContain('- api (messhall-http 0.1.0 (no doorbell), away)');
     });
   });
 

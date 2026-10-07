@@ -77,7 +77,7 @@ export function renderRead({
 
 /**
  * `web (opencode 1.18.34, reviewer, waiting)`: the client label and version (or the kind), the role once assigned.
- * `you` marks the caller's own line, `muted` a member who cannot post and `(no doorbell)` an unrung codex.
+ * `you` marks the caller's own line, `muted` a member who cannot post and `(no doorbell)` an agent nothing can ring.
  * The member's own status comes last, so its text can never pose as one of the marks before it.
  */
 export function memberLabel({ as, member, noDoorbell }: { as?: string; member: Member; noDoorbell?: boolean }) {

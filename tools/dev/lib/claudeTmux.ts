@@ -11,6 +11,7 @@ import { run } from './run.js';
 
 export const READY_WITHIN_MS = 60_000;
 const REGISTERED = `MCP server "${SERVER_NAME}": Channel notifications registered`;
+const CONNECTED = `MCP server "${SERVER_NAME}": Successfully connected`;
 
 export type Launch = 'login' | 'registered' | 'timeout';
 
@@ -43,23 +44,24 @@ export function writeMcpConfig({ file, ...target }: McpTarget & { file: string }
   chmodSync(file, 0o600);
 }
 
-/** The interactive `claude` argv: only messhall from `mcpConfig`, loaded as a dev channel, debug log to `debugFile`. */
+/** The interactive `claude` argv: only messhall from `mcpConfig`, loaded as a dev channel unless `plain`, debug log to `debugFile`. */
 export function claudeArgv({
   allowedTools,
   debugFile,
   mcpConfig,
+  plain = false,
 }: {
   allowedTools: string[];
   debugFile: string;
   mcpConfig: string;
+  plain?: boolean;
 }) {
   return [
     'claude',
     '--mcp-config',
     mcpConfig,
     '--strict-mcp-config',
-    '--dangerously-load-development-channels',
-    `server:${SERVER_NAME}`,
+    ...(plain ? [] : ['--dangerously-load-development-channels', `server:${SERVER_NAME}`]),
     '--allowedTools',
     ...allowedTools,
     '--debug-file',
@@ -71,18 +73,23 @@ export const tmux = (args: string[]) => run('tmux', args, tmpdir());
 export const pane = async (session: string) => (await tmux(['capture-pane', '-p', '-t', session])).stdout;
 export const readText = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
 
-/** Starts `argv` in tmux in `cwd`, answers the trust and dev channel dialogs, waits for the channel to register. */
+/**
+ * Starts `argv` in tmux in `cwd`, answers the trust and dev channel dialogs, waits for the channel to register.
+ * A `plain` claude has no channel, so it waits for messhall to connect.
+ */
 export async function launchClaude({
   argv,
   cwd,
   debugFile,
   note,
+  plain = false,
   session,
 }: {
   argv: string[];
   cwd: string;
   debugFile: string;
   note: (line: string) => void;
+  plain?: boolean;
   session: string;
 }): Promise<Launch> {
   await tmux(['kill-session', '-t', session]);
@@ -93,7 +100,9 @@ export async function launchClaude({
   const ready = await until<Launch>(Date.now() + READY_WITHIN_MS, async () => {
     const dialog = dialogKeys(await pane(session));
     if (dialog.kind === 'login') return 'login';
-    if (dialog.kind === 'none') return readText(debugFile).includes(REGISTERED) ? 'registered' : undefined;
+    if (dialog.kind === 'none') {
+      return readText(debugFile).includes(plain ? CONNECTED : REGISTERED) ? 'registered' : undefined;
+    }
     note(`answering a dialog with ${dialog.keys.join(' ')}`);
     await tmux(['send-keys', '-t', session, ...dialog.keys]);
     await sleep(1000);

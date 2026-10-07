@@ -16,11 +16,21 @@ const RING = {
   text: 'messhall: 2 new in #checkout. Call read_since.',
 };
 
-function fakeEntry({ channel = true, fails = false, id }: { channel?: boolean; fails?: boolean; id: string }) {
+function fakeEntry({
+  channel = true,
+  doorbell = 'unchecked',
+  fails = false,
+  id,
+}: {
+  channel?: boolean;
+  doorbell?: ChannelEntry['session']['doorbell'];
+  fails?: boolean;
+  id: string;
+}) {
   const notification = vi.fn<() => Promise<void>>(() =>
     fails ? Promise.reject(new Error('not connected')) : Promise.resolve(),
   );
-  const entry: ChannelEntry = { server: { server: { notification } }, session: { channel, id } };
+  const entry: ChannelEntry = { server: { server: { notification } }, session: { channel, doorbell, id } };
   return { entry, notification };
 }
 
@@ -54,6 +64,14 @@ describe('createChannelRinger', () => {
     const ringer = createChannelRinger({ sessionsFor: () => [plain.entry] });
     await expect(ringer.ring(RING)).resolves.toBe(0);
     expect(plain.notification).not.toHaveBeenCalled();
+  });
+
+  it('skips a session that never answered its doorbell check', async () => {
+    const off = fakeEntry({ doorbell: 'off', id: 's1' });
+    const on = fakeEntry({ doorbell: 'on', id: 's2' });
+    const ringer = createChannelRinger({ sessionsFor: () => [off.entry, on.entry] });
+    await expect(ringer.ring(RING)).resolves.toBe(1);
+    expect(off.notification).not.toHaveBeenCalled();
   });
 
   it('serves the claude and other kinds', () => {

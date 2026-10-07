@@ -189,6 +189,10 @@ export const agreementsInputSchema = z.object({
 
 export const listRoomsInputSchema = z.object({});
 
+export const doorbellOkInputSchema = z.object({
+  id: oneLine(64).min(1).describe('The id from the doorbell check ring.'),
+});
+
 export const leaveInputSchema = z.object({
   note: z.string().max(NOTE_MAX_CHARS).optional().describe('A short line the room sees as you go.'),
   room: roomField.describe('Room to leave.'),
@@ -209,3 +213,4 @@ export type ProposeInput = z.infer<typeof proposeInputSchema>;
 export type ConfirmInput = z.infer<typeof confirmInputSchema>;
 export type RejectInput = z.infer<typeof rejectInputSchema>;
 export type LeaveInput = z.infer<typeof leaveInputSchema>;
+export type DoorbellOkInput = z.infer<typeof doorbellOkInputSchema>;

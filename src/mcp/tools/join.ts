@@ -9,7 +9,7 @@ import { joinInputSchema } from '../../../contracts/mcp.ts';
 import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
 import { SEAT_TOKEN_FREE_AFTER_MS } from '../../config.js';
 import { newSeatToken } from '../../rooms/store.js';
-import { clientType, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
+import { clientType, DOORBELL_CHECKING, DOORBELL_OFF, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
 import { agreementsBlock, memberLabel, roleBlock } from '../render.js';
 import { bindSeat } from '../seats.js';
 
@@ -41,6 +41,15 @@ const TOPIC_NOT_SET =
 
 const seatTokenLine = (token: string) =>
   `seat token: ${token}. pass it as seat_token on your next join to get this seat back. without it the name frees up after ${SEAT_TOKEN_FREE_AFTER_MS / 60_000} min away.`;
+
+// The wrapper tells an off doorbell once, so join takes that turn and always says it.
+function channelDoorbellLine(session: ToolDeps['session']) {
+  if (!session.channel) return [];
+  if (session.doorbell === 'on') return ['doorbell: on'];
+  if (session.doorbell !== 'off') return [DOORBELL_CHECKING];
+  session.tellDoorbellOff();
+  return [DOORBELL_OFF];
+}
 
 const summaryBlock = (summary: Message | undefined) =>
   summary
@@ -118,7 +127,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
           ),
         ...(kind === 'codex' || input.thread_id
           ? [session.threadId ? 'doorbell: codex' : 'doorbell: none (call wait)']
-          : []),
+          : channelDoorbellLine(session)),
         ...ROOM_RULES,
       ].join('\n'),
     );
