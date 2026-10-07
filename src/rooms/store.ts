@@ -387,6 +387,23 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     if (partner) sql.unpause.run(room.id, from, partner);
   }
 
+  // A member's line with what follows it: done, presence, pauses, the loop guard, the all done close.
+  function speak({ done, member, room, text }: { done: boolean; member: Member; room: Room; text: string }, emit: Emit) {
+    const human = member.kind === 'human';
+    const names = sql.liveMembers.all(room.id).map(row => String(row.name));
+    const kind = done && !human ? 'done' : 'chat';
+    const message = post(room, member, kind, text, parseMentions({ names, text }), emit);
+    sql.setDone.run(kind === 'done' ? 1 : 0, room.id, member.name);
+    setPresence(room, member, 'active', emit, true);
+    if (human) sql.unpauseAll.run(room.id);
+    else {
+      if (message.mentions.includes(HUMAN_NAME)) liftPause(room, member.name);
+      guardLoop(room, member.name, emit);
+    }
+    if (kind === 'done') closeIfAllDone(room, emit);
+    return { message, missing: missingMentions({ names, text }) };
+  }
+
   // Finds the room and a member still in it, the gate every member call goes through.
   function seat(roomName: string, name: string) {
     const room = findRoom(roomName);
@@ -773,18 +790,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
           if (!human) return { ok: false, reason: 'room_closed' } as const;
           room = reopen(room, emit);
         }
-        const names = sql.liveMembers.all(room.id).map(row => String(row.name));
-        const kind = done && !human ? 'done' : 'chat';
-        const message = post(room, member, kind, text, parseMentions({ names, text }), emit);
-        sql.setDone.run(kind === 'done' ? 1 : 0, room.id, from);
-        setPresence(room, member, 'active', emit, true);
-        if (human) sql.unpauseAll.run(room.id);
-        else {
-          if (message.mentions.includes(HUMAN_NAME)) liftPause(room, from);
-          guardLoop(room, from, emit);
-        }
-        if (kind === 'done') closeIfAllDone(room, emit);
-        return { message, missing: missingMentions({ names, text }), ok: true } as const;
+        return { ...speak({ done, member, room, text }, emit), ok: true } as const;
       });
     },
 
