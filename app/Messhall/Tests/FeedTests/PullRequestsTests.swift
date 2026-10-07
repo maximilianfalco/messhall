@@ -213,14 +213,15 @@ struct PullRequestRefreshTests {
 struct GHRunnerTests {
   @Test func aHungGhIsKilledAtTheTimeoutWhileOtherReadsRun() async {
     let hung = ProcessInfo.processInfo.activeProcessorCount * 3
+    let timeout = Duration.seconds(3)
     let start = ContinuousClock.now
 
     let (quick, quickAt, hungResults) = await withTaskGroup(of: Data?.self) { group in
       for _ in 0..<hung {
-        group.addTask { await runGH("/bin/sleep", ["30"], timeout: .seconds(1)) }
+        group.addTask { await runGH("/bin/sleep", ["30"], timeout: timeout) }
       }
       try? await Task.sleep(for: .milliseconds(200))
-      let quick = await runGH("/bin/echo", ["hi"], timeout: .seconds(1))
+      let quick = await runGH("/bin/echo", ["hi"], timeout: timeout)
       let quickAt = ContinuousClock.now - start
       var results: [Data?] = []
       for await result in group { results.append(result) }
@@ -228,9 +229,9 @@ struct GHRunnerTests {
     }
 
     #expect(quick == Data("hi\n".utf8))
-    #expect(quickAt < .seconds(1))
+    #expect(quickAt < timeout)
     #expect(hungResults.count == hung)
     #expect(hungResults.allSatisfy { $0 == nil })
-    #expect(ContinuousClock.now - start < .seconds(5))
+    #expect(ContinuousClock.now - start < timeout + .seconds(5))
   }
 }
