@@ -200,6 +200,54 @@ struct NotificationsTests {
     #expect(notificationFor(event: ask(), state: try state(room: room, muted: ["checkout"])) == nil)
   }
 
+  private func question(state: QuestionState = .open, at: String = after) -> BusEvent {
+    .question(
+      QuestionEvent(
+        room: "checkout",
+        question: Question(
+          id: "q1", room: "checkout", member: "api", messageId: 9, question: "Which suite first?",
+          options: ["Unit", "Integration"], state: state, answer: nil, createdAt: at, answeredAt: nil)))
+  }
+
+  @Test("a new question posts who asks, the question and its options as actions")
+  func newQuestion() throws {
+    #expect(
+      notificationFor(event: question(), state: try state(room: room()))
+        == NotificationContent(
+          room: "checkout", title: "#checkout", body: "api asks you: Which suite first?", questionId: "q1",
+          options: ["Unit", "Integration"]))
+  }
+
+  @Test("a closed question, a replayed one or one in a muted room does not post")
+  func quietQuestions() throws {
+    let room = try room()
+
+    #expect(notificationFor(event: question(state: .answered), state: try state(room: room)) == nil)
+    #expect(notificationFor(event: question(at: Self.before), state: try state(room: room)) == nil)
+    #expect(notificationFor(event: question(), state: try state(room: room, muted: ["checkout"])) == nil)
+  }
+
+  @Test("a question that is no longer open clears its banner", arguments: [
+    QuestionState.answered, .expired, .replaced,
+  ])
+  func clearBanner(state: QuestionState) {
+    #expect(bannerToClear(for: question(state: state)) == "q1")
+  }
+
+  @Test("an open question or any other event clears no banner")
+  func keepBanner() throws {
+    #expect(bannerToClear(for: question()) == nil)
+    #expect(bannerToClear(for: message(text: "hi")) == nil)
+  }
+
+  @Test("each option maps to an action and back to its index")
+  func optionActions() {
+    #expect(questionCategory("q1") == "question.q1")
+    #expect((0..<4).map(optionAction).compactMap(optionIndex(of:)) == [0, 1, 2, 3])
+    #expect(optionIndex(of: "com.apple.UNNotificationDefaultActionIdentifier") == nil)
+    #expect(optionIndex(of: "option.x") == nil)
+  }
+
   @Test("a body past 120 characters is cut with an ellipsis")
   func cutBody() throws {
     let text = "@human " + String(repeating: "a", count: 200)

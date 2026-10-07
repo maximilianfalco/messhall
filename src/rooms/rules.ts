@@ -32,7 +32,7 @@ function isLive(member: Member) {
 }
 
 /** True when the member should answer: a mention, `@all`, a room of two agents, or the human (only the live orchestrator when it names nobody).
- * Daemon lines, summaries and lines from the partner a member is paused with concern nobody, and nothing concerns a muted member. */
+ * A daemon line concerns only who it names. Summaries and lines from a paused partner concern nobody, nor does anything a muted member. */
 export function concerns({
   member,
   members,
@@ -44,8 +44,9 @@ export function concerns({
   message: Message;
   pausedWith: Readonly<Record<string, string>>;
 }) {
-  if (message.kind === 'system' || message.kind === 'summary' || message.from === member.name) return false;
+  if (message.kind === 'summary' || message.from === member.name) return false;
   if (member.muted || pausedWith[member.name] === message.from) return false;
+  if (message.kind === 'system') return message.mentions.includes(member.name);
   if (message.mentions.includes(member.name) || message.mentions.includes(ALL_MENTION)) return true;
   if (message.from === HUMAN_NAME) {
     const router = members.find(other => other.role === ORCHESTRATOR_ROLE && isLive(other));

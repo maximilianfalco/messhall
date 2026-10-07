@@ -312,6 +312,42 @@ struct FeedStoreTests {
     #expect(store.rooms[0].approvals.isEmpty)
   }
 
+  @Test("a snapshot carries the questions still open, oldest first")
+  func snapshotQuestions() throws {
+    let store = try loaded()
+
+    #expect(store.rooms[0].questions.map(\.options) == [["Ship it", "Wait"]])
+  }
+
+  @Test("an open question adds a card, and an answered, expired or replaced one takes it away", arguments: [
+    QuestionState.answered, .expired, .replaced,
+  ])
+  func questionEvents(state: QuestionState) throws {
+    let store = try loaded()
+    let asked = try event("QuestionEvent")
+    guard case .question(let payload) = asked else { Issue.record("not a question event"); return }
+
+    store.apply(.event(seq: 8, asked))
+    store.apply(.event(seq: 9, asked))
+    #expect(store.rooms[0].questions.map(\.question) == ["Ship the schema change today?", "Which test suite first?"])
+
+    var closed = payload.question
+    closed.state = state
+    store.apply(.event(seq: 10, .question(QuestionEvent(room: "checkout", question: closed))))
+    #expect(store.rooms[0].questions.map(\.question) == ["Ship the schema change today?"])
+  }
+
+  @Test("a question the human just answered leaves at once and shows the human's line")
+  func questionAnsweredLocally() throws {
+    let store = try loaded()
+    let result = try Fixture.decode(AnswerResult.self, "AnswerResult")
+
+    store.settle(result)
+
+    #expect(store.rooms[0].questions.isEmpty)
+    #expect(store.rooms[0].messages.last?.text == "@api Ship it")
+  }
+
   @Test("the app is behind when the daemon's contract is newer than the one it was built for")
   func behind() throws {
     let store = try loaded()

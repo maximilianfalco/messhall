@@ -33,7 +33,8 @@ struct RoomDetail: View {
       if let block = notifier.windowBlock { NotifyBanner(block: block) }
       RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(
-        live: room.liveMembers, away: room.awayMembers, asking: Set(room.approvals.map(\.member)),
+        live: room.liveMembers, away: room.awayMembers,
+        asking: Set(room.approvals.map(\.member) + room.questions.map(\.member)),
         mention: room.isOpen ? { mention($0) } : nil,
         setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) },
         mute: room.isOpen ? { mute($0) } : nil
@@ -41,6 +42,9 @@ struct RoomDetail: View {
       .id(room.name)
       if !room.approvals.isEmpty {
         ApprovalCards(approvals: room.approvals, answer: answer)
+      }
+      if !room.questions.isEmpty {
+        QuestionCards(questions: room.questions, answer: answer)
       }
       Divider()
       Transcript(
@@ -123,6 +127,10 @@ struct RoomDetail: View {
 
   private func answer(_ approval: Approval, allow: Bool) {
     Task { refusal = await store.answer(approval, allow: allow, via: client) }
+  }
+
+  private func answer(_ question: Question, option: Int) {
+    Task { refusal = await store.answer(question, option: option, via: client) }
   }
 }
 

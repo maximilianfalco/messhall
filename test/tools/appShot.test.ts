@@ -208,6 +208,23 @@ describe('seedShotAsk', () => {
     expect(presence).toBe('active');
   });
 
+  it('leaves two open questions from two agents in #launch', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+    seedShotRooms({ dataDir, now });
+
+    seedShotAsk({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => now });
+    const questions = store.openQuestions('launch');
+    db.close();
+    expect(questions.map(question => [question.member, question.options.length])).toStrictEqual([
+      ['api', 2],
+      ['web', 4],
+    ]);
+  });
+
   it('leaves a long ask in #release whose real tail sits past the first lines', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');

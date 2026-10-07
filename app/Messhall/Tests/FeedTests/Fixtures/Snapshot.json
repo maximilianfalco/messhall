@@ -1,6 +1,6 @@
 {
   "seq": 7,
-  "contract_version": 2,
+  "contract_version": 4,
   "version": "0.1.0",
   "rooms": [
     {
@@ -23,6 +23,20 @@
           "input_preview": "{\"command\": \"pnpm test\"}",
           "state": "pending",
           "created_at": "2026-01-01T09:02:00.000Z",
+          "answered_at": null
+        }
+      ],
+      "questions": [
+        {
+          "id": "7e2a9c41-3b5d-4f60-a8e1-5c4d2b1f0a93",
+          "room": "checkout",
+          "member": "api",
+          "message_id": 1,
+          "question": "Ship the schema change today?",
+          "options": ["Ship it", "Wait"],
+          "state": "open",
+          "answer": null,
+          "created_at": "2026-01-01T09:02:10.000Z",
           "answered_at": null
         }
       ],

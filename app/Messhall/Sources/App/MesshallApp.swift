@@ -124,8 +124,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   nonisolated func userNotificationCenter(
     _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
   ) async {
-    let room = response.notification.request.content.userInfo[Notifier.roomKey] as? String
-    await show(room)
+    let info = response.notification.request.content.userInfo
+    let room = info[Notifier.roomKey] as? String
+    if let option = optionIndex(of: response.actionIdentifier), let question = info[Notifier.questionKey] as? String {
+      await answer(question, option: option, room: room)
+    } else {
+      await show(room)
+    }
+  }
+
+  /// A pick from a banner answers through the same human seat as the card. A question already gone opens its room.
+  private func answer(_ id: String, option: Int, room: String?) async {
+    guard let question = store.room(named: room)?.questions.first(where: { $0.id == id }) else {
+      show(room)
+      return
+    }
+    if let reason = await store.answer(question, option: option, via: client) {
+      notifier.refused(reason, room: question.room)
+    }
   }
 
   private func show(_ room: String?) {

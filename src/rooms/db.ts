@@ -171,6 +171,22 @@ export const MIGRATIONS = [
   UPDATE events SET payload = json_set(payload, '$.member.status', json('null'), '$.member.status_at', json('null'))
     WHERE kind = 'member';
   `,
+  // An agent's question to the human with 2 to 4 button labels, kept as JSON. The ask itself is a line in the room.
+  `
+  CREATE TABLE questions (
+    id TEXT PRIMARY KEY,
+    room_id TEXT NOT NULL REFERENCES rooms (id),
+    member TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    question TEXT NOT NULL,
+    options TEXT NOT NULL,
+    state TEXT NOT NULL,
+    answer INTEGER,
+    created_at TEXT NOT NULL,
+    answered_at TEXT
+  );
+  CREATE INDEX questions_state ON questions (state, created_at);
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

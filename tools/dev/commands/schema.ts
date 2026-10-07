@@ -11,15 +11,18 @@ import {
   memberEventSchema,
   messageEventSchema,
   presenceEventSchema,
+  questionEventSchema,
   roomEventSchema,
   sequencedEventSchema,
 } from '../../../contracts/events.ts';
 import {
+  answerResultSchema,
   approvalResultSchema,
   closeResultSchema,
   feedErrorSchema,
   historySchema,
   humanPostResultSchema,
+  humanAnswerSchema,
   humanApprovalSchema,
   humanPostSchema,
   humanRoleResultSchema,
@@ -42,6 +45,7 @@ import {
   messageKindSchema,
   messageSchema,
   presenceSchema,
+  questionSchema,
   roomSchema,
   roomSummarySchema,
 } from '../../../contracts/room.ts';
@@ -51,6 +55,7 @@ import { ok } from '../lib/print.js';
 export const SCHEMA_PATH = path.join(REPO_ROOT, 'contracts', 'schema.json');
 
 export const CONTRACTS = {
+  AnswerResult: answerResultSchema,
   Approval: approvalSchema,
   ApprovalEvent: approvalEventSchema,
   ApprovalResult: approvalResultSchema,
@@ -59,6 +64,7 @@ export const CONTRACTS = {
   FeedError: feedErrorSchema,
   Health: healthSchema,
   History: historySchema,
+  HumanAnswer: humanAnswerSchema,
   HumanApproval: humanApprovalSchema,
   HumanPost: humanPostSchema,
   HumanPostResult: humanPostResultSchema,
@@ -75,6 +81,8 @@ export const CONTRACTS = {
   NewRoomResult: newRoomResultSchema,
   Presence: presenceSchema,
   PresenceEvent: presenceEventSchema,
+  Question: questionSchema,
+  QuestionEvent: questionEventSchema,
   RemoveMemberResult: removeMemberResultSchema,
   ReopenResult: reopenResultSchema,
   Room: roomSchema,

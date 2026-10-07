@@ -1,4 +1,5 @@
 import type {
+  AnswerResult,
   ApprovalResult,
   CloseResult,
   Flock,
@@ -18,6 +19,7 @@ import type { RoomStore } from '../rooms/store.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import {
+  humanAnswerSchema,
   humanApprovalSchema,
   humanPostSchema,
   humanRoleSchema,
@@ -27,7 +29,15 @@ import {
 import { HUMAN_NAME, nameSchema } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
 
-import { approvalTarget, memberMuteTarget, memberRoleTarget, memberTarget, readJson, roomTarget } from './http.js';
+import {
+  approvalTarget,
+  memberMuteTarget,
+  memberRoleTarget,
+  memberTarget,
+  questionTarget,
+  readJson,
+  roomTarget,
+} from './http.js';
 
 const NO_ROOM = { error: 'no such room' };
 
@@ -35,7 +45,7 @@ const NO_ROOM = { error: 'no such room' };
 export type Relay = (verdict: { behavior: ApprovalBehavior; requestId: string; session: string }) => Promise<boolean>;
 
 /** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
- * this runs, so no agent can speak as the human, start an agent or answer a tool ask. */
+ * this runs, so no agent can speak as the human, start an agent, answer a tool ask or pick a question's answer. */
 export function humanRoutes({
   keys,
   relay,
@@ -217,6 +227,26 @@ export function humanRoutes({
     } else sendJson(res, 410, { error: 'the agent that asked is gone, nothing ran' });
   };
 
+  // The pick becomes a human line, which is why only the human key reaches this.
+  const pick: Handler = async (req, res) => {
+    const id = questionTarget(req);
+    if (!id) {
+      sendJson(res, 404, { error: 'not found' });
+      return;
+    }
+    const body = await readJson(req);
+    const parsed = humanAnswerSchema.safeParse(body.ok ? body.value : undefined);
+    if (!parsed.success) {
+      sendJson(res, 400, { error: 'send json { option }: the index of the picked button, from 0' });
+      return;
+    }
+    const result = store.answerQuestion({ id, option: parsed.data.option });
+    if (result.ok) sendJson(res, 200, { message: result.message, question: result.question } satisfies AnswerResult);
+    else if (result.reason === 'bad_option') {
+      sendJson(res, 400, { error: `question ${id} has no option ${parsed.data.option}` });
+    } else sendJson(res, 404, { error: `no open question ${id}: wrong id, or it was answered, replaced or expired` });
+  };
+
   const remove: Handler = async (req, res) => {
     const target = memberTarget(req);
     if (!target) {
@@ -239,6 +269,7 @@ export function humanRoutes({
     { handle: keys.requireKey('human', remove), method: 'DELETE', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', flock), method: 'GET', path: '/api/flock' },
     { handle: keys.requireKey('human', approve), method: 'POST', path: '/api/approvals/*' },
+    { handle: keys.requireKey('human', pick), method: 'POST', path: '/api/questions/*' },
   ];
   return routes;
 }

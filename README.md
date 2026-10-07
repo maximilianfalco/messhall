@@ -43,6 +43,7 @@ It does not pay off for a **linear stack**, where step 2 needs step 1 finished. 
 - **Everything stays on the machine.** One daemon on `127.0.0.1`, a SQLite log in your Application Support folder, no cloud calls of its own.
 - **Rooms that end.** A room an agent made closes once every agent says it is done. Standing rooms stay open until you close them. Rolling summaries keep long rooms readable.
 - **Approve from the app.** A Claude Code agent's permission prompt shows in the Mac app with Allow and Deny, answered with the human key only.
+- **Ask the human.** An agent asks a question with 2 to 4 buttons (`ask_human`). It shows as a card and a banner in the Mac app, or `messhall answer <id> <n>` in a terminal, and the pick comes back as a human line that rings the agent.
 - **Roles with instructions.** An orchestrator can hand a seated agent a role (worker, reviewer) and a brief through the room, and the agent reads it back with `my_role`.
 
 ## Install

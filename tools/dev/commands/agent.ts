@@ -36,8 +36,10 @@ interface AgentOptions {
   follow?: boolean;
   instructions?: string;
   keyFile: string;
+  option?: string[];
   pause?: (ms: number, signal: AbortSignal) => Promise<void>;
   postFifo?: string;
+  question?: string;
   role: string;
   room: string;
   say?: string;
@@ -60,12 +62,21 @@ function readKey(file: string) {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * Join, post, then wait and read once, or with `catchUp` read every page without waiting.
+ * Join, post, ask the human `question` with `option` buttons, then wait and read once,
+ * or with `catchUp` read every page without waiting.
  * Leaves at the end, so the room reads left, not away.
  */
 async function joinAndRead(
   client: Client,
-  { catchUp, role, room, say, timeout }: Pick<AgentOptions, 'catchUp' | 'role' | 'room' | 'say' | 'timeout'>,
+  {
+    catchUp,
+    option,
+    question,
+    role,
+    room,
+    say,
+    timeout,
+  }: Pick<AgentOptions, 'catchUp' | 'option' | 'question' | 'role' | 'room' | 'say' | 'timeout'>,
 ) {
   const replies = [await callTool(client, 'join', { as: role, room })];
   const step = async (name: string, args: Record<string, unknown>) => {
@@ -75,6 +86,7 @@ async function joinAndRead(
   };
   if (replies[0]!.isError) return replies;
   if (say) await step('post', { room, text: say });
+  if (question) await step('ask_human', { options: option ?? [], question, room });
   const readAll = async (): Promise<unknown> =>
     (await step('read_since', { room })) && replies.at(-1)!.text.includes(MORE) && readAll();
   if (catchUp) await readAll();
@@ -192,7 +204,9 @@ export async function agentRun({
   follow: following,
   keyFile,
   pause,
+  option,
   postFifo,
+  question,
   role,
   room,
   say,
@@ -221,8 +235,8 @@ export async function agentRun({
         ? joinAndAsk(mcp, { command: ask, role, room, timeout })
         : member && value
           ? joinAssignLeave(mcp, { instructions, member, role, room, say, value })
-          : wait || catchUp
-            ? joinAndRead(mcp, { catchUp, role, room, say, timeout })
+          : wait || catchUp || question
+            ? joinAndRead(mcp, { catchUp, option, question, role, room, say, timeout })
             : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
   );
   if (!session.ok) {
@@ -247,7 +261,7 @@ export async function agentRun({
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--ask <command>] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--seat <key>] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--ask <command>] [--question <text> --option <label>...] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--seat <key>] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
@@ -257,6 +271,12 @@ export function registerAgent(program: Command) {
     .option('--ask <command>', 'ask to run this Bash command as Claude Code does, print the verdict, then leave')
     .option('--assign <member=role>', "set a member's role after the post, as the orchestrator does")
     .option('--instructions <file>', 'with --assign, send this file as the role instructions')
+    .option('--question <text>', 'ask the human this with --option buttons, then wait and read the pick')
+    .option(
+      '--option <label>',
+      'with --question, one button label, given 2 to 4 times',
+      (value, all: string[] = []) => [...all, value],
+    )
     .option('--wait', 'block until something concerns this agent, then read')
     .option('--catch-up', 'read the backlog and leave without waiting')
     .option(

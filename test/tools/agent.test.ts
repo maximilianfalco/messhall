@@ -196,6 +196,43 @@ describe('agentRun', () => {
     expect(text).toContain('api → @web] @web total is cents now');
   });
 
+  it('asks the human with buttons, then waits and reads the pick', async () => {
+    const asking = agentRun({
+      keyFile: keyFile(),
+      option: ['ship it', 'wait'],
+      question: 'merge now?',
+      role: 'api',
+      room: 'checkout',
+      url: daemon.url,
+    });
+    const human = {
+      'content-type': 'application/json',
+      [KEY_HEADER]: readFileSync(path.join(home, KEY_FILES.human), 'utf8'),
+    };
+    const id = await vi.waitFor(async () => {
+      const snapshot = (await (await fetch(`${daemon.url}/api/snapshot`, { headers: human })).json()) as {
+        rooms: { questions: { id: string }[] }[];
+      };
+      const [question] = snapshot.rooms[0]?.questions ?? [];
+      if (!question) throw new Error('no question yet');
+      return question.id;
+    });
+    await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'api', room: 'checkout' })).toHaveLength(1));
+    await fetch(`${daemon.url}/api/questions/${id}`, {
+      body: JSON.stringify({ option: 0 }),
+      headers: human,
+      method: 'POST',
+    });
+
+    const result = await asking;
+
+    const text = stripVTControlCharacters(result.report);
+    expect(result.code).toBe(0);
+    expect(text).toContain('api ask_human');
+    expect(text).toContain('(human mentioned you). Call read_since.');
+    expect(text).toMatch(/human → @api\] @api answer to your question #\d+: ship it/);
+  });
+
   it.each(['allow', 'deny'])(
     'asks to run a command like Claude Code and prints the %s it gets back',
     async behavior => {

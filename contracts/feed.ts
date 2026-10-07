@@ -8,6 +8,7 @@ import {
   memberSchema,
   messageSchema,
   nameSchema,
+  questionSchema,
   roleSchema,
   roomSchema,
   roomSummarySchema,
@@ -18,12 +19,13 @@ export const TOPIC_MAX_CHARS = 200;
 
 export const SNAPSHOT_EVENT = 'snapshot';
 // Bump when a feed enum or event type grows, so an older app can tell it is behind.
-export const FEED_CONTRACT_VERSION = 3;
+export const FEED_CONTRACT_VERSION = 4;
 
 export const snapshotRoomSchema = roomSummarySchema.extend({
   approvals: z.array(approvalSchema).describe('Tool asks still waiting for the human, oldest first.'),
   members: z.array(memberSchema).describe('Members still in the room, by name, the human seat too.'),
   messages: z.array(messageSchema).describe('The last 50 messages, oldest first, system lines too.'),
+  questions: z.array(questionSchema).describe('Questions from agents still waiting for the human, oldest first.'),
 });
 
 export const snapshotSchema = z.object({
@@ -140,6 +142,15 @@ export const approvalResultSchema = z.object({
   approvals: z.array(approvalSchema).describe('The approval as answered, one per room its seat is in.'),
 });
 
+export const humanAnswerSchema = z.object({
+  option: z.number().int().nonnegative().describe('Index of the option the human picks, from 0.'),
+});
+
+export const answerResultSchema = z.object({
+  message: messageSchema.describe('The human line that carries the answer and rings the asker.'),
+  question: questionSchema.describe('The question as answered.'),
+});
+
 export const feedErrorSchema = z.object({
   error: z.string().describe('What went wrong, in plain words.'),
 });
@@ -161,3 +172,5 @@ export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
 export type MuteResult = z.infer<typeof muteResultSchema>;
 export type HumanApproval = z.infer<typeof humanApprovalSchema>;
 export type ApprovalResult = z.infer<typeof approvalResultSchema>;
+export type HumanAnswer = z.infer<typeof humanAnswerSchema>;
+export type AnswerResult = z.infer<typeof answerResultSchema>;

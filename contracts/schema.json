@@ -2,6 +2,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "messhall contracts",
   "$defs": {
+    "AnswerResult": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "description": "The human line that carries the answer and rings the asker.",
+          "$ref": "#/$defs/Message"
+        },
+        "question": {
+          "description": "The question as answered.",
+          "$ref": "#/$defs/Question"
+        }
+      },
+      "required": [
+        "message",
+        "question"
+      ],
+      "additionalProperties": false
+    },
     "Approval": {
       "type": "object",
       "properties": {
@@ -132,6 +150,9 @@
         },
         {
           "$ref": "#/$defs/ApprovalEvent"
+        },
+        {
+          "$ref": "#/$defs/QuestionEvent"
         }
       ],
       "description": "One change in the room store."
@@ -215,6 +236,21 @@
       },
       "required": [
         "messages"
+      ],
+      "additionalProperties": false
+    },
+    "HumanAnswer": {
+      "type": "object",
+      "properties": {
+        "option": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Index of the option the human picks, from 0."
+        }
+      },
+      "required": [
+        "option"
       ],
       "additionalProperties": false
     },
@@ -685,6 +721,123 @@
       ],
       "additionalProperties": false
     },
+    "Question": {
+      "type": "object",
+      "properties": {
+        "answer": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Index of the option the human picked, from 0. Null until then."
+        },
+        "answered_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When it was answered, expired or replaced, null while open."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When the agent asked."
+        },
+        "id": {
+          "type": "string",
+          "description": "Question id. The human answers this exact id."
+        },
+        "member": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The seat whose agent asks."
+        },
+        "message_id": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "The asker's own line in the room that carries the question."
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The button labels, 2 to 4, in order. Untrusted text from the agent."
+        },
+        "question": {
+          "type": "string",
+          "description": "What the agent asks the human. Untrusted text from the agent."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room the question is in."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "answered",
+            "expired",
+            "replaced"
+          ],
+          "description": "open until the human answers, answered after, expired when nobody answered in time, replaced by a newer ask."
+        }
+      },
+      "required": [
+        "answer",
+        "answered_at",
+        "created_at",
+        "id",
+        "member",
+        "message_id",
+        "options",
+        "question",
+        "room",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionEvent": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "description": "The question after the change.",
+          "$ref": "#/$defs/Question"
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "type": {
+          "type": "string",
+          "const": "question",
+          "description": "An agent asked the human a question, or it was answered, expired or replaced."
+        }
+      },
+      "required": [
+        "question",
+        "room",
+        "type"
+      ],
+      "additionalProperties": false
+    },
     "RemoveMemberResult": {
       "type": "object",
       "properties": {
@@ -1007,7 +1160,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 3,
+          "x-current": 4,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {
@@ -1122,6 +1275,13 @@
             "$ref": "#/$defs/Message"
           },
           "description": "The last 50 messages, oldest first, system lines too."
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Question"
+          },
+          "description": "Questions from agents still waiting for the human, oldest first."
         }
       },
       "required": [
@@ -1136,7 +1296,8 @@
         "message_count",
         "approvals",
         "members",
-        "messages"
+        "messages",
+        "questions"
       ],
       "additionalProperties": false
     }

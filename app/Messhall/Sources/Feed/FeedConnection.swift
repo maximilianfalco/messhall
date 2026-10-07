@@ -99,6 +99,18 @@ extension FeedStore {
     }
   }
 
+  /// Picks an option on an agent's question as the human and takes its card away at once.
+  /// Returns the refusal text, or nil.
+  public func answer(_ question: Question, option: Int, via client: FeedClient) async -> String? {
+    switch await HumanSeat(client: client).answer(question, option: option) {
+    case .done(let result):
+      settle(result)
+      return nil
+    case .refused(let reason):
+      return reason
+    }
+  }
+
   /// Makes, closes or reopens a room as the human and shows it at once. Returns the refusal text, or nil.
   public func change(_ action: RoomAction, via client: FeedClient) async -> String? {
     let seat = HumanSeat(client: client)

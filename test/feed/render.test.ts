@@ -1,6 +1,6 @@
 import type { BusEvent } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Approval, Member, Message, Room } from '../../contracts/room.ts';
+import type { Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
 
 import { stripVTControlCharacters } from 'node:util';
 
@@ -64,6 +64,22 @@ const approval = (overrides: Partial<Approval> = {}): Approval => ({
   room: 'checkout',
   state: 'pending',
   tool: 'Bash',
+  ...overrides,
+});
+
+const QUESTION_ID = '9d2f1c3e-5a4b-4c6d-8e7f-0a1b2c3d4e5f';
+
+const question = (overrides: Partial<Question> = {}): Question => ({
+  answer: null,
+  answered_at: null,
+  created_at: AT,
+  id: QUESTION_ID,
+  member: 'api',
+  message_id: 12,
+  options: ['ship it', 'wait'],
+  question: 'merge now?',
+  room: 'checkout',
+  state: 'open',
   ...overrides,
 });
 
@@ -152,8 +168,26 @@ describe('renderEvent approvals', () => {
   });
 });
 
+describe('renderEvent questions', () => {
+  it('shows an open question with the command that answers it', () => {
+    expect(render({ question: question(), room: 'checkout', type: 'question' })).toStrictEqual([
+      `       #checkout  ? api asks you #12, pick with: messhall answer ${QUESTION_ID} <1-2>`,
+    ]);
+  });
+
+  it.each([
+    [{ answer: 1, state: 'answered' }, 'answered: wait'],
+    [{ state: 'expired' }, 'expired with no answer'],
+    [{ state: 'replaced' }, 'replaced by a newer one'],
+  ] as const)('shows a closed question %j', (overrides, words) => {
+    expect(render({ question: question(overrides), room: 'checkout', type: 'question' }, 'checkout')).toStrictEqual([
+      `       · api question #12 ${words}`,
+    ]);
+  });
+});
+
 const snapshot: Snapshot = {
-  contract_version: 2,
+  contract_version: 4,
   rooms: [
     {
       ...room({ topic: 'ship the cart' }),
@@ -167,6 +201,7 @@ const snapshot: Snapshot = {
       first_message_id: 1,
       message_count: 2,
       messages: [message(), message({ from: 'human', id: 2, text: 'nice' })],
+      questions: [question()],
     },
     {
       ...room({ closed_at: AT, created_by: 'human', id: 'room-2', name: 'search', standing: true }),
@@ -175,6 +210,7 @@ const snapshot: Snapshot = {
       members: [],
       message_count: 0,
       messages: [],
+      questions: [],
     },
   ],
   seq: 9,
@@ -188,6 +224,7 @@ describe('renderSnapshot', () => {
       '       api active, web waiting, human',
       '10:04  api  hello',
       '10:04  human  nice',
+      `       ? api asks you #12: merge now? 1. ship it  2. wait. messhall answer ${QUESTION_ID} <1-2>`,
       '',
       '#search  closed, standing, 0 posts',
       '       nobody here',

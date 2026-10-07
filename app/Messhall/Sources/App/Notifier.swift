@@ -7,6 +7,7 @@ import UserNotifications
 @Observable
 final class Notifier {
   nonisolated static let roomKey = "room"
+  nonisolated static let questionKey = "question"
   // A shot app never asks and shows only the block it is told, so no prompt pops up and no shot hangs on this Mac.
   #if DEBUG
     private static let isShot = ShotHooks.isShot
@@ -17,6 +18,8 @@ final class Notifier {
   @ObservationIgnored private let settings: AppSettings
   /// What macOS does with our banners, read on launch and each time the app comes forward.
   private(set) var block: NotifyBlock?
+  /// One category per open question with a banner. Setting categories replaces the whole set, so all are kept here.
+  @ObservationIgnored private var questionCategories: [String: UNNotificationCategory] = [:]
 
   init(settings: AppSettings) {
     self.settings = settings
@@ -67,23 +70,49 @@ final class Notifier {
   }
 
   func notify(_ event: BusEvent, room: SnapshotRoom?, liveSince: Date) {
+    if let question = bannerToClear(for: event) { clear(question) }
     let state = NotifyState(
       room: room, mutedRooms: settings.snapshot.mutedRooms, enabled: enabled, liveSince: liveSince)
     guard let note = notificationFor(event: event, state: state) else { return }
-    post(title: note.title, body: note.body, room: note.room)
+    if let question = note.questionId { offer(note.options, for: question) }
+    post(title: note.title, body: note.body, room: note.room, question: note.questionId)
   }
 
-  private func post(title: String, body: String, room: String?) {
+  /// Says why a pick from a banner did not go through, since no window is there to show it.
+  func refused(_ reason: String, room: String) {
+    post(title: "#\(room)", body: "Could not answer: \(reason)", room: room)
+  }
+
+  private func offer(_ options: [String], for question: String) {
+    let actions = options.enumerated().map { UNNotificationAction(identifier: optionAction($0), title: $1) }
+    questionCategories[question] = UNNotificationCategory(
+      identifier: questionCategory(question), actions: actions, intentIdentifiers: [])
+    UNUserNotificationCenter.current().setNotificationCategories(Set(questionCategories.values))
+  }
+
+  // The banner's buttons would only get a refusal once the question is closed.
+  private func clear(_ question: String) {
+    UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [question])
+    guard questionCategories.removeValue(forKey: question) != nil else { return }
+    UNUserNotificationCenter.current().setNotificationCategories(Set(questionCategories.values))
+  }
+
+  /// A question's banner takes the question id as its own, so it can be cleared once the question closes.
+  private func post(title: String, body: String, room: String?, question: String? = nil) {
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = body
     content.sound = .default
     if let room {
       content.threadIdentifier = room
-      content.userInfo = [Self.roomKey: room]
+      content.userInfo[Self.roomKey] = room
+    }
+    if let question {
+      content.categoryIdentifier = questionCategory(question)
+      content.userInfo[Self.questionKey] = question
     }
     UNUserNotificationCenter.current().add(
-      UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+      UNNotificationRequest(identifier: question ?? UUID().uuidString, content: content, trigger: nil))
   }
 }
 

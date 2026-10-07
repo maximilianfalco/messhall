@@ -106,6 +106,18 @@ struct FeedClientTests {
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
   }
 
+  @Test("a pick posts the option's index to the question's own path")
+  func pick() throws {
+    let request = try client(key: "k1").request(.pick(question: "7e2a9c41-3b5d-4f60-a8e1-5c4d2b1f0a93", option: 2))
+
+    #expect(request.httpMethod == "POST")
+    #expect(
+      request.url?.absoluteString == "http://127.0.0.1:7796/api/questions/7e2a9c41-3b5d-4f60-a8e1-5c4d2b1f0a93")
+    #expect(request.value(forHTTPHeaderField: "content-type") == "application/json")
+    #expect(request.httpBody == Data(#"{"option":2}"#.utf8))
+    #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
+  }
+
   @Test("a role posts just the role to the member's role path")
   func role() throws {
     let request = try client(key: "k1").request(.role(room: "ops", member: "api", role: "reviewer"))

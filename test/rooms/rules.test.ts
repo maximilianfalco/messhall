@@ -227,6 +227,15 @@ describe('concerns', () => {
     ).toBe(false);
   });
 
+  it('rings only the member a daemon line names, never @all', () => {
+    const expiry = message({ from: 'messhall', kind: 'system', mentions: ['api', 'all'] });
+    expect(ROOM.map(m => concerns({ pausedWith: {}, member: m, members: ROOM, message: expiry }))).toStrictEqual([
+      false,
+      true,
+      false,
+    ]);
+  });
+
   it('skips summaries, even with a mention in them', () => {
     const summary = message({ from: 'messhall', kind: 'summary', mentions: ['web', 'all'] });
     expect(ROOM.map(m => concerns({ pausedWith: {}, member: m, members: ROOM, message: summary }))).toStrictEqual([

@@ -8,6 +8,7 @@ const MEMBER_ROLE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/role$/;
 const MEMBER_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)$/;
 const MEMBER_MUTE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/mute$/;
 const APPROVAL_PATH = /^\/api\/approvals\/([0-9a-f-]{36})$/;
+const QUESTION_PATH = /^\/api\/questions\/([0-9a-f-]{36})$/;
 const MEMBER_UNMUTE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/unmute$/;
 
 /** The room name and action in `/api/rooms/<name>/<action>`, or undefined when the path is not one. */
@@ -43,6 +44,12 @@ export const memberTarget = (req: IncomingMessage) => memberIn(req, MEMBER_PATH)
 export function approvalTarget(req: IncomingMessage) {
   const { pathname } = new URL(req.url ?? '/', 'http://127.0.0.1');
   return APPROVAL_PATH.exec(pathname)?.[1];
+}
+
+/** The question id in `/api/questions/<id>`, or undefined when the path is not one. */
+export function questionTarget(req: IncomingMessage) {
+  const { pathname } = new URL(req.url ?? '/', 'http://127.0.0.1');
+  return QUESTION_PATH.exec(pathname)?.[1];
 }
 
 /** The request body parsed as JSON, or `ok: false` when it is too big or not JSON. */

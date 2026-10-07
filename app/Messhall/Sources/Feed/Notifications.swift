@@ -5,11 +5,33 @@ let systemName = "messhall"
 let humanCloseSuffix = "closed by the human"
 let bodyLimit = 120
 
+let optionPrefix = "option."
+
 /// One banner to show: the room it opens, its title and its body.
+/// A question's banner also carries its id and the options it offers as buttons.
 public struct NotificationContent: Equatable, Sendable {
   public let room: String
   public let title: String
   public let body: String
+  public var questionId: String? = nil
+  public var options: [String] = []
+}
+
+/// The banner category for one question, so its buttons carry that question's own options.
+public func questionCategory(_ questionId: String) -> String { "question.\(questionId)" }
+
+public func optionAction(_ index: Int) -> String { "\(optionPrefix)\(index)" }
+
+/// The option index a banner button stands for, or nil for any other action.
+public func optionIndex(of action: String) -> Int? {
+  guard action.hasPrefix(optionPrefix) else { return nil }
+  return Int(action.dropFirst(optionPrefix.count))
+}
+
+/// The question whose banner should go, because it is no longer open.
+public func bannerToClear(for event: BusEvent) -> String? {
+  guard case .question(let e) = event, e.question.state != .open else { return nil }
+  return e.question.id
 }
 
 /// What the notification choice needs besides the event itself.
@@ -35,7 +57,7 @@ public func parseStamp(_ stamp: String) -> Date? {
 }
 
 /// The banner a live event earns, or nil: a mention of the human or all, a question from the
-/// only agent in the room, a room that closes, or a new tool ask. Never for the human's own posts.
+/// only agent in the room, a room that closes, a new tool ask or a new question. Never for the human's own posts.
 public func notificationFor(event: BusEvent, state: NotifyState) -> NotificationContent? {
   guard state.enabled else { return nil }
   switch event {
@@ -53,6 +75,14 @@ public func notificationFor(event: BusEvent, state: NotifyState) -> Notification
     let ask = e.approval
     guard ask.state == .pending, isLive(ask.createdAt, since: state.liveSince) else { return nil }
     return content(room: e.room, body: "\(ask.member) asks to use \(ask.tool): \(ask.description)", muted: state.mutedRooms)
+  case .question(let e):
+    let ask = e.question
+    guard ask.state == .open, isLive(ask.createdAt, since: state.liveSince),
+      var note = content(room: e.room, body: "\(ask.member) asks you: \(ask.question)", muted: state.mutedRooms)
+    else { return nil }
+    note.questionId = ask.id
+    note.options = ask.options
+    return note
   case .member, .presence, .unknown:
     return nil
   }
