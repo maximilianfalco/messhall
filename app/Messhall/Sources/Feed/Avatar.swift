@@ -34,10 +34,13 @@ public func avatarFill(hue: Int) -> RGB {
   return hsl(hue: hue, lightness: lightness)
 }
 
+// Every hue's fill once, since the contrast search runs tens of steps and a row draws it on each build.
+private let avatarFills = (0..<360).map(avatarFill)
+
 /// The circle fill for a member name: the human's pick from Settings, else the same hashed hue everywhere.
 @MainActor
 public func avatarRGB(for name: String, in settings: AppSettings = .shared) -> RGB {
-  settings.snapshot.avatars.color(for: name) ?? avatarFill(hue: avatarHue(for: name))
+  settings.snapshot.avatars.color(for: name) ?? avatarFills[avatarHue(for: name)]
 }
 
 @MainActor

@@ -14,12 +14,16 @@ extension SnapshotRoom {
   }
 }
 
+// Parsing and formatting a stamp cost more than the rest of a row, and a row draws its stamp on each build.
+@MainActor private var times: [String: String] = [:]
+
 extension Message {
-  var time: String {
-    guard let date = try? Date(createdAt, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)) else {
-      return ""
-    }
-    return date.formatted(date: .omitted, time: .shortened)
+  @MainActor var time: String {
+    if let known = times[createdAt] { return known }
+    let date = try? Date(createdAt, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+    let text = date?.formatted(date: .omitted, time: .shortened) ?? ""
+    times[createdAt] = text
+    return text
   }
 }
 

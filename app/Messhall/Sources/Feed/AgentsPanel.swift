@@ -46,15 +46,23 @@ public struct AgentsPanel: Equatable, Sendable {
 
   public init(rooms: [SnapshotRoom]) {
     let rows = rooms.flatMap { room in
-      room.members.filter { $0.kind != .human && $0.presence != .left }.map { member in
-        AgentRow(
-          room: room.name, member: member,
-          lastPost: room.messages.last { $0.from == member.name && ($0.kind == .chat || $0.kind == .done) })
+      let lastPosts = Self.lastPosts(in: room.messages)
+      return room.members.filter { $0.kind != .human && $0.presence != .left }.map { member in
+        AgentRow(room: room.name, member: member, lastPost: lastPosts[member.name])
       }
     }
     .sorted { ($0.room, $0.member.name) < ($1.room, $1.member.name) }
     shown = rows.filter { !$0.folds }.enumerated().sorted { ($0.element.rank, $0.offset) < ($1.element.rank, $1.offset) }
       .map(\.element)
     folded = rows.filter(\.folds)
+  }
+
+  /// Each sender's newest chat or done line, in one pass over the loaded messages.
+  private static func lastPosts(in messages: [Message]) -> [String: Message] {
+    var last: [String: Message] = [:]
+    for message in messages where message.kind == .chat || message.kind == .done {
+      last[message.from] = message
+    }
+    return last
   }
 }

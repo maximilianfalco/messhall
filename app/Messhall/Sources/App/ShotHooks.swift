@@ -208,7 +208,7 @@
     }
 
     /// SwiftUI keeps its split view controller off the window's controller tree, so it is found by its view.
-    private static func splitController() -> NSSplitViewController? {
+    static func splitController() -> NSSplitViewController? {
       func find(_ view: NSView) -> NSSplitView? {
         view as? NSSplitView ?? view.subviews.lazy.compactMap(find).first
       }

@@ -53,6 +53,11 @@ export function dataDir() {
   return process.env.MESSHALL_HOME || path.join(homedir(), 'Library', 'Application Support', 'messhall');
 }
 
+/** True when `MESSHALL_SUMMARIES` is `off`, so a scratch daemon never pays claude for a room summary. */
+export function summariesOff() {
+  return process.env.MESSHALL_SUMMARIES === 'off';
+}
+
 /** Where the daemon writes its log file. Under `MESSHALL_HOME` when set, so tests keep logs out of the real dir. */
 export function logDir() {
   const home = process.env.MESSHALL_HOME;
