@@ -24,7 +24,7 @@ struct PullRequestCards: View {
 }
 
 extension View {
-  /// Reads the row's PRs while the line is on screen: once when it shows, then every couple of minutes.
+  /// Reads the row's PRs while the line is on screen: once when it shows, then as often as its cards ask.
   func readsPullRequests(_ row: PullRequestRow) -> some View {
     modifier(ReadPullRequests(links: row.shown))
   }
@@ -39,7 +39,8 @@ private struct ReadPullRequests: ViewModifier {
       guard !links.isEmpty else { return }
       while !Task.isCancelled {
         for link in links { await store.refresh(link) }
-        try? await Task.sleep(for: PullRequestStore.refreshEvery)
+        guard let wait = store.refreshAfter(links) else { return }
+        try? await Task.sleep(for: wait)
       }
     }
   }
