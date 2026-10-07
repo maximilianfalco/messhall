@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { buildSchema } from './health.ts';
 import {
   agreementSchema,
   APPROVAL_BEHAVIORS,
@@ -31,6 +32,7 @@ export const snapshotRoomSchema = roomSummarySchema.extend({
 });
 
 export const snapshotSchema = z.object({
+  build: buildSchema.nullable().describe('The code the daemon started on, null when it is not a git checkout.'),
   contract_version: z
     .number()
     .int()
