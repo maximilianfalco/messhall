@@ -19,6 +19,9 @@ public struct PerfReport: Codable, Equatable, Sendable {
   /// Frames while the sidebar hides and shows again, over the two slides.
   public var sidebarFps: Double
   public var sidebarWorstFrameMs: Double
+  /// The same two slides with the agents panel open beside the room.
+  public var panelFps: Double
+  public var panelWorstFrameMs: Double
   public var events: Int
   public var eventCpuMs: Double
   public var eventRowBodies: Double
@@ -29,13 +32,15 @@ public struct PerfReport: Codable, Equatable, Sendable {
   public init(
     openMs: Double, idleCpuPercent: Double, pages: Int, rows: Int, pageAllMs: Double, pageAllCpuMs: Double,
     scrollFps: Double, scrollWorstFrameMs: Double, dashFps: Double, dashWorstFrameMs: Double, sidebarFps: Double,
-    sidebarWorstFrameMs: Double, events: Int,
+    sidebarWorstFrameMs: Double, panelFps: Double, panelWorstFrameMs: Double, events: Int,
     eventCpuMs: Double, eventRowBodies: Double, eventWallMs: Double, pullRequestReads: Int, residentMb: Double
   ) {
     self.dashFps = dashFps
     self.dashWorstFrameMs = dashWorstFrameMs
     self.sidebarFps = sidebarFps
     self.sidebarWorstFrameMs = sidebarWorstFrameMs
+    self.panelFps = panelFps
+    self.panelWorstFrameMs = panelWorstFrameMs
     self.openMs = openMs
     self.idleCpuPercent = idleCpuPercent
     self.pages = pages
@@ -64,6 +69,8 @@ public struct PerfReport: Codable, Equatable, Sendable {
     case dashWorstFrameMs = "dash_worst_frame_ms"
     case sidebarFps = "sidebar_fps"
     case sidebarWorstFrameMs = "sidebar_worst_frame_ms"
+    case panelFps = "panel_fps"
+    case panelWorstFrameMs = "panel_worst_frame_ms"
     case eventCpuMs = "event_cpu_ms"
     case eventRowBodies = "event_row_bodies"
     case eventWallMs = "event_wall_ms"
