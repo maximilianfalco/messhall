@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { busEventSchema, MEMBER_CHANGES, ROOM_CHANGES } from '../../contracts/events.ts';
 import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
-import { APPROVAL_STATES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES } from '../../contracts/room.ts';
+import { APPROVAL_STATES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES, QUESTION_STATES } from '../../contracts/room.ts';
 import { contractSchema } from '../../tools/dev/commands/schema.js';
 
 describe('FEED_CONTRACT_VERSION', () => {
   it('moves with the feed enums, bump it when one of them grows', () => {
     expect({
-      enums: { APPROVAL_STATES, MEMBER_CHANGES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES, ROOM_CHANGES },
+      enums: { APPROVAL_STATES, MEMBER_CHANGES, MEMBER_KINDS, MESSAGE_KINDS, PRESENCES, QUESTION_STATES, ROOM_CHANGES },
       event_types: busEventSchema.options.map(option => option.shape.type.value),
       version: FEED_CONTRACT_VERSION,
     }).toMatchInlineSnapshot(`
@@ -50,6 +50,12 @@ describe('FEED_CONTRACT_VERSION', () => {
             "away",
             "left",
           ],
+          "QUESTION_STATES": [
+            "open",
+            "answered",
+            "expired",
+            "replaced",
+          ],
           "ROOM_CHANGES": [
             "created",
             "closed",
@@ -63,8 +69,9 @@ describe('FEED_CONTRACT_VERSION', () => {
           "presence",
           "room",
           "approval",
+          "question",
         ],
-        "version": 2,
+        "version": 3,
       }
     `);
   });

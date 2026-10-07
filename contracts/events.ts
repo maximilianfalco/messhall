@@ -6,6 +6,7 @@ import {
   messageSchema,
   nameSchema,
   presenceSchema,
+  questionSchema,
   roomSchema,
   timestampSchema,
 } from './room.ts';
@@ -62,6 +63,12 @@ export const approvalEventSchema = z.object({
   type: z.literal('approval').describe('An agent asked to use a tool, or its ask was answered or expired.'),
 });
 
+export const questionEventSchema = z.object({
+  question: questionSchema.describe('The question after the change.'),
+  room: nameSchema.describe('Room name.'),
+  type: z.literal('question').describe('An agent asked the human a question, or it was answered, expired or replaced.'),
+});
+
 export const busEventSchema = z
   .discriminatedUnion('type', [
     messageEventSchema,
@@ -69,6 +76,7 @@ export const busEventSchema = z
     presenceEventSchema,
     roomEventSchema,
     approvalEventSchema,
+    questionEventSchema,
   ])
   .describe('One change in the room store.');
 

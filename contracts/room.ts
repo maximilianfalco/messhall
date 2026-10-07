@@ -152,9 +152,38 @@ export const approvalSchema = z.object({
   tool: z.string().describe('The tool the agent wants to use, like Bash or Write.'),
 });
 
+export const QUESTION_STATES = ['open', 'answered', 'expired', 'replaced'] as const;
+export const QUESTION_MAX_CHARS = 500;
+export const OPTION_MAX_CHARS = 40;
+export const OPTIONS_MIN = 2;
+export const OPTIONS_MAX = 4;
+
+export const questionSchema = z.object({
+  answer: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .describe('Index of the option the human picked, from 0. Null until then.'),
+  answered_at: timestampSchema.nullable().describe('When it was answered, expired or replaced, null while open.'),
+  created_at: timestampSchema.describe('When the agent asked.'),
+  id: z.string().describe('Question id. The human answers this exact id.'),
+  member: nameSchema.describe('The seat whose agent asks.'),
+  message_id: z.number().int().positive().describe("The asker's own line in the room that carries the question."),
+  options: z.array(z.string()).describe('The button labels, 2 to 4, in order. Untrusted text from the agent.'),
+  question: z.string().describe('What the agent asks the human. Untrusted text from the agent.'),
+  room: nameSchema.describe('Room the question is in.'),
+  state: z
+    .enum(QUESTION_STATES)
+    .describe(
+      'open until the human answers, answered after, expired when nobody answered in time, replaced by a newer ask.',
+    ),
+});
+
 export type Room = z.infer<typeof roomSchema>;
 export type Member = z.infer<typeof memberSchema>;
 export type Message = z.infer<typeof messageSchema>;
 export type RoomSummary = z.infer<typeof roomSummarySchema>;
 export type Approval = z.infer<typeof approvalSchema>;
 export type ApprovalBehavior = (typeof APPROVAL_BEHAVIORS)[number];
+export type Question = z.infer<typeof questionSchema>;

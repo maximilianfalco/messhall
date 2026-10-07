@@ -1,7 +1,15 @@
 import { z } from 'zod';
 
 import { TOPIC_MAX_CHARS } from './feed.ts';
-import { INSTRUCTIONS_MAX_CHARS, nameSchema, roleSchema } from './room.ts';
+import {
+  INSTRUCTIONS_MAX_CHARS,
+  nameSchema,
+  OPTION_MAX_CHARS,
+  OPTIONS_MAX,
+  OPTIONS_MIN,
+  QUESTION_MAX_CHARS,
+  roleSchema,
+} from './room.ts';
 
 export const AGENT_KINDS = ['claude', 'codex', 'other'] as const;
 export const WAIT_MAX_S = 270;
@@ -116,6 +124,24 @@ export const setTopicInputSchema = z.object({
 });
 
 export const myRoleInputSchema = z.object({
+  room: roomField.describe('Room you joined.'),
+});
+
+// A label lands in a human line, so it holds no @ that could ring or name anyone.
+const optionField = z
+  .string()
+  .trim()
+  .min(1)
+  .max(OPTION_MAX_CHARS)
+  .regex(/^[^@\p{Cc}]*$/u, 'one line, no @');
+
+export const askHumanInputSchema = z.object({
+  options: z
+    .array(optionField)
+    .min(OPTIONS_MIN)
+    .max(OPTIONS_MAX)
+    .describe('2 to 4 button labels, at most 40 chars each, one line, no @. Like ["ship it", "wait for review"].'),
+  question: z.string().trim().min(1).max(QUESTION_MAX_CHARS).describe('What you ask the human, at most 500 chars.'),
   room: roomField.describe('Room you joined.'),
 });
 
