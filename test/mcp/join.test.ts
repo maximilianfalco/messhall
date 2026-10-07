@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { AWAY_AFTER_MS, IDLE_AFTER_MS, SESSION_DEAD_MS } from '../../src/config.js';
+import { AWAY_AFTER_MS, IDLE_AFTER_MS, SEAT_TOKEN_FREE_AFTER_MS, SESSION_DEAD_MS } from '../../src/config.js';
 
 import { CLOSED_THREAD, LIVE_THREAD, mcpHarness, type McpHarness } from './harness.js';
 
@@ -189,6 +189,112 @@ describe('join', () => {
     const result = await other.call('join', { as: 'api', room: 'checkout' });
 
     expect(result).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+  });
+
+  it('gives a claude with no seat key a seat token and hands its away seat back only to that token', async () => {
+    const oldApi = await harness.agent({ name: 'claude-code' });
+    const first = await oldApi.call('join', { as: 'api', room: 'checkout' });
+    const token = /seat token: (tok-[0-9a-f-]{36})\./.exec(first.text)?.[1];
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
+    const stranger = await harness.agent({ name: 'claude-code' });
+    const newApi = await harness.agent({ name: 'claude-code' });
+
+    const refused = await stranger.call('join', { as: 'api', room: 'checkout' });
+    const guessed = await stranger.call('join', {
+      as: 'api',
+      room: 'checkout',
+      seat_token: 'tok-00000000-0000-0000-0000-000000000000',
+    });
+    const joined = await newApi.call('join', { as: 'api', room: 'checkout', seat_token: token });
+
+    expect(token).toBeDefined();
+    expect(refused).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(guessed).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(joined.text).toContain('reconnected #checkout as api');
+    expect(joined.text).toContain(`seat token: ${token}.`);
+  });
+
+  it.each([
+    ['a claude', 'claude-code'],
+    ['another client', undefined],
+  ])(
+    'refuses a seat token from %s that join never minted, so no seat gets a key that never frees',
+    async (_label, name) => {
+      const api = await harness.agent({ name });
+
+      const result = await api.call('join', { as: 'api', room: 'checkout', seat_token: 'abc' });
+
+      expect(result.isError).toBe(true);
+      expect(result.text).toContain('seat_token');
+      expect(harness.store.listMembers('checkout').map(member => member.name)).not.toContain('api');
+    },
+  );
+
+  it('puts the seat token right under the joined line', async () => {
+    const api = await harness.agent({ name: 'claude-code' });
+
+    const result = await api.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result.text.split('\n')[1]).toMatch(/^seat token: tok-[0-9a-f-]{36}\./);
+  });
+
+  it('frees a token seat for a claude that lost its token once it is away with no live session for 30 min', async () => {
+    const oldApi = await harness.agent({ name: 'claude-code' });
+    await oldApi.call('join', { as: 'api', room: 'checkout' });
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
+    const newApi = await harness.agent({ name: 'claude-code' });
+
+    const early = await newApi.call('join', { as: 'api', room: 'checkout' });
+    harness.clock.advance(SEAT_TOKEN_FREE_AFTER_MS);
+    const late = await newApi.call('join', { as: 'api', room: 'checkout' });
+
+    expect(early).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(late.text).toContain('reconnected #checkout as api');
+    expect(oldApi.session.rooms.has('checkout')).toBe(false);
+  });
+
+  it('keeps a token seat whose session is still live however long it was away', async () => {
+    const oldApi = await harness.agent({ name: 'claude-code' });
+    await oldApi.call('join', { as: 'api', room: 'checkout' });
+    oldApi.session.hold();
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
+    harness.clock.advance(SEAT_TOKEN_FREE_AFTER_MS);
+    const newApi = await harness.agent({ name: 'claude-code' });
+
+    const result = await newApi.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+  });
+
+  it('never frees a seat keyed by a seat header or a codex thread, however long it is away', async () => {
+    const keyed = await harness.agent({ name: 'claude-code', seat: 'seat-a' });
+    const codex = await harness.agent({ name: 'codex-mcp-client' });
+    await keyed.call('join', { as: 'api', room: 'checkout' });
+    await codex.call('join', { as: 'web', room: 'checkout', thread_id: LIVE_THREAD });
+    harness.store.touch({ as: 'api', room: 'checkout', state: 'away' });
+    harness.store.touch({ as: 'web', room: 'checkout', state: 'away' });
+    harness.clock.advance(SEAT_TOKEN_FREE_AFTER_MS);
+    const stranger = await harness.agent({ name: 'claude-code' });
+
+    const api = await stranger.call('join', { as: 'api', room: 'checkout' });
+    const web = await stranger.call('join', { as: 'web', room: 'checkout' });
+
+    expect(api).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(web).toStrictEqual({ isError: true, text: 'name taken, try web-2.' });
+  });
+
+  it('gives no seat token to a session with a seat key, a codex thread or a client other than claude', async () => {
+    const keyed = await harness.agent({ name: 'claude-code', seat: 'seat-a' });
+    const codex = await harness.agent({ name: 'codex-mcp-client' });
+    const other = await harness.agent();
+
+    const replies = await Promise.all([
+      keyed.call('join', { as: 'api', room: 'checkout' }),
+      codex.call('join', { as: 'web', room: 'checkout', thread_id: LIVE_THREAD }),
+      other.call('join', { as: 'ops', room: 'checkout' }),
+    ]);
+
+    replies.forEach(reply => expect(reply.text).not.toContain('seat token'));
   });
 
   it('hands an away seat back to codex by its thread id and to no other thread', async () => {

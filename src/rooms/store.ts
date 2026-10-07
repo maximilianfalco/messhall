@@ -4,6 +4,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { randomUUID } from 'node:crypto';
 
+import { SEAT_TOKEN_PREFIX } from '../../contracts/mcp.ts';
 import {
   HUMAN_NAME,
   launchSchema,
@@ -27,6 +28,7 @@ import {
   LOOP_GUARD_WITHIN_MS,
   READ_LIMIT,
   SEARCH_LIMIT,
+  SEAT_TOKEN_FREE_AFTER_MS,
   STALE_AFTER_MS,
 } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
@@ -61,6 +63,9 @@ interface Reclaim {
 }
 
 const NAME_MAX = 40;
+
+/** A fresh seat token for a join with no other seat key. Its prefix lets a lost one free the seat later. */
+export const newSeatToken = () => `${SEAT_TOKEN_PREFIX}${randomUUID()}`;
 // Only member posts count toward the summary schedule. Daemon lines and summaries do not.
 const IS_POST = "kind IN ('chat', 'done')";
 
@@ -275,10 +280,18 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   }
 
   // A keyed seat goes back only to its own key. A keyless one has no owner to check, so an away or dead holder lets go.
+  // A token seat turns keyless after a long time away with no live session, so a lost token does not lock the name.
   function reclaims({ existing, holderDead, room, seatKey }: Reclaim) {
     const key = sql.seatKey.get(room.id, existing.name)?.seat_key;
-    if (typeof key === 'string') return key === seatKey;
-    return existing.presence === 'away' || holderDead;
+    if (typeof key !== 'string') return existing.presence === 'away' || holderDead;
+    if (key === seatKey) return true;
+    const awayMs = now().getTime() - Date.parse(existing.last_seen_at);
+    return (
+      key.startsWith(SEAT_TOKEN_PREFIX) &&
+      holderDead &&
+      existing.presence === 'away' &&
+      awayMs >= SEAT_TOKEN_FREE_AFTER_MS
+    );
   }
 
   function drop(room: Room, member: Member, emit: Emit) {
