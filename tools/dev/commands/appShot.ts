@@ -56,6 +56,8 @@ const SHOTS = [
   { agentPost: true, appearance: 'dark', name: 'pill-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', muted: true, name: 'muted-light' },
   { appearance: 'dark', muted: true, name: 'muted-dark' },
+  { agentPost: true, appearance: 'light', name: 'sidebar-light', room: 'checkout' },
+  { agentPost: true, appearance: 'dark', name: 'sidebar-dark', room: 'checkout' },
   { appearance: 'light', name: 'human-row-light', room: 'docs-sync', scrollTop: true },
   { appearance: 'dark', name: 'human-row-dark', room: 'docs-sync', scrollTop: true },
   { appearance: 'light', name: 'empty-room-light', room: 'kickoff' },

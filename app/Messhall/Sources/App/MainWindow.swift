@@ -30,7 +30,7 @@ struct MainWindow: View {
   var body: some View {
     if store.loaded {
       NavigationSplitView(columnVisibility: $columns) {
-        RoomList(rooms: store.rooms, selection: selection)
+        RoomList(rooms: store.rooms, store: store, selection: selection)
           .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
       } detail: {
         if let room = store.room(named: selection.wrappedValue) {
@@ -98,6 +98,7 @@ struct DaemonDown: View {
 
 struct RoomList: View {
   let rooms: [SnapshotRoom]
+  let store: FeedStore
   @Binding var selection: String?
 
   var body: some View {
@@ -112,28 +113,37 @@ struct RoomList: View {
     if !rooms.isEmpty {
       Section(title) {
         ForEach(rooms) { room in
-          RoomRow(room: room).tag(room.name)
+          RoomRow(room: room, unread: room.name == selection ? 0 : store.unread(in: room.name)).tag(room.name)
         }
       }
     }
   }
 }
 
+/// One line: the name, then what needs the human (questions, unread posts) and how many agents are in.
 struct RoomRow: View {
   let room: SnapshotRoom
+  let unread: Int
 
   var body: some View {
     Label {
-      HStack {
-        VStack(alignment: .leading, spacing: 1) {
-          Text(room.name)
-          Text(room.agentSummary)
+      HStack(spacing: 6) {
+        Text(room.name)
+          .lineLimit(1)
+        Spacer(minLength: 4)
+        if !room.questions.isEmpty {
+          QuestionBadge(count: room.questions.count)
+        }
+        if unread > 0 {
+          UnreadBadge(count: unread)
+        }
+        if let agents = room.sidebarAgentCount {
+          Label("\(agents)", systemImage: "person.2")
+            .labelStyle(.titleAndIcon)
             .font(.caption)
             .foregroundStyle(.secondary)
-        }
-        if !room.questions.isEmpty {
-          Spacer()
-          QuestionBadge(count: room.questions.count)
+            .fixedSize()
+            .help(room.agentSummary)
         }
       }
     } icon: {
@@ -141,10 +151,34 @@ struct RoomRow: View {
     }
     .padding(.vertical, 2)
     .accessibilityLabel(
-      "\(room.name), \(room.isOpen ? "open" : "closed"), \(room.agentSummary)\(questionsLabel)")
+      "\(room.name), \(room.isOpen ? "open" : "closed"), \(room.agentSummary)\(questionsLabel)\(unreadLabel)")
   }
 
   private var questionsLabel: String {
     room.questions.isEmpty ? "" : ", " + QuestionBadge.summary(room.questions.count)
+  }
+
+  private var unreadLabel: String {
+    unread == 0 ? "" : ", " + UnreadBadge.summary(unread)
+  }
+}
+
+/// Says how many posts landed in a room since the human last looked at it.
+struct UnreadBadge: View {
+  let count: Int
+
+  var body: some View {
+    Text("\(count)")
+      .font(.caption.weight(.semibold))
+      .foregroundStyle(.white)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .background(Color.accentColor, in: Capsule())
+      .fixedSize()
+      .help(Self.summary(count))
+  }
+
+  static func summary(_ count: Int) -> String {
+    count == 1 ? "1 unread post" : "\(count) unread posts"
   }
 }

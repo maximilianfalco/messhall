@@ -67,6 +67,7 @@ struct RoomDetail: View {
     .titleInHeader()
     .searchable(text: $query, placement: .toolbar, prompt: "Filter #\(room.name)")
     .onChange(of: room.name) { query = "" }
+    .onChange(of: Seen(room: room.name, lastId: room.messages.last?.id), initial: true) { store.markSeen(room.name) }
     .toolbar {
       ToolbarItem { CopyJoinButton(room: room.name) }
       ToolbarItem { MuteButton(room: room.name) }
@@ -136,6 +137,12 @@ struct RoomDetail: View {
   private func answer(_ question: Question, option: Int) {
     Task { refusal = await store.answer(question, option: option, via: client) }
   }
+}
+
+/// What the shown room has loaded. A change means the human saw it, so the sidebar's unread badge clears.
+private struct Seen: Equatable {
+  let room: String
+  let lastId: Int?
 }
 
 /// The open room's Close or Reopen action, so the menu bar can offer it too.

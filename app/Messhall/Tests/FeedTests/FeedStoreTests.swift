@@ -430,3 +430,81 @@ struct FeedStoreTests {
     #expect(seen.map(\.1) == [2])
   }
 }
+
+@MainActor
+@Suite("FeedStore unread")
+struct FeedStoreUnreadTests {
+  private func loaded() throws -> FeedStore {
+    let store = FeedStore()
+    store.apply(.snapshot(try Fixture.decode(Snapshot.self, "Snapshot")))
+    return store
+  }
+
+  private func chat(_ id: Int, from: String = "web") -> BusEvent {
+    .message(
+      MessageEvent(
+        room: "checkout",
+        message: Message(
+          id: id, roomId: "r1", from: from, kind: .chat, text: "hi", mentions: [],
+          createdAt: "2026-01-01T09:05:00.000Z")))
+  }
+
+  @Test("a snapshot counts as seen, so nothing is unread on launch")
+  func launch() throws {
+    let store = try loaded()
+
+    #expect(store.unread(in: "checkout") == 0)
+  }
+
+  @Test("a live post in a room the human is not looking at counts until the room is marked seen")
+  func livePost() throws {
+    let store = try loaded()
+
+    store.apply(.event(seq: 8, chat(3)))
+    store.apply(.event(seq: 9, chat(4)))
+    #expect(store.unread(in: "checkout") == 2)
+
+    store.markSeen("checkout")
+    #expect(store.unread(in: "checkout") == 0)
+  }
+
+  @Test("a presence line is never unread")
+  func presenceLine() throws {
+    let store = try loaded()
+    let line = Message(
+      id: 3, roomId: "r1", from: "messhall", kind: .system, text: "web left", mentions: [],
+      createdAt: "2026-01-01T09:03:00.000Z")
+
+    store.apply(.event(seq: 8, .message(MessageEvent(room: "checkout", message: line))))
+
+    #expect(store.unread(in: "checkout") == 0)
+  }
+
+  @Test("a reloaded snapshot keeps what was seen, so a post that landed meanwhile stays unread")
+  func reload() throws {
+    let store = try loaded()
+    store.apply(.event(seq: 8, chat(3)))
+    var snapshot = try Fixture.decode(Snapshot.self, "Snapshot")
+    snapshot.rooms[0].messages.append(
+      Message(id: 3, roomId: "r1", from: "web", kind: .chat, text: "hi", mentions: [], createdAt: "2026-01-01T09:05:00.000Z"))
+
+    store.apply(.snapshot(snapshot))
+
+    #expect(store.unread(in: "checkout") == 1)
+  }
+
+  @Test("a room made live starts seen and counts from its first post")
+  func newRoom() throws {
+    let store = try loaded()
+    let room = Room(
+      id: "r2", name: "deploy", topic: nil, createdAt: "t0", createdBy: "human", standing: true, closedAt: nil)
+    store.apply(.event(seq: 8, .room(RoomEvent(change: .created, room: room))))
+    #expect(store.unread(in: "deploy") == 0)
+
+    let line = Message(
+      id: 9, roomId: "r2", from: "api", kind: .chat, text: "up", mentions: [], createdAt: "2026-01-01T09:06:00.000Z")
+    store.apply(.event(seq: 9, .message(MessageEvent(room: "deploy", message: line))))
+
+    #expect(store.unread(in: "deploy") == 1)
+  }
+}
