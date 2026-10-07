@@ -615,6 +615,8 @@ struct Transcript: View {
 
   private static let end = "end"
   private static let spacing = 6.0
+  /// How long the view takes to settle at the bottom after it opens.
+  private static let settle = 0.8
 
   // A filter shows the matching lines as they are, so a search for a name is not hidden in a fold.
   private var items: [TranscriptItem] {
@@ -665,6 +667,9 @@ struct Transcript: View {
               let visible = geometry.bounds(of: .scrollView) ?? .zero
               return Band(top: visible.minY, bottom: visible.maxY)
             } action: { band in
+              #if DEBUG
+                PerfHooks.note("band \(Int(band.top))...\(Int(band.bottom)) rows \(rows.count) real \(real) at \(Int(CACurrentMediaTime() * 1000) % 100000) ms, hasMore \(hasMore), loading \(loading)")
+              #endif
               place(band, rows: rows, heights: rowHeights, real: real)
             }
             .padding(16)
@@ -686,6 +691,9 @@ struct Transcript: View {
             return Follow.isNearBottom(
               contentBottom: geometry.size.height - visible.minY, viewportHeight: visible.height)
           } action: { atBottom in
+            // The first layout after a room opens can throw the view to the top. Until the view has settled,
+            // leaving the bottom is that throw, not a scroll, so the end is put back.
+            if nearBottom, !atBottom, !ready { scroll(proxy, animated: false) }
             nearBottom = atBottom
             if atBottom { showPill = false }
           }
@@ -700,8 +708,9 @@ struct Transcript: View {
         }
         .onAppear { start(proxy) }
         .onChange(of: reveal) { show(reveal, proxy) }
-        .onChange(of: older.loading) { _, loading in
-          if !loading { keepPlace(proxy) }
+        // The oldest id, not the loading flag: the flag flips before the page lands, with the old rows still in hand.
+        .onChange(of: messages.first?.id) { before, after in
+          if let before, let after, after < before { keepPlace(proxy) }
         }
         .onChange(of: messages.last?.id) { before, after in
           let fromHuman = messages.last?.from == humanName
@@ -723,19 +732,22 @@ struct Transcript: View {
     scroll(proxy, animated: false)
     // The bottom anchor wins the first layout, so the reveal waits a turn.
     if reveal != nil { DispatchQueue.main.async { show(reveal, proxy) } }
-    // The first layout can sit at the top before the bottom anchor lands, so paging waits a turn.
     DispatchQueue.main.async {
-      ready = true
-      if marks.wantsPage { loadOlder(items) }
       #if DEBUG
         PerfHooks.transcriptDidLayout()
       #endif
     }
+    // The view sits at the top for a beat after the bottom lands, so paging waits until it has settled.
+    // A page asked for then would keep the place of a top the reader never saw.
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.settle) {
+      ready = true
+      if marks.wantsPage { loadOlder(items) }
+    }
     #if DEBUG
-      // The bottom anchor wins the first layout, so the shot scrolls up a beat later.
+      // The view settles at the bottom first, so the shot scrolls up once that beat has passed.
       if ShotHooks.pageTopNote != nil || ShotHooks.startAtTop {
         Task {
-          try? await Task.sleep(for: .milliseconds(500))
+          try? await Task.sleep(for: .seconds(Self.settle + 0.2))
           scrollTo(items.first?.id, anchor: .top, proxy)
         }
       }
@@ -791,6 +803,9 @@ struct Transcript: View {
 
   private func loadOlder(_ rows: [TranscriptItem]) {
     guard ready, marks.pending == nil, let first = messages.first, let row = rows.first else { return }
+    #if DEBUG
+      PerfHooks.note("page: asked below \(first.id), first row \(row.id)")
+    #endif
     marks.pending = (first.id, row.id)
     older.load()
   }
@@ -799,6 +814,9 @@ struct Transcript: View {
   private func keepPlace(_ proxy: ScrollViewProxy) {
     guard let pending = marks.pending else { return }
     marks.pending = nil
+    #if DEBUG
+      PerfHooks.note("page landed: first \(String(describing: messages.first?.id)), was \(pending.messageId)")
+    #endif
     guard let before = marks.frames[pending.rowId], messages.first.map({ $0.id < pending.messageId }) == true,
       let anchor = Paging.anchor(firstMessageId: pending.messageId, in: items)
     else { return }
@@ -819,6 +837,7 @@ struct Transcript: View {
       Task {
         try? await Task.sleep(for: .milliseconds(400))
         let after = marks.frames[anchor]?.minY ?? .nan
+        PerfHooks.note("note: anchor \(anchor) after \(after)")
         let text = String(
           format: "anchor row %d top %.1f pt before the page, %.1f pt after, %d messages loaded", anchor, before, after,
           messages.count)
@@ -846,6 +865,9 @@ struct Transcript: View {
   }
 
   private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
+    #if DEBUG
+      PerfHooks.note("scroll to end, animated \(animated), rows \(items.count), window \(String(describing: window)) at \(Int(CACurrentMediaTime() * 1000) % 100000) ms")
+    #endif
     showPill = false
     guard animated else {
       proxy.scrollTo(Self.end, anchor: .bottom)
