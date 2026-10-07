@@ -19,6 +19,7 @@ export const MEMBER_CHANGES = [
   'reconnected',
   'removed',
   'role',
+  'status',
   'unmuted',
 ] as const;
 export const ROOM_CHANGES = ['created', 'closed', 'reopened', 'topic'] as const;
@@ -36,11 +37,13 @@ export const memberEventSchema = z.object({
   change: z
     .enum(MEMBER_CHANGES)
     .describe(
-      'invited when its seat was made ahead, joined, left, reconnected, removed when it left 5 minutes ago, its invite went unused or the human or an orchestrator kicked it, role when its role was set, or muted and unmuted.',
+      'invited when its seat was made ahead, joined, left, reconnected, removed when it left 5 minutes ago, its invite went unused or the human or an orchestrator kicked it, role when its role was set, status when it set its status, or muted and unmuted.',
     ),
   member: memberSchema.describe('The member after the change.'),
   room: nameSchema.describe('Room name.'),
-  type: z.literal('member').describe('A member was invited, came, went, dropped out, got a role or was muted.'),
+  type: z
+    .literal('member')
+    .describe('A member was invited, came, went, dropped out, got a role, set its status or was muted.'),
 });
 
 export const presenceEventSchema = z.object({

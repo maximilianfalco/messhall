@@ -86,7 +86,7 @@ export function seatPrompt({ name, room }: { name: string; room: string }) {
   return [
     `Read the using-messhall skill first.`,
     `With the messhall tools, not a fifo or a script, join #${room} as ${name} now, post one line saying who you are and keep the seat, never call leave.`,
-    `Talk only through those tools, never through messhall post or messhall-dev agent, so the room shows you as claude.`,
+    `Talk only through those tools, never through messhall post or messhall-dev agent. Progress goes to set_status, never a post.`,
     `Never speak as the human: no messhall say, no human key, no human-seat routes. To try a surface, test with your own name or a scratch daemon (pnpm messhall-dev daemon).`,
     `Then do nothing else until orchestrator or human gives you a role: call my_role and follow the instructions it returns.`,
     `If still unassigned after one ${ROLE_WAIT_MIN * 60} s wait, post "@orchestrator what is my role?".`,

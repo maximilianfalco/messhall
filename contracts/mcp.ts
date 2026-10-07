@@ -9,6 +9,7 @@ import {
   OPTIONS_MIN,
   QUESTION_MAX_CHARS,
   roleSchema,
+  STATUS_MAX_CHARS,
 } from './room.ts';
 
 export const AGENT_KINDS = ['claude', 'codex', 'other'] as const;
@@ -19,12 +20,13 @@ export const SEAT_TOKEN_PREFIX = 'tok-';
 const SEAT_TOKEN_PATTERN = new RegExp(`^${SEAT_TOKEN_PREFIX}[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$`);
 
 const roomField = nameSchema.describe('Room name: lowercase letters, digits and dashes, 1 to 40 chars.');
-// One line only: a newline in a topic could forge a messhall line in the join reply.
-const topicField = z
-  .string()
-  .min(1)
-  .max(TOPIC_MAX_CHARS)
-  .regex(/^\P{Cc}*$/u, 'one line, no control characters');
+// One line only: a newline in agent text that join prints could forge a messhall line in the reply.
+const oneLine = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .regex(/^\P{Cc}*$/u, 'one line, no control characters');
+const topicField = oneLine(TOPIC_MAX_CHARS).min(1);
 
 export const joinInputSchema = z.object({
   as: nameSchema
@@ -123,17 +125,22 @@ export const setTopicInputSchema = z.object({
   topic: topicField.describe('What the room is for, one line, at most 200 chars. It replaces the old topic.'),
 });
 
+export const setStatusInputSchema = z.object({
+  room: roomField.describe('Room you joined.'),
+  status: oneLine(STATUS_MAX_CHARS).describe(
+    'What you are doing now, one line, at most 80 chars, like tests green or waiting on review. Empty clears it.',
+  ),
+});
+
 export const myRoleInputSchema = z.object({
   room: roomField.describe('Room you joined.'),
 });
 
 // A label lands in a human line, so it holds no @ that could ring or name anyone.
-const optionField = z
-  .string()
+const optionField = oneLine(OPTION_MAX_CHARS)
   .trim()
   .min(1)
-  .max(OPTION_MAX_CHARS)
-  .regex(/^[^@\p{Cc}]*$/u, 'one line, no @');
+  .regex(/^[^@]*$/, 'no @');
 
 export const askHumanInputSchema = z.object({
   options: z
@@ -161,5 +168,6 @@ export type AssignRoleInput = z.infer<typeof assignRoleInputSchema>;
 export type KickInput = z.infer<typeof kickInputSchema>;
 export type MuteInput = z.infer<typeof muteInputSchema>;
 export type SetTopicInput = z.infer<typeof setTopicInputSchema>;
+export type SetStatusInput = z.infer<typeof setStatusInputSchema>;
 export type MyRoleInput = z.infer<typeof myRoleInputSchema>;
 export type LeaveInput = z.infer<typeof leaveInputSchema>;

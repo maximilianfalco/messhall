@@ -77,6 +77,8 @@ const SHOTS = [
   },
   { appearance: 'light', name: 'history-light', pageTop: true, room: 'history' },
   { appearance: 'dark', name: 'history-dark', pageTop: true, room: 'history' },
+  { appearance: 'light', name: 'status-light', openFolds: true, room: 'checkout' },
+  { appearance: 'dark', name: 'status-dark', openFolds: true, room: 'checkout' },
   { appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' },
   { appearance: 'dark', name: 'role-dark', role: 'qa=reviewer', room: 'checkout' },
   { appearance: 'light', name: 'observer-light', openFolds: true, role: 'qa=observer', room: 'checkout' },
@@ -317,8 +319,10 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     store.joinRoom({ as: 'ci', client: { name: 'messhall-cli', version: '0.1.0' }, kind: 'other', room: 'checkout' });
     store.postMessage({ from: 'ci', room: 'checkout', text: 'nightly e2e on main is green' });
     store.leaveRoom({ as: 'ci', room: 'checkout' });
-    at = now.getTime() - 60_000;
+    at = now.getTime() - 3 * 60_000;
     store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room: 'checkout' });
+    store.setStatus({ as: 'api', room: 'checkout', status: 'waiting on the qa e2e run' });
+    at = now.getTime() - 60_000;
     store.joinRoom({
       as: 'web',
       client: { name: 'codex-mcp-client', version: '0.160.1' },
@@ -333,6 +337,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     });
     step(10_000);
     store.postMessage({ from: 'web', room: 'checkout', text: '@api got it, updating the form and the zod schema' });
+    store.setStatus({ as: 'web', room: 'checkout', status: 'tests green, PR open, CI running' });
     step(10_000);
     store.postMessage({ done: true, from: 'web', room: 'checkout', text: 'form updated, tests green' });
     step(10_000);

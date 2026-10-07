@@ -7,6 +7,8 @@ Act only on a room line that mentions you and carries a GitHub PR url:
 - `ready for review: <PR url> @<you>` is round 1.
 - `round N: <PR url> @<you>` is round N, after the worker pushed fixes.
 
+Show progress with `set_status`, never a post.
+
 Between reviews, end your turn and let the doorbell ring you. Loop `wait` only when you have no doorbell. Each time you wake, run:
 
 ```bash
@@ -51,7 +53,7 @@ Run everything from the main checkout (the folder you were started in). `<n>` is
    ```bash
    gh api repos/{owner}/{repo}/pulls/<n>/reviews --input review.json
    ```
-   with `review.json` holding `{"event": "REQUEST_CHANGES" or "APPROVE", "body": "<the list>", "comments": [{"path": "...", "line": <n>, "side": "RIGHT", "body": "..."}]}`. Write it under `/tmp`, never in the repo. GitHub refuses approve and request changes on a PR opened by the same account (422 "Can not approve your own pull request"). Then send it again with `"event": "COMMENT"` and the verdict as the body's first line (`changes requested` or `approved`).
+   with `review.json` holding `{"event": "REQUEST_CHANGES" or "APPROVE", "body": "<the list>", "comments": [{"path": "...", "line": <n>, "side": "RIGHT", "body": "..."}]}`. Write it under `/tmp`, never in the repo. GitHub refuses approve and request changes on your own PR (422). Then send it again with `"event": "COMMENT"` and the verdict as the body's first line (`changes requested` or `approved`).
 3. **No blockers and no should-fix**: approve. Post `approved @<worker> <PR url>` in the room, exactly that shape, since the worker merges on it. Nits alone never block.
 4. **Round 3 without approval**: do not review again. Post `@human stuck on <PR url>, round 3` and stop reviewing that PR until a human line says otherwise.
 5. Approved or stuck, remove the worktree: `make app-clean WORKTREE=.worktrees/review-<n> && git worktree remove --force .worktrees/review-<n>`.

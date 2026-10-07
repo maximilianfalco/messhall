@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Feed
@@ -87,6 +88,48 @@ struct MemberTypeTests {
     #expect(web.spokenLabel(as: "web") == "web, other, waiting, muted")
     #expect(web.help(as: "web") == "web runs on other and is waiting, muted")
     #expect(Self.member(name: "human", kind: .human, client: nil, version: nil, label: nil).muteAction == nil)
+  }
+
+  @Test("decode the status of a member")
+  func decodeStatus() throws {
+    let member = try Fixture.decode(Member.self, "Member")
+
+    #expect(member.status == "tests green")
+    #expect(member.statusAt == "2026-01-01T09:04:00.000Z")
+  }
+
+  static func withStatus(_ status: String?, at: String? = "2026-01-01T10:00:00.000Z") -> Member {
+    var web = member(client: "opencode", version: "1.18.34", label: "opencode")
+    web.status = status
+    web.statusAt = at
+    return web
+  }
+
+  @Test(
+    "the status line says how long ago it was set",
+    arguments: [
+      ("2026-01-01T10:00:30.000Z", "tests green · just now"),
+      ("2026-01-01T10:03:00.000Z", "tests green · 3m ago"),
+      ("2026-01-01T12:10:00.000Z", "tests green · 2h ago"),
+      ("2026-01-03T10:00:00.000Z", "tests green · 2d ago"),
+    ])
+  func statusLine(now: String, line: String) throws {
+    let at = try Date(now, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+
+    #expect(Self.withStatus("tests green").statusLine(now: at) == line)
+  }
+
+  @Test("no status, no status line")
+  func noStatusLine() {
+    #expect(Self.withStatus(nil, at: nil).statusLine(now: Date()) == nil)
+  }
+
+  @Test("the spoken label and help end with the status")
+  func spokenStatus() {
+    let web = Self.withStatus("tests green")
+
+    #expect(web.spokenLabel(as: "web") == "web, opencode 1.18.34, waiting, tests green")
+    #expect(web.help(as: "web") == "web runs on opencode 1.18.34 and is waiting: tests green")
   }
 
   @Test("a member with no client falls back to its kind")

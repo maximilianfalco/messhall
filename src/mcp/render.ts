@@ -78,6 +78,7 @@ export function renderRead({
 /**
  * `web (opencode 1.18.34, reviewer, waiting)`: the client label and version (or the kind), the role once assigned.
  * `you` marks the caller's own line, `muted` a member who cannot post and `(no doorbell)` an unrung codex.
+ * The member's own status comes last, so its text can never pose as one of the marks before it.
  */
 export function memberLabel({ as, member, noDoorbell }: { as?: string; member: Member; noDoorbell?: boolean }) {
   const you = member.name === as ? ', you' : '';
@@ -87,5 +88,6 @@ export function memberLabel({ as, member, noDoorbell }: { as?: string; member: M
     ? [member.client_label, member.client_version].filter(Boolean).join(' ')
     : member.kind;
   const role = member.role === UNASSIGNED_ROLE ? '' : `, ${member.role}`;
-  return `${member.name} (${type}${noDoorbell ? ' (no doorbell)' : ''}${role}, ${member.presence}${done}${muted}${you})`;
+  const status = member.status ? `, status: ${member.status}` : '';
+  return `${member.name} (${type}${noDoorbell ? ' (no doorbell)' : ''}${role}, ${member.presence}${done}${muted}${you}${status})`;
 }

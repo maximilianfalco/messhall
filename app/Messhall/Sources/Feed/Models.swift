@@ -4,7 +4,7 @@ import Foundation
 
 /// The feed contract this app was built against. A newer daemon sends a higher one.
 public enum FeedContract {
-  public static let version = 3
+  public static let version = 4
 }
 
 /// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
@@ -26,7 +26,7 @@ public enum Presence: String, OpenEnum, CaseIterable, Sendable {
 public enum MessageKind: String, OpenEnum, CaseIterable, Sendable { case chat, system, done, summary, unknown }
 public enum MemberKind: String, OpenEnum, CaseIterable, Sendable { case claude, codex, other, human, unknown }
 public enum MemberChange: String, OpenEnum, Sendable {
-  case invited, joined, left, muted, reconnected, removed, role, unmuted, unknown
+  case invited, joined, left, muted, reconnected, removed, role, status, unmuted, unknown
 }
 public enum RoomChange: String, OpenEnum, Sendable { case created, closed, reopened, topic, unknown }
 public enum ApprovalState: String, OpenEnum, CaseIterable, Sendable { case pending, allowed, denied, expired, unknown }
@@ -109,9 +109,12 @@ public struct Member: Codable, Equatable, Sendable {
   public var lastSeenAt: String
   public var leftAt: String?
   public var muted = false
+  public var status: String? = nil
+  public var statusAt: String? = nil
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case name, kind, presence, role, cursor, done, muted
+    case name, kind, presence, role, cursor, done, muted, status
+    case statusAt = "status_at"
     case roomId = "room_id"
     case clientLabel = "client_label"
     case clientName = "client_name"

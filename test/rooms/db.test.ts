@@ -186,7 +186,15 @@ describe('openDb', () => {
     ).toStrictEqual([
       {
         change: 'joined',
-        member: { client_label: null, client_name: null, client_version: null, name: 'api', role: 'unassigned' },
+        member: {
+          client_label: null,
+          client_name: null,
+          client_version: null,
+          name: 'api',
+          role: 'unassigned',
+          status: null,
+          status_at: null,
+        },
         room: 'demo',
         type: 'member',
       },
@@ -263,8 +271,8 @@ describe('openDb', () => {
         .all()
         .map(row => JSON.parse(String(row.payload)).member),
     ).toStrictEqual([
-      { name: 'api', role: 'unassigned' },
-      { name: 'orchestrator', role: 'orchestrator' },
+      { name: 'api', role: 'unassigned', status: null, status_at: null },
+      { name: 'orchestrator', role: 'orchestrator', status: null, status_at: null },
     ]);
     db.close();
   });

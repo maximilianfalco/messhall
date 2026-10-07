@@ -1441,6 +1441,87 @@ describe('muting', () => {
   });
 });
 
+describe('status', () => {
+  const setStatus = (input: { as?: string; status?: string } = {}) =>
+    store().setStatus({ as: 'api', room: 'demo', status: 'tests green', ...input });
+
+  it('sets the status with when it was set, as one member status event and no line', () => {
+    joinBoth();
+    const before = texts('demo');
+    const seen: SequencedEvent[] = [];
+    store().events.on(event => seen.push(event));
+    scratch.clock.advance(60_000);
+
+    const result = setStatus();
+
+    expect(result).toMatchObject({ member: { status: 'tests green' }, ok: true });
+    expect(memberOf('demo', 'api')).toMatchObject({ status: 'tests green', status_at: '2026-01-01T10:01:00.000Z' });
+    expect(texts('demo')).toStrictEqual(before);
+    expect(seen.map(({ event }) => event)).toMatchObject([
+      { change: 'status', member: { name: 'api', status: 'tests green' }, type: 'member' },
+    ]);
+  });
+
+  it('starts with no status', () => {
+    joinBoth();
+
+    expect(memberOf('demo', 'api')).toMatchObject({ status: null, status_at: null });
+  });
+
+  it('clears the status with an empty one', () => {
+    joinBoth();
+    setStatus();
+
+    setStatus({ status: '' });
+
+    expect(memberOf('demo', 'api')).toMatchObject({ status: null, status_at: null });
+  });
+
+  it('keeps the status when the seat reattaches or joins again', () => {
+    joinBoth();
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+    setStatus();
+    store().touch({ as: 'api', room: 'demo', state: 'away' });
+
+    store().joinRoom({ as: 'api', kind: 'claude', reattach: true, room: 'demo', seatKey: 'seat-a' });
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-a' });
+
+    expect(memberOf('demo', 'api')).toMatchObject({ status: 'tests green' });
+  });
+
+  it('drops the status on a leave, so a later join starts without one', () => {
+    joinBoth();
+    setStatus();
+
+    store().leaveRoom({ as: 'api', room: 'demo' });
+    const left = store()
+      .listMembers('demo', { left: true })
+      .find(member => member.name === 'api');
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+
+    expect(left).toMatchObject({ status: null, status_at: null });
+    expect(memberOf('demo', 'api')).toMatchObject({ status: null, status_at: null });
+  });
+
+  it('refuses someone not in the room', () => {
+    joinBoth();
+
+    expect(setStatus({ as: 'stranger' })).toStrictEqual({ ok: false, reason: 'not_member' });
+  });
+
+  it('refuses a muted member', () => {
+    joinBoth();
+    store().muteMember({ by: 'human', member: 'api', muted: true, room: 'demo' });
+
+    expect(setStatus()).toStrictEqual({ ok: false, reason: 'muted' });
+    expect(memberOf('demo', 'api')).toMatchObject({ status: null });
+  });
+
+  it('refuses a room that does not exist', () => {
+    expect(store().setStatus({ as: 'api', room: 'nope', status: 'x' })).toStrictEqual({ ok: false, reason: 'no_room' });
+  });
+});
+
 describe('topics', () => {
   const topicOf = (room: string) =>
     store()
