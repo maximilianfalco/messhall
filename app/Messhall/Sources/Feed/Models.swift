@@ -253,9 +253,11 @@ public struct Snapshot: Codable, Equatable, Sendable {
   /// Optional so an older daemon that sends neither still loads.
   public var contractVersion: Int?
   public var version: String?
+  /// Nil from a daemon too old to stamp its build, or one that cannot read its git.
+  public var build: Build?
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case seq, rooms, version
+    case seq, rooms, version, build
     case contractVersion = "contract_version"
   }
 }
