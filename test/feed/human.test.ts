@@ -15,6 +15,7 @@ import {
   newRoomResultSchema,
   removeMemberResultSchema,
   reopenResultSchema,
+  reviewNudgesResultSchema,
   spawnResultSchema,
 } from '../../contracts/feed.ts';
 
@@ -434,24 +435,51 @@ describe('human route keys', () => {
     expect((await postAs('/api/rooms', {}, { name: 'planning' })).status).toBe(401);
   });
 
-  it.each(['/api/rooms/demo/messages', '/api/rooms/demo/reopen', '/api/rooms/demo/close', '/api/rooms/nope/anything'])(
-    'refuses the agent key on %s with 403 and changes nothing',
-    async path => {
-      closeRoom();
-      const before = store().listMessages({ limit: 50, room: 'demo' });
+  it.each([
+    '/api/rooms/demo/messages',
+    '/api/rooms/demo/reopen',
+    '/api/rooms/demo/close',
+    '/api/rooms/demo/nudges-off',
+    '/api/rooms/nope/anything',
+  ])('refuses the agent key on %s with 403 and changes nothing', async path => {
+    closeRoom();
+    const before = store().listMessages({ limit: 50, room: 'demo' });
 
-      const res = await postAs(path, feed.headers('agent'));
+    const res = await postAs(path, feed.headers('agent'));
 
-      expect(res.status).toBe(403);
-      expect(store().listMessages({ limit: 50, room: 'demo' })).toStrictEqual(before);
-      expect(store().listRooms()[0]!.closed_at).not.toBeNull();
-    },
-  );
+    expect(res.status).toBe(403);
+    expect(store().listMessages({ limit: 50, room: 'demo' })).toStrictEqual(before);
+    expect(store().listRooms()[0]!.closed_at).not.toBeNull();
+  });
 
   it.each(['/api/rooms/demo/messages', '/api/rooms/demo/reopen'])('refuses no key on %s with 401', async path => {
     closeRoom();
 
     expect((await postAs(path, {})).status).toBe(401);
+  });
+});
+
+describe('POST /api/rooms/:name/nudges-off and nudges-on', () => {
+  const lastLine = () => {
+    const page = store().listMessages({ limit: 1, room: 'demo' });
+    return page.ok ? page.messages[0]?.text : undefined;
+  };
+
+  it('turns review nudges off and back on with a line each', async () => {
+    store().createRoom({ created_by: 'human', name: 'demo' });
+
+    const off = await human('/api/rooms/demo/nudges-off');
+    expect(off.status).toBe(200);
+    expect(reviewNudgesResultSchema.parse(await off.json())).toStrictEqual({ review_nudges: false });
+    expect(lastLine()).toBe('review nudges turned off');
+
+    const on = await human('/api/rooms/demo/nudges-on');
+    expect(reviewNudgesResultSchema.parse(await on.json())).toStrictEqual({ review_nudges: true });
+    expect(lastLine()).toBe('review nudges turned on');
+  });
+
+  it('answers 404 for a room that does not exist', async () => {
+    expect((await human('/api/rooms/nope/nudges-off')).status).toBe(404);
   });
 });
 
