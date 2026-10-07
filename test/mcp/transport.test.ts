@@ -279,6 +279,32 @@ describe('the /mcp endpoint', () => {
     expect(joined).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
   });
 
+  it('seats a hand-started claude again with its role after its session closes, by the seat token from its join', async () => {
+    const { url } = await start();
+    const first = await connectHttp({ key: agentKey(), name: 'claude-code', url });
+    clients.push(first.client);
+    const orchestrator = await agent(url);
+    const joined = await first.client.callTool({ arguments: { as: 'api', room: 'checkout' }, name: 'join' });
+    const token = /seat token: (tok-[0-9a-f-]{36})\./.exec(textOf(joined))?.[1];
+    await orchestrator.call('join', { as: 'orchestrator', room: 'checkout' });
+    await orchestrator.call('assign_role', { member: 'api', role: 'worker', room: 'checkout' });
+    await first.transport.terminateSession();
+    const back = await connectHttp({ key: agentKey(), name: 'claude-code', url });
+    clients.push(back.client);
+    const stranger = await agent(url);
+
+    const taken = await stranger.call('join', { as: 'api', room: 'checkout' });
+    const rejoined = await back.client.callTool({
+      arguments: { as: 'api', room: 'checkout', seat_token: token },
+      name: 'join',
+    });
+    const role = await back.client.callTool({ arguments: { room: 'checkout' }, name: 'my_role' });
+
+    expect(taken).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
+    expect(textOf(rejoined)).toContain('reconnected #checkout as api');
+    expect(textOf(role)).toContain('your role in #checkout: worker');
+  });
+
   it('marks the members away and forgets the session on DELETE', async () => {
     const { url } = await start();
     const api = await agent(url);
