@@ -13,6 +13,7 @@ import { SEAT_HEADER } from '../../src/mcp/constants.js';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
 import {
+  flockRun,
   flockStop,
   nudgeRun,
   reviewsReport,
@@ -336,6 +337,24 @@ describe('seatThenAssign', () => {
     const outcome = await seatThenAssign({ ...base, assign, joined: () => true, role: 'worker' });
     expect(outcome.code).toBe(1);
     expect(outcome.lines.join('\n')).toContain('name taken');
+  });
+});
+
+describe('flockRun', () => {
+  it('shows each seated agent with its role and status', async () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'spawn-'));
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => new Date() });
+    store.joinRoom({ as: 'reviewer-1', kind: 'claude', room: 'dev' });
+    store.setStatus({ as: 'reviewer-1', room: 'dev', status: 'reviewing the room store' });
+    db.close();
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('messhall-seat-reviewer-1\t%1\t42\n')));
+    const queue = vi.fn<Runner>(() => Promise.resolve(result(LISTING)));
+
+    const outcome = await flockRun({ dataDir, queue, room: 'dev', tmux });
+
+    expect(outcome.report).toMatch(/role\s+status/);
+    expect(outcome.report).toMatch(/unassigned\s+reviewing the room store/);
   });
 });
 
