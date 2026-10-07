@@ -48,10 +48,11 @@ struct StaleTests {
   func unreadableSnapshot() {
     let store = FeedStore()
     store.appBuild = newer
-    let body = #"{"contract_version": 5, "build": {"commit": "x", "committed_at": "2026-10-07T01:00:00Z"}, "rooms": 3}"#
+    let current = FeedContract.version
+    let body = #"{"contract_version": \#(current), "build": {"commit": "x", "committed_at": "2026-10-07T01:00:00Z"}, "rooms": 3}"#
 
     #expect(store.downPhase(SnapshotLoader.decode(Data(body.utf8))) == .outdated(.daemon))
-    #expect(store.downPhase(SnapshotLoader.decode(Data(#"{"contract_version": 6}"#.utf8))) == .outdated(.app))
+    #expect(store.downPhase(SnapshotLoader.decode(Data(#"{"contract_version": \#(current + 1)}"#.utf8))) == .outdated(.app))
     #expect(store.downPhase(SnapshotLoader.decode(Data(#"{"rooms": 3}"#.utf8))) == .outdated(.daemon))
   }
 

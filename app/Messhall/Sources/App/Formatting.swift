@@ -49,6 +49,7 @@ extension Presence {
     switch self {
     case .active: .green
     case .waiting: .orange
+    case .reconnecting: .yellow
     case .invited, .idle, .away, .left, .unknown: .secondary
     }
   }

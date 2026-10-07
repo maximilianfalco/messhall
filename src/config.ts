@@ -87,6 +87,7 @@ export const claudeBin = (options: { exists?: (file: string) => boolean } = {}) 
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const AWAY_AFTER_MS = 30 * 60_000;
+export const RECONNECT_MS = 2 * 60_000;
 // A seat keyed by a join's seat token goes to anyone after this long away with no live session, so a lost token frees it.
 export const SEAT_TOKEN_FREE_AFTER_MS = 30 * 60_000;
 // A member who left this long drops out of the room, so standing rooms do not pile up old agents.

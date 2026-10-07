@@ -4,7 +4,7 @@ import Foundation
 
 /// The feed contract this app was built against. A newer daemon sends a higher one.
 public enum FeedContract {
-  public static let version = 5
+  public static let version = 6
 }
 
 /// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
@@ -19,7 +19,7 @@ extension OpenEnum {
 }
 
 public enum Presence: String, OpenEnum, CaseIterable, Sendable {
-  case invited, active, waiting, idle, away, left, unknown
+  case invited, active, waiting, idle, reconnecting, away, left, unknown
 
   public var isAway: Bool { self == .away || self == .left }
 }

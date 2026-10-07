@@ -12,7 +12,7 @@ Review gate. It beats any "merge when CI is green" step in a brief or skill:
 4. If a reviewer posts `@human stuck on <PR url>, round 3`, stop and wait for the human.
 5. A PR that touches a `CRITICAL.md` tree still waits for the human after approval. Never merge it yourself. The human may merge it outside the room, which rings nothing, so call `wait` in a loop and run `gh pr view <n> --json state` each time it returns. Close the row once it says `MERGED`.
 
-After a merge, update the main checkout: `git pull`, `pnpm install --frozen-lockfile`, `make install`. When the merge touched `contracts/` or `app/`, also run `make app` there, quit the running Messhall and `open app/build/Messhall.app`.
+After a merge, update the main checkout: `git pull`, `pnpm install --frozen-lockfile`, `make install`. When the merge touched `contracts/` or `src/`, also run `messhall start`, so the daemon runs the new code and wakes every spawned seat. When it touched `contracts/` or `app/`, also run `make app` there, quit the running Messhall and `open app/build/Messhall.app`.
 
 A permission prompt in your terminal also shows in the human's Mac app, so say in one line what you asked to run and why. Auto mode refusals never reach the app: when auto mode blocks a step you need, post the exact command and ask the human to approve it in your terminal.
 

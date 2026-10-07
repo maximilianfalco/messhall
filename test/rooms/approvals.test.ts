@@ -179,7 +179,7 @@ describe('expireApprovals', () => {
   it('expires every pending ask on daemon start, since no session lives through a restart', () => {
     ask();
 
-    store().markAllAway();
+    store().markReconnecting();
 
     expect(store().pendingApprovals('demo')).toStrictEqual([]);
   });
