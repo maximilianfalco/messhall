@@ -95,7 +95,7 @@ describe('concerns', () => {
     ).toStrictEqual([true, true, true]);
   });
 
-  it('concerns everyone when the human posts', () => {
+  it('concerns everyone when the human posts and no orchestrator is in the room', () => {
     expect(concerns({ pausedWith: {}, member: three[1]!, members: three, message: message({ from: 'human' }) })).toBe(
       true,
     );
@@ -120,7 +120,7 @@ describe('concerns', () => {
       ]);
     });
 
-    it.each(['idle', 'waiting'] as const)('counts an %s orchestrator as live', presence => {
+    it.each(['idle', 'waiting'] as const)('counts a seat that is %s as a live orchestrator', presence => {
       expect(ringed([...three, lead({ presence })]).filter(([, hit]) => hit)).toStrictEqual([['lead', true]]);
     });
 
