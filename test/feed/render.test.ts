@@ -217,6 +217,7 @@ describe('renderEvent agreements', () => {
 });
 
 const snapshot: Snapshot = {
+  build: null,
   contract_version: 5,
   rooms: [
     {
@@ -279,7 +280,7 @@ describe('renderSnapshot', () => {
 
   it('says when there are no rooms', () => {
     expect(
-      plain(renderSnapshot({ snapshot: { contract_version: 1, rooms: [], seq: 0, version: '0.1.0' } })),
+      plain(renderSnapshot({ snapshot: { build: null, contract_version: 1, rooms: [], seq: 0, version: '0.1.0' } })),
     ).toStrictEqual(['no rooms yet']);
   });
 });

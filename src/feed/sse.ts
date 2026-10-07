@@ -1,4 +1,5 @@
 import type { SequencedEvent } from '../../contracts/events.ts';
+import type { Build } from '../../contracts/health.ts';
 import type { Handler } from '../daemon/router.js';
 import type { RoomStore } from '../rooms/store.js';
 
@@ -45,12 +46,14 @@ export function resumeFrom({
 /** Writes the replay or a snapshot, then every new event, with a ping every 15 s. A client whose
  * buffer stays full for 30 s is dropped, so one stuck reader cannot grow the daemon's memory. */
 export function openStream({
+  build,
   every,
   header,
   now,
   sink,
   store,
 }: {
+  build: Build | null;
   every: Every;
   header: string | string[] | undefined;
   now: () => Date;
@@ -64,7 +67,7 @@ export function openStream({
 
   const after = resumeFrom({ bounds: store.events.bounds(), header });
   if (after === undefined) {
-    const snapshot = buildSnapshot({ store });
+    const snapshot = buildSnapshot({ build, store });
     send(frame({ data: snapshot, event: SNAPSHOT_EVENT, id: snapshot.seq }));
   } else {
     store.events.since(after).forEach(event => send(eventFrame(event)));
@@ -85,10 +88,20 @@ export function openStream({
 }
 
 /** `GET /api/events`: the SSE feed, resumed from `Last-Event-ID` when the log still has it. */
-export function eventStream({ every, now, store }: { every: Every; now: () => Date; store: RoomStore }) {
+export function eventStream({
+  build,
+  every,
+  now,
+  store,
+}: {
+  build: Build | null;
+  every: Every;
+  now: () => Date;
+  store: RoomStore;
+}) {
   return ((req, res) => {
     res.writeHead(200, { 'cache-control': 'no-cache', connection: 'keep-alive', 'content-type': 'text/event-stream' });
     res.flushHeaders();
-    openStream({ every, header: req.headers['last-event-id'], now, sink: res, store });
+    openStream({ build, every, header: req.headers['last-event-id'], now, sink: res, store });
   }) satisfies Handler;
 }

@@ -1,10 +1,11 @@
-import type { Health } from '../../contracts/health.ts';
+import type { Build, Health } from '../../contracts/health.ts';
 import type { RoomStore } from '../rooms/store.js';
 import type { Handler, Route } from './router.js';
 import type { Server } from 'node:http';
 
 import { createServer } from 'node:http';
 
+import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
 import { createCodexClient } from '../codex/client.js';
 import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, summariesOff, SWEEP_EVERY_MS } from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
@@ -21,6 +22,7 @@ import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 import { startSummaries } from '../rooms/summaries.js';
 
+import { currentBuild } from './build.js';
 import { guarded } from './guard.js';
 import { loadKeys } from './keys.js';
 import { createRouter, sendJson } from './router.js';
@@ -48,12 +50,24 @@ function listen(server: Server, port: number) {
   });
 }
 
-function health({ now, startedAt, store }: { now: () => Date; startedAt: number; store: RoomStore }) {
+function health({
+  build,
+  now,
+  startedAt,
+  store,
+}: {
+  build: Build | null;
+  now: () => Date;
+  startedAt: number;
+  store: RoomStore;
+}) {
   const rooms = store.listRooms();
   const live = rooms
     .flatMap(room => store.listMembers(room.name))
     .filter(member => member.kind !== 'human' && member.presence !== 'away');
   const body: Health = {
+    build,
+    contract_version: FEED_CONTRACT_VERSION,
     live_members: live.length,
     ok: true,
     rooms: rooms.length,
@@ -112,13 +126,19 @@ export async function startDaemon({
     ? () => {}
     : startSummaries({ claude: options => askClaude({ ...options, bin: claude }), store });
   const startedAt = now().getTime();
+  // Read once at start, so a later pull shows this daemon as older than the install.
+  const build = currentBuild();
   const url = `http://${DAEMON_HOST}:${bound.port}`;
 
   // MCP mounts at /mcp and the feed under /api here.
   const routes: Route[] = [
-    { handle: (_req, res) => sendJson(res, 200, health({ now, startedAt, store })), method: 'GET', path: '/health' },
+    {
+      handle: (_req, res) => sendJson(res, 200, health({ build, now, startedAt, store })),
+      method: 'GET',
+      path: '/health',
+    },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ keys, now, relay: mcp.relay, spawner: createSpawner({ dataDir, store, url }), store }),
+    ...feedRoutes({ build, keys, now, relay: mcp.relay, spawner: createSpawner({ dataDir, store, url }), store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 

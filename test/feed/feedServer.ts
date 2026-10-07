@@ -47,6 +47,8 @@ export function fakeEvery() {
   };
 }
 
+export const FEED_BUILD = { commit: 'a'.repeat(40), committed_at: '2026-01-01T00:00:00.000Z' };
+
 /** The feed routes on a real port over a scratch store, with a hand moved timer and a fake tmux for the spawner. */
 export async function feedServer() {
   const scratch = scratchStore();
@@ -79,6 +81,7 @@ export async function feedServer() {
   const server: Server = createServer(
     createRouter(
       feedRoutes({
+        build: FEED_BUILD,
         every: timer.every,
         keys,
         now: scratch.clock.now,

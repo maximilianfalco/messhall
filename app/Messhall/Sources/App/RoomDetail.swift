@@ -30,7 +30,7 @@ struct RoomDetail: View {
   var body: some View {
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
-      if store.phase == .outdated || store.behind { OlderAppBanner() }
+      if let side = store.stale { StaleBanner(side: side) }
       if let block = notifier.windowBlock { NotifyBanner(block: block) }
       RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(
@@ -241,9 +241,11 @@ struct ReconnectBanner: View {
   }
 }
 
-struct OlderAppBanner: View {
+struct StaleBanner: View {
+  let side: StaleSide
+
   var body: some View {
-    Label(FeedStore.outdatedReason, systemImage: "arrow.down.app")
+    Label(side.reason, systemImage: "arrow.down.app")
       .font(.callout)
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal, 16)

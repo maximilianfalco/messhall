@@ -9,8 +9,8 @@ public final class FeedStore {
     case connecting
     case live
     case down(String)
-    /// The daemon answers but sends a feed this build cannot read.
-    case outdated
+    /// The daemon answers but sends a feed this build cannot read. The side is the one running older code.
+    case outdated(StaleSide)
   }
 
   public private(set) var rooms: [SnapshotRoom] = []
@@ -19,6 +19,8 @@ public final class FeedStore {
   public private(set) var loaded = false
   /// The daemon's feed contract, nil when it is too old to send one.
   public private(set) var contractVersion: Int?
+  /// The daemon's build stamp from the last snapshot.
+  public private(set) var build: Build?
   /// Rooms with an older page on its way.
   public private(set) var loadingOlder: Set<String> = []
   /// When the current stream opened. Events stamped before it are a replay.
@@ -31,8 +33,13 @@ public final class FeedStore {
   public var openRoomCount: Int { rooms.filter(\.isOpen).count }
   /// The contract this build reads. Only a shot sets it lower, to show the older-app notice.
   @ObservationIgnored public var builtContract = FeedContract.version
-  /// True when the daemon speaks a newer feed contract than this build knows.
-  public var behind: Bool { (contractVersion ?? 0) > builtContract }
+  @ObservationIgnored public var appBuild = Build.app
+  /// The side to blame: from the outdated phase, else only when a readable feed speaks another contract.
+  public var stale: StaleSide? {
+    if case .outdated(let side) = phase { return side }
+    guard let contractVersion, contractVersion != builtContract else { return nil }
+    return StaleSide.of(contract: contractVersion, build: build, appContract: builtContract, appBuild: appBuild)
+  }
   public var anyActive: Bool { rooms.contains { $0.members.contains { $0.presence == .active } } }
 
   public func room(named name: String?) -> SnapshotRoom? {
@@ -52,6 +59,7 @@ public final class FeedStore {
       loadingOlder = []
       seq = snapshot.seq
       contractVersion = snapshot.contractVersion
+      build = snapshot.build
       loaded = true
     case .event(let seq, let event):
       onEvent?(event, room(named: event.room))

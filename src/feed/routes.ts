@@ -1,4 +1,5 @@
 import type { History, SearchResult } from '../../contracts/feed.ts';
+import type { Build } from '../../contracts/health.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
 import type { Spawner } from '../flock/spawner.js';
@@ -33,6 +34,7 @@ const searchQuerySchema = z.object({
 
 /** Every feed route. Reads take either key, the human-seat writes take the human key only. */
 export function feedRoutes({
+  build,
   every = intervalTimer,
   keys,
   now,
@@ -40,6 +42,7 @@ export function feedRoutes({
   spawner,
   store,
 }: {
+  build: Build | null;
   every?: Every;
   keys: Keys;
   now: () => Date;
@@ -82,8 +85,12 @@ export function feedRoutes({
   };
 
   const routes: Route[] = [
-    { handle: read((_req, res) => sendJson(res, 200, buildSnapshot({ store }))), method: 'GET', path: '/api/snapshot' },
-    { handle: read(eventStream({ every, now, store })), method: 'GET', path: '/api/events' },
+    {
+      handle: read((_req, res) => sendJson(res, 200, buildSnapshot({ build, store }))),
+      method: 'GET',
+      path: '/api/snapshot',
+    },
+    { handle: read(eventStream({ build, every, now, store })), method: 'GET', path: '/api/events' },
     { handle: read(history), method: 'GET', path: '/api/rooms/*' },
     { handle: read(search), method: 'GET', path: '/api/search' },
     ...humanRoutes({ keys, relay, spawner, store }),

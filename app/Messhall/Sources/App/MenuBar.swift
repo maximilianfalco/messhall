@@ -43,7 +43,7 @@ struct MenuBarMenu: View {
 
   private var status: String {
     if case .down(let reason) = store.phase, !store.loaded { return reason }
-    if store.phase == .outdated, !store.loaded { return FeedStore.outdatedReason }
+    if case .outdated(let side) = store.phase, !store.loaded { return side.reason }
     return "\(plural(store.openRoomCount, "room")) open, \(AgentsPanel(rooms: store.rooms).working) working"
   }
 

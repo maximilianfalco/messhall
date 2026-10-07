@@ -21,7 +21,7 @@ extension FeedStore {
           if let update { apply(update) }
         }
       } catch {
-        setPhase(Self.downPhase(error))
+        setPhase(downPhase(error))
       }
       try? await Task.sleep(for: Self.retryDelay)
     }
@@ -129,15 +129,20 @@ extension FeedStore {
     }
   }
 
-  public nonisolated static let outdatedReason = "This app is older than the daemon. Rebuild it."
-
-  nonisolated static func downPhase(_ error: Error) -> Phase {
-    error is DecodingError ? .outdated : .down(downReason(error))
+  /// A snapshot it cannot read is judged by its own version fields, an event by the last snapshot's.
+  func downPhase(_ error: Error) -> Phase {
+    let side = { StaleSide.of(contract: $0, build: $1, appContract: self.builtContract, appBuild: self.appBuild) }
+    switch error {
+    case let unreadable as UnreadableSnapshot: return .outdated(side(unreadable.contractVersion, unreadable.build))
+    case is DecodingError: return .outdated(side(contractVersion, build))
+    default: return .down(Self.downReason(error))
+    }
   }
 
+  /// A reply the app cannot read has no version fields to judge, so it points at messhall status.
   nonisolated static func downReason(_ error: Error) -> String {
     switch error {
-    case is DecodingError: outdatedReason
+    case is DecodingError: "The app and the daemon run different versions. Run messhall status."
     case is FeedClient.KeyMissing: "No human key yet."
     case let refused as FeedClient.Refused: refused.message
     default: "Messhall is not running."
