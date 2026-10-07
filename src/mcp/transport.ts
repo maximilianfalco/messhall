@@ -137,6 +137,9 @@ export function createMcpEndpoint({
       await Promise.all(dead.map(entry => entry.transport.close()));
       return dead.length;
     },
+    /** True when a live session holding `name` in `room` can be rung, so a quiet seat reads idle, not away. */
+    ringable: (seat: { name: string; room: string }) =>
+      sessions.sessionsFor(seat).some(entry => entry.session.ringable),
     /** The live sessions holding `name` in `room`, so the doorbell can ring through each one's server. */
     sessionsFor: sessions.sessionsFor,
   };

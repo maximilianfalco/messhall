@@ -254,7 +254,7 @@ describe('invited seats and the clock', () => {
     invite();
 
     scratch.clock.advance(INVITE_TTL_MS - 1);
-    store().sweepPresence();
+    store().sweepPresence({ ringable: () => false });
     store().markAllAway();
 
     expect(memberOf('api')?.presence).toBe('invited');

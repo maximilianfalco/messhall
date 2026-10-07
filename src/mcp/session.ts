@@ -63,6 +63,10 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     get channel() {
       return channel;
     },
+    /** True when a ringer can reach this session: a Claude channel or a checked codex thread. */
+    get ringable() {
+      return channel || (kind === 'codex' && threadId !== undefined);
+    },
     get kind() {
       return kind;
     },

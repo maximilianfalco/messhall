@@ -122,7 +122,7 @@ export async function startDaemon({
 
   const sweep = setInterval(() => {
     try {
-      store.sweepPresence();
+      store.sweepPresence({ ringable: mcp.ringable });
       store.clearStale();
       store.expireInvites();
       doorbell.endPauses();

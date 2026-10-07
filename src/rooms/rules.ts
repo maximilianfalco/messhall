@@ -80,10 +80,19 @@ export function loopPair({
   return last.length >= lines && span <= withinMs ? { fast: true, lines, pair } : null;
 }
 
-/** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns away at 30. */
-export function nextPresence({ member, now }: { member: Pick<Member, 'last_seen_at' | 'presence'>; now: Date }) {
+/** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns away at 30.
+ * A seat its doorbell can still ring stays idle instead, since a mention still reaches it. */
+export function nextPresence({
+  member,
+  now,
+  ringable,
+}: {
+  member: Pick<Member, 'last_seen_at' | 'presence'>;
+  now: Date;
+  ringable: boolean;
+}) {
   const silent = now.getTime() - Date.parse(member.last_seen_at);
-  if (silent >= AWAY_AFTER_MS) return 'away';
+  if (silent >= AWAY_AFTER_MS) return ringable ? 'idle' : 'away';
   if (member.presence === 'active' && silent >= IDLE_AFTER_MS) return 'idle';
   return member.presence;
 }
