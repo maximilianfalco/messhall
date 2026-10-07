@@ -28,6 +28,7 @@ describe('FEED_CONTRACT_VERSION', () => {
             "reconnected",
             "removed",
             "role",
+            "status",
             "unmuted",
           ],
           "MEMBER_KINDS": [
@@ -64,7 +65,7 @@ describe('FEED_CONTRACT_VERSION', () => {
           "room",
           "approval",
         ],
-        "version": 2,
+        "version": 3,
       }
     `);
   });

@@ -13,6 +13,7 @@ import { SEAT_HEADER } from '../../src/mcp/constants.js';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
 import {
+  flockRun,
   flockStop,
   nudgeRun,
   reviewsReport,
@@ -91,6 +92,10 @@ describe('row seat prompt', () => {
     expect(prompt).toContain('follow the instructions it returns');
     expect(prompt).toContain('post "@orchestrator what is my role?"');
     expect(prompt).not.toContain('\n');
+  });
+
+  it('puts progress in set_status, not in a post', () => {
+    expect(prompt).toContain('Progress goes to set_status, never a post.');
   });
 
   it('fits in one tmux burst with the longest room and name', () => {
@@ -336,6 +341,24 @@ describe('seatThenAssign', () => {
     const outcome = await seatThenAssign({ ...base, assign, joined: () => true, role: 'worker' });
     expect(outcome.code).toBe(1);
     expect(outcome.lines.join('\n')).toContain('name taken');
+  });
+});
+
+describe('flockRun', () => {
+  it('shows each seated agent with its role and status', async () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'spawn-'));
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => new Date() });
+    store.joinRoom({ as: 'reviewer-1', kind: 'claude', room: 'dev' });
+    store.setStatus({ as: 'reviewer-1', room: 'dev', status: 'reviewing the room store' });
+    db.close();
+    const tmux = vi.fn<Runner>(() => Promise.resolve(result('messhall-seat-reviewer-1\t%1\t42\n')));
+    const queue = vi.fn<Runner>(() => Promise.resolve(result(LISTING)));
+
+    const outcome = await flockRun({ dataDir, queue, room: 'dev', tmux });
+
+    expect(outcome.report).toMatch(/role\s+status/);
+    expect(outcome.report).toMatch(/unassigned\s+reviewing the room store/);
   });
 });
 

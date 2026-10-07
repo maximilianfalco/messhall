@@ -16,6 +16,8 @@
     "joined_at": "2026-01-01T09:02:00.000Z",
     "last_seen_at": "2026-01-01T09:02:00.000Z",
     "left_at": null,
-    "muted": false
+    "muted": false,
+    "status": null,
+    "status_at": null
   }
 }

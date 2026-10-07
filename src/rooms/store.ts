@@ -151,7 +151,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       `SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} ORDER BY id DESC LIMIT ?) ORDER BY id`,
     ),
     latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
-    leave: db.prepare("UPDATE members SET left_at = ?, presence = 'left' WHERE room_id = ? AND name = ?"),
+    leave: db.prepare(
+      "UPDATE members SET left_at = ?, presence = 'left', status = NULL, status_at = NULL WHERE room_id = ? AND name = ?",
+    ),
     liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
     member: db.prepare('SELECT * FROM members WHERE room_id = ? AND name = ?'),
     messagesAfter: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? ORDER BY id LIMIT ?'),
@@ -196,6 +198,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'UPDATE members SET role = ?, role_instructions = ?, role_set_by = ? WHERE room_id = ? AND name = ?',
     ),
     setMuted: db.prepare('UPDATE members SET muted = ? WHERE room_id = ? AND name = ?'),
+    setStatus: db.prepare('UPDATE members SET status = ?, status_at = ? WHERE room_id = ? AND name = ?'),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
     setTopic: db.prepare('UPDATE rooms SET topic = ? WHERE id = ?'),
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
@@ -654,6 +657,19 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         emit({ change: 'topic', room: updated, type: 'room' });
         systemLine(updated, `topic set by ${by}: ${topic}`, emit);
         return { ok: true, room: updated } as const;
+      });
+    },
+
+    /** Sets the member's own status, or clears it when empty. It writes no line, so it never rings anyone. */
+    setStatus({ as, room: roomName, status }: { as: string; room: string; status: string }) {
+      return transaction(emit => {
+        const found = seat(roomName, as);
+        if (!found.ok) return found;
+        if (found.member.muted) return { ok: false, reason: 'muted' } as const;
+        sql.setStatus.run(status || null, status ? stamp() : null, found.room.id, as);
+        const member = findMember(found.room, as)!;
+        emit({ change: 'status', member, room: found.room.name, type: 'member' });
+        return { member, ok: true } as const;
       });
     },
 

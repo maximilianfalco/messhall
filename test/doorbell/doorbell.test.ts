@@ -74,6 +74,14 @@ describe('startDoorbell', () => {
     vi.restoreAllMocks();
   });
 
+  it('rings nobody when a member sets a status, even one that mentions them', async () => {
+    const { advance, rung, stop } = setup(scratch);
+    scratch.store.setStatus({ as: 'api', room: 'checkout', status: '@web @all waiting on you' });
+    await advance(3000);
+    expect(rung).toStrictEqual([]);
+    stop();
+  });
+
   it('rings a claude member mentioned in a post through its ringer', async () => {
     const { advance, rung, stop } = setup(scratch);
     scratch.store.postMessage({ from: 'api', room: 'checkout', text: '@web the schema moved' });

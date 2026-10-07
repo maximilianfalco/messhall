@@ -28,6 +28,8 @@ const member = (fields: Partial<Member> & Pick<Member, 'name'>): Member => ({
   presence: 'active',
   role: 'unassigned',
   room_id: 'r1',
+  status: null,
+  status_at: null,
   ...fields,
 });
 

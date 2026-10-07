@@ -41,7 +41,9 @@
           "joined_at": "2026-01-01T09:00:00.000Z",
           "last_seen_at": "2026-01-01T09:01:00.000Z",
           "left_at": null,
-          "muted": false
+          "muted": false,
+          "status": null,
+          "status_at": null
         },
         {
           "room_id": "r1",
@@ -57,7 +59,9 @@
           "joined_at": "2026-01-01T09:00:00.000Z",
           "last_seen_at": "2026-01-01T09:00:00.000Z",
           "left_at": null,
-          "muted": false
+          "muted": false,
+          "status": null,
+          "status_at": null
         }
       ],
       "messages": [

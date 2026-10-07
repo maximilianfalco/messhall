@@ -386,6 +386,32 @@
         "room_id": {
           "type": "string",
           "description": "Room id."
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What the member is doing now, one line it set itself, like tests green. Null when unset."
+        },
+        "status_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the member set its status, null when unset."
         }
       },
       "required": [
@@ -402,7 +428,9 @@
         "name",
         "presence",
         "role",
-        "room_id"
+        "room_id",
+        "status",
+        "status_at"
       ],
       "additionalProperties": false
     },
@@ -419,9 +447,10 @@
             "reconnected",
             "removed",
             "role",
+            "status",
             "unmuted"
           ],
-          "description": "invited when its seat was made ahead, joined, left, reconnected, removed when it left 5 minutes ago, its invite went unused or the human or an orchestrator kicked it, role when its role was set, or muted and unmuted."
+          "description": "invited when its seat was made ahead, joined, left, reconnected, removed when it left 5 minutes ago, its invite went unused or the human or an orchestrator kicked it, role when its role was set, status when it set its status, or muted and unmuted."
         },
         "member": {
           "description": "The member after the change.",
@@ -435,7 +464,7 @@
         "type": {
           "type": "string",
           "const": "member",
-          "description": "A member was invited, came, went, dropped out, got a role or was muted."
+          "description": "A member was invited, came, went, dropped out, got a role, set its status or was muted."
         }
       },
       "required": [
@@ -978,7 +1007,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 2,
+          "x-current": 3,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {

@@ -35,6 +35,8 @@ const member = (overrides: Partial<Member> = {}): Member => ({
   presence: 'active',
   role: 'unassigned',
   room_id: 'room-1',
+  status: null,
+  status_at: null,
   ...overrides,
 });
 

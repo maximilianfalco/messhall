@@ -83,7 +83,7 @@ function withStore<T>({ dataDir }: { dataDir: string }, use: (store: ReturnType<
   }
 }
 
-// Members still seated in the room, by name, so flock can show each one's role.
+// Members still seated in the room, by name, so flock can show each one's role and status.
 const seatedMembers = ({ dataDir, room }: { dataDir: string; room: string }) =>
   withStore({ dataDir }, store => {
     const members = store.listMembers(room).filter(member => member.presence !== 'away');
@@ -322,7 +322,7 @@ export async function seatRun({
   };
 }
 
-/** Spawned rows and seats from tmux: row and branch from the queue, whether the agent sits in `room`, and its role. */
+/** Spawned rows and seats from tmux: row and branch from the queue, whether the agent sits in `room`, its role and status. */
 export async function flockRun({
   dataDir,
   queue = runQueue,
@@ -350,9 +350,10 @@ export async function flockRun({
       String(entry.pid),
       member ? ok(`#${room} as ${member.name}`) : seated ? bad('not seated') : dim('no db'),
       member?.role ?? '',
+      member?.status ?? '',
     ];
   });
-  return { code: 0, report: formatTable(['session', 'pane', 'row', 'branch', 'pid', 'seat', 'role'], rows) };
+  return { code: 0, report: formatTable(['session', 'pane', 'row', 'branch', 'pid', 'seat', 'role', 'status'], rows) };
 }
 
 /** Kills a row's spawn session, or a seat's by name. A row stays claimed, so the reply says how to hand it back. */
@@ -469,7 +470,7 @@ export function registerSpawn(program: Command) {
 
   const flock = program
     .command('flock')
-    .description('List spawned rows and seats with tmux pane, row, branch, pid, seat and role.')
+    .description('List spawned rows and seats with tmux pane, row, branch, pid, seat, role and status.')
     .option('--room <room>', 'room to check seats in', DEFAULT_ROOM)
     .action(async (options: { room: string }) => {
       const result = await flockRun({ dataDir: defaultDataDir(), room: options.room });
