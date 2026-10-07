@@ -28,6 +28,12 @@
     /// `-shotOpenFolds YES`: every run of presence lines and the away chip start open, so a shot shows what is inside.
     static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
 
+    /// `-shotAgents YES`: the window opens with the Agents panel shown.
+    static let showsAgents = UserDefaults.standard.bool(forKey: "shotAgents")
+
+    /// `-shotReduceMotion YES`: draws as if Reduce Motion were on, which a launch arg cannot set system wide.
+    static let reduceMotion = UserDefaults.standard.bool(forKey: "shotReduceMotion")
+
     /// `-shotPullRequests <json>`: gh's answer for each PR url, so a shot shows cards without asking GitHub.
     static let pullRequests = UserDefaults.standard.string(forKey: "shotPullRequests")
 

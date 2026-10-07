@@ -30,6 +30,7 @@ struct MenuBarMenu: View {
       Button("#\(room.name)  \(room.agentSummary)") { show(room.name) }
     }
     if !openRooms.isEmpty { Divider() }
+    Button("Show Agents") { showAgents() }
     Button("Open Messhall") { show(nil) }
       .keyboardShortcut(AppSettings.shared.snapshot.hotkey.shortcut)
     Button("Settings\u{2026}") {
@@ -43,14 +44,18 @@ struct MenuBarMenu: View {
   private var status: String {
     if case .down(let reason) = store.phase, !store.loaded { return reason }
     if store.phase == .outdated, !store.loaded { return FeedStore.outdatedReason }
-    let active = store.rooms.flatMap(\.liveAgents).filter { $0.presence == .active }.count
-    return "\(plural(store.openRoomCount, "room")) open, \(active) active"
+    return "\(plural(store.openRoomCount, "room")) open, \(AgentsPanel(rooms: store.rooms).working) working"
   }
 
   private func show(_ room: String?) {
     if let room { navigation.room = room }
     openWindow(id: MesshallApp.windowID)
     NSApp.activate()
+  }
+
+  private func showAgents() {
+    navigation.showsAgents = true
+    show(nil)
   }
 }
 

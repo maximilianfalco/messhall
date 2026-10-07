@@ -11,6 +11,28 @@ final class Navigation {
   var newRoomDraft: String?
   /// Bumped to ask the menu bar label, which always lives, to open the window.
   var windowRequests = 0
+  var showsAgents = Navigation.startsWithAgents
+  /// The post the transcript scrolls to, set by a click on an agent in the Agents panel.
+  var revealed: Reveal?
+
+  #if DEBUG
+    private static let startsWithAgents = ShotHooks.showsAgents
+  #else
+    private static let startsWithAgents = false
+  #endif
+
+  /// Opens the agent's room at its last post. An agent with no loaded post opens at the end.
+  func reveal(_ agent: AgentRow) {
+    room = agent.room
+    revealed = agent.lastPost.map { Reveal(room: agent.room, messageId: $0.id) }
+  }
+}
+
+/// A post to scroll to. Each click makes a new one, so a second click on the same agent scrolls again.
+struct Reveal: Equatable {
+  let room: String
+  let messageId: Int
+  let id = UUID()
 }
 
 @MainActor

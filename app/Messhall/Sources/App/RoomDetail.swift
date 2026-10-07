@@ -7,6 +7,7 @@ struct RoomDetail: View {
   let store: FeedStore
   let client: FeedClient
   let columnsChangedAt: Date?
+  let reveal: Reveal?
   @State private var confirmingClose = false
   @State private var refusal: String?
   @State private var query = ""
@@ -49,7 +50,7 @@ struct RoomDetail: View {
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
-        columnsChangedAt: columnsChangedAt, older: older)
+        columnsChangedAt: columnsChangedAt, older: older, reveal: reveal)
         .id(room.name)
       Divider()
       if room.isOpen {
@@ -429,23 +430,50 @@ struct MemberChip: View {
   }
 }
 
-/// The agent type next to a name, tinted with the member's avatar hue.
-/// The member's own status and its age. The age ticks each minute without a feed event.
+/// The member's own status and its age, after a glyph that spins while the member is active.
+/// The age ticks each minute without a feed event. Reduce Motion keeps the glyph and the text still.
 struct StatusLine: View {
   let member: Member
+  var maxWidth: CGFloat? = 240
+  @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+
+  #if DEBUG
+    private var reduceMotion: Bool { systemReduceMotion || ShotHooks.reduceMotion }
+  #else
+    private var reduceMotion: Bool { systemReduceMotion }
+  #endif
 
   var body: some View {
-    TimelineView(.periodic(from: .now, by: 60)) { context in
-      Text(member.statusLine(now: context.date) ?? "")
+    let animated = member.isThinking && !reduceMotion
+    TimelineView(.periodic(from: .now, by: 60)) { minute in
+      let text = member.statusLine(now: minute.date) ?? ""
+      TimelineView(.animation(minimumInterval: Thinking.step, paused: !animated)) { frame in
+        HStack(spacing: 4) {
+          Text(Thinking.glyph(at: frame.date, animated: animated))
+            .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
+          Text(text)
+            .foregroundStyle(animated ? AnyShapeStyle(shimmer(at: frame.date)) : AnyShapeStyle(.secondary))
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
         .font(.caption)
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .truncationMode(.tail)
-        .frame(maxWidth: 240, alignment: .leading)
+        .frame(maxWidth: maxWidth, alignment: .leading)
+      }
     }
+  }
+
+  // A light band slides across the secondary text, a little past each edge so it fades in and out.
+  private func shimmer(at date: Date) -> LinearGradient {
+    let center = -0.3 + 1.6 * Thinking.shimmer(at: date)
+    return LinearGradient(
+      stops: [
+        .init(color: .secondary, location: center - 0.2), .init(color: .primary, location: center),
+        .init(color: .secondary, location: center + 0.2),
+      ], startPoint: .leading, endPoint: .trailing)
   }
 }
 
+/// The agent type next to a name, tinted with the member's avatar hue.
 struct TypePill: View {
   let label: String
   let name: String
@@ -529,12 +557,14 @@ struct Transcript: View {
   let query: String
   let columnsChangedAt: Date?
   let older: OlderPages
+  let reveal: Reveal?
   @State private var nearBottom = true
   @State private var showPill = false
   @State private var opened: [Int: Bool] = [:]
   @State private var marks = ScrollMarks()
   @State private var ready = false
   @State private var anchorRow: Int?
+  @State private var flashing: Int?
 
   private static let end = "end"
 
@@ -570,6 +600,9 @@ struct Transcript: View {
                   }
                 }
                 .id(item.id)
+                .background(
+                  Color.accentColor.opacity(flashing == item.id ? 0.15 : 0), in: RoundedRectangle(cornerRadius: 8)
+                )
                 .modifier(RowMark(id: item.id, marks: watched.contains(item.id) ? marks : nil))
               }
             }
@@ -605,6 +638,7 @@ struct Transcript: View {
           }
         }
         .onAppear { start(proxy) }
+        .onChange(of: reveal) { show(reveal, proxy) }
         .onChange(of: older.loading) { _, loading in
           if !loading { keepPlace(proxy) }
         }
@@ -626,6 +660,8 @@ struct Transcript: View {
 
   private func start(_ proxy: ScrollViewProxy) {
     scroll(proxy, animated: false)
+    // The bottom anchor wins the first layout, so the reveal waits a turn.
+    if reveal != nil { DispatchQueue.main.async { show(reveal, proxy) } }
     // The first layout can sit at the top before the bottom anchor lands, so paging waits a turn.
     DispatchQueue.main.async {
       ready = true
@@ -646,6 +682,16 @@ struct Transcript: View {
         }
       }
     #endif
+  }
+
+  /// Scrolls to the revealed post and lights it up for a moment. A post no longer loaded is skipped.
+  private func show(_ reveal: Reveal?, _ proxy: ScrollViewProxy) {
+    guard let id = reveal?.messageId, messages.contains(where: { $0.id == id }) else { return }
+    withAnimation(.easeOut) { proxy.scrollTo(id, anchor: .center) }
+    flashing = id
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+      withAnimation(.easeOut) { if flashing == id { flashing = nil } }
+    }
   }
 
   private func loadOlder(_ rows: [TranscriptItem]) {

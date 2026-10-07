@@ -5,13 +5,14 @@ import SwiftUI
 /// A link whose PR cannot be read gets no card, so it stays plain text.
 struct PullRequestCards: View {
   let row: PullRequestRow
+  var showsLabels = true
   @Environment(PullRequestStore.self) private var store
 
   var body: some View {
     let cards = row.shown.compactMap(store.card(for:))
     if !cards.isEmpty {
       VStack(alignment: .leading, spacing: 8) {
-        ForEach(cards, id: \.link) { PullRequestCardView(card: $0) }
+        ForEach(cards, id: \.link) { PullRequestCardView(card: $0, showsLabels: showsLabels) }
         if row.more > 0 {
           Text("and \(row.more) more")
             .font(.caption)
@@ -47,6 +48,7 @@ private struct ReadPullRequests: ViewModifier {
 
 struct PullRequestCardView: View {
   let card: PullRequestCard
+  var showsLabels = true
   @State private var hovering = false
   @Environment(\.openURL) private var openURL
 
@@ -73,7 +75,7 @@ struct PullRequestCardView: View {
               }
               .foregroundStyle(card.ci.color)
             }
-            LabelPills(labels: card.labels)
+            if showsLabels { LabelPills(labels: card.labels) }
           }
           .font(.caption)
           .foregroundStyle(.secondary)
