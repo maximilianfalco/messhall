@@ -813,8 +813,14 @@ struct ChatRow: View {
   let message: Message
   let sender: Member?
 
+  // Off in Settings, a line has no links to read, so nothing goes to GitHub.
+  private var pullRequests: PullRequestRow {
+    PullRequestRow(links: AppSettings.shared.snapshot.pullRequestCards ? pullRequestLinks(in: message.text) : [])
+  }
+
   var body: some View {
     let line = message.chatLine(sender: sender)
+    let pullRequests = pullRequests
     HStack(alignment: .top, spacing: 10) {
       if !line.mine { AvatarView(name: message.from) }
       VStack(alignment: line.mine ? .trailing : .leading, spacing: 3) {
@@ -836,9 +842,11 @@ struct ChatRow: View {
           .multilineTextAlignment(line.mine ? .trailing : .leading)
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
+        PullRequestCards(row: pullRequests)
       }
       if line.mine { AvatarView(name: message.from) }
     }
+    .readsPullRequests(pullRequests)
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
     .background(line.mine ? Color.accentColor.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))

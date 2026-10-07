@@ -21,6 +21,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   let settings = AppSettings.shared
   lazy var notifier = Notifier(settings: settings)
   lazy var hotkey = GlobalHotkey { [unowned self] in show(nil) }
+  let pullRequests = PullRequestStore(read: AppDelegate.readPullRequest())
+
+  private static func readPullRequest() -> PullRequestStore.Read {
+    #if DEBUG
+      if let json = ShotHooks.pullRequests { return ShotHooks.readPullRequest(from: json) }
+    #endif
+    return Feed.readPullRequest
+  }
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
@@ -138,6 +146,7 @@ struct MesshallApp: App {
       MainWindow(store: delegate.store, client: delegate.client, navigation: delegate.navigation)
         .frame(minWidth: 720, minHeight: 440)
         .environment(delegate.notifier)
+        .environment(delegate.pullRequests)
         .accentFromSettings()
     }
     .defaultSize(width: 980, height: 640)
