@@ -215,16 +215,16 @@ describe('hasChannels', () => {
 });
 
 describe('runMcpInstall --print', () => {
-  it('prints the real line and runs nothing', async () => {
+  it('prints the masked line and runs nothing', async () => {
     const { calls, run } = fakeRun({});
 
     const code = await runMcpInstall({ print: true, yes: false }, deps({ fetch: refused, run }));
 
     expect(code).toBe(0);
     expect(calls).toStrictEqual([]);
-    expect(logs[0]).toBe(claudeLine({ key: KEY, url: URL_BASE }));
+    expect(logs[0]).toBe(claudeLine({ key: '<agent key>', url: URL_BASE }));
     expect(output()).toContain('claude --dangerously-load-development-channels server:messhall');
-    expect(output().split(KEY)).toHaveLength(2);
+    expect(output()).not.toContain(KEY);
     expect(output()).toContain(`"httpUrl": "${MCP_URL}"`);
     expect(output()).toContain('"X-Messhall-Key": "<agent key>"');
     expect(existsSync(codexConfig)).toBe(false);
@@ -287,6 +287,19 @@ describe('runMcpInstall claude code', () => {
     expect(code).toBe(1);
     expect(calls).toStrictEqual([]);
     expect(output()).toContain('messhall start');
+  });
+
+  it('masks the key when claude echoes it in a failed add', async () => {
+    const { run } = fakeRun({
+      'claude mcp add-json': [{ code: 1, stderr: `Invalid config: {"X-Messhall-Key":"${KEY}"}`, stdout: '' }],
+      'claude mcp get': [NOT_FOUND],
+    });
+
+    const code = await runMcpInstall({ print: false, yes: true }, deps({ run }));
+
+    expect(code).toBe(1);
+    expect(output()).toContain('Invalid config: {"X-Messhall-Key":"<agent key>"}');
+    expect(output()).not.toContain(KEY);
   });
 
   it('exits 1 when claude cannot connect after the add', async () => {
