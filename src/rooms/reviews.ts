@@ -1,5 +1,4 @@
-// A request nobody answered in this long goes to any free reviewer.
-export const STALE_AFTER_MS = 10 * 60_000;
+import { REVIEW_STALE_MS } from '../config.js';
 
 const PR_URL = String.raw`https://github\.com/[\w.-]+/[\w.-]+/pull/\d+(?!\d)`;
 // A request may sit on any line of a post, or follow a short sentence like `CI green. ready for review: ...`.
@@ -37,7 +36,7 @@ export function reviewQueue({ messages, now }: { messages: RoomLine[]; now: Date
   return [...latest.values()].map(({ created_at: at, from, id, reviewer, round, url }) => {
     const answered = messages.some(line => line.id > id && line.from !== from && urlsIn(line.text).includes(url));
     const age = now.getTime() - Date.parse(at);
-    const state: ReviewState = answered ? 'answered' : age >= STALE_AFTER_MS ? 'stale' : 'waiting';
+    const state: ReviewState = answered ? 'answered' : age >= REVIEW_STALE_MS ? 'stale' : 'waiting';
     return { ageMin: Math.floor(age / 60_000), from, id, reviewer, round, state, url };
   });
 }

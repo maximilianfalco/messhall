@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { reviewQueue, reviewRequest } from '../../tools/dev/lib/review.js';
+import { reviewQueue, reviewRequest } from '../../src/rooms/reviews.js';
 
 const URL = 'https://github.com/acme/widgets/pull/12';
 const OTHER = 'https://github.com/acme/widgets/pull/13';
