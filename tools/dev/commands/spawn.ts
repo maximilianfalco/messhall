@@ -51,7 +51,8 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const stamp = (at: Date) =>
   `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`;
 
-async function mainCheckout() {
+/** The main checkout, the first worktree git lists, from any worktree. */
+export async function mainCheckout() {
   const listed = await run('git', ['worktree', 'list', '--porcelain'], REPO_ROOT);
   return listed.stdout.split('\n')[0]?.replace(/^worktree /, '') || REPO_ROOT;
 }
@@ -349,14 +350,26 @@ export async function flockRun({
 }
 
 /** Kills a row's spawn session, or a seat's by name. A row stays claimed, so the reply says how to hand it back. */
-export async function flockStop({ target, tmux = runTmux }: { target: string; tmux?: Runner }) {
+export async function flockStop({
+  queue = runQueue,
+  target,
+  tmux = runTmux,
+}: {
+  queue?: Runner;
+  target: string;
+  tmux?: Runner;
+}) {
   const isRow = ROW_ID.test(target);
   const session = isRow ? sessionName(target.toUpperCase()) : seatSessionName(target);
   const killed = await tmux(['kill-session', '-t', session]);
   if (killed.code !== 0) return { code: 1, report: bad(`no spawned session ${session}`) };
-  const hint = isRow
-    ? [dim(`the row is still claimed. hand it back with queue.py release ${target.toUpperCase()}`)]
-    : [];
+  if (!isRow) return { code: 0, report: ok(`stopped ${session}`) };
+  const id = target.toUpperCase();
+  const branch = parseQueueRow({ id, listing: (await queue(['show', '--all'])).stdout })?.branch;
+  const hint = [
+    dim(`the row is still claimed. hand it back with queue.py release ${id}`),
+    ...(branch ? [dim(`before removing its worktree: make app-clean WORKTREE=.worktrees/${branchSlug(branch)}`)] : []),
+  ];
   return { code: 0, report: [ok(`stopped ${session}`), ...hint].join('\n') };
 }
 
