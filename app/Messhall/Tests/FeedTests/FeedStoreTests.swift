@@ -267,12 +267,16 @@ struct FeedStoreTests {
     #expect(store.phase == .live)
   }
 
-  @Test("a feed the app cannot read says the app is older, not that the daemon is gone")
-  func undecodable() {
+  @Test("a feed the app cannot read says which side is older, not that the daemon is gone")
+  func undecodable() throws {
+    let store = FeedStore()
+    var snapshot = try Fixture.decode(Snapshot.self, "Snapshot")
+    snapshot.contractVersion = FeedContract.version + 1
+    store.apply(.snapshot(snapshot))
     let error = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad"))
 
-    #expect(FeedStore.downPhase(error) == .outdated)
-    #expect(FeedStore.downPhase(URLError(.cannotConnectToHost)) == .down("Messhall is not running."))
+    #expect(store.downPhase(error) == .outdated(.app))
+    #expect(store.downPhase(URLError(.cannotConnectToHost)) == .down("Messhall is not running."))
   }
 
   @Test("a snapshot carries the asks still waiting on each seat")
@@ -378,19 +382,23 @@ struct FeedStoreTests {
     #expect(store.rooms[0].agreements.map(\.id) == [3])
   }
 
-  @Test("the app is behind when the daemon's contract is newer than the one it was built for")
-  func behind() throws {
+  @Test("a readable feed is stale only when the daemon's contract differs from the one the app was built for")
+  func stale() throws {
     let store = try loaded()
-    #expect(!store.behind)
+    #expect(store.stale == nil)
 
     var snapshot = try Fixture.decode(Snapshot.self, "Snapshot")
     snapshot.contractVersion = FeedContract.version + 1
     store.apply(.snapshot(snapshot))
-    #expect(store.behind)
+    #expect(store.stale == .app)
+
+    snapshot.contractVersion = FeedContract.version - 1
+    store.apply(.snapshot(snapshot))
+    #expect(store.stale == .daemon)
 
     snapshot.contractVersion = nil
     store.apply(.snapshot(snapshot))
-    #expect(!store.behind)
+    #expect(store.stale == nil)
   }
 
   @Test("an SSE frame decodes into an update")

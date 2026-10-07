@@ -67,9 +67,10 @@ struct MainWindow: View {
       .sheet(isPresented: showingNewRoom) {
         NewRoomSheet(store: store, client: client, navigation: navigation)
       }
-    } else if store.phase == .outdated {
+    } else if case .outdated(let side) = store.phase {
       ContentUnavailableView(
-        "App Is Out of Date", systemImage: "arrow.down.app", description: Text(FeedStore.outdatedReason))
+        side == .app ? "App Is Out of Date" : "Daemon Is Out of Date", systemImage: "arrow.down.app",
+        description: Text(side.reason))
     } else if case .down = store.phase {
       DaemonDown()
     } else {

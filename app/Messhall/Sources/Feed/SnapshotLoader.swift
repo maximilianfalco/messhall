@@ -11,6 +11,6 @@ public struct SnapshotLoader: Sendable {
   public func load() async throws -> Snapshot {
     let (data, response) = try await client.session.data(for: try client.request(.snapshot))
     try client.check(response, data)
-    return try JSONDecoder().decode(Snapshot.self, from: data)
+    return try Self.read(data)
   }
 }
