@@ -2,13 +2,14 @@ import type { Runner } from '../../tools/dev/commands/spawn.js';
 import type { launchClaude } from '../../tools/dev/lib/claudeTmux.js';
 import type { RunResult } from '../../tools/dev/lib/run.js';
 
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { KEY_FILES } from '../../src/daemon/keys.js';
+import { SEAT_HEADER } from '../../src/mcp/constants.js';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
 import {
@@ -18,6 +19,7 @@ import {
   seatRun,
   seatThenAssign,
   spawnRun,
+  writeSpawnConfig,
 } from '../../tools/dev/commands/spawn.js';
 import { claudeArgv } from '../../tools/dev/lib/claudeTmux.js';
 import {
@@ -268,6 +270,34 @@ describe('spawnRun', () => {
     expect(outcome.code).toBe(1);
     expect(outcome.report).toContain(reason);
     expect(launch).not.toHaveBeenCalled();
+  });
+});
+
+describe('writeSpawnConfig', () => {
+  const seatIn = (file: string) => JSON.parse(readFileSync(file, 'utf8')).mcpServers.messhall.headers[SEAT_HEADER];
+
+  it('gives a first spawn a fresh seat key', () => {
+    const file = path.join(mkdtempSync(path.join(tmpdir(), 'spawn-')), 'B82-mcp.json');
+    writeSpawnConfig({ file, key: 'k', url: 'http://127.0.0.1:1' });
+    expect(seatIn(file)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('lets a stopped then respawned row take back its seat and role as reconnected', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'spawn-'));
+    const file = path.join(dataDir, 'B82-mcp.json');
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => new Date() });
+    writeSpawnConfig({ file, key: 'k', url: 'http://127.0.0.1:1' });
+    store.joinRoom({ as: 'f8-thing', kind: 'claude', room: 'dev', seatKey: seatIn(file) });
+    store.joinRoom({ as: 'orchestrator', kind: 'claude', room: 'dev' });
+    store.assignRole({ by: 'orchestrator', member: 'f8-thing', role: 'worker', room: 'dev' });
+    store.markAllAway();
+
+    writeSpawnConfig({ file, key: 'k', url: 'http://127.0.0.1:1' });
+    const rejoined = store.joinRoom({ as: 'f8-thing', kind: 'claude', room: 'dev', seatKey: seatIn(file) });
+    db.close();
+
+    expect(rejoined).toMatchObject({ change: 'reconnected', member: { role: 'worker' }, ok: true });
   });
 });
 

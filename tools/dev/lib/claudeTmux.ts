@@ -26,6 +26,17 @@ export function mcpConfigJson({ key, seat, url }: McpTarget) {
   return JSON.stringify({ mcpServers: { [SERVER_NAME]: { headers, type: 'http', url: `${url}/mcp` } } });
 }
 
+/** The seat key header in an mcp config `file` written before, if there is one. */
+export function seatKeyIn(file: string): string | undefined {
+  if (!existsSync(file)) return;
+  try {
+    const seat: unknown = JSON.parse(readFileSync(file, 'utf8')).mcpServers?.[SERVER_NAME]?.headers?.[SEAT_HEADER];
+    return typeof seat === 'string' ? seat : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Writes the mcp config to `file` with mode 0600, since it holds the agent key. */
 export function writeMcpConfig({ file, ...target }: McpTarget & { file: string }) {
   writeFileSync(file, mcpConfigJson(target));
