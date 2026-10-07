@@ -33,12 +33,14 @@ interface AgentOptions {
   assign?: string;
   catchUp?: boolean;
   client?: string;
+  confirm?: number;
   follow?: boolean;
   instructions?: string;
   keyFile: string;
   option?: string[];
   pause?: (ms: number, signal: AbortSignal) => Promise<void>;
   postFifo?: string;
+  propose?: string;
   question?: string;
   role: string;
   room: string;
@@ -48,6 +50,7 @@ interface AgentOptions {
   timeout?: number;
   url: string;
   wait?: boolean;
+  with?: string[];
   write?: (line: string) => void;
 }
 
@@ -62,21 +65,28 @@ function readKey(file: string) {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * Join, post, ask the human `question` with `option` buttons, then wait and read once,
- * or with `catchUp` read every page without waiting.
+ * Join, post, ask the human `question` with `option` buttons, propose an agreement `with` names or confirm one,
+ * then with `wait` or a question wait and read once, or with `catchUp` read every page without waiting.
  * Leaves at the end, so the room reads left, not away.
  */
 async function joinAndRead(
   client: Client,
   {
     catchUp,
+    confirm,
     option,
+    propose,
     question,
     role,
     room,
     say,
     timeout,
-  }: Pick<AgentOptions, 'catchUp' | 'option' | 'question' | 'role' | 'room' | 'say' | 'timeout'>,
+    wait,
+    with: names,
+  }: Pick<
+    AgentOptions,
+    'catchUp' | 'confirm' | 'option' | 'propose' | 'question' | 'role' | 'room' | 'say' | 'timeout' | 'wait' | 'with'
+  >,
 ) {
   const replies = [await callTool(client, 'join', { as: role, room })];
   const step = async (name: string, args: Record<string, unknown>) => {
@@ -87,10 +97,14 @@ async function joinAndRead(
   if (replies[0]!.isError) return replies;
   if (say) await step('post', { room, text: say });
   if (question) await step('ask_human', { options: option ?? [], question, room });
+  if (propose) await step('propose', { room, text: propose, with: names ?? [] });
+  if (confirm !== undefined) await step('confirm', { id: confirm, room });
   const readAll = async (): Promise<unknown> =>
     (await step('read_since', { room })) && replies.at(-1)!.text.includes(MORE) && readAll();
   if (catchUp) await readAll();
-  else if (await step('wait', { room, timeout_s: timeout })) await step('read_since', { room });
+  else if ((wait || question) && (await step('wait', { room, timeout_s: timeout }))) {
+    await step('read_since', { room });
+  }
   await step('leave', { room });
   return replies;
 }
@@ -201,11 +215,13 @@ export async function agentRun({
   instructions: instructionsFile,
   catchUp,
   client,
+  confirm,
   follow: following,
   keyFile,
   pause,
   option,
   postFifo,
+  propose,
   question,
   role,
   room,
@@ -215,6 +231,7 @@ export async function agentRun({
   timeout,
   url,
   wait,
+  with: names,
   write = line => process.stdout.write(line),
 }: AgentOptions) {
   const [member, value] = assign?.split('=') ?? [];
@@ -235,8 +252,20 @@ export async function agentRun({
         ? joinAndAsk(mcp, { command: ask, role, room, timeout })
         : member && value
           ? joinAssignLeave(mcp, { instructions, member, role, room, say, value })
-          : wait || catchUp || question
-            ? joinAndRead(mcp, { catchUp, option, question, role, room, say, timeout })
+          : wait || catchUp || question || propose || confirm !== undefined
+            ? joinAndRead(mcp, {
+                catchUp,
+                confirm,
+                option,
+                propose,
+                question,
+                role,
+                room,
+                say,
+                timeout,
+                wait,
+                with: names,
+              })
             : joinPostLeave({ as: role, client: mcp, room, text: say }).then(result => result.replies),
   );
   if (!session.ok) {
@@ -261,7 +290,7 @@ export async function agentRun({
   return { code: session.value.some(reply => reply.isError) ? 1 : 0, report: lines.join('\n') };
 }
 
-/** Registers `agent <role> --room <r> [--say <text>] [--ask <command>] [--question <text> --option <label>...] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--seat <key>] [--url <u>] [--key-file <f>]`. */
+/** Registers `agent <role> --room <r> [--say <text>] [--ask <command>] [--question <text> --option <label>...] [--propose <text> --with <name>...] [--confirm <id>] [--assign <member=role> [--instructions <file>]] [--wait] [--catch-up] [--follow [--post-fifo <path>]] [--client <name>] [--seat <key>] [--url <u>] [--key-file <f>]`. */
 export function registerAgent(program: Command) {
   program
     .command('agent <role>')
@@ -277,6 +306,9 @@ export function registerAgent(program: Command) {
       'with --question, one button label, given 2 to 4 times',
       (value, all: string[] = []) => [...all, value],
     )
+    .option('--propose <text>', 'propose this agreement to the --with agents')
+    .option('--with <name...>', 'with --propose, the agents who must confirm it')
+    .option('--confirm <id>', 'confirm the agreement with this id', value => Number(value))
     .option('--wait', 'block until something concerns this agent, then read')
     .option('--catch-up', 'read the backlog and leave without waiting')
     .option(
