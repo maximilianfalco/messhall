@@ -4,6 +4,7 @@ import pc from 'picocolors';
 
 export const ok = (text: string) => pc.green(`✔ ${text}`);
 export const bad = (text: string) => pc.red(`✖ ${text}`);
+export const warn = (text: string) => pc.yellow(`! ${text}`);
 export const dim = (text: string) => pc.dim(text);
 
 // Colors add hidden codes, so widths are measured on the plain text.

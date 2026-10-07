@@ -27,3 +27,19 @@ describe('worker brief', () => {
     expect(worker).toContain('call `wait` in a loop and run `gh pr view <n> --json state` each time it returns');
   });
 });
+
+describe('worktree removal', () => {
+  const docs = [
+    path.join(BRIEFS, 'reviewer.md'),
+    path.join(REPO_ROOT, '.claude', 'skills', 'messhall-pickup-any-work', 'SKILL.md'),
+  ];
+
+  it.each(docs)('%s cleans the app build before each git worktree remove', file => {
+    const removals = readFileSync(file, 'utf8')
+      .split('\n')
+      .filter(line => line.includes('git worktree remove'));
+
+    expect(removals.length).toBeGreaterThan(0);
+    removals.forEach(line => expect(line).toMatch(/make app-clean WORKTREE=\S+.*(&&|;) git worktree remove/));
+  });
+});

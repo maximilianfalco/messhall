@@ -1,4 +1,4 @@
-.PHONY: install lint lint-js lint-types format format-check test check app app-run app-test
+.PHONY: install lint lint-js lint-types format format-check test check app app-run app-test app-clean
 
 lint: ## Run all code standard checks
 	pnpm exec concurrently --names "js,types,format-check" -c "auto" "make lint-js" "make lint-types" "make format-check"
@@ -30,5 +30,7 @@ app: ## Build the Debug Mac app into app/build/Messhall.app
 	bash app/scripts/bundle.sh
 app-run: app ## Build and launch the Mac app against MESSHALL_PORT (7707 by default)
 	app/build/Messhall.app/Contents/MacOS/Messhall
+app-clean: ## Quit a worktree's Mac app, unregister it and delete its app/build: make app-clean WORKTREE=.worktrees/<name>
+	bash app/scripts/clean.sh $(WORKTREE)
 app-test: ## Run the Mac app's Swift tests
 	$(APP_ENV) swift test --package-path app/Messhall
