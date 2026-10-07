@@ -56,6 +56,19 @@ describe('runRoom', () => {
     expect(rooms()[0]!.closed_at).toBeNull();
   });
 
+  it('turns review nudges off and on', async () => {
+    await room({ action: 'new', name: 'planning' });
+
+    await expect(room({ action: 'nudges', name: 'planning', on: false })).resolves.toStrictEqual({
+      code: 0,
+      output: ['review nudges off in #planning'],
+    });
+    await expect(room({ action: 'nudges', name: 'planning', on: true })).resolves.toStrictEqual({
+      code: 0,
+      output: ['review nudges on in #planning, a request quiet 15 min goes to another reviewer'],
+    });
+  });
+
   it('mutes and unmutes a member', async () => {
     feed.scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'checkout' });
     const mutedOf = () => feed.scratch.store.listMembers('checkout').find(member => member.name === 'api')?.muted;

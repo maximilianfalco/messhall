@@ -72,6 +72,10 @@ export const reopenResultSchema = z.object({
   room: roomSchema.describe('The room, open again.'),
 });
 
+export const reviewNudgesResultSchema = z.object({
+  review_nudges: z.boolean().describe('True when a review request quiet 15 minutes goes to another reviewer.'),
+});
+
 export const newRoomSchema = z.object({
   name: nameSchema.describe('Room name, unique.'),
   topic: z.string().min(1).max(TOPIC_MAX_CHARS).optional().describe('What the room is for, 1 to 200 chars.'),
@@ -164,6 +168,7 @@ export type History = z.infer<typeof historySchema>;
 export type SearchResult = z.infer<typeof searchResultSchema>;
 export type HumanPostResult = z.infer<typeof humanPostResultSchema>;
 export type ReopenResult = z.infer<typeof reopenResultSchema>;
+export type ReviewNudgesResult = z.infer<typeof reviewNudgesResultSchema>;
 export type NewRoomResult = z.infer<typeof newRoomResultSchema>;
 export type CloseResult = z.infer<typeof closeResultSchema>;
 export type HumanRole = z.infer<typeof humanRoleSchema>;
