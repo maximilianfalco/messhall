@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
 import { CLI_VERSION, DB_FILE, SWEEP_EVERY_MS } from '../../src/config.js';
+import { currentBuild } from '../../src/daemon/build.js';
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { openDb } from '../../src/rooms/db.js';
@@ -52,7 +53,7 @@ function sideStore() {
 }
 
 describe('startDaemon', () => {
-  it('answers /health with version, uptime, rooms and live members', async () => {
+  it('answers /health with version, build, contract, uptime, rooms and live members', async () => {
     const { port } = await start();
     const side = sideStore();
     side.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
@@ -65,6 +66,8 @@ describe('startDaemon', () => {
 
     expect(res.status).toBe(200);
     expect(JSON.parse(res.body)).toStrictEqual({
+      build: currentBuild(),
+      contract_version: FEED_CONTRACT_VERSION,
       live_members: 1,
       ok: true,
       rooms: 1,
@@ -131,6 +134,7 @@ describe('startDaemon', () => {
 
     expect([open.status, keyless.status, browser.status]).toStrictEqual([200, 401, 403]);
     expect(JSON.parse(open.body)).toStrictEqual({
+      build: currentBuild(),
       contract_version: FEED_CONTRACT_VERSION,
       rooms: [],
       seq: 0,

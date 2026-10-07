@@ -32,6 +32,7 @@ private let models: [String: [String]] = [
   "Agreement": Agreement.CodingKeys.allCases.map(\.rawValue),
   "AgreementEvent": AgreementEvent.CodingKeys.allCases.map(\.rawValue),
   "AnswerResult": AnswerResult.CodingKeys.allCases.map(\.rawValue),
+  "Build": Build.CodingKeys.allCases.map(\.rawValue),
   "HumanAnswer": HumanAnswer.CodingKeys.allCases.map(\.rawValue),
   "Question": Question.CodingKeys.allCases.map(\.rawValue),
   "QuestionEvent": QuestionEvent.CodingKeys.allCases.map(\.rawValue),

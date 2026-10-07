@@ -7,7 +7,7 @@ import { snapshotSchema } from '../../contracts/feed.ts';
 import { FEED_PING_MS, FEED_STALL_MS } from '../../src/config.js';
 import { openStream, resumeFrom } from '../../src/feed/sse.js';
 
-import { fakeEvery, feedServer, frameReader } from './feedServer.js';
+import { fakeEvery, FEED_BUILD, feedServer, frameReader } from './feedServer.js';
 
 let feed: Awaited<ReturnType<typeof feedServer>>;
 
@@ -98,6 +98,7 @@ describe('GET /api/events', () => {
     expect(first!.event).toBe('snapshot');
     expect(first!.id).toBe('4');
     expect(snapshotSchema.parse(first!.data).rooms.map(room => room.name)).toStrictEqual(['demo']);
+    expect(snapshotSchema.parse(first!.data).build).toStrictEqual(FEED_BUILD);
     await reader.cancel();
   });
 
@@ -185,7 +186,7 @@ describe('openStream backpressure', () => {
         timer.advance(ms);
       },
     };
-    openStream({ every: timer.every, header: '0', now: () => new Date(at), sink, store: store() });
+    openStream({ build: FEED_BUILD, every: timer.every, header: '0', now: () => new Date(at), sink, store: store() });
     store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
     return { clock, timer };
   }
