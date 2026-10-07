@@ -94,13 +94,13 @@ describe('appStamp', () => {
   it('reads the contract and the commit the app was built from', async () => {
     const run = plist({ MesshallCommit: NEW.commit, MesshallCommittedAt: NEW.committed_at, MesshallFeedContract: 5 });
 
-    expect(await appStamp({ plistPath: '/app/Info.plist', run })).toStrictEqual({ build: NEW, contract: 5 });
+    await expect(appStamp({ plistPath: '/app/Info.plist', run })).resolves.toStrictEqual({ build: NEW, contract: 5 });
   });
 
   it('reads an app from before the stamps as having none', async () => {
     const run = plist({ CFBundleName: 'Messhall' });
 
-    expect(await appStamp({ plistPath: '/app/Info.plist', run })).toStrictEqual({
+    await expect(appStamp({ plistPath: '/app/Info.plist', run })).resolves.toStrictEqual({
       build: undefined,
       contract: undefined,
     });
@@ -109,6 +109,6 @@ describe('appStamp', () => {
   it('says no app when plutil cannot read the plist', async () => {
     const run = () => Promise.resolve({ code: 1, stderr: 'no such file', stdout: '' });
 
-    expect(await appStamp({ plistPath: '/app/Info.plist', run })).toBeUndefined();
+    await expect(appStamp({ plistPath: '/app/Info.plist', run })).resolves.toBeUndefined();
   });
 });
