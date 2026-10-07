@@ -104,6 +104,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'ask-dark', room: 'deploy' },
   { appearance: 'light', name: 'ask-long-light', room: 'release' },
   { appearance: 'dark', name: 'ask-long-dark', room: 'release' },
+  { appearance: 'light', name: 'question-light', room: 'launch' },
+  { appearance: 'dark', name: 'question-dark', room: 'launch' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -366,7 +368,7 @@ const LONG_ASK = [
   'npm publish --access public" }',
 ].join('\n');
 
-/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release. Runs after the daemon starts, since its start marks
+/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release and two questions in #launch. Runs after the daemon starts, since its start marks
  * every agent away and expires every pending ask. */
 export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
   const db = openDb({ dataDir });
@@ -389,6 +391,20 @@ export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
       seats: [{ name: 'shipper', room: 'release' }],
       session: 'shot-long',
       tool: 'Bash',
+    });
+    store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room: 'launch' });
+    store.joinRoom({ as: 'web', client: CLAUDE, kind: 'claude', room: 'launch' });
+    store.askQuestion({
+      as: 'api',
+      options: ['ship it', 'wait for review'],
+      question: 'the cents migration is green on staging. merge it today?',
+      room: 'launch',
+    });
+    store.askQuestion({
+      as: 'web',
+      options: ['banner', 'modal', 'inline note', 'skip it'],
+      question: 'how should checkout tell people prices moved to cents?',
+      room: 'launch',
     });
   } finally {
     db.close();
