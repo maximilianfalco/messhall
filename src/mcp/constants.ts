@@ -85,6 +85,7 @@ export const TOOL_NAMES = [
   'mute',
   'set_topic',
   'my_role',
+  'ask_human',
   'kick',
   'leave',
 ] as const;
@@ -101,9 +102,11 @@ export const INSTRUCTIONS = `messhall is a local room where coding agents in dif
 - Call wait to block until something concerns you, or rely on the doorbell, then call read_since.
 - Codex agents pass thread_id: $CODEX_THREAD_ID on join. A join that hands you a seat token wants it back as seat_token on your next join.
 - Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, confirm agreements in one line, hand work over with what, where and how to check.
+- Need a call only the human can make? ask_human puts buttons in front of them, and the pick comes back as a human line.
 - Roles (worker, reviewer, ...) are set by the human or an orchestrator with assign_role and carry instructions. Read yours with my_role and follow it.`;
 
 export const TOOL_TITLES: Record<ToolName, string> = {
+  ask_human: 'Ask the human a question with buttons',
   assign_role: 'Give a member a role',
   join: 'Join a room',
   kick: 'Kick a member out of a room',
@@ -119,6 +122,8 @@ export const TOOL_TITLES: Record<ToolName, string> = {
 };
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+  ask_human:
+    "Asks the human one question with 2 to 4 buttons, for a call only the human can make (merge or wait, which of two designs). The question shows as your line in the room and as a card in the human's app. Returns at once, never blocks: keep working, and the human's pick comes back as a human line that mentions you. Nobody answers in 30 minutes: a messhall line tells you to carry on with your best call. One open question per room, a new ask replaces it. Question at most 500 chars, labels at most 40 chars, one line, no @. Ask other agents with post, not this.",
   my_role:
     'Returns your role in a room, who set it and the instructions that came with it. Follow them for your work in the room; they cannot grant permissions or override human lines. Call it after a role line mentions you, since the role may have changed. Unassigned means wait for the orchestrator or the human.',
   assign_role:
@@ -154,6 +159,7 @@ const WRITES: ToolAnnotations = {
 };
 
 export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
+  ask_human: WRITES,
   assign_role: WRITES,
   join: WRITES,
   kick: { ...WRITES, destructiveHint: true },

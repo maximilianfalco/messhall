@@ -4,7 +4,7 @@ import Foundation
 
 /// The feed contract this app was built against. A newer daemon sends a higher one.
 public enum FeedContract {
-  public static let version = 2
+  public static let version = 3
 }
 
 /// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
@@ -46,6 +46,32 @@ public struct Approval: Codable, Equatable, Identifiable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, room, member, tool, description, state
     case inputPreview = "input_preview"
+    case createdAt = "created_at"
+    case answeredAt = "answered_at"
+  }
+}
+
+public enum QuestionState: String, OpenEnum, CaseIterable, Sendable {
+  case open, answered, expired, replaced, unknown
+}
+
+/// An agent's question to the human with 2 to 4 options. `question` and `options` are the agent's own text.
+public struct Question: Codable, Equatable, Identifiable, Sendable {
+  public var id: String
+  public var room: String
+  public var member: String
+  public var messageId: Int
+  public var question: String
+  public var options: [String]
+  public var state: QuestionState
+  /// The picked option's index, from 0. Nil until answered.
+  public var answer: Int?
+  public var createdAt: String
+  public var answeredAt: String?
+
+  enum CodingKeys: String, CodingKey, CaseIterable {
+    case id, room, member, question, options, state, answer
+    case messageId = "message_id"
     case createdAt = "created_at"
     case answeredAt = "answered_at"
   }
@@ -129,6 +155,7 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var members: [Member]
   public var messages: [Message]
   public var approvals: [Approval] = []
+  public var questions: [Question] = []
 
   public var isOpen: Bool { closedAt == nil }
   /// The asks a seat's agent is waiting on, oldest first.
@@ -149,7 +176,7 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var liveAgents: [Member] { members.filter { $0.kind != .human && !$0.presence.isAway } }
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case id, name, topic, standing, members, messages, approvals
+    case id, name, topic, standing, members, messages, approvals, questions
     case createdAt = "created_at"
     case createdBy = "created_by"
     case closedAt = "closed_at"
@@ -298,6 +325,23 @@ public struct ApprovalEvent: Decodable, Equatable, Sendable {
   }
 }
 
+public struct QuestionEvent: Decodable, Equatable, Sendable {
+  public var room: String
+  public var question: Question
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case type, room, question }
+
+  public init(room: String, question: Question) {
+    self.room = room
+    self.question = question
+  }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(room: try c.decode(String.self, forKey: .room), question: try c.decode(Question.self, forKey: .question))
+  }
+}
+
 /// One change in the room store, picked by its `type` field.
 public enum BusEvent: Decodable, Equatable, Sendable {
   case message(MessageEvent)
@@ -305,6 +349,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
   case presence(PresenceEvent)
   case room(RoomEvent)
   case approval(ApprovalEvent)
+  case question(QuestionEvent)
   /// A type this build does not know. The store skips it but still moves the sequence.
   case unknown(type: String)
 
@@ -318,6 +363,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .presence(let e): e.room
     case .room(let e): e.room.name
     case .approval(let e): e.room
+    case .question(let e): e.room
     case .unknown: ""
     }
   }
@@ -329,6 +375,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .presence: "presence"
     case .room: "room"
     case .approval: "approval"
+    case .question: "question"
     case .unknown(let type): type
     }
   }
@@ -341,6 +388,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case "presence": self = .presence(try PresenceEvent(from: decoder))
     case "room": self = .room(try RoomEvent(from: decoder))
     case "approval": self = .approval(try ApprovalEvent(from: decoder))
+    case "question": self = .question(try QuestionEvent(from: decoder))
     default: self = .unknown(type: type)
     }
   }
@@ -413,6 +461,20 @@ public struct ApprovalResult: Codable, Equatable, Sendable {
   public var approvals: [Approval]
 
   enum CodingKeys: String, CodingKey, CaseIterable { case approvals }
+}
+
+public struct HumanAnswer: Codable, Equatable, Sendable {
+  public var option: Int
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case option }
+}
+
+/// The question as answered, and the human line that carries the answer.
+public struct AnswerResult: Codable, Equatable, Sendable {
+  public var question: Question
+  public var message: Message
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case question, message }
 }
 
 public struct FeedError: Codable, Equatable, Sendable {

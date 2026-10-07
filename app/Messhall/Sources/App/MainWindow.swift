@@ -110,16 +110,27 @@ struct RoomRow: View {
 
   var body: some View {
     Label {
-      VStack(alignment: .leading, spacing: 1) {
-        Text(room.name)
-        Text(room.agentSummary)
-          .font(.caption)
-          .foregroundStyle(.secondary)
+      HStack {
+        VStack(alignment: .leading, spacing: 1) {
+          Text(room.name)
+          Text(room.agentSummary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        if !room.questions.isEmpty {
+          Spacer()
+          QuestionBadge(count: room.questions.count)
+        }
       }
     } icon: {
       Image(systemName: room.isOpen ? "number" : "lock")
     }
     .padding(.vertical, 2)
-    .accessibilityLabel("\(room.name), \(room.isOpen ? "open" : "closed"), \(room.agentSummary)")
+    .accessibilityLabel(
+      "\(room.name), \(room.isOpen ? "open" : "closed"), \(room.agentSummary)\(questionsLabel)")
+  }
+
+  private var questionsLabel: String {
+    room.questions.isEmpty ? "" : ", " + QuestionBadge.summary(room.questions.count)
   }
 }

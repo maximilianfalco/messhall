@@ -1,6 +1,7 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 import { Command } from 'commander';
 
+import { registerAnswer } from './cli/answer.js';
 import { registerClaude } from './cli/claude.js';
 import { registerCodex } from './cli/codex.js';
 import { registerDaemon } from './cli/daemon.js';
@@ -33,6 +34,7 @@ const program = new Command()
   registerStatus,
   registerLogs,
   registerSay,
+  registerAnswer,
   registerRoom,
   registerRole,
   registerSpawn,

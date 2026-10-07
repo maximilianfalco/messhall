@@ -39,6 +39,10 @@ function eventLine(event: BusEvent) {
     const { id, member, state, tool } = event.approval;
     return `#${event.room} ${member} ${tool} ${state} (${id})`;
   }
+  if (event.type === 'question') {
+    const { id, member, state } = event.question;
+    return `#${event.room} ${member} question ${state} (${id})`;
+  }
   return `#${event.room.name} ${event.change}`;
 }
 

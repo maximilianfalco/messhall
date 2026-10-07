@@ -109,6 +109,12 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,
         ...roleBlock({ role: store.roleOf({ name: as, room: input.room })!, room: input.room }),
+        ...store
+          .questionsOf({ as, room: input.room })
+          .map(
+            ({ message_id }) =>
+              `your question #${message_id} still waits on the human. the answer comes as a human line that mentions you.`,
+          ),
         ...(kind === 'codex' || input.thread_id
           ? [session.threadId ? 'doorbell: codex' : 'doorbell: none (call wait)']
           : []),

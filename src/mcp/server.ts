@@ -7,6 +7,7 @@ import { CLI_VERSION } from '../config.js';
 
 import { INSTRUCTIONS, PROTOCOL_VERSIONS, SERVER_NAME, TOOL_DESCRIPTIONS, TOOL_NAMES } from './constants.js';
 import { registerPermissionRelay } from './permission.js';
+import { registerAskHuman } from './tools/askHuman.js';
 import { registerAssignRole } from './tools/assignRole.js';
 import { registerJoin } from './tools/join.js';
 import { registerKick } from './tools/kick.js';
@@ -21,6 +22,7 @@ import { registerSetTopic } from './tools/setTopic.js';
 import { registerWait } from './tools/wait.js';
 
 const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: string) => void> = {
+  ask_human: registerAskHuman,
   assign_role: registerAssignRole,
   join: registerJoin,
   kick: registerKick,

@@ -69,7 +69,11 @@ describe('askQuestion', () => {
     const newer = asked();
 
     expect(store().openQuestions('demo')).toStrictEqual([newer]);
-    expect(store().openQuestions('demo').map(item => item.id)).not.toContain(older.id);
+    expect(
+      store()
+        .openQuestions('demo')
+        .map(item => item.id),
+    ).not.toContain(older.id);
   });
 
   it('keeps open questions from different agents side by side', () => {
@@ -142,7 +146,11 @@ describe('answerQuestion', () => {
     const result = store().answerQuestion({ id: question.id, option: 0 });
 
     expect(result.ok).toBe(true);
-    expect(store().listRooms().find(room => room.name === 'demo')?.closed_at).toBeNull();
+    expect(
+      store()
+        .listRooms()
+        .find(room => room.name === 'demo')?.closed_at,
+    ).toBeNull();
   });
 });
 

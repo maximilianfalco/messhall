@@ -412,7 +412,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   }
 
   // A member's line with what follows it: done, presence, pauses, the loop guard, the all done close.
-  function speak({ done, member, room, text }: { done: boolean; member: Member; room: Room; text: string }, emit: Emit) {
+  function speak(
+    { done, member, room, text }: { done: boolean; member: Member; room: Room; text: string },
+    emit: Emit,
+  ) {
     const human = member.kind === 'human';
     const names = sql.liveMembers.all(room.id).map(row => String(row.name));
     const kind = done && !human ? 'done' : 'chat';
@@ -963,7 +966,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const at = stamp();
         questionsSql.replace.all(at, room.id, as).forEach(row => questionChanged(toQuestion(row), emit));
         const { message } = speak({ done: false, member, room, text: askText({ options, question }) }, emit);
-        const row = questionsSql.insert.get(randomUUID(), room.id, as, message.id, question, JSON.stringify(options), at)!;
+        const row = questionsSql.insert.get(
+          randomUUID(),
+          room.id,
+          as,
+          message.id,
+          question,
+          JSON.stringify(options),
+          at,
+        )!;
         return { ok: true, question: questionChanged(toQuestion(row), emit) } as const;
       });
     },

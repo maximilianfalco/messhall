@@ -128,6 +128,7 @@ export async function startDaemon({
       doorbell.endPauses();
       // relay never rejects: a gone session only gives false.
       store.expireApprovals().forEach(ask => mcp.relay({ ...ask, behavior: 'deny' }));
+      store.expireQuestions();
     } catch (error) {
       logger.error(asError(error), { message: 'presence sweep failed' });
     }

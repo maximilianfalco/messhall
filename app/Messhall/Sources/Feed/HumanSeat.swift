@@ -1,7 +1,7 @@
 import Foundation
 
 /// Acts as the human: posts messages, makes, closes and reopens rooms, sets roles, mutes members, removes them
-/// and answers an agent's tool ask.
+/// and answers an agent's tool ask or question.
 public struct HumanSeat: Sendable {
   public enum Outcome<Value: Equatable & Sendable>: Equatable, Sendable {
     case done(Value)
@@ -44,6 +44,10 @@ public struct HumanSeat: Sendable {
 
   public func answer(_ approval: Approval, allow: Bool) async -> Outcome<[Approval]> {
     await send(.answer(approval: approval.id, allow: allow), as: ApprovalResult.self) { $0.approvals }
+  }
+
+  public func answer(_ question: Question, option: Int) async -> Outcome<AnswerResult> {
+    await send(.pick(question: question.id, option: option), as: AnswerResult.self) { $0 }
   }
 
   private func send<Body: Decodable, Value>(

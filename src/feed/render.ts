@@ -1,6 +1,6 @@
 import type { BusEvent, MemberChange, RoomChange } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Approval, Member, Message, Room } from '../../contracts/room.ts';
+import type { Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
 
 import pc from 'picocolors';
 
@@ -57,6 +57,30 @@ function approvalLine({ description, input_preview, member, state, tool }: Appro
   return pc.dim(`${GUTTER}${tag}· ${member} ${tool} ${APPROVAL_WORDS[state]}`);
 }
 
+const answerHint = ({ id, options }: Question) => `messhall answer ${id} <1-${options.length}>`;
+
+const CLOSED_QUESTION_WORDS: Record<Exclude<Question['state'], 'open'>, (question: Question) => string> = {
+  answered: ({ answer, options }) => `answered: ${options[answer ?? 0]}`,
+  expired: () => 'expired with no answer',
+  replaced: () => 'replaced by a newer one',
+};
+
+function questionLine(question: Question, tag: string) {
+  const { member, message_id, state } = question;
+  if (state === 'open') {
+    return pc.yellow(`${GUTTER}${tag}? ${member} asks you #${message_id}, pick with: ${answerHint(question)}`);
+  }
+  return pc.dim(`${GUTTER}${tag}· ${member} question #${message_id} ${CLOSED_QUESTION_WORDS[state](question)}`);
+}
+
+// The asker's own line holds the question, but a watch that starts later only has the snapshot.
+const openQuestionLine = (question: Question) => {
+  const options = question.options.map((option, index) => `${index + 1}. ${option}`).join('  ');
+  return pc.yellow(
+    `${GUTTER}? ${question.member} asks you #${question.message_id}: ${question.question} ${options}. ${answerHint(question)}`,
+  );
+};
+
 type SnapshotRoom = Snapshot['rooms'][number];
 
 const stateOf = (room: SnapshotRoom) => [room.closed_at ? 'closed' : 'open', ...(room.standing ? ['standing'] : [])];
@@ -76,6 +100,7 @@ export function renderEvent({ event, room }: { event: BusEvent; room?: string })
   if (event.type === 'member') return [pc.dim(`${GUTTER}${tag}${memberLine(event.member, event.change)}`)];
   if (event.type === 'presence') return [pc.dim(`${GUTTER}${tag}· ${event.name} ${event.from} → ${event.to}`)];
   if (event.type === 'approval') return [approvalLine(event.approval, tag)];
+  if (event.type === 'question') return [questionLine(event.question, tag)];
   return [pc.dim(`${GUTTER}· #${name} ${ROOM_WORDS[event.change](event.room)}`)];
 }
 
@@ -89,6 +114,7 @@ export function renderSnapshot({ room, snapshot }: { room?: string; snapshot: Sn
     `${pc.bold(`#${item.name}`)}  ${pc.dim([...stateOf(item), postsOf(item), item.topic].filter(Boolean).join(', '))}`,
     `${GUTTER}${present(item.members).length ? memberList(present(item.members)) : pc.dim('nobody here')}`,
     ...item.messages.map(message => messageLine({ message, tag: '' })),
+    ...item.questions.map(openQuestionLine),
   ]);
 }
 

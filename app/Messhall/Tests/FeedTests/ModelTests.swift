@@ -21,6 +21,7 @@ struct ModelTests {
     "decode each bus event fixture by its type",
     arguments: [
       ("MessageEvent", "message"), ("MemberEvent", "member"), ("PresenceEvent", "presence"), ("RoomEvent", "room"),
+      ("ApprovalEvent", "approval"), ("QuestionEvent", "question"),
     ])
   func busEvent(name: String, type: String) throws {
     let event = try Fixture.decode(BusEvent.self, name)
@@ -41,6 +42,29 @@ struct ModelTests {
   func humanSeat() throws {
     #expect(try Fixture.decode(HumanPostResult.self, "HumanPostResult").message.from == "human")
     #expect(try Fixture.decode(FeedError.self, "FeedError").error == "room not found")
+  }
+
+  @Test("decode a question's options in order and a state the app does not know as unknown")
+  func question() throws {
+    let json = try Fixture.text("QuestionEvent")
+      .replacingOccurrences(of: #""state": "open""#, with: #""state": "snoozed""#)
+
+    guard case .question(let e) = try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8)) else {
+      Issue.record("not a question event"); return
+    }
+    #expect(e.question.options == ["Unit", "Integration", "Both"])
+    #expect(e.question.messageId == 2)
+    #expect(e.question.state == .unknown)
+    #expect(e.question.answer == nil)
+  }
+
+  @Test("decode the answer result with the picked option and the human's line")
+  func answerResult() throws {
+    let result = try Fixture.decode(AnswerResult.self, "AnswerResult")
+
+    #expect(result.question.state == .answered)
+    #expect(result.question.answer == 0)
+    #expect(result.message.from == "human")
   }
 
   @Test("decode a bus event with an unknown type as unknown")
