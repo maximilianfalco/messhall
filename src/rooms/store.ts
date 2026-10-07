@@ -1,5 +1,14 @@
 import type { BusEvent, MemberChange } from '../../contracts/events.ts';
-import type { AgentKind, ApprovalBehavior, Launch, Member, MessageKind, Presence, Room } from '../../contracts/room.ts';
+import type {
+  AgentKind,
+  ApprovalBehavior,
+  Launch,
+  Member,
+  MessageKind,
+  Presence,
+  Question,
+  Room,
+} from '../../contracts/room.ts';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { randomUUID } from 'node:crypto';
@@ -14,6 +23,7 @@ import {
   OBSERVER_ROLE,
   ORCHESTRATOR_ROLE,
   messageSchema,
+  questionSchema,
   RESERVED_NAMES,
   roomSchema,
   roomSummarySchema,
@@ -29,6 +39,7 @@ import {
   LOOP_GUARD_LINES,
   LOOP_GUARD_PAUSE_MS,
   LOOP_GUARD_WITHIN_MS,
+  QUESTION_TTL_MS,
   READ_LIMIT,
   SEARCH_LIMIT,
   SEAT_TOKEN_FREE_AFTER_MS,
@@ -38,6 +49,7 @@ import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
 import { createEventBus } from './events.js';
+import { answerText, askText, expiryText, questionSql } from './questions.js';
 import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
@@ -208,6 +220,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     unseen: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? AND from_name != ? ORDER BY id LIMIT ?'),
   };
 
+  const questionsSql = questionSql(db);
+
   function transaction<T>(work: (emit: Emit) => T) {
     const pending: BusEvent[] = [];
     db.exec('BEGIN IMMEDIATE');
@@ -237,6 +251,16 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       asks.set(approval.id, { requestId: String(row.request_id), session: String(row.session) });
     });
     return [...asks.values()];
+  };
+  const toQuestion = (row: Row) =>
+    questionSchema.parse({
+      ...row,
+      options: parseStoredJson(String(row.options)),
+      room: roomById(String(row.room_id)).name,
+    });
+  const questionChanged = (question: Question, emit: Emit) => {
+    emit({ question, room: question.room, type: 'question' });
+    return question;
   };
   const findMember = (room: Room, name: string) => {
     const row = sql.member.get(room.id, name);
@@ -915,6 +939,74 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     pendingApprovals(roomName: string) {
       const room = findRoom(roomName);
       return room ? sql.pendingApprovals.all(room.id).map(toApproval) : [];
+    },
+
+    /** Posts an agent's question to the human as its own line and keeps it open for the human's pick.
+     * A newer ask from the same seat replaces its open one, so each agent waits on one question per room. */
+    askQuestion({
+      as,
+      options,
+      question,
+      room: roomName,
+    }: {
+      as: string;
+      options: string[];
+      question: string;
+      room: string;
+    }) {
+      return transaction(emit => {
+        const found = seat(roomName, as);
+        if (!found.ok) return found;
+        const { member, room } = found;
+        if (member.muted) return { ok: false, reason: 'muted' } as const;
+        if (room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
+        const at = stamp();
+        questionsSql.replace.all(at, room.id, as).forEach(row => questionChanged(toQuestion(row), emit));
+        const { message } = speak({ done: false, member, room, text: askText({ options, question }) }, emit);
+        const row = questionsSql.insert.get(randomUUID(), room.id, as, message.id, question, JSON.stringify(options), at)!;
+        return { ok: true, question: questionChanged(toQuestion(row), emit) } as const;
+      });
+    },
+
+    /** The human's pick on an open question, once. Its line names the asker, so the doorbell rings it. */
+    answerQuestion({ id, option }: { id: string; option: number }) {
+      return transaction(emit => {
+        const row = questionsSql.open.get(id);
+        if (!row) return { ok: false, reason: 'no_question' } as const;
+        if (option >= toQuestion(row).options.length) return { ok: false, reason: 'bad_option' } as const;
+        let room = roomById(String(row.room_id));
+        const human = addHuman(room, emit);
+        if (room.closed_at !== null) room = reopen(room, emit);
+        const question = questionChanged(toQuestion(questionsSql.answer.get(option, stamp(), id)!), emit);
+        const { message } = speak({ done: false, member: human, room, text: answerText(question) }, emit);
+        return { message, ok: true, question } as const;
+      });
+    },
+
+    /** Closes every question left open 30 minutes, each with a daemon line that rings its asker. */
+    expireQuestions() {
+      return transaction(emit => {
+        const at = now();
+        const cutoff = new Date(at.getTime() - QUESTION_TTL_MS).toISOString();
+        return questionsSql.expireOld.all(at.toISOString(), cutoff).map(row => {
+          const question = questionChanged(toQuestion(row), emit);
+          const room = roomById(String(row.room_id));
+          post(room, SYSTEM_NAME, 'system', expiryText(question), [question.member], emit);
+          return question;
+        });
+      });
+    },
+
+    /** The questions in a room still waiting for the human, oldest first. */
+    openQuestions(roomName: string) {
+      const room = findRoom(roomName);
+      return room ? questionsSql.openIn.all(room.id).map(toQuestion) : [];
+    },
+
+    /** One seat's open questions in a room, oldest first. */
+    questionsOf({ as, room: roomName }: { as: string; room: string }) {
+      const room = findRoom(roomName);
+      return room ? questionsSql.openOf.all(room.id, as).map(toQuestion) : [];
     },
 
     /** Marks every agent still in a room away, with one line per open room, and expires every pending ask.
