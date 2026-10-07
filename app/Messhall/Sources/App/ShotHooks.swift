@@ -28,6 +28,20 @@
     /// `-shotOpenFolds YES`: every run of presence lines and the away chip start open, so a shot shows what is inside.
     static let openFolds = UserDefaults.standard.bool(forKey: "shotOpenFolds")
 
+    /// `-shotPullRequests <json>`: gh's answer for each PR url, so a shot shows cards without asking GitHub.
+    static let pullRequests = UserDefaults.standard.string(forKey: "shotPullRequests")
+
+    /// Answers from the `-shotPullRequests` JSON through the same parser as gh. A url it leaves out cannot be read.
+    static func readPullRequest(from json: String) -> PullRequestStore.Read {
+      let answers = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] ?? [:]
+      return { link in
+        guard let answer = answers[link.url.absoluteString],
+          let data = try? JSONSerialization.data(withJSONObject: answer)
+        else { return nil }
+        return PullRequestCard(link: link, ghJSON: data)
+      }
+    }
+
     /// `-shotDraft <text>`: the composer opens with this typed, so a draft ending in `@` shows the mention picker.
     static let draft = UserDefaults.standard.string(forKey: "shotDraft")
 

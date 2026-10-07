@@ -2,7 +2,7 @@ import AppKit
 import Feed
 import SwiftUI
 
-/// The Settings window (cmd comma): appearance, avatar colors, notifications and the hotkey, all kept in `AppSettings`.
+/// The Settings window (cmd comma): appearance and PR cards, avatar colors, notifications and the hotkey, all in `AppSettings`.
 struct SettingsView: View {
   let store: FeedStore
   @Bindable var settings: AppSettings
@@ -71,23 +71,31 @@ private struct AppearancePane: View {
 
   var body: some View {
     Form {
-      Picker("Appearance", selection: appearance) {
-        ForEach(AppearanceChoice.allCases, id: \.self) { Text($0.title).tag($0) }
-      }
-      .pickerStyle(.segmented)
-      LabeledContent("Accent color") {
-        HStack(spacing: 8) {
-          ForEach(AccentChoice.allCases, id: \.self) { choice in
-            AccentSwatch(choice: choice, selected: settings.snapshot.accent == choice) {
-              settings.snapshot.accent = choice
+      Section {
+        Picker("Appearance", selection: appearance) {
+          ForEach(AppearanceChoice.allCases, id: \.self) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        LabeledContent("Accent color") {
+          HStack(spacing: 8) {
+            ForEach(AccentChoice.allCases, id: \.self) { choice in
+              AccentSwatch(choice: choice, selected: settings.snapshot.accent == choice) {
+                settings.snapshot.accent = choice
+              }
             }
           }
         }
       }
+      Section {
+        Toggle("Show PR cards", isOn: $settings.snapshot.pullRequestCards)
+      } footer: {
+        Text("A GitHub PR link in a room gets a card with its state and checks, read through your own gh login.")
+          .foregroundStyle(.secondary)
+      }
     }
     .formStyle(.grouped)
     .scrollDisabled(true)
-    .frame(height: 150)
+    .frame(height: 250)
   }
 }
 
