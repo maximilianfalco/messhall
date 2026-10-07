@@ -20,6 +20,8 @@ const claudeEntry = (lines: string[]) => () =>
   });
 const SEATED = claudeEntry([`  X-Messhall-Seat: \${MESSHALL_SEAT:-}`]);
 
+const INSTALLED = { build: { commit: 'b'.repeat(40), committed_at: '2026-10-07T08:00:00Z' }, contract: 5 };
+
 const FIXTURE = readFileSync(new URL('fixtures/dev.messhall.daemon.plist', import.meta.url), 'utf8');
 const NODE = '/Users/someone/.nvm/versions/node/v22.21.0/bin/node';
 
@@ -117,7 +119,7 @@ describe('runStart', () => {
   it('tells you to install first when there is no plist', async () => {
     const { calls, launchctl } = fakeLaunchctl({ plistPath });
 
-    const result = await runStart({ launchctl, plistPath, run: SEATED });
+    const result = await runStart({ app: undefined, installed: INSTALLED, launchctl, plistPath, run: SEATED });
 
     expect(result.code).toBe(1);
     expect(result.report).toContain('messhall install');
@@ -129,7 +131,7 @@ describe('runStart', () => {
     await install(fakeLaunchctl({ plistPath }).launchctl);
     const { calls, launchctl } = fakeLaunchctl({ codes: { print: 113 }, plistPath });
 
-    const result = await runStart({ launchctl, plistPath, run: SEATED });
+    const result = await runStart({ app: undefined, installed: INSTALLED, launchctl, plistPath, run: SEATED });
 
     expect(result.code).toBe(0);
     expect(calls).toStrictEqual([
@@ -144,7 +146,7 @@ describe('runStart', () => {
     await install(fakeLaunchctl({ plistPath }).launchctl);
     const { calls, launchctl } = fakeLaunchctl({ plistPath });
 
-    await runStart({ launchctl, plistPath, run: SEATED });
+    await runStart({ app: undefined, installed: INSTALLED, launchctl, plistPath, run: SEATED });
 
     expect(calls).toStrictEqual([
       'launchctl print gui/501/dev.messhall.daemon',
@@ -162,7 +164,7 @@ describe('runStart with the claude entry', () => {
   it('warns when the claude entry has no seat header', async () => {
     const { launchctl } = fakeLaunchctl({ plistPath });
 
-    const result = await runStart({ launchctl, plistPath, run: claudeEntry([]) });
+    const result = await runStart({ app: undefined, installed: INSTALLED, launchctl, plistPath, run: claudeEntry([]) });
 
     expect(result.code).toBe(0);
     expect(result.report).toContain('no seat header, so a seat is lost on a daemon restart. run messhall mcp install');
@@ -171,7 +173,7 @@ describe('runStart with the claude entry', () => {
   it('says an idle claude is not rung until its next call, and no more with the seat header', async () => {
     const { launchctl } = fakeLaunchctl({ plistPath });
 
-    const result = await runStart({ launchctl, plistPath, run: SEATED });
+    const result = await runStart({ app: undefined, installed: INSTALLED, launchctl, plistPath, run: SEATED });
 
     expect(result.report).toBe(
       [
@@ -179,6 +181,20 @@ describe('runStart with the claude entry', () => {
         'an idle claude gets no ring until its next messhall call. restart between tasks, or nudge them',
       ].join('\n'),
     );
+  });
+
+  it('says a built app on an older contract should be rebuilt', async () => {
+    const { launchctl } = fakeLaunchctl({ plistPath });
+
+    const result = await runStart({
+      app: { build: INSTALLED.build, contract: 4 },
+      installed: INSTALLED,
+      launchctl,
+      plistPath,
+      run: SEATED,
+    });
+
+    expect(result.report.split('\n').at(-1)).toBe('warning: the built app is older than the daemon. run make app');
   });
 });
 

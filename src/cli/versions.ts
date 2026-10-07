@@ -1,6 +1,12 @@
 import type { Runner } from '../lib/run.js';
 
+import path from 'node:path';
+
 import { z } from 'zod';
+
+import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
+import { currentBuild } from '../daemon/build.js';
+import { packageRoot } from '../lib/packageRoot.js';
 
 // Keys app/scripts/bundle.sh stamps into the built app. An app from before them has none.
 const appPlistSchema = z.object({
@@ -70,5 +76,16 @@ export async function appStamp({ plistPath, run }: { plistPath: string; run: Run
   const parsed = appPlistSchema.safeParse(JSON.parse(result.stdout));
   if (!parsed.success) return undefined;
   const { MesshallCommit: commit, MesshallCommittedAt: committedAt, MesshallFeedContract: contract } = parsed.data;
-  return { build: commit && committedAt ? { commit, committed_at: committedAt } : undefined, contract };
+  if (contract === undefined) return { build: undefined, contract };
+  // A stamped app built outside git has the contract but no commit, so its build is unknown, not old.
+  return { build: commit && committedAt ? { commit, committed_at: committedAt } : null, contract };
+}
+
+/** What this checkout would run, and what its built app runs. A restarted daemon runs the former. */
+export async function localStamps(run: Runner) {
+  const plistPath = path.join(packageRoot(), 'app', 'build', 'Messhall.app', 'Contents', 'Info.plist');
+  return {
+    app: await appStamp({ plistPath, run }),
+    installed: { build: currentBuild(), contract: FEED_CONTRACT_VERSION },
+  };
 }

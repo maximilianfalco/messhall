@@ -106,6 +106,12 @@ describe('appStamp', () => {
     });
   });
 
+  it('reads an app built outside git as having an unknown build', async () => {
+    const run = plist({ MesshallFeedContract: 5 });
+
+    await expect(appStamp({ plistPath: '/app/Info.plist', run })).resolves.toStrictEqual({ build: null, contract: 5 });
+  });
+
   it('says no app when plutil cannot read the plist', async () => {
     const run = () => Promise.resolve({ code: 1, stderr: 'no such file', stdout: '' });
 
