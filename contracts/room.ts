@@ -19,6 +19,7 @@ export const ROLES = ['unassigned', 'worker', 'reviewer', 'orchestrator', 'obser
 export const UNASSIGNED_ROLE = 'unassigned';
 export const ORCHESTRATOR_ROLE = 'orchestrator';
 export const OBSERVER_ROLE = 'observer';
+export const REVIEWER_ROLE = 'reviewer';
 // The human seat, daemon lines and @all would be forged or ambiguous if an agent could hold these.
 export const RESERVED_NAMES = [HUMAN_NAME, SYSTEM_NAME, ALL_MENTION] as const;
 

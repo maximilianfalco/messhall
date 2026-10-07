@@ -11,11 +11,11 @@ import { KEY_FILES } from '../../../src/daemon/keys.js';
 import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { openDb } from '../../../src/rooms/db.js';
+import { reviewQueue } from '../../../src/rooms/reviews.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
 import { launchClaude, tmux as runTmux, seatKeyIn, writeMcpConfig } from '../lib/claudeTmux.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
-import { reviewQueue } from '../lib/review.js';
 import { run } from '../lib/run.js';
 import {
   assignLine,

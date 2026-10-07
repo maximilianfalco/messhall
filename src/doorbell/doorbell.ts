@@ -3,6 +3,7 @@ import type { RoomStore } from '../rooms/store.js';
 import type { RingBatch, SetTimer } from './batch.js';
 import type { Ringers } from './ringer.js';
 
+import { REVIEW_STALE_MS } from '../config.js';
 import { logger } from '../lib/logger.js';
 
 import { createBatcher, realTimer } from './batch.js';
@@ -23,6 +24,8 @@ export function startDoorbell({
   store: RoomStore;
 }) {
   const held = new Map<string, RingBatch>();
+  // Request ids already rung again, so each request gets one extra ring. A restart may ring one more time.
+  const nudged = new Set<number>();
   const deliver = (batch: RingBatch) => {
     const { kind, meta, name, rooms, text } = batch;
     const ringer = ringers.for(kind);
@@ -60,6 +63,17 @@ export function startDoorbell({
   return {
     /** Ends due loop guard pauses and rings each of the pair for the partner line it missed. Called on the sweep. */
     endPauses: () => store.endPauses().forEach(add),
+    /** Posts due review hand-off lines and rings each reviewer quiet 10 minutes once more. Called on the sweep. */
+    nudgeReviews: () =>
+      store
+        .nudgeReviews()
+        .filter(({ id }) => !nudged.has(id))
+        .forEach(({ id, kind, reviewer, room, url, worker }) => {
+          nudged.add(id);
+          const wait = REVIEW_STALE_MS / 60_000;
+          const text = `messhall: ${worker} has waited ${wait} min on your review of ${url} in #${room}. Answer it, or say who should.`;
+          deliver({ kind, meta: { room }, name: reviewer, rooms: [room], text });
+        }),
     stop: () => {
       off();
       batcher.stop();

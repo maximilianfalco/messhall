@@ -16,13 +16,19 @@ type RoomAction =
   | { action: 'kick'; member: string; name: string }
   | { action: 'list' }
   | { action: 'mute' | 'unmute'; member: string; name: string }
-  | { action: 'new'; name: string; topic?: string };
+  | { action: 'new'; name: string; topic?: string }
+  | { action: 'nudges'; name: string; on: boolean };
 
 function done(input: Exclude<RoomAction, { action: 'list' }>) {
   if (input.action === 'kick') return `removed ${input.member} from #${input.name}`;
   if (input.action === 'mute') return `muted ${input.member} in #${input.name}, it can read but not post`;
   if (input.action === 'unmute') return `unmuted ${input.member} in #${input.name}`;
   if (input.action === 'new') return `made #${input.name}, standing until you close it`;
+  if (input.action === 'nudges') {
+    return input.on
+      ? `review nudges on in #${input.name}, a request quiet 15 min goes to another reviewer`
+      : `review nudges off in #${input.name}`;
+  }
   return `${input.action === 'close' ? 'closed' : 'reopened'} #${input.name}`;
 }
 
@@ -42,10 +48,11 @@ function request(input: RoomAction, url: string) {
     const path = `${encodeURIComponent(input.name)}/members/${encodeURIComponent(input.member)}/${input.action}`;
     return { init: { method: 'POST' }, url: `${url}/api/rooms/${path}` };
   }
-  return { init: { method: 'POST' }, url: `${url}/api/rooms/${encodeURIComponent(input.name)}/${input.action}` };
+  const action = input.action === 'nudges' ? `nudges-${input.on ? 'on' : 'off'}` : input.action;
+  return { init: { method: 'POST' }, url: `${url}/api/rooms/${encodeURIComponent(input.name)}/${action}` };
 }
 
-/** Makes, closes, reopens or lists rooms, kicks any agent seat, or mutes a member, as the human through the daemon. Prints one line per room, or one red line. */
+/** Makes, closes, reopens or lists rooms, turns review nudges on or off, kicks any agent seat, or mutes a member, as the human through the daemon. Prints one line per room, or one red line. */
 export async function runRoom({
   dataDir: dir,
   fetch,
@@ -88,7 +95,7 @@ async function print(input: RoomAction) {
   process.exitCode = result.code;
 }
 
-/** Registers `room new | close | reopen | kick | mute | unmute | list`. */
+/** Registers `room new | close | reopen | kick | mute | unmute | nudges | list`. */
 export function registerRoom(program: Command) {
   const room = program
     .command('room')
@@ -127,6 +134,15 @@ export function registerRoom(program: Command) {
     .argument('<room>', 'room name')
     .argument('<member>', 'member name')
     .action((name: string, member: string) => print({ action: 'unmute', member, name }));
+  room
+    .command('nudges')
+    .description('Turn review nudges on or off. On, a review request quiet 15 min goes to another reviewer.')
+    .argument('<room>', 'room name')
+    .argument('<state>', 'on or off')
+    .action((name: string, state: string) => {
+      if (state !== 'on' && state !== 'off') return program.error('state is on or off');
+      return print({ action: 'nudges', name, on: state === 'on' });
+    });
   room
     .command('list')
     .description('List every room, closed ones too.')

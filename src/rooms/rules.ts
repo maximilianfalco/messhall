@@ -27,7 +27,8 @@ export function isAgent(member: Pick<Member, 'kind' | 'role'>) {
   return member.kind !== 'human' && member.role !== OBSERVER_ROLE;
 }
 
-function isLive(member: Member) {
+/** True for a seat that is here and can talk: not left, away or muted. */
+export function isLive(member: Member) {
   return member.left_at === null && !member.muted && member.presence !== 'away';
 }
 

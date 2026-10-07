@@ -152,6 +152,7 @@ export async function startDaemon({
       store.clearStale();
       store.expireInvites();
       doorbell.endPauses();
+      doorbell.nudgeReviews();
       // relay never rejects: a gone session only gives false.
       store.expireApprovals().forEach(ask => mcp.relay({ ...ask, behavior: 'deny' }));
       store.expireQuestions();
