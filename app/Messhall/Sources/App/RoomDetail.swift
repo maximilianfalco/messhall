@@ -450,43 +450,34 @@ struct StatusLine: View {
   #endif
 
   #if DEBUG
-    private func glyph(at date: Date, animated: Bool) -> String {
-      guard let shot = ShotHooks.glyphFrame else { return Thinking.glyph(at: date, animated: animated) }
-      return Thinking.glyph(at: Date(timeIntervalSinceReferenceDate: Double(shot) * Thinking.step), animated: true)
-    }
+    private static let frozenFrame = ShotHooks.glyphFrame
   #else
-    private func glyph(at date: Date, animated: Bool) -> String { Thinking.glyph(at: date, animated: animated) }
+    private static let frozenFrame: Int? = nil
   #endif
 
-  // The caption style the line uses, so the box fits the glyphs as drawn.
-  private static let glyphBox = Thinking.box(for: .preferredFont(forTextStyle: .caption1))
+  @Environment(\.colorScheme) private var scheme
 
-  // The frame is read only while spinning, so a still line never redraws on a tick.
+  // A spinning line is a Core Animation view, so its frames never run through SwiftUI or lay the window out.
   var body: some View {
-    let clock = ThinkingClock.shared
+    let text = member.statusLine(now: ThinkingClock.shared.minute) ?? ""
     let animated = member.isThinking && !reduceMotion
-    let frame = animated ? clock.frame : .distantPast
-    HStack(spacing: 4) {
-      Text(glyph(at: frame, animated: animated))
-        .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
-        .frame(width: Self.glyphBox)
-      Text(member.statusLine(now: clock.minute) ?? "")
-        .foregroundStyle(animated ? AnyShapeStyle(shimmer(at: frame)) : AnyShapeStyle(.secondary))
-        .lineLimit(1)
-        .truncationMode(.tail)
+    Group {
+      if animated {
+        StatusSpinner(text: text, color: member.presence.color, frozen: Self.frozenFrame, scheme: scheme)
+      } else {
+        HStack(spacing: SpinnerView.gap) {
+          Text(Thinking.frames[0])
+            .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
+            .frame(width: SpinnerView.glyphBox)
+          Text(text)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
+        .font(.caption)
+      }
     }
-    .font(.caption)
     .frame(maxWidth: maxWidth, alignment: .leading)
-  }
-
-  // A light band slides across the secondary text, a little past each edge so it fades in and out.
-  private func shimmer(at date: Date) -> LinearGradient {
-    let center = -0.3 + 1.6 * Thinking.shimmer(at: date)
-    return LinearGradient(
-      stops: [
-        .init(color: .secondary, location: center - 0.2), .init(color: .primary, location: center),
-        .init(color: .secondary, location: center + 0.2),
-      ], startPoint: .leading, endPoint: .trailing)
   }
 }
 

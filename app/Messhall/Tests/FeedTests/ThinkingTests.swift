@@ -19,6 +19,21 @@ struct ThinkingTests {
     #expect(glyphs == ["✻", "✳", "✶", "✢", "✶", "✳", "✻"])
   }
 
+  @Test("the frame index walks every frame once per cycle and stays at zero when still")
+  func index() {
+    let start = Date(timeIntervalSinceReferenceDate: 0)
+    let indices = (0..<6).map { Thinking.index(at: start + Double($0) * Thinking.step, animated: true) }
+    #expect(indices == [0, 1, 2, 3, 4, 5])
+    #expect(Thinking.index(at: start + Thinking.step * 3, animated: false) == 0)
+  }
+
+  @Test("a glyph layer is on for its own slot only, so the six layers show one frame at a time")
+  func keyframes() {
+    #expect(Thinking.keyframes(showing: 2) == [0, 0, 1, 0, 0, 0])
+    let sums = Thinking.frames.indices.map { slot in Thinking.frames.indices.map { Thinking.keyframes(showing: $0)[slot] }.reduce(0, +) }
+    #expect(sums == [1, 1, 1, 1, 1, 1])
+  }
+
   @Test("a still glyph never moves")
   func still() {
     let glyphs = (0..<4).map { Thinking.glyph(at: Date(timeIntervalSinceReferenceDate: Double($0)), animated: false) }
