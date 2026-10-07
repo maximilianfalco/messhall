@@ -37,6 +37,14 @@ describe('progress on the seat', () => {
   });
 });
 
+describe('agreements', () => {
+  it('worker.md sends a cross-boundary contract through propose and confirm', () => {
+    const worker = readFileSync(path.join(BRIEFS, 'worker.md'), 'utf8');
+
+    expect(worker).toContain('goes through `propose`, and the agents it names `confirm` or `reject` it');
+  });
+});
+
 describe('worktree removal', () => {
   const docs = [
     path.join(BRIEFS, 'reviewer.md'),

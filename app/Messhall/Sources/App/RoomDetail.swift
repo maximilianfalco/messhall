@@ -40,6 +40,10 @@ struct RoomDetail: View {
         mute: room.isOpen ? { mute($0) } : nil
       )
       .id(room.name)
+      if !room.agreements.isEmpty {
+        AgreementsPanel(agreements: room.agreements)
+          .id(room.name)
+      }
       if !room.approvals.isEmpty {
         ApprovalCards(approvals: room.approvals, answer: answer)
       }

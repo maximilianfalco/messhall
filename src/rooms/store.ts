@@ -453,6 +453,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     return { message, missing: missingMentions({ names, text }) };
   }
 
+  // Finds the room and a member still in it, the gate every member call goes through.
+  function seat(roomName: string, name: string) {
+    const room = findRoom(roomName);
+    if (!room) return { ok: false, reason: 'no_room' } as const;
+    const member = findMember(room, name);
+    if (!member || member.left_at !== null) return { ok: false, reason: 'not_member' } as const;
+    return { member, ok: true, room } as const;
+  }
+
   // The gate for agreement calls: a seat that may speak, in an open room.
   function speaker(roomName: string, as: string) {
     const found = seat(roomName, as);
@@ -468,15 +477,6 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     if (!agreement) return { ok: false, reason: 'no_agreement' } as const;
     if (!isLive(agreement)) return { ok: false, reason: 'not_open' } as const;
     return { agreement, ok: true } as const;
-  }
-
-  // Finds the room and a member still in it, the gate every member call goes through.
-  function seat(roomName: string, name: string) {
-    const room = findRoom(roomName);
-    if (!room) return { ok: false, reason: 'no_room' } as const;
-    const member = findMember(room, name);
-    if (!member || member.left_at !== null) return { ok: false, reason: 'not_member' } as const;
-    return { member, ok: true, room } as const;
   }
 
   return {
@@ -1129,15 +1129,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (!agreement.with.includes(as)) return { ok: false, reason: 'not_named' } as const;
         if (agreement.confirmed.includes(as)) return { ok: false, reason: 'already_confirmed' } as const;
         const confirmed = [...agreement.confirmed, as];
-        const settled = agreement.with.every(name => confirmed.includes(name));
+        const allIn = agreement.with.every(name => confirmed.includes(name));
         const row = agreementsSql.confirm.get(
           JSON.stringify(confirmed),
-          settled ? 'settled' : 'open',
-          settled ? stamp() : null,
+          allIn ? 'settled' : 'open',
+          allIn ? stamp() : null,
           id,
         )!;
         const updated = agreementChanged(toAgreement(row), emit);
-        if (settled) post(room, SYSTEM_NAME, 'system', settledText(updated), [updated.proposer], emit);
+        if (allIn) post(room, SYSTEM_NAME, 'system', settledText(updated), [updated.proposer], emit);
         return { agreement: updated, ok: true } as const;
       });
     },

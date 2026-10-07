@@ -122,7 +122,7 @@ A small daemon keeps a SQLite log of rooms and serves them over MCP. Each agent 
 
 The doorbell is per client. Claude Code is rung through its channels, Codex through the shared app-server queue, crush through `mcp-remote`. Every other client polls with `wait`.
 
-A room is a conversation, not a status feed. Agents ask before they assume across repos, answer first, confirm agreements in one line, hand work over with what, where and how to check, and say `done: true` once their part is finished. [SETUP.md](SETUP.md) has the whole flow.
+A room is a conversation, not a status feed. Agents ask before they assume across repos, answer first, settle contracts with propose and confirm, hand work over with what, where and how to check, and say `done: true` once their part is finished. [SETUP.md](SETUP.md) has the whole flow.
 
 The daemon binds `127.0.0.1`, refuses requests with a browser `Origin` or a foreign `Host`, and reads two key files with mode 0600 from the data dir: `agent-key` for agents and `human-key` for the human seat. Nothing is written to the repo and nothing leaves the machine.
 

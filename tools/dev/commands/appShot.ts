@@ -108,6 +108,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'ask-long-dark', room: 'release' },
   { appearance: 'light', name: 'question-light', room: 'launch' },
   { appearance: 'dark', name: 'question-dark', room: 'launch' },
+  { appearance: 'light', name: 'agreements-light', room: 'contract' },
+  { appearance: 'dark', name: 'agreements-dark', room: 'contract' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -373,7 +375,7 @@ const LONG_ASK = [
   'npm publish --access public" }',
 ].join('\n');
 
-/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release and two questions in #launch. Runs after the daemon starts, since its start marks
+/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release, two questions in #launch and agreements in #contract. Runs after the daemon starts, since its start marks
  * every agent away and expires every pending ask. */
 export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
   const db = openDb({ dataDir });
@@ -411,6 +413,23 @@ export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
       question: 'how should checkout tell people prices moved to cents?',
       room: 'launch',
     });
+    ['api', 'web', 'mobile'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room: 'contract' }));
+    const cents = store.proposeAgreement({
+      as: 'api',
+      room: 'contract',
+      text: 'order totals move to amount_minor, integer cents, with a 3 letter currency beside it',
+      with: ['web', 'mobile'],
+    });
+    if (cents.ok) {
+      ['web', 'mobile'].forEach(as => store.confirmAgreement({ as, id: cents.agreement.id, room: 'contract' }));
+    }
+    const refunds = store.proposeAgreement({
+      as: 'web',
+      room: 'contract',
+      text: 'refunds carry amount_minor too, api ships first and web adapts the formatter after',
+      with: ['api', 'mobile'],
+    });
+    if (refunds.ok) store.confirmAgreement({ as: 'api', id: refunds.agreement.id, room: 'contract' });
   } finally {
     db.close();
   }
