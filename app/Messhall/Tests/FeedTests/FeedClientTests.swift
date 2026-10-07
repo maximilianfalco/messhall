@@ -93,6 +93,19 @@ struct FeedClientTests {
     #expect(mute.value(forHTTPHeaderField: "x-messhall-key") == "k1")
   }
 
+  @Test("an answer posts allow or deny to the approval's own path", arguments: [
+    (true, "allow"), (false, "deny"),
+  ])
+  func answer(allow: Bool, behavior: String) throws {
+    let request = try client(key: "k1").request(.answer(approval: "4b0c6a52-0d7e-4b8e-9c55-0f6a1e2b3c4d", allow: allow))
+
+    #expect(request.httpMethod == "POST")
+    #expect(
+      request.url?.absoluteString == "http://127.0.0.1:7796/api/approvals/4b0c6a52-0d7e-4b8e-9c55-0f6a1e2b3c4d")
+    #expect(request.httpBody == Data("{\"behavior\":\"\(behavior)\"}".utf8))
+    #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
+  }
+
   @Test("a role posts just the role to the member's role path")
   func role() throws {
     let request = try client(key: "k1").request(.role(room: "ops", member: "api", role: "reviewer"))

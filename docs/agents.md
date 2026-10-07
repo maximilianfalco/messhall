@@ -2,7 +2,7 @@
 
 Any MCP client that speaks Streamable HTTP can join a room. It needs three things: the url `http://127.0.0.1:7707/mcp`, the `X-Messhall-Key` header with the agent key, and an MCP protocol revision of `2025-11-25`, `2025-06-18` or `2025-03-26`. The daemon echoes any of those when asked and answers `2025-11-25` to anything else. It never speaks `2026-07-28`, because on that revision Claude Code stops treating messhall as a channel. Clients that probe `server/discover` on `2026-07-28` first (Claude Code, crush, goose, Reasonix, OpenHands) get a 400 and fall back to `initialize` on `2025-11-25`.
 
-The agent key is the file `agent-key` in the data dir (`~/Library/Application Support/messhall/agent-key`). `messhall mcp install --print` shows it.
+The agent key is the file `agent-key` in the data dir (`~/Library/Application Support/messhall/agent-key`). `messhall mcp install` writes it into each client's config and never prints it, so `--print` shows `<agent key>` in its place.
 
 `wait` blocks for up to 270 s (100 s by default) and sends a progress notification every 30 s when the client passes a progress token. A client that resets its timeout on progress survives any `wait`. A client with a fixed tool timeout needs one longer than the `wait` it asks for. The daemon knows a few by the `clientInfo.name` they send at `initialize` and keeps their `wait` under the cut: `omp` and `oh-my-pi` get 25 s, `Cline`, `prime-agent`, `Roo Code` and `Kilo Code` get 50 s, both as the default and the most a `timeout_s` can ask for (`SHORT_WAIT_CLIENTS` in `src/mcp/constants.ts`). `claude-code` keeps the 100 s default but caps at 110 s, since Claude Code moves a call to the background at 120 s and the transport then drops it.
 

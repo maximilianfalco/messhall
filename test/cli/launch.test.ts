@@ -18,7 +18,9 @@ const CLAUDE_ENTRY = [
   '  Status: ✔ Connected',
   `  URL: ${URL_BASE}/mcp`,
   `  X-Messhall-Key: ${'a1'.repeat(32)}`,
+  `  X-Messhall-Seat: \${MESSHALL_SEAT:-}`,
 ].join('\n');
+const SEATLESS_ENTRY = CLAUDE_ENTRY.split('\n').slice(0, -1).join('\n');
 
 const healthy = () =>
   Promise.resolve(Response.json({ live_members: 0, ok: true, rooms: 0, uptime_s: 5, version: '0.1.0' }));
@@ -28,6 +30,7 @@ const answer =
   () =>
     Promise.resolve(result);
 const FOUND = answer({ code: 0, stderr: '', stdout: CLAUDE_ENTRY });
+const SEATLESS = answer({ code: 0, stderr: '', stdout: SEATLESS_ENTRY });
 const NOT_FOUND = answer({ code: 1, stderr: 'No MCP server named "messhall".', stdout: '' });
 
 let home: string;
@@ -218,6 +221,15 @@ describe('runClaude', () => {
     expect(spawned).toStrictEqual([]);
     expect(logs).toHaveLength(1);
     expect(output()).toContain('run messhall mcp install');
+  });
+
+  it('refuses with one line when the messhall entry has no seat header', async () => {
+    const code = await runClaude({ extra: [], print: false }, deps({ run: SEATLESS }));
+
+    expect(code).toBe(1);
+    expect(spawned).toStrictEqual([]);
+    expect(logs).toHaveLength(1);
+    expect(output()).toContain('no seat header, so a seat is lost on a daemon restart. run messhall mcp install');
   });
 });
 

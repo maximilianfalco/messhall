@@ -35,6 +35,10 @@ function eventLine(event: BusEvent) {
   }
   if (event.type === 'member') return `#${event.room} ${event.member.name} ${event.change} (${event.member.kind})`;
   if (event.type === 'presence') return `#${event.room} ${event.name} ${event.from} → ${event.to}`;
+  if (event.type === 'approval') {
+    const { id, member, state, tool } = event.approval;
+    return `#${event.room} ${member} ${tool} ${state} (${id})`;
+  }
   return `#${event.room.name} ${event.change}`;
 }
 

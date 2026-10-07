@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
-import { memberSchema, messageSchema, nameSchema, presenceSchema, roomSchema, timestampSchema } from './room.ts';
+import {
+  approvalSchema,
+  memberSchema,
+  messageSchema,
+  nameSchema,
+  presenceSchema,
+  roomSchema,
+  timestampSchema,
+} from './room.ts';
 
 export const MEMBER_CHANGES = [
   'invited',
@@ -48,8 +56,20 @@ export const roomEventSchema = z.object({
   type: z.literal('room').describe('A room changed.'),
 });
 
+export const approvalEventSchema = z.object({
+  approval: approvalSchema.describe('The approval after the change.'),
+  room: nameSchema.describe('Room name.'),
+  type: z.literal('approval').describe('An agent asked to use a tool, or its ask was answered or expired.'),
+});
+
 export const busEventSchema = z
-  .discriminatedUnion('type', [messageEventSchema, memberEventSchema, presenceEventSchema, roomEventSchema])
+  .discriminatedUnion('type', [
+    messageEventSchema,
+    memberEventSchema,
+    presenceEventSchema,
+    roomEventSchema,
+    approvalEventSchema,
+  ])
   .describe('One change in the room store.');
 
 export const sequencedEventSchema = z.object({

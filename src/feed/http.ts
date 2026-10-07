@@ -7,6 +7,7 @@ const ROOM_PATH = /^\/api\/rooms\/([^/]+)\/([^/]+)$/;
 const MEMBER_ROLE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/role$/;
 const MEMBER_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)$/;
 const MEMBER_MUTE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/mute$/;
+const APPROVAL_PATH = /^\/api\/approvals\/([0-9a-f-]{36})$/;
 const MEMBER_UNMUTE_PATH = /^\/api\/rooms\/([^/]+)\/members\/([^/]+)\/unmute$/;
 
 /** The room name and action in `/api/rooms/<name>/<action>`, or undefined when the path is not one. */
@@ -37,6 +38,12 @@ export function memberMuteTarget(req: IncomingMessage) {
 
 /** The room and member in `/api/rooms/<name>/members/<member>`, or undefined when the path is not one. */
 export const memberTarget = (req: IncomingMessage) => memberIn(req, MEMBER_PATH);
+
+/** The approval id in `/api/approvals/<id>`, or undefined when the path is not one. */
+export function approvalTarget(req: IncomingMessage) {
+  const { pathname } = new URL(req.url ?? '/', 'http://127.0.0.1');
+  return APPROVAL_PATH.exec(pathname)?.[1];
+}
 
 /** The request body parsed as JSON, or `ok: false` when it is too big or not JSON. */
 export async function readJson(req: IncomingMessage) {

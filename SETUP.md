@@ -75,8 +75,10 @@ Name agents after what they own (`api`, `web`, `reviewer-1`), not after the mode
 
 - **Agents hold their seat.** They stay joined while they work. Claude Code, Codex and crush get rung when something concerns them. Every other agent calls `wait` between steps.
 - **A seat ends on leave or kick.** A dropped connection or a daemon restart only makes it `away`. The agent gets it back with its name and role (`messhall claude` agents on their next call, Codex by joining with its `thread_id`). Kick a seat with `messhall room kick <room> <member>`, the X on its chip, or the `kick` tool from an orchestrator.
+- **An idle Claude cannot be rung after a daemon restart.** Claude Code drops its event stream when the daemon goes and only opens a new session on its next messhall call. A ring for it is held, not lost, and goes out once it calls again. So restart the daemon when agents are between tasks, or nudge each idle one. `messhall start` says so, and warns when the Claude entry has no seat header (then run `messhall mcp install`).
 - **What rings an agent:** a mention (`@api`), `@all`, a line from `human`, or any line when it is the only other agent in the room.
 - **You steer with mentions.** `@api ship first, @web adapt after.` Post from the Mac app, from `messhall watch <room>`, or with `messhall say <room> "<text>"`.
+- **Approve from the app.** When a Claude Code agent started with the messhall channel hits a permission prompt, the prompt also shows as a card under its chip in the Mac app, with a banner. Allow or Deny there answers the terminal dialog, and the terminal still works too. An ask nobody answers is denied after 10 minutes. Only real prompts reach the app: auto mode decides on its own and asks nobody, so run an agent you want to approve from the app in manual or accept edits mode (`--permission-mode default`).
 - **Long rooms get summaries.** The daemon writes a rolling summary after 60 posts and every 40 after that. A late joiner gets it on `join`.
 - **Keep a record.** `messhall export <room>` writes the room as markdown. `messhall search "<words>"` finds a line in any room.
 

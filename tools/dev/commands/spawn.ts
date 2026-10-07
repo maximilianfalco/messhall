@@ -12,7 +12,7 @@ import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
-import { launchClaude, tmux as runTmux, writeMcpConfig } from '../lib/claudeTmux.js';
+import { launchClaude, tmux as runTmux, seatKeyIn, writeMcpConfig } from '../lib/claudeTmux.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
 import { reviewQueue } from '../lib/review.js';
@@ -133,6 +133,12 @@ export async function seatThenAssign({
     : { code: 1, lines: [...lines, bad(`assign failed`), assigned.report, dim(`try again: ${line}`)] };
 }
 
+/** Writes a row's mcp config. It keeps the seat key a past spawn of the row left in `file`,
+ * so a respawn after `flock stop` takes back the old seat, role and bookmark instead of a `-2` name. */
+export function writeSpawnConfig({ file, key, url }: { file: string; key: string; url: string }) {
+  writeMcpConfig({ file, key, seat: seatKeyIn(file) ?? randomUUID(), url });
+}
+
 /** Claims a ready row, makes its worktree and starts a seated claude in tmux session `messhall-<row>`.
  * The prompt only seats it. The row reaches it in the role instructions, written to `<data dir>/spawn/<row>-role.md`.
  * If claude never comes up, the row goes back to open so nobody waits on it. */
@@ -215,7 +221,7 @@ export async function spawnRun({
 
   mkdirSync(spawnDir, { recursive: true });
   rmSync(debugFile, { force: true });
-  writeMcpConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), seat: randomUUID(), url });
+  writeSpawnConfig({ file: mcpConfig, key: readFileSync(keyFile, 'utf8').trim(), url });
   writeFileSync(roleFile, `${roleText(worktree)}\n`, { mode: 0o600 });
   const ready = await launch({ argv, cwd: worktree, debugFile, note, session });
   if (ready !== 'registered') {

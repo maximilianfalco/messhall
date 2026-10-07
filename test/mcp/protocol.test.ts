@@ -90,7 +90,7 @@ describe('protocol negotiation on /mcp', () => {
 
     const { result } = await initialize(url, asked);
 
-    expect(result.capabilities.experimental).toStrictEqual({ 'claude/channel': {} });
+    expect(result.capabilities.experimental).toStrictEqual({ 'claude/channel': {}, 'claude/channel/permission': {} });
   });
 
   it('keeps Claude Code on 2025-11-25 with the channel', async () => {
@@ -99,7 +99,7 @@ describe('protocol negotiation on /mcp', () => {
     const { result } = await initialize(url, '2025-11-25', 'claude-code');
 
     expect(result.protocolVersion).toBe('2025-11-25');
-    expect(result.capabilities.experimental).toStrictEqual({ 'claude/channel': {} });
+    expect(result.capabilities.experimental).toStrictEqual({ 'claude/channel': {}, 'claude/channel/permission': {} });
   });
 
   it.each(['2025-03-26', '2025-06-18'])(

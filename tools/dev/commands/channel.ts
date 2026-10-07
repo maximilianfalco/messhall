@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -29,6 +30,7 @@ interface ChannelOptions {
   as: string;
   keep: boolean;
   quiet?: number;
+  restart: boolean;
   room: string;
 }
 
@@ -61,9 +63,10 @@ function memberState({ home, name, room }: { home: string; name: string; room: s
 
 /**
  * Drives a real Claude Code in tmux with messhall as a dev channel: it joins, a scripted agent
- * mentions it, and the doorbell should make it read and reply. Cleans up unless `keep`.
+ * mentions it, and the doorbell should make it read and reply. `restart` restarts the daemon while it
+ * idles, to show whether the bell still reaches it. Cleans up unless `keep`.
  */
-export async function channelRun({ as, keep, quiet, room }: ChannelOptions) {
+export async function channelRun({ as, keep, quiet, restart, room }: ChannelOptions) {
   const ownHome = !process.env.MESSHALL_HOME;
   const home = process.env.MESSHALL_HOME || mkdtempSync(path.join(tmpdir(), 'messhall-channel-'));
   const port = process.env.MESSHALL_PORT ? Number(process.env.MESSHALL_PORT) : DEFAULT_PORT;
@@ -76,11 +79,11 @@ export async function channelRun({ as, keep, quiet, room }: ChannelOptions) {
     console.error(dim(line));
   };
 
-  const daemon = await spawnDaemon({ detached: keep, home, port });
+  let daemon = await spawnDaemon({ detached: keep, home, port });
   if (!daemon.ok) return { code: 1, report: daemon.report };
   const key = readFileSync(path.join(home, KEY_FILES.agent), 'utf8').trim();
   const mcpConfig = path.join(home, 'channel-mcp.json');
-  writeMcpConfig({ file: mcpConfig, key, url: daemon.url });
+  writeMcpConfig({ file: mcpConfig, key, seat: randomUUID(), url: daemon.url });
 
   let scripted: Awaited<ReturnType<typeof connectHttp>> | undefined;
   let code = 1;
@@ -105,6 +108,16 @@ export async function channelRun({ as, keep, quiet, room }: ChannelOptions) {
     if (quiet) {
       await sleep(quiet * 1000);
       note(`after ${quiet} s quiet, ${as} is ${memberState({ home, name: as, room })?.presence ?? 'not in the room'}`);
+    }
+
+    if (restart) {
+      await daemon.stop();
+      const again = await spawnDaemon({ detached: keep, home, port });
+      if (!again.ok) throw new Error(`daemon did not come back: ${again.report}`);
+      daemon = again;
+      note('daemon restarted while claude idles');
+      await sleep(QUIET_MS);
+      note(`after the restart, ${as} is ${memberState({ home, name: as, room })?.presence ?? 'not in the room'}`);
     }
 
     scripted = await connectHttp({ key, name: 'messhall-dev-channel-api', url: daemon.url });
@@ -153,6 +166,7 @@ export async function channelRun({ as, keep, quiet, room }: ChannelOptions) {
       [
         ['room', `#${room}`],
         ['claude as', as],
+        ['daemon restart', restart ? 'yes, while idle' : 'no'],
         ['post to reply', replyMs === undefined ? 'no reply' : `${(replyMs / 1000).toFixed(1)} s`],
         ['debug log', debugFile],
       ],
@@ -182,9 +196,10 @@ export function registerChannel(program: Command) {
     .requiredOption('--room <room>', 'room to join')
     .option('--as <role>', 'the role claude joins as', 'web')
     .option('--quiet <s>', 'sit idle this long after the join before the mention', value => Number(value))
+    .option('--restart', 'restart the daemon while claude idles, before the mention')
     .option('--keep', 'leave tmux and the daemon running')
-    .action(async (options: { as: string; keep?: boolean; quiet?: number; room: string }) => {
-      const result = await channelRun({ ...options, keep: Boolean(options.keep) });
+    .action(async (options: { as: string; keep?: boolean; quiet?: number; restart?: boolean; room: string }) => {
+      const result = await channelRun({ ...options, keep: Boolean(options.keep), restart: Boolean(options.restart) });
       console.log(result.report);
       process.exitCode = result.code;
     });

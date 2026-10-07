@@ -196,6 +196,53 @@ describe('agentRun', () => {
     expect(text).toContain('api → @web] @web total is cents now');
   });
 
+  it.each(['allow', 'deny'])(
+    'asks to run a command like Claude Code and prints the %s it gets back',
+    async behavior => {
+      const asking = agentRun({ ask: 'pnpm test', keyFile: keyFile(), role: 'api', room: 'checkout', url: daemon.url });
+      const human = {
+        'content-type': 'application/json',
+        [KEY_HEADER]: readFileSync(path.join(home, KEY_FILES.human), 'utf8'),
+      };
+      const id = await vi.waitFor(async () => {
+        const snapshot = (await (await fetch(`${daemon.url}/api/snapshot`, { headers: human })).json()) as {
+          rooms: { approvals: { id: string; input_preview: string }[] }[];
+        };
+        const [approval] = snapshot.rooms[0]?.approvals ?? [];
+        if (!approval) throw new Error('no ask yet');
+        expect(approval.input_preview).toBe('{ "command": "pnpm test" }');
+        return approval.id;
+      });
+
+      await fetch(`${daemon.url}/api/approvals/${id}`, {
+        body: JSON.stringify({ behavior }),
+        headers: human,
+        method: 'POST',
+      });
+      const result = await asking;
+
+      const text = stripVTControlCharacters(result.report);
+      expect(result.code).toBe(0);
+      expect(text).toContain(`api ask Bash: pnpm test`);
+      expect(text).toContain(`verdict ${behavior}`);
+      expect(text).toContain('left #checkout.');
+    },
+  );
+
+  it('says so when no verdict comes back in time', async () => {
+    const result = await agentRun({
+      ask: 'pnpm test',
+      keyFile: keyFile(),
+      role: 'api',
+      room: 'checkout',
+      timeout: 0.2,
+      url: daemon.url,
+    });
+
+    expect(result.code).toBe(1);
+    expect(stripVTControlCharacters(result.report)).toContain('no verdict in 0.2 s');
+  });
+
   it('names itself messhall-dev when no client is given', async () => {
     await agentRun({ keyFile: keyFile(), role: 'api', room: 'checkout', url: daemon.url });
 

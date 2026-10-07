@@ -7,7 +7,10 @@ import { logger } from '../lib/logger.js';
 
 import { createBatcher, realTimer } from './batch.js';
 
-/** Rings members as messages land in the store, and for lines a loop guard pause held back once it ends. */
+/**
+ * Rings members as messages land in the store, and for lines a loop guard pause held back once it ends.
+ * A ring no session takes is held, newest per name, and sent when the member sits down again.
+ */
 export function startDoorbell({
   now,
   ringers,
@@ -19,11 +22,18 @@ export function startDoorbell({
   setTimer?: SetTimer;
   store: RoomStore;
 }) {
-  const deliver = ({ kind, meta, name, rooms, text }: RingBatch) => {
+  const held = new Map<string, RingBatch>();
+  const deliver = (batch: RingBatch) => {
+    const { kind, meta, name, rooms, text } = batch;
     const ringer = ringers.for(kind);
     if (!ringer) return;
     ringer.ring({ member: { name, rooms }, meta, text }).then(
-      sessions => logger.info('doorbell rang', { kind, name, rooms: rooms.join(','), sessions, text }),
+      sessions => {
+        const line = { kind, name, rooms: rooms.join(','), sessions, text };
+        if (sessions > 0) return logger.info('doorbell rang', line);
+        held.set(name, batch);
+        logger.info('doorbell held, no session', line);
+      },
       (error: unknown) =>
         logger.error(error instanceof Error ? error : new Error(String(error)), { message: 'ring failed' }),
     );
@@ -38,6 +48,14 @@ export function startDoorbell({
     });
   const off = store.events.on(({ event }) => {
     if (event.type === 'message') add(event);
+    if (event.type !== 'member') return;
+    const batch = held.get(event.member.name);
+    if (!batch || !batch.rooms.includes(event.room)) return;
+    if (event.change === 'left' || event.change === 'removed') held.delete(event.member.name);
+    if (event.change !== 'joined' && event.change !== 'reconnected') return;
+    held.delete(event.member.name);
+    // The join binds its session right after this event, so the ring waits one tick for it.
+    setTimer(() => deliver(batch), 0);
   });
   return {
     /** Ends due loop guard pauses and rings each of the pair for the partner line it missed. Called on the sweep. */
@@ -45,6 +63,7 @@ export function startDoorbell({
     stop: () => {
       off();
       batcher.stop();
+      held.clear();
     },
   };
 }

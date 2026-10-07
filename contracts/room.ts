@@ -135,7 +135,26 @@ export const roomSummarySchema = roomSchema.extend({
   message_count: z.number().int().nonnegative().describe('Posts from members, not daemon lines or summaries.'),
 });
 
+export const APPROVAL_STATES = ['pending', 'allowed', 'denied', 'expired'] as const;
+export const APPROVAL_BEHAVIORS = ['allow', 'deny'] as const;
+
+export const approvalSchema = z.object({
+  answered_at: timestampSchema.nullable().describe('When it was answered or expired, null while pending.'),
+  created_at: timestampSchema.describe('When the agent asked.'),
+  description: z.string().describe("The agent's own summary of the call. Untrusted text, never the command itself."),
+  id: z.string().describe('Approval id. The human answers this exact id.'),
+  input_preview: z.string().describe('The tool arguments as JSON shaped text, like the command for Bash. Untrusted.'),
+  member: nameSchema.describe('The seat whose agent asks.'),
+  room: nameSchema.describe('Room the seat is in.'),
+  state: z
+    .enum(APPROVAL_STATES)
+    .describe('pending until the human answers, allowed or denied after, expired when nobody answered in time.'),
+  tool: z.string().describe('The tool the agent wants to use, like Bash or Write.'),
+});
+
 export type Room = z.infer<typeof roomSchema>;
 export type Member = z.infer<typeof memberSchema>;
 export type Message = z.infer<typeof messageSchema>;
 export type RoomSummary = z.infer<typeof roomSummarySchema>;
+export type Approval = z.infer<typeof approvalSchema>;
+export type ApprovalBehavior = (typeof APPROVAL_BEHAVIORS)[number];
