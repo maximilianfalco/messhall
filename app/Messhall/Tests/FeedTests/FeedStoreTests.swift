@@ -348,6 +348,36 @@ struct FeedStoreTests {
     #expect(store.rooms[0].messages.last?.text == "@api Ship it")
   }
 
+  @Test("a snapshot carries the open and settled agreements")
+  func snapshotAgreements() throws {
+    let store = try loaded()
+
+    #expect(store.rooms[0].agreements.map(\.text) == ["amount_minor is integer cents"])
+  }
+
+  @Test("an agreement event adds it, updates it in place, and a rejected or replaced one leaves", arguments: [
+    AgreementState.rejected, .replaced,
+  ])
+  func agreementEvents(state: AgreementState) throws {
+    let store = try loaded()
+    guard case .agreement(let payload) = try event("AgreementEvent") else {
+      Issue.record("not an agreement event"); return
+    }
+
+    store.apply(.event(seq: 8, .agreement(payload)))
+    var settled = payload.agreement
+    settled.confirmed = ["api", "mobile"]
+    settled.state = .settled
+    store.apply(.event(seq: 9, .agreement(AgreementEvent(room: "checkout", agreement: settled))))
+    #expect(store.rooms[0].agreements.map(\.id) == [3, 5])
+    #expect(store.rooms[0].agreements.last?.state == .settled)
+
+    var closed = settled
+    closed.state = state
+    store.apply(.event(seq: 10, .agreement(AgreementEvent(room: "checkout", agreement: closed))))
+    #expect(store.rooms[0].agreements.map(\.id) == [3])
+  }
+
   @Test("the app is behind when the daemon's contract is newer than the one it was built for")
   func behind() throws {
     let store = try loaded()

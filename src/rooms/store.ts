@@ -1,5 +1,6 @@
 import type { BusEvent, MemberChange } from '../../contracts/events.ts';
 import type {
+  Agreement,
   AgentKind,
   ApprovalBehavior,
   Launch,
@@ -15,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 
 import { SEAT_TOKEN_PREFIX } from '../../contracts/mcp.ts';
 import {
+  agreementSchema,
   approvalSchema,
   HUMAN_NAME,
   launchSchema,
@@ -48,6 +50,7 @@ import {
 import { parseStoredJson } from '../lib/json.js';
 import { clientType } from '../mcp/constants.js';
 
+import { agreementSql, involves, isLive, proposalText, rejectText, settledText } from './agreements.js';
 import { createEventBus } from './events.js';
 import { answerText, askText, expiryText, questionSql } from './questions.js';
 import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
@@ -224,6 +227,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   };
 
   const questionsSql = questionSql(db);
+  const agreementsSql = agreementSql(db);
 
   function transaction<T>(work: (emit: Emit) => T) {
     const pending: BusEvent[] = [];
@@ -264,6 +268,21 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   const questionChanged = (question: Question, emit: Emit) => {
     emit({ question, room: question.room, type: 'question' });
     return question;
+  };
+  const toAgreement = (row: Row) =>
+    agreementSchema.parse({
+      ...row,
+      confirmed: parseStoredJson(String(row.confirmed)),
+      room: roomById(String(row.room_id)).name,
+      with: parseStoredJson(String(row.with_names)),
+    });
+  const agreementChanged = (agreement: Agreement, emit: Emit) => {
+    emit({ agreement, room: agreement.room, type: 'agreement' });
+    return agreement;
+  };
+  const findAgreement = (room: Room, id: number) => {
+    const row = agreementsSql.get.get(id, room.id);
+    return row ? toAgreement(row) : undefined;
   };
   const findMember = (room: Room, name: string) => {
     const row = sql.member.get(room.id, name);
@@ -432,6 +451,23 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     }
     if (kind === 'done') closeIfAllDone(room, emit);
     return { message, missing: missingMentions({ names, text }) };
+  }
+
+  // The gate for agreement calls: a seat that may speak, in an open room.
+  function speaker(roomName: string, as: string) {
+    const found = seat(roomName, as);
+    if (!found.ok) return found;
+    if (found.member.muted) return { ok: false, reason: 'muted' } as const;
+    if (found.room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
+    return found;
+  }
+
+  // An agreement in the room that is still open or settled, for a reject or a replace.
+  function liveAgreement(room: Room, id: number) {
+    const agreement = findAgreement(room, id);
+    if (!agreement) return { ok: false, reason: 'no_agreement' } as const;
+    if (!isLive(agreement)) return { ok: false, reason: 'not_open' } as const;
+    return { agreement, ok: true } as const;
   }
 
   // Finds the room and a member still in it, the gate every member call goes through.
@@ -1034,6 +1070,97 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     questionsOf({ as, room: roomName }: { as: string; room: string }) {
       const room = findRoom(roomName);
       return room ? questionsSql.openOf.all(room.id, as).map(toQuestion) : [];
+    },
+
+    /** Posts a proposal as the proposer's own line, which rings every agent it names, and keeps it open under that line's id.
+     * With `replaces`, an open or settled agreement the proposer is part of becomes replaced. */
+    proposeAgreement({
+      as,
+      replaces,
+      room: roomName,
+      text,
+      with: named,
+    }: {
+      as: string;
+      replaces?: number;
+      room: string;
+      text: string;
+      with: readonly string[];
+    }) {
+      return transaction(emit => {
+        const found = speaker(roomName, as);
+        if (!found.ok) return found;
+        const { member, room } = found;
+        const names = [...new Set(named)];
+        if (names.includes(as)) return { ok: false, reason: 'self' } as const;
+        const missing = names.filter(name => {
+          const other = findMember(room, name);
+          return !other || other.left_at !== null || !isAgent(other);
+        });
+        if (missing.length) return { missing, ok: false, reason: 'not_in_room' } as const;
+        const old = replaces === undefined ? undefined : liveAgreement(room, replaces);
+        if (old && !old.ok) return old;
+        if (old && !involves({ agreement: old.agreement, as })) return { ok: false, reason: 'not_named' } as const;
+        if (old) agreementChanged(toAgreement(agreementsSql.replace.get(stamp(), old.agreement.id)!), emit);
+        const line = proposalText({ replaces: replaces ?? null, text, with: names });
+        const { message } = speak({ done: false, member, room, text: line }, emit);
+        const row = agreementsSql.insert.get(
+          message.id,
+          room.id,
+          as,
+          text,
+          JSON.stringify(names),
+          replaces ?? null,
+          stamp(),
+        )!;
+        return { agreement: agreementChanged(toAgreement(row), emit), ok: true } as const;
+      });
+    },
+
+    /** A named agent says yes. Once every named agent has, the agreement is settled with a messhall line to the proposer. */
+    confirmAgreement({ as, id, room: roomName }: { as: string; id: number; room: string }) {
+      return transaction(emit => {
+        const found = speaker(roomName, as);
+        if (!found.ok) return found;
+        const { room } = found;
+        const agreement = findAgreement(room, id);
+        if (!agreement) return { ok: false, reason: 'no_agreement' } as const;
+        if (agreement.state !== 'open') return { ok: false, reason: 'not_open' } as const;
+        if (!agreement.with.includes(as)) return { ok: false, reason: 'not_named' } as const;
+        if (agreement.confirmed.includes(as)) return { ok: false, reason: 'already_confirmed' } as const;
+        const confirmed = [...agreement.confirmed, as];
+        const settled = agreement.with.every(name => confirmed.includes(name));
+        const row = agreementsSql.confirm.get(
+          JSON.stringify(confirmed),
+          settled ? 'settled' : 'open',
+          settled ? stamp() : null,
+          id,
+        )!;
+        const updated = agreementChanged(toAgreement(row), emit);
+        if (settled) post(room, SYSTEM_NAME, 'system', settledText(updated), [updated.proposer], emit);
+        return { agreement: updated, ok: true } as const;
+      });
+    },
+
+    /** A named agent says no to an open or settled agreement, with why as its own line to the proposer. */
+    rejectAgreement({ as, id, room: roomName, why }: { as: string; id: number; room: string; why: string }) {
+      return transaction(emit => {
+        const found = speaker(roomName, as);
+        if (!found.ok) return found;
+        const { member, room } = found;
+        const live = liveAgreement(room, id);
+        if (!live.ok) return live;
+        if (!live.agreement.with.includes(as)) return { ok: false, reason: 'not_named' } as const;
+        const agreement = agreementChanged(toAgreement(agreementsSql.reject.get(as, why, stamp(), id)!), emit);
+        speak({ done: false, member, room, text: rejectText({ id, proposer: agreement.proposer, why }) }, emit);
+        return { agreement, ok: true } as const;
+      });
+    },
+
+    /** The open and settled agreements in a room, oldest first. */
+    agreementsIn(roomName: string) {
+      const room = findRoom(roomName);
+      return room ? agreementsSql.live.all(room.id).map(toAgreement) : [];
     },
 
     /** Marks every agent still in a room away, with one line per open room, and expires every pending ask.

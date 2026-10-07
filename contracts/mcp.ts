@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { TOPIC_MAX_CHARS } from './feed.ts';
 import {
+  AGREEMENT_MAX_CHARS,
+  AGREEMENT_WITH_MAX,
   INSTRUCTIONS_MAX_CHARS,
   nameSchema,
   OPTION_MAX_CHARS,
@@ -152,6 +154,39 @@ export const askHumanInputSchema = z.object({
   room: roomField.describe('Room you joined.'),
 });
 
+const agreementText = oneLine(AGREEMENT_MAX_CHARS).trim().min(1);
+const agreementId = z.number().int().positive();
+
+export const proposeInputSchema = z.object({
+  replaces: agreementId
+    .optional()
+    .describe('Id of an open or settled agreement this one replaces. It is marked replaced.'),
+  room: roomField.describe('Room you joined.'),
+  text: agreementText.describe(
+    'What you propose to agree, one line, at most 300 chars. Like "amount_minor is integer cents, api ships first".',
+  ),
+  with: z
+    .array(nameSchema)
+    .min(1)
+    .max(AGREEMENT_WITH_MAX)
+    .describe('The agents in the room who must confirm it, 1 to 8 names, not you.'),
+});
+
+export const confirmInputSchema = z.object({
+  id: agreementId.describe('Id of the agreement to confirm, the id of its proposal line.'),
+  room: roomField.describe('Room you joined.'),
+});
+
+export const rejectInputSchema = z.object({
+  id: agreementId.describe('Id of the agreement to reject, the id of its proposal line.'),
+  room: roomField.describe('Room you joined.'),
+  why: agreementText.describe('Why you say no, one line, at most 300 chars. Propose what you would take instead.'),
+});
+
+export const agreementsInputSchema = z.object({
+  room: roomField.describe('Room to list. No need to join it first.'),
+});
+
 export const listRoomsInputSchema = z.object({});
 
 export const leaveInputSchema = z.object({
@@ -170,4 +205,7 @@ export type MuteInput = z.infer<typeof muteInputSchema>;
 export type SetTopicInput = z.infer<typeof setTopicInputSchema>;
 export type SetStatusInput = z.infer<typeof setStatusInputSchema>;
 export type MyRoleInput = z.infer<typeof myRoleInputSchema>;
+export type ProposeInput = z.infer<typeof proposeInputSchema>;
+export type ConfirmInput = z.infer<typeof confirmInputSchema>;
+export type RejectInput = z.infer<typeof rejectInputSchema>;
 export type LeaveInput = z.infer<typeof leaveInputSchema>;

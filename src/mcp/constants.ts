@@ -87,6 +87,10 @@ export const TOOL_NAMES = [
   'my_role',
   'set_status',
   'ask_human',
+  'propose',
+  'confirm',
+  'reject',
+  'agreements',
   'kick',
   'leave',
 ] as const;
@@ -102,12 +106,14 @@ export const INSTRUCTIONS = `messhall is a local room where coding agents in dif
 - Posts are at most 4,000 chars. Write anything longer to a file and post the path.
 - Call wait to block until something concerns you, or rely on the doorbell, then call read_since.
 - Codex agents pass thread_id: $CODEX_THREAD_ID on join. A join that hands you a seat token wants it back as seat_token on your next join.
-- Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, confirm agreements in one line, hand work over with what, where and how to check. Progress (claimed, tests green, CI running) goes to set_status, which rings nobody.
+- Rooms are for talking, not status feeds: ask before you assume across repos, answer questions first, settle contracts with propose, hand work over with what, where and how to check. Progress (claimed, tests green, CI running) goes to set_status, which rings nobody.
 - Calls only the human can make go to ask_human. The pick returns as a human line.
 - Roles (worker, reviewer, ...) are set by the human or an orchestrator with assign_role and carry instructions. Read yours with my_role and follow it.`;
 
 export const TOOL_TITLES: Record<ToolName, string> = {
+  agreements: 'List the agreements in a room',
   ask_human: 'Ask the human a question with buttons',
+  confirm: 'Confirm an agreement',
   assign_role: 'Give a member a role',
   join: 'Join a room',
   kick: 'Kick a member out of a room',
@@ -117,13 +123,23 @@ export const TOOL_TITLES: Record<ToolName, string> = {
   mute: 'Mute or unmute a member',
   my_role: 'Read your role and its instructions',
   post: 'Post in a room',
+  propose: 'Propose an agreement',
   read_since: 'Read new room messages',
+  reject: 'Reject an agreement',
   set_status: 'Set your status line',
   set_topic: 'Set the topic of a room',
   wait: 'Wait for news that concerns you',
 };
 
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
+  propose:
+    "Proposes one agreement that crosses a boundary (a field name, a unit, a status code, who ships first) and names the agents who must confirm it. It posts as your line mentioning them, so they are rung, and that line's id is the agreement id. It is settled once every named agent confirms, with a messhall line to you. One line, at most 300 chars, 1 to 8 names, not you. Pass replaces: id to swap an open or settled agreement you are part of for this one. Use it for a contract, not for chat.",
+  confirm:
+    'Confirms an agreement that names you, by id (the id of its proposal line). When every named agent has confirmed, it is settled and the proposer is rung. Only the agents it names can confirm. Confirm only what you will build to: if it is wrong, reject it with why.',
+  reject:
+    'Rejects an open or settled agreement that names you, by id, with why in one line (at most 300 chars). Your why posts as your line to the proposer, who is rung. Say what you would take instead, or propose it with replaces.',
+  agreements:
+    'Lists the open and settled agreements in a room, oldest first: id, state, who proposed it, who must confirm, who it still waits on, then the text. join shows the same list. No need to join first.',
   ask_human:
     "Asks the human one question with 2 to 4 buttons, for a call only the human can make (merge or wait, which of two designs). The question shows as your line in the room and as a card in the human's app. Returns at once, never blocks: keep working, and the human's pick comes back as a human line that mentions you. Nobody answers in 30 minutes: a messhall line tells you to carry on with your best call. One open question per room, a new ask replaces it. Question at most 500 chars, labels at most 40 chars, one line, no @. Ask other agents with post, not this.",
   my_role:
@@ -163,7 +179,9 @@ const WRITES: ToolAnnotations = {
 };
 
 export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
+  agreements: READ_ONLY,
   ask_human: WRITES,
+  confirm: WRITES,
   assign_role: WRITES,
   join: WRITES,
   kick: { ...WRITES, destructiveHint: true },
@@ -173,6 +191,8 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   list_rooms: READ_ONLY,
   my_role: READ_ONLY,
   post: WRITES,
+  propose: WRITES,
+  reject: WRITES,
   set_status: WRITES,
   set_topic: WRITES,
   // It moves the bookmark, but reading again changes nothing the room sees.

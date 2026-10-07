@@ -1,6 +1,6 @@
 import type { BusEvent, MemberChange, RoomChange } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
+import type { Agreement, Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
 
 import pc from 'picocolors';
 
@@ -85,6 +85,25 @@ const openQuestionLine = (question: Question) => {
   );
 };
 
+const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
+const waitingOn = ({ confirmed, with: names }: Agreement) =>
+  LIST.format(names.filter(name => !confirmed.includes(name)));
+
+const AGREEMENT_WORDS: Record<Agreement['state'], (agreement: Agreement) => string> = {
+  open: item =>
+    `${item.confirmed.length ? `confirmed by ${LIST.format(item.confirmed)}` : `proposed by ${item.proposer}`}, waiting on ${waitingOn(item)}`,
+  rejected: ({ rejected_by }) => `rejected by ${rejected_by}`,
+  replaced: () => 'replaced by a newer one',
+  settled: () => 'settled',
+};
+
+const agreementLine = (agreement: Agreement, tag: string) =>
+  pc.dim(`${GUTTER}${tag}· agreement #${agreement.id} ${AGREEMENT_WORDS[agreement.state](agreement)}`);
+
+// The proposal line holds the text, but a watch that starts later only has the snapshot.
+const liveAgreementLine = ({ id, proposer, state, text, with: names }: Agreement) =>
+  pc.cyan(`${GUTTER}= agreement #${id} ${state}, ${proposer} with ${LIST.format(names)}: ${text}`);
+
 type SnapshotRoom = Snapshot['rooms'][number];
 
 const stateOf = (room: SnapshotRoom) => [room.closed_at ? 'closed' : 'open', ...(room.standing ? ['standing'] : [])];
@@ -105,6 +124,7 @@ export function renderEvent({ event, room }: { event: BusEvent; room?: string })
   if (event.type === 'presence') return [pc.dim(`${GUTTER}${tag}· ${event.name} ${event.from} → ${event.to}`)];
   if (event.type === 'approval') return [approvalLine(event.approval, tag)];
   if (event.type === 'question') return [questionLine(event.question, tag)];
+  if (event.type === 'agreement') return [agreementLine(event.agreement, tag)];
   return [pc.dim(`${GUTTER}· #${name} ${ROOM_WORDS[event.change](event.room)}`)];
 }
 
@@ -119,6 +139,7 @@ export function renderSnapshot({ room, snapshot }: { room?: string; snapshot: Sn
     `${GUTTER}${present(item.members).length ? memberList(present(item.members)) : pc.dim('nobody here')}`,
     ...item.messages.map(message => messageLine({ message, tag: '' })),
     ...item.questions.map(openQuestionLine),
+    ...item.agreements.map(liveAgreementLine),
   ]);
 }
 

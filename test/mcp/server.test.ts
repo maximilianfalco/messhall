@@ -42,7 +42,7 @@ describe('createMesshallServer', () => {
     const { tools } = await client.listTools();
 
     const readOnly = tools.filter(tool => tool.annotations?.readOnlyHint).map(tool => tool.name);
-    expect(readOnly).toStrictEqual(['read_since', 'wait', 'list_members', 'list_rooms', 'my_role']);
+    expect(readOnly).toStrictEqual(['read_since', 'wait', 'list_members', 'list_rooms', 'my_role', 'agreements']);
   });
 
   it('describes every input field with a sentence', async () => {

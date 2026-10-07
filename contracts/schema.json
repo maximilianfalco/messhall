@@ -2,6 +2,152 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "messhall contracts",
   "$defs": {
+    "Agreement": {
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "description": "Lowercase letters, digits and dashes, 1 to 40 chars."
+          },
+          "description": "The named members who confirmed so far, in the order they did."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "description": "When it was proposed."
+        },
+        "decided_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When it was settled, rejected or replaced, null while open."
+        },
+        "id": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Agreement id: the id of the proposer's own line that carries it."
+        },
+        "proposer": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The seat that proposed it."
+        },
+        "rejected_by": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,40}$",
+              "description": "Lowercase letters, digits and dashes, 1 to 40 chars."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who rejected it, null unless rejected."
+        },
+        "replaces": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The agreement this one replaces, null when new."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room the agreement is in."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "settled",
+            "rejected",
+            "replaced"
+          ],
+          "description": "open until every named member confirms, settled after, rejected when a named member says no, replaced by a newer proposal."
+        },
+        "text": {
+          "type": "string",
+          "description": "What is agreed, one line. Untrusted text from the agent."
+        },
+        "why": {
+          "description": "Why it was rejected, one line, null unless rejected. Untrusted text from the agent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "with": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "description": "Lowercase letters, digits and dashes, 1 to 40 chars."
+          },
+          "description": "The members who must confirm it, in the order the proposer named them."
+        }
+      },
+      "required": [
+        "confirmed",
+        "created_at",
+        "decided_at",
+        "id",
+        "proposer",
+        "rejected_by",
+        "replaces",
+        "room",
+        "state",
+        "text",
+        "why",
+        "with"
+      ],
+      "additionalProperties": false
+    },
+    "AgreementEvent": {
+      "type": "object",
+      "properties": {
+        "agreement": {
+          "description": "The agreement after the change.",
+          "$ref": "#/$defs/Agreement"
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "type": {
+          "type": "string",
+          "const": "agreement",
+          "description": "An agent proposed an agreement, or it was confirmed, settled, rejected or replaced."
+        }
+      },
+      "required": [
+        "agreement",
+        "room",
+        "type"
+      ],
+      "additionalProperties": false
+    },
     "AnswerResult": {
       "type": "object",
       "properties": {
@@ -153,6 +299,9 @@
         },
         {
           "$ref": "#/$defs/QuestionEvent"
+        },
+        {
+          "$ref": "#/$defs/AgreementEvent"
         }
       ],
       "description": "One change in the room store."
@@ -1160,7 +1309,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 4,
+          "x-current": 5,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {
@@ -1255,6 +1404,13 @@
           "maximum": 9007199254740991,
           "description": "Posts from members, not daemon lines or summaries."
         },
+        "agreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Agreement"
+          },
+          "description": "Agreements still open and settled ones, oldest first."
+        },
         "approvals": {
           "type": "array",
           "items": {
@@ -1294,6 +1450,7 @@
         "topic",
         "first_message_id",
         "message_count",
+        "agreements",
         "approvals",
         "members",
         "messages",
