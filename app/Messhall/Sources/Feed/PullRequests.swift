@@ -71,6 +71,18 @@ public struct PullRequestCard: Equatable, Sendable {
     self.humanVeto = humanVeto
   }
 
+  public static let refreshSoon: Duration = .seconds(30)
+  public static let refreshLater: Duration = .seconds(120)
+
+  /// When to read the PR again. Soon while checks may still change, never once it is merged or closed.
+  public var refreshAfter: Duration? {
+    switch (state, ci) {
+    case (.merged, _), (.closed, _): nil
+    case (_, .running), (_, .none): Self.refreshSoon
+    default: Self.refreshLater
+    }
+  }
+
   /// Reads the JSON of `gh pr view --json title,state,isDraft,labels,statusCheckRollup`. Nil when it is not that.
   public init?(link: PullRequestLink, ghJSON: Data) {
     guard let view = try? JSONDecoder().decode(GHPullRequest.self, from: ghJSON) else { return nil }
@@ -131,8 +143,6 @@ public final class PullRequestStore {
 
   /// Long enough that every row naming one PR shares one read when a room opens.
   public static let freshFor: TimeInterval = 30
-  /// How often a card on screen is read again.
-  public static let refreshEvery: Duration = .seconds(120)
 
   private var cards: [PullRequestLink: PullRequestCard] = [:]
   @ObservationIgnored private var readAt: [PullRequestLink: Date] = [:]
@@ -143,6 +153,12 @@ public final class PullRequestStore {
   }
 
   public func card(for link: PullRequestLink) -> PullRequestCard? { cards[link] }
+
+  /// When a row of links should be read again: at its soonest card. Nil once every PR is merged or closed.
+  /// A link with no card yet keeps trying slowly, since gh may be missing or logged out.
+  public func refreshAfter(_ links: [PullRequestLink]) -> Duration? {
+    links.compactMap { cards[$0].map(\.refreshAfter) ?? PullRequestCard.refreshLater }.min()
+  }
 
   /// Reads the card unless it was read less than `freshFor` ago. A failed read keeps the last card.
   public func refresh(_ link: PullRequestLink, now: Date = .now) async {
