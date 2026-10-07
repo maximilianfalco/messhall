@@ -219,4 +219,23 @@ describe('startDoorbell', () => {
     await advance(3000);
     expect(rung).toStrictEqual([]);
   });
+
+  it('rings a quiet reviewer once more at ten minutes, and only once', async () => {
+    const { advance, doorbell, rung, stop } = setup(scratch);
+    const url = 'https://github.com/acme/widgets/pull/12';
+    scratch.store.postMessage({ from: 'api', room: 'checkout', text: `ready for review: ${url} @web` });
+    await advance(3000);
+    rung.length = 0;
+
+    await advance(10 * 60_000);
+    doorbell.nudgeReviews();
+    await advance(60_000);
+    doorbell.nudgeReviews();
+    await advance(0);
+
+    expect(rung.map(ring => [ring.member.name, ring.text])).toStrictEqual([
+      ['web', `messhall: api has waited 10 min on your review of ${url} in #checkout. Answer it, or say who should.`],
+    ]);
+    stop();
+  });
 });

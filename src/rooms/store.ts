@@ -43,6 +43,7 @@ import {
   LOOP_GUARD_WITHIN_MS,
   QUESTION_TTL_MS,
   READ_LIMIT,
+  REVIEW_NUDGE_WINDOW_MS,
   SEARCH_LIMIT,
   SEAT_TOKEN_FREE_AFTER_MS,
   STALE_AFTER_MS,
@@ -53,6 +54,7 @@ import { clientType } from '../mcp/constants.js';
 import { agreementSql, involves, isLive, leftOut, proposalText, rejectText, settledText } from './agreements.js';
 import { createEventBus } from './events.js';
 import { answerText, askText, expiryText, questionSql } from './questions.js';
+import { reviewNudges } from './reviews.js';
 import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
@@ -195,6 +197,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = done * ? WHERE room_id = ? AND name = ?",
     ),
     reopen: db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?'),
+    linesSince: db.prepare('SELECT * FROM messages WHERE room_id = ? AND created_at > ? ORDER BY id'),
+    nudgeRooms: db.prepare('SELECT * FROM rooms WHERE closed_at IS NULL AND review_nudges = 1 ORDER BY name'),
+    reviewNudges: db.prepare('SELECT review_nudges FROM rooms WHERE id = ?'),
+    setReviewNudges: db.prepare('UPDATE rooms SET review_nudges = ? WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
     roomById: db.prepare('SELECT * FROM rooms WHERE id = ?'),
     rooms: db.prepare(
@@ -1043,6 +1049,42 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const question = questionChanged(toQuestion(questionsSql.answer.get(option, stamp(), id)!), emit);
         const { message } = speak({ done: false, member: human, room, text: answerText(question) }, emit);
         return { message, ok: true, question } as const;
+      });
+    },
+
+    /** Posts the hand-off line for each review request quiet 15 minutes, and returns the reviewers to ring
+     * again for those quiet 10. Rooms with nudges off are skipped. */
+    nudgeReviews() {
+      return transaction(emit => {
+        const at = now();
+        const since = new Date(at.getTime() - REVIEW_NUDGE_WINDOW_MS).toISOString();
+        return sql.nudgeRooms.all().flatMap(row => {
+          const room = toRoom(row);
+          const members = sql.liveMembers.all(room.id).map(toMember);
+          const messages = sql.linesSince.all(room.id, since).map(toMessage);
+          return reviewNudges({ members, messages, now: at }).flatMap(nudge => {
+            if (nudge.kind === 'line') {
+              post(room, SYSTEM_NAME, 'system', nudge.text, nudge.mentions, emit);
+              return [];
+            }
+            const reviewer = members.find(member => member.name === nudge.reviewer);
+            if (!reviewer || reviewer.kind === 'human') return [];
+            const { id, url, worker } = nudge;
+            return [{ id, kind: reviewer.kind, reviewer: reviewer.name, room: room.name, url, worker }];
+          });
+        });
+      });
+    },
+
+    /** Turns review nudges on or off in a room with a line. Setting the state it already has writes nothing. */
+    setReviewNudges({ on, room: roomName }: { on: boolean; room: string }) {
+      return transaction(emit => {
+        const room = findRoom(roomName);
+        if (!room) return { ok: false, reason: 'no_room' } as const;
+        if (sql.reviewNudges.get(room.id)?.review_nudges === (on ? 1 : 0)) return { ok: true } as const;
+        sql.setReviewNudges.run(on ? 1 : 0, room.id);
+        systemLine(room, `review nudges turned ${on ? 'on' : 'off'}`, emit);
+        return { ok: true } as const;
       });
     },
 

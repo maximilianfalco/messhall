@@ -205,6 +205,8 @@ export const MIGRATIONS = [
   );
   CREATE INDEX agreements_room ON agreements (room_id, state);
   `,
+  // A room nudges quiet review requests unless turned off.
+  'ALTER TABLE rooms ADD COLUMN review_nudges INTEGER NOT NULL DEFAULT 1;',
 ];
 
 function schemaVersion(db: DatabaseSync) {
