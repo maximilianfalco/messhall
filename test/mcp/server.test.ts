@@ -60,7 +60,11 @@ describe('createMesshallServer', () => {
     fields.forEach(({ description }) => expect(description).toMatch(/\.$/));
   });
 
-  it('tells agents done is for leaving the task, never a heads-up', () => {
+  it('tells agents done is for leaving the task, never a heads-up', async () => {
+    const { client } = await harness.agent();
+    const { tools } = await client.listTools();
+    const done = tools.find(tool => tool.name === 'post')?.inputSchema.properties?.done as { description: string };
+    expect(done.description).toMatch(/only when you leave the task for good, never on a heads-up/);
     expect(TOOL_DESCRIPTIONS.post).toMatch(/only when you leave the task for good, never on a heads-up/);
     expect(INSTRUCTIONS).toMatch(/done: true only when you leave the task for good, never on a heads-up/);
   });
