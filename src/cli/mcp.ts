@@ -177,7 +177,8 @@ async function installClaude(deps: McpDeps, where: Where) {
   if (state === 'older') await deps.run(CLAUDE, REMOVE_ARGS);
   const added = await deps.run(CLAUDE, [...ADD_ARGS, claudeConfig(where)]);
   if (added.code !== 0) {
-    deps.log(bad(`claude code: claude mcp add-json failed: ${(added.stderr || added.stdout).trim()}`));
+    const said = (added.stderr || added.stdout).trim().replaceAll(where.key, MASK);
+    deps.log(bad(`claude code: claude mcp add-json failed: ${said}`));
     return false;
   }
   const after = await readClaudeEntry(deps.run);
@@ -234,12 +235,12 @@ async function installGemini(deps: McpDeps, where: Where, { yes }: { yes: boolea
   return true;
 }
 
-/** Adds messhall to Claude Code, Codex and Gemini CLI. The key shows only in the `--print` line.
+/** Adds messhall to Claude Code, Codex and Gemini CLI. The key goes into the configs, never into the output.
  * The daemon has to be up, since the add is checked by connecting to it. */
 export async function runMcpInstall({ print, yes }: { print: boolean; yes: boolean }, deps: McpDeps) {
   const where = { key: readAgentKey(deps.dataDir), url: deps.url };
   if (print) {
-    deps.log(claudeLine(where));
+    deps.log(claudeLine({ ...where, key: MASK }));
     channelNote(deps.log);
     deps.log(dim(`codex, written to ${deps.codexConfig} by messhall mcp install:`));
     deps.log(dim(codexBlock({ ...where, key: MASK })));
