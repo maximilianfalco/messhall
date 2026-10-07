@@ -858,6 +858,7 @@ struct ChatRow: View {
           .textSelection(.enabled)
           .fixedSize(horizontal: false, vertical: true)
         PullRequestCards(row: pullRequests)
+          .padding(.top, 10)
       }
       if line.mine { AvatarView(name: message.from) }
     }

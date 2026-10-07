@@ -10,7 +10,7 @@ struct PullRequestCards: View {
   var body: some View {
     let cards = row.shown.compactMap(store.card(for:))
     if !cards.isEmpty {
-      VStack(alignment: .leading, spacing: 4) {
+      VStack(alignment: .leading, spacing: 8) {
         ForEach(cards, id: \.link) { PullRequestCardView(card: $0) }
         if row.more > 0 {
           Text("and \(row.more) more")
@@ -18,7 +18,6 @@ struct PullRequestCards: View {
             .foregroundStyle(.secondary)
         }
       }
-      .padding(.top, 5)
     }
   }
 }
