@@ -152,3 +152,85 @@ struct PullRequestStoreTests {
     #expect(store.card(for: Self.link)?.title == "good")
   }
 }
+
+@Suite("pull request refresh")
+@MainActor
+struct PullRequestRefreshTests {
+  private static let link = PullRequestLink(owner: "acme", repo: "shop", number: 1)
+  private static let other = PullRequestLink(owner: "acme", repo: "shop", number: 2)
+
+  private static func card(_ state: PullRequestState, _ ci: CIState, link: PullRequestLink = link) -> PullRequestCard {
+    PullRequestCard(link: link, title: "x", state: state, ci: ci, humanVeto: false)
+  }
+
+  @Test func runningChecksRefreshSoon() {
+    #expect(Self.card(.open, .running).refreshAfter == PullRequestCard.refreshSoon)
+    #expect(Self.card(.draft, .running).refreshAfter == PullRequestCard.refreshSoon)
+  }
+
+  @Test func openWithNoChecksYetRefreshesSoon() {
+    #expect(Self.card(.open, .none).refreshAfter == PullRequestCard.refreshSoon)
+  }
+
+  @Test func settledChecksRefreshSlowly() {
+    #expect(Self.card(.open, .passing).refreshAfter == PullRequestCard.refreshLater)
+    #expect(Self.card(.open, .failing).refreshAfter == PullRequestCard.refreshLater)
+  }
+
+  @Test func mergedAndClosedStop() {
+    #expect(Self.card(.merged, .passing).refreshAfter == nil)
+    #expect(Self.card(.closed, .running).refreshAfter == nil)
+  }
+
+  @Test func aRowRefreshesAtItsSoonestCard() async {
+    let store = PullRequestStore { $0 == Self.link ? Self.card(.open, .passing) : Self.card(.open, .running, link: Self.other) }
+
+    await store.refresh(Self.link)
+    await store.refresh(Self.other)
+
+    #expect(store.refreshAfter([Self.link, Self.other]) == PullRequestCard.refreshSoon)
+  }
+
+  @Test func aRowOfFinishedPullRequestsStops() async {
+    let store = PullRequestStore { Self.card(.merged, .passing, link: $0) }
+
+    await store.refresh(Self.link)
+    await store.refresh(Self.other)
+
+    #expect(store.refreshAfter([Self.link, Self.other]) == nil)
+  }
+
+  @Test func anUnreadCardKeepsTryingSlowly() async {
+    let store = PullRequestStore { _ in nil }
+
+    await store.refresh(Self.link)
+
+    #expect(store.refreshAfter([Self.link]) == PullRequestCard.refreshLater)
+  }
+}
+
+@Suite("gh runner")
+struct GHRunnerTests {
+  @Test func aHungGhIsKilledAtTheTimeoutWhileOtherReadsRun() async {
+    let hung = ProcessInfo.processInfo.activeProcessorCount * 3
+    let start = ContinuousClock.now
+
+    let (quick, quickAt, hungResults) = await withTaskGroup(of: Data?.self) { group in
+      for _ in 0..<hung {
+        group.addTask { await runGH("/bin/sleep", ["30"], timeout: .seconds(1)) }
+      }
+      try? await Task.sleep(for: .milliseconds(200))
+      let quick = await runGH("/bin/echo", ["hi"], timeout: .seconds(1))
+      let quickAt = ContinuousClock.now - start
+      var results: [Data?] = []
+      for await result in group { results.append(result) }
+      return (quick, quickAt, results)
+    }
+
+    #expect(quick == Data("hi\n".utf8))
+    #expect(quickAt < .seconds(1))
+    #expect(hungResults.count == hung)
+    #expect(hungResults.allSatisfy { $0 == nil })
+    #expect(ContinuousClock.now - start < .seconds(5))
+  }
+}
