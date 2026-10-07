@@ -38,7 +38,7 @@ import {
   snapshotRoomSchema,
   snapshotSchema,
 } from '../../../contracts/feed.ts';
-import { healthSchema } from '../../../contracts/health.ts';
+import { buildSchema, healthSchema } from '../../../contracts/health.ts';
 import {
   agreementSchema,
   approvalSchema,
@@ -63,6 +63,7 @@ export const CONTRACTS = {
   Approval: approvalSchema,
   ApprovalEvent: approvalEventSchema,
   ApprovalResult: approvalResultSchema,
+  Build: buildSchema,
   BusEvent: busEventSchema,
   CloseResult: closeResultSchema,
   FeedError: feedErrorSchema,
