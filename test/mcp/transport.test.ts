@@ -394,6 +394,16 @@ describe('createMcpEndpoint sweep', () => {
     expect(presenceOf('api')).toBe('away');
   });
 
+  it('leaves seats as they were when the endpoint closes for a shutdown, so the next start can wake them', async () => {
+    const api = await agent(endpointUrl(), 'no-key-check-here');
+    await api.call('join', { as: 'api', room: 'checkout' });
+
+    await endpoint.close();
+
+    expect(sessionOf('api')).toBeUndefined();
+    expect(presenceOf('api')).toBe('active');
+  });
+
   it('calls a seat ringable only while a live session can ring it', async () => {
     const api = await agent(endpointUrl(), 'no-key-check-here');
     const web = await agent(endpointUrl(), 'no-key-check-here');

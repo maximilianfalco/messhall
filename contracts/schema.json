@@ -867,10 +867,11 @@
         "active",
         "waiting",
         "idle",
+        "reconnecting",
         "away",
         "left"
       ],
-      "description": "What the member is doing: invited (a seat made ahead, its agent has not come yet), active, waiting, idle, away (its session dropped or went quiet, the seat is kept) or left (called leave)."
+      "description": "What the member is doing: invited (a seat made ahead, its agent has not come yet), active, waiting, idle, reconnecting (live before a daemon restart, up to 2 minutes for its agent to call again), away (its session dropped or went quiet, the seat is kept) or left (called leave)."
     },
     "PresenceEvent": {
       "type": "object",
@@ -1358,7 +1359,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 5,
+          "x-current": 6,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {

@@ -41,6 +41,13 @@ struct AwayMembersTests {
     #expect(dev.awayMembers.map(\.name) == ["api"])
   }
 
+  @Test("a reconnecting agent stays live and counts as an agent, not away")
+  func reconnecting() {
+    let dev = room([member("api", .reconnecting), member("human", .active, kind: .human)])
+    #expect(dev.liveAgents.map(\.name) == ["api"])
+    #expect(dev.awayMembers.isEmpty)
+  }
+
   @Test("the agent count skips away and left agents")
   func liveAgents() {
     let dev = room([
