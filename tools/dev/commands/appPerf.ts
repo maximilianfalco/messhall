@@ -42,6 +42,12 @@ export const PERF_MEMBERS = 60;
 export const PERF_THINKING = 10;
 export const PERF_WAITING = 20;
 export const PERF_EVENTS = 50;
+/** Smaller rooms beside the big one, so the sidebar and the agents panel look like a busy day. */
+export const PERF_ROOMS = 12;
+const SIDE_MEMBERS = 8;
+const SIDE_POSTS = 40;
+/** Agents woken per side room, so spinners and the working count spread across rooms. */
+const SIDE_THINKING = 2;
 /** Members who post. The rest only sit, so the agents panel scans past every line for them. */
 const POSTERS = 40;
 /** Every this many posts, three posters leave and come back, so the transcript holds folds. */
@@ -61,6 +67,7 @@ const SETTLE_MS = 2500;
 const run = promisify(execFile);
 
 export const perfMember = (n: number) => `agent-${String(n).padStart(2, '0')}`;
+export const perfRoom = (n: number) => `room-${String(n).padStart(2, '0')}`;
 const kindOf = (n: number) => KINDS[n % KINDS.length] ?? 'claude';
 
 /** One post's text by index: a PR link every 11th, a mention every 7th, else plain words. */
@@ -77,11 +84,13 @@ export function seedPerfRoom({
   members = PERF_MEMBERS,
   now,
   posts = PERF_POSTS,
+  rooms = PERF_ROOMS,
 }: {
   dataDir: string;
   members?: number;
   now: Date;
   posts?: number;
+  rooms?: number;
 }) {
   let at = now.getTime() - (posts + 10) * STEP_MS;
   const db = openDb({ dataDir });
@@ -111,21 +120,35 @@ export function seedPerfRoom({
       const text = human ? `how is it going, round ${(i + 1) / HUMAN_EVERY}` : perfText(i, members);
       store.postMessage({ from: human ? 'human' : perfMember((i % posters) + 1), room: PERF_ROOM, text });
     }
+    for (let r = 1; r <= rooms; r += 1) {
+      const room = perfRoom(r);
+      for (let n = 1; n <= SIDE_MEMBERS; n += 1) {
+        store.joinRoom({ as: perfMember(n), client: CLAUDE, kind: kindOf(n), room });
+      }
+      for (let i = 0; i < SIDE_POSTS; i += 1) {
+        at += STEP_MS;
+        store.postMessage({ from: perfMember((i % SIDE_MEMBERS) + 1), room, text: perfText(i, SIDE_MEMBERS) });
+      }
+    }
   } finally {
     db.close();
   }
 }
 
 /** Wakes the first members after the daemon started (its start marks every agent away): `thinking` of them
- * active with a status that links a PR, the next `waiting`. Everyone else stays in the away fold. */
+ * active with a status that links a PR, the next `waiting`. Everyone else stays in the away fold. Two agents
+ * per side room wake too. The big room also gets an open question and two agreements, one settled and one
+ * open, since a daemon start expires every pending ask. */
 export function seedPerfThinking({
   dataDir,
   now,
+  rooms = PERF_ROOMS,
   thinking = PERF_THINKING,
   waiting = PERF_WAITING,
 }: {
   dataDir: string;
   now: Date;
+  rooms?: number;
   thinking?: number;
   waiting?: number;
 }) {
@@ -139,6 +162,36 @@ export function seedPerfThinking({
     }
     for (let n = thinking + 1; n <= thinking + waiting; n += 1) {
       store.touch({ as: perfMember(n), room: PERF_ROOM, state: 'waiting' });
+    }
+    for (let r = 1; r <= rooms; r += 1) {
+      for (let n = 1; n <= SIDE_THINKING; n += 1) {
+        const as = perfMember(n);
+        store.touch({ as, room: perfRoom(r), state: 'active' });
+        store.setStatus({ as, room: perfRoom(r), status: `on step ${r}, tests green` });
+      }
+    }
+    if (thinking > 0) {
+      store.askQuestion({
+        as: perfMember(1),
+        options: ['ship it', 'wait for review'],
+        question: 'the cents migration is green on staging. merge it today?',
+        room: PERF_ROOM,
+      });
+    }
+    if (thinking > 1) {
+      const settled = store.proposeAgreement({
+        as: perfMember(1),
+        room: PERF_ROOM,
+        text: 'amounts move to minor units, the old total field stays until friday',
+        with: [perfMember(2)],
+      });
+      if (settled.ok) store.confirmAgreement({ as: perfMember(2), id: settled.agreement.id, room: PERF_ROOM });
+      store.proposeAgreement({
+        as: perfMember(2),
+        room: PERF_ROOM,
+        text: 'the web form adapts once the api is on main',
+        with: [perfMember(1)],
+      });
     }
   } finally {
     db.close();
@@ -162,6 +215,8 @@ const perfReportSchema = z.object({
   rows: z.number(),
   scroll_fps: z.number(),
   scroll_worst_frame_ms: z.number(),
+  panel_fps: z.number(),
+  panel_worst_frame_ms: z.number(),
   sidebar_fps: z.number(),
   sidebar_worst_frame_ms: z.number(),
 });
@@ -187,6 +242,10 @@ export function perfRows(report: PerfReport) {
     [
       'sidebar hides and shows, 0.6 s each',
       `${report.sidebar_fps.toFixed(1)} fps, worst frame ${ms(report.sidebar_worst_frame_ms)}`,
+    ],
+    [
+      'the same with the agents panel open',
+      `${report.panel_fps.toFixed(1)} fps, worst frame ${ms(report.panel_worst_frame_ms)}`,
     ],
     [
       `${report.events} incoming posts`,
@@ -424,26 +483,28 @@ async function appPerf({
   measure: wantsMeasure,
   port,
   posts,
+  rooms,
 }: {
   events: number;
   home: string;
   measure: boolean;
   port: number;
   posts: number;
+  rooms: number;
 }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
   rmSync(home, { force: true, recursive: true });
   mkdirSync(home, { recursive: true });
   mkdirSync(OUT_DIR, { recursive: true });
-  seedPerfRoom({ dataDir: home, now: new Date(), posts });
+  seedPerfRoom({ dataDir: home, now: new Date(), posts, rooms });
 
   const app = buildApp();
   if (!app) return { code: 1, report: bad('make app failed') };
   // No summaries: the burst would cross the room's next summary mark and pay claude for it on every run.
   const daemon = await spawnDaemon({ detached: false, env: { MESSHALL_SUMMARIES: 'off' }, home, port });
   if (!daemon.ok) return { code: 1, report: daemon.report };
-  seedPerfThinking({ dataDir: home, now: new Date() });
+  seedPerfThinking({ dataDir: home, now: new Date(), rooms });
 
   const env = { ...process.env, MESSHALL_HOME: home, MESSHALL_PORT: String(port) };
   const launched: number[] = [];
@@ -464,7 +525,7 @@ async function appPerf({
   const lines = [
     typeof report === 'string'
       ? dim(report)
-      : formatTable(['measure', `${posts} posts, ${PERF_MEMBERS} members`], perfRows(report)),
+      : formatTable(['measure', `${posts} posts, ${PERF_MEMBERS} members, ${rooms} side rooms`], perfRows(report)),
     '',
     formatTable(['shot', 'file'], shots),
     '',
@@ -480,7 +541,7 @@ async function appPerf({
   return { code, report: lines.join('\n') };
 }
 
-/** Registers `app-perf [--port <n>] [--home <dir>] [--posts <n>] [--events <n>] [--shots-only]`. */
+/** Registers `app-perf [--port <n>] [--home <dir>] [--posts <n>] [--events <n>] [--rooms <n>] [--shots-only]`. */
 export function registerAppPerf(program: Command) {
   program
     .command('app-perf')
@@ -491,16 +552,27 @@ export function registerAppPerf(program: Command) {
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', PERF_HOME)
     .option('--posts <n>', 'chat lines in the room', String(PERF_POSTS))
     .option('--events <n>', 'posts sent while the app measures cpu per post', String(PERF_EVENTS))
+    .option('--rooms <n>', 'smaller rooms beside the big one', String(PERF_ROOMS))
     .option('--shots-only', 'skip the measurement, only shoot the room')
-    .action(async (options: { events: string; home: string; port: string; posts: string; shotsOnly?: boolean }) => {
-      const result = await appPerf({
-        events: Number(options.events),
-        home: options.home,
-        measure: !options.shotsOnly,
-        port: Number(options.port),
-        posts: Number(options.posts),
-      });
-      console.log(result.report);
-      process.exitCode = result.code;
-    });
+    .action(
+      async (options: {
+        events: string;
+        home: string;
+        port: string;
+        posts: string;
+        rooms: string;
+        shotsOnly?: boolean;
+      }) => {
+        const result = await appPerf({
+          events: Number(options.events),
+          home: options.home,
+          measure: !options.shotsOnly,
+          port: Number(options.port),
+          posts: Number(options.posts),
+          rooms: Number(options.rooms),
+        });
+        console.log(result.report);
+        process.exitCode = result.code;
+      },
+    );
 }

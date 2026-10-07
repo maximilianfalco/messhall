@@ -11,6 +11,7 @@ import {
   PERF_ROOM,
   perfArgs,
   perfMember,
+  perfRoom,
   perfRows,
   perfShotArgs,
   perfText,
@@ -21,9 +22,9 @@ import { PULL_REQUEST_ANSWERS } from '../../tools/dev/commands/appShot.js';
 
 const now = new Date('2026-01-01T12:00:00.000Z');
 
-function seeded(posts: number, members: number) {
+function seeded(posts: number, members: number, rooms = 0) {
   const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-perf-'));
-  seedPerfRoom({ dataDir, members, now, posts });
+  seedPerfRoom({ dataDir, members, now, posts, rooms });
   return dataDir;
 }
 
@@ -78,11 +79,29 @@ describe('seedPerfRoom', () => {
   });
 });
 
+describe('seedPerfRoom side rooms', () => {
+  it('adds small rooms with eight agents and forty posts each beside the big one', () => {
+    const dataDir = seeded(10, 8, 3);
+
+    const rooms = read(dataDir, store => store.listRooms().map(room => [room.name, room.message_count]));
+    const members = read(dataDir, store => store.listMembers(perfRoom(2)).length);
+
+    expect(rooms).toStrictEqual([
+      [LOBBY_ROOM, 0],
+      [PERF_ROOM, 10],
+      [perfRoom(1), 40],
+      [perfRoom(2), 40],
+      [perfRoom(3), 40],
+    ]);
+    expect(members).toBe(9);
+  });
+});
+
 describe('seedPerfThinking', () => {
   it('wakes the first members active with a status and the next ones waiting', () => {
     const dataDir = seeded(10, 8);
 
-    seedPerfThinking({ dataDir, now, thinking: 2, waiting: 3 });
+    seedPerfThinking({ dataDir, now, rooms: 0, thinking: 2, waiting: 3 });
 
     const members = read(dataDir, store =>
       store.listMembers(PERF_ROOM).map(member => `${member.name} ${member.presence} ${member.status ?? '-'}`),
@@ -94,6 +113,25 @@ describe('seedPerfThinking', () => {
       'agent-04 waiting -',
       'agent-05 waiting -',
     ]);
+  });
+
+  it('wakes two agents per side room and leaves the big room one open question and two agreements', () => {
+    const dataDir = seeded(10, 8, 2);
+
+    seedPerfThinking({ dataDir, now, rooms: 2, thinking: 2, waiting: 1 });
+
+    const side = read(dataDir, store =>
+      store
+        .listMembers(perfRoom(2))
+        .filter(member => member.status !== null)
+        .map(member => member.name),
+    );
+    const questions = read(dataDir, store => store.openQuestions(PERF_ROOM).map(question => question.state));
+    const agreements = read(dataDir, store => store.agreementsIn(PERF_ROOM).map(agreement => agreement.state));
+
+    expect(side).toStrictEqual(['agent-01', 'agent-02']);
+    expect(questions).toStrictEqual(['open']);
+    expect(agreements.sort()).toStrictEqual(['open', 'settled']);
   });
 });
 
@@ -116,6 +154,8 @@ describe('perfRows', () => {
       rows: 5000,
       scroll_fps: 59.94,
       scroll_worst_frame_ms: 30.2,
+      panel_fps: 57.2,
+      panel_worst_frame_ms: 42.4,
       sidebar_fps: 58.4,
       sidebar_worst_frame_ms: 40.4,
     });
@@ -127,6 +167,7 @@ describe('perfRows', () => {
       ['scroll 3,000 pt per s for 4 s', '59.9 fps, worst frame 30 ms'],
       ['dash top to bottom in 4 s', '12.0 fps, worst frame 110 ms'],
       ['sidebar hides and shows, 0.6 s each', '58.4 fps, worst frame 40 ms'],
+      ['the same with the agents panel open', '57.2 fps, worst frame 42 ms'],
       ['50 incoming posts', 'cpu 2.5 ms per post, 20 row bodies per post, 400 ms wall'],
       ['pr reads during the run', '3'],
       ['resident memory at the end', '300 MB'],
