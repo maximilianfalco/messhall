@@ -827,7 +827,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** Records an agent's tool ask on every seat its session holds, under one new id. A seat not in the room is skipped. */
+    /** Records an agent's tool ask on every seat its session holds, under one new id. A seat not in the room is skipped.
+     * Claude Code opens one dialog at a time, so a new ask means the session's older one closed, maybe in its terminal. */
     openApproval({
       description,
       inputPreview,
@@ -846,6 +847,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return transaction(emit => {
         const id = randomUUID();
         const at = stamp();
+        settled(sql.expireSessionApprovals.all(at, session), emit);
         return seats.flatMap(({ name, room: roomName }) => {
           const room = findRoom(roomName);
           const member = room && findMember(room, name);

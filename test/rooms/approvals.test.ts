@@ -75,6 +75,24 @@ describe('openApproval', () => {
     expect(ask({ seats: [{ name: 'api', room: 'nowhere' }] })).toStrictEqual([]);
   });
 
+  it('expires the older ask of the same session, since Claude Code opens one dialog at a time', () => {
+    const [older] = ask();
+    ask({ requestId: 'other', session: 'session-2' });
+
+    ask({ requestId: 'fghij', tool: 'Write' });
+
+    expect(
+      store()
+        .pendingApprovals('demo')
+        .map(approval => approval.tool),
+    ).toStrictEqual(['Bash', 'Write']);
+    expect(
+      store()
+        .pendingApprovals('demo')
+        .map(approval => approval.id),
+    ).not.toContain(older!.id);
+  });
+
   it('cuts a very long preview so one ask cannot fill the feed', () => {
     const [approval] = ask({ inputPreview: 'x'.repeat(50_000) });
 
