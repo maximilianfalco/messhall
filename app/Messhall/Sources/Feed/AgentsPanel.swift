@@ -20,7 +20,7 @@ public struct AgentRow: Equatable, Identifiable, Sendable {
     switch member.presence {
     case .active, .waiting: return true
     case .idle: return member.status != nil
-    case .invited, .away, .left, .unknown: return false
+    case .invited, .reconnecting, .away, .left, .unknown: return false
     }
   }
 
@@ -30,7 +30,7 @@ public struct AgentRow: Equatable, Identifiable, Sendable {
   var rank: Int {
     switch member.presence {
     case .active, .waiting: 0
-    case .idle, .invited: 1
+    case .idle, .invited, .reconnecting: 1
     case .away, .left, .unknown: 2
     }
   }

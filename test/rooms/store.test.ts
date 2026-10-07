@@ -474,7 +474,7 @@ describe('presence', () => {
     expect(memberOf('demo', 'web')!.presence).toBe('waiting');
   });
 
-  it('marks every member still in a room away after a restart, with one line per open room', () => {
+  it('marks every live member reconnecting after a restart, with one line per open room', () => {
     joinBoth();
     store().joinRoom({ as: 'ios', kind: 'other', room: 'demo' });
     store().leaveRoom({ as: 'ios', room: 'demo' });
@@ -483,25 +483,52 @@ describe('presence', () => {
     store().touch({ as: 'web', room: 'old', state: 'away' });
     const before = texts('old').length;
 
-    const changes = store().markAllAway();
+    const changes = store().markReconnecting();
 
     expect(changes).toStrictEqual([
-      { from: 'active', name: 'api', room: 'demo', to: 'away' },
-      { from: 'active', name: 'web', room: 'demo', to: 'away' },
-      { from: 'active', name: 'api', room: 'old', to: 'away' },
+      { from: 'active', name: 'api', room: 'demo', to: 'reconnecting' },
+      { from: 'active', name: 'web', room: 'demo', to: 'reconnecting' },
+      { from: 'active', name: 'api', room: 'old', to: 'reconnecting' },
     ]);
     expect(
       store()
         .listMembers('demo')
         .map(member => [member.name, member.presence]),
     ).toStrictEqual([
-      ['api', 'away'],
+      ['api', 'reconnecting'],
       ['human', 'idle'],
-      ['web', 'away'],
+      ['web', 'reconnecting'],
     ]);
-    expect(texts('demo').at(-1)).toBe('messhall: messhall restarted, api and web are away');
+    expect(texts('demo').at(-1)).toBe('messhall: messhall restarted, api and web are reconnecting');
     expect(texts('old')).toHaveLength(before);
-    expect(store().markAllAway()).toStrictEqual([]);
+    expect(store().markReconnecting()).toStrictEqual([]);
+  });
+
+  it('turns a reconnecting seat away 2 minutes after the restart, however recent its last call', () => {
+    joinBoth();
+    scratch.clock.advance(minutes(40));
+    store().touch({ as: 'web', room: 'demo', state: 'active' });
+    store().markReconnecting();
+
+    scratch.clock.advance(minutes(1));
+    expect(store().sweepPresence({ ringable: () => true })).toStrictEqual([]);
+
+    scratch.clock.advance(minutes(1));
+    expect(store().sweepPresence({ ringable: () => true })).toStrictEqual([
+      { from: 'reconnecting', name: 'api', room: 'demo', to: 'away' },
+      { from: 'reconnecting', name: 'web', room: 'demo', to: 'away' },
+    ]);
+    expect(texts('demo').at(-1)).toBe('messhall: web is away');
+  });
+
+  it('gives a reconnecting seat back on its next join as reconnected', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-api' });
+    store().markReconnecting();
+
+    const joined = store().joinRoom({ as: 'api', kind: 'claude', reattach: true, room: 'demo', seatKey: 'seat-api' });
+
+    expect(joined).toMatchObject({ change: 'reconnected', ok: true });
+    expect(memberOf('demo', 'api')!.presence).toBe('active');
   });
 
   it('emits a presence event for each change', () => {

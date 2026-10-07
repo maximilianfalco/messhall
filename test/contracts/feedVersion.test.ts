@@ -70,6 +70,7 @@ describe('FEED_CONTRACT_VERSION', () => {
             "active",
             "waiting",
             "idle",
+            "reconnecting",
             "away",
             "left",
           ],
@@ -95,7 +96,7 @@ describe('FEED_CONTRACT_VERSION', () => {
           "question",
           "agreement",
         ],
-        "version": 5,
+        "version": 6,
       }
     `);
   });

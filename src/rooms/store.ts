@@ -118,6 +118,8 @@ const isReserved = (name: string) => (RESERVED_NAMES as readonly string[]).inclu
 export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date }) {
   const bus = createEventBus({ db, now });
   const stamp = () => now().toISOString();
+  // When this run marked seats reconnecting, so the sweep knows when to give up on them.
+  let restartedAt: Date | undefined;
 
   const sql = {
     answerApproval: db.prepare(
@@ -1169,24 +1171,27 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return room ? agreementsSql.live.all(room.id).map(toAgreement) : [];
     },
 
-    /** Marks every agent still in a room away, with one line per open room, and expires every pending ask.
-     * For daemon start, when no session is left. */
-    markAllAway() {
+    /** Marks every agent still in a room reconnecting, with one line per open room, and expires every pending ask.
+     * For daemon start, when no session is left. The sweep turns them away 2 minutes later. */
+    markReconnecting() {
       return transaction(emit => {
+        restartedAt = now();
         settled(sql.expireAllApprovals.all(stamp()), emit);
-        const changes = sql.sweepable.all().map(row => {
+        const changes = sql.sweepable.all().flatMap(row => {
           const member = toMember(row);
-          sql.setPresence.run('away', member.room_id, member.name);
+          if (member.presence === 'reconnecting') return [];
+          sql.setPresence.run('reconnecting', member.room_id, member.name);
           const room = roomById(member.room_id);
-          emit({ from: member.presence, name: member.name, room: room.name, to: 'away', type: 'presence' });
-          const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to: 'away' };
-          return { change, room };
+          emit({ from: member.presence, name: member.name, room: room.name, to: 'reconnecting', type: 'presence' });
+          const to = 'reconnecting';
+          const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to };
+          return [{ change, room }];
         });
         const open = changes.filter(({ room }) => room.closed_at === null);
         Map.groupBy(open, ({ room }) => room.id).forEach(group => {
           const names = group.map(({ change }) => change.name);
           const verb = names.length > 1 ? 'are' : 'is';
-          systemLine(group[0]!.room, `messhall restarted, ${LIST.format(names)} ${verb} away`, emit);
+          systemLine(group[0]!.room, `messhall restarted, ${LIST.format(names)} ${verb} reconnecting`, emit);
         });
         return changes.map(({ change }) => change);
       });
@@ -1200,7 +1205,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         return sql.sweepable.all().flatMap(row => {
           const member = toMember(row);
           const room = roomById(member.room_id);
-          const to = nextPresence({ member, now: at, ringable: ringable({ name: member.name, room: room.name }) });
+          const to = nextPresence({
+            member,
+            now: at,
+            restartedAt,
+            ringable: ringable({ name: member.name, room: room.name }),
+          });
           if (to === member.presence) return [];
           setPresence(room, member, to, emit, false);
           const change: PresenceChange = { from: member.presence, name: member.name, room: room.name, to };

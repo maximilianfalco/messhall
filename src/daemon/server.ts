@@ -113,7 +113,7 @@ export async function startDaemon({
   const db = openDb({ dataDir });
   const store = createRoomStore({ db, now });
   // No session lives through a restart, so every seat from the last run is away until its agent comes back.
-  store.markAllAway();
+  store.markReconnecting();
   const codex = createCodexClient({ socketPath: codexControlSocket() });
   const mcp = createMcpEndpoint({ codex, now, store });
   const ringers = createRingers([

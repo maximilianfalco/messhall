@@ -296,7 +296,7 @@ describe('writeSpawnConfig', () => {
     store.joinRoom({ as: 'f8-thing', kind: 'claude', room: 'dev', seatKey: seatIn(file) });
     store.joinRoom({ as: 'orchestrator', kind: 'claude', room: 'dev' });
     store.assignRole({ by: 'orchestrator', member: 'f8-thing', role: 'worker', room: 'dev' });
-    store.markAllAway();
+    store.markReconnecting();
 
     writeSpawnConfig({ file, key: 'k', url: 'http://127.0.0.1:1' });
     const rejoined = store.joinRoom({ as: 'f8-thing', kind: 'claude', room: 'dev', seatKey: seatIn(file) });

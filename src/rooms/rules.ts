@@ -1,7 +1,7 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
 import { ALL_MENTION, HUMAN_NAME, OBSERVER_ROLE, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
-import { AWAY_AFTER_MS, IDLE_AFTER_MS } from '../config.js';
+import { AWAY_AFTER_MS, IDLE_AFTER_MS, RECONNECT_MS } from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
 const MENTION = /(?<![\w.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])/g;
@@ -90,16 +90,22 @@ export function loopPair({
 }
 
 /** Presence after time passes with no call. Active turns idle at 2 minutes, anything turns away at 30.
- * A seat its doorbell can still ring stays idle instead, since a mention still reaches it. */
+ * A seat its doorbell can still ring stays idle instead, since a mention still reaches it.
+ * A reconnecting seat turns away 2 minutes after `restartedAt`, since its last call came before the restart. */
 export function nextPresence({
   member,
   now,
+  restartedAt,
   ringable,
 }: {
   member: Pick<Member, 'last_seen_at' | 'presence'>;
   now: Date;
+  restartedAt?: Date;
   ringable: boolean;
 }) {
+  if (member.presence === 'reconnecting') {
+    return restartedAt && now.getTime() - restartedAt.getTime() < RECONNECT_MS ? 'reconnecting' : 'away';
+  }
   const silent = now.getTime() - Date.parse(member.last_seen_at);
   if (silent >= AWAY_AFTER_MS) return ringable ? 'idle' : 'away';
   if (member.presence === 'active' && silent >= IDLE_AFTER_MS) return 'idle';

@@ -142,7 +142,7 @@ describe('startDaemon', () => {
     });
   });
 
-  it('marks members from the last run away on start, since their sessions died with it', async () => {
+  it('marks members from the last run reconnecting on start, since their sessions died with it', async () => {
     const before = sideStore();
     before.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
     before.db.close();
@@ -150,7 +150,7 @@ describe('startDaemon', () => {
     await start();
 
     const side = sideStore();
-    expect(side.store.listMembers('demo').find(member => member.name === 'api')?.presence).toBe('away');
+    expect(side.store.listMembers('demo').find(member => member.name === 'api')?.presence).toBe('reconnecting');
     side.db.close();
   });
 
