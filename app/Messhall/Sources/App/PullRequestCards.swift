@@ -53,9 +53,10 @@ struct PullRequestCardView: View {
   var body: some View {
     Button { openURL(card.link.url) } label: {
       HStack(alignment: .top, spacing: 8) {
-        Image(systemName: card.state.symbol)
-          .foregroundStyle(card.state.color)
-          .frame(width: 16)
+        Octicon(name: card.state.icon)
+          .fill(card.state.color)
+          .frame(width: 16, height: 16)
+          .padding(.top, 1)
         VStack(alignment: .leading, spacing: 3) {
           Text(card.title)
             .fontWeight(.medium)
@@ -64,9 +65,13 @@ struct PullRequestCardView: View {
           HStack(spacing: 8) {
             Text(card.link.label)
             Text(card.state.title).foregroundStyle(card.state.color)
-            if let ci = card.ci.label {
-              Label(ci, systemImage: card.ci.symbol)
-                .foregroundStyle(card.ci.color)
+            if let ci = card.ci.label, let icon = card.ci.icon {
+              Label {
+                Text(ci)
+              } icon: {
+                Octicon(name: icon).fill(card.ci.color).frame(width: 12, height: 12)
+              }
+              .foregroundStyle(card.ci.color)
             }
             LabelPills(labels: card.labels)
           }
@@ -149,11 +154,12 @@ extension PullRequestState {
     }
   }
 
-  var symbol: String {
+  var icon: Octicon.Name {
     switch self {
-    case .open, .draft: "arrow.triangle.pull"
-    case .merged: "arrow.triangle.merge"
-    case .closed: "xmark.circle"
+    case .open: .pullRequest
+    case .draft: .draft
+    case .merged: .merged
+    case .closed: .closed
     }
   }
 
@@ -178,12 +184,12 @@ extension CIState {
     }
   }
 
-  var symbol: String {
+  var icon: Octicon.Name? {
     switch self {
-    case .passing: "checkmark.circle.fill"
-    case .failing: "xmark.circle.fill"
-    case .running: "clock.fill"
-    case .none: ""
+    case .passing: .checkPassed
+    case .failing: .checkFailed
+    case .running: .checkRunning
+    case .none: nil
     }
   }
 

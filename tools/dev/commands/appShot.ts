@@ -152,6 +152,13 @@ export const PULL_REQUEST_ANSWERS = {
     statusCheckRollup: [{ __typename: 'CheckRun', conclusion: '', status: 'IN_PROGRESS' }],
     title: 'Refund flow',
   },
+  'https://github.com/acme/shop/pull/44': {
+    isDraft: false,
+    labels: [{ color: 'ededed', name: 'wontfix' }],
+    state: 'CLOSED',
+    statusCheckRollup: [],
+    title: 'Round totals in the browser',
+  },
   'https://github.com/acme/web/pull/38': {
     isDraft: false,
     labels: [],
@@ -229,12 +236,16 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
   ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'away' }));
 }
 
-/** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft with five labels, and one gh cannot read. */
+/** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft with five labels, a closed one, and one gh cannot read. */
 function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'reviews';
-  const [open, failing, draft, merged] = ['shop/pull/41', 'shop/pull/42', 'shop/pull/43', 'web/pull/38'].map(
-    pr => `https://github.com/acme/${pr}`,
-  );
+  const [open, failing, draft, closed, merged] = [
+    'shop/pull/41',
+    'shop/pull/42',
+    'shop/pull/43',
+    'shop/pull/44',
+    'web/pull/38',
+  ].map(pr => `https://github.com/acme/${pr}`);
   ['api', 'web', 'reviewer'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room }));
   const unreadable = 'https://github.com/acme/docs/pull/7';
   const lines: [string, string][] = [
@@ -242,6 +253,7 @@ function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomS
     ['web', `merged: ${merged}, prices read minor units now`],
     ['web', `the docs change is ${unreadable}, gh cannot see that repo so it stays a plain link`],
     ['api', `ci is red on ${failing}, it touches the key check so it waits for @human`],
+    ['web', `closed ${closed}, the api rounds now`],
     ['reviewer', `where we are: ${draft} ${open} ${merged} ${failing} ${unreadable}`],
   ];
   lines.forEach(([from, text]) => {
