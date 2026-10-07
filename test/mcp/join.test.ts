@@ -200,7 +200,11 @@ describe('join', () => {
     const newApi = await harness.agent({ name: 'claude-code' });
 
     const refused = await stranger.call('join', { as: 'api', room: 'checkout' });
-    const guessed = await stranger.call('join', { as: 'api', room: 'checkout', seat_token: 'guess' });
+    const guessed = await stranger.call('join', {
+      as: 'api',
+      room: 'checkout',
+      seat_token: 'tok-00000000-0000-0000-0000-000000000000',
+    });
     const joined = await newApi.call('join', { as: 'api', room: 'checkout', seat_token: token });
 
     expect(token).toBeDefined();
@@ -209,6 +213,22 @@ describe('join', () => {
     expect(joined.text).toContain('reconnected #checkout as api');
     expect(joined.text).toContain(`seat token: ${token}.`);
   });
+
+  it.each([
+    ['a claude', 'claude-code'],
+    ['another client', undefined],
+  ])(
+    'refuses a seat token from %s that join never minted, so no seat gets a key that never frees',
+    async (_label, name) => {
+      const api = await harness.agent({ name });
+
+      const result = await api.call('join', { as: 'api', room: 'checkout', seat_token: 'abc' });
+
+      expect(result.isError).toBe(true);
+      expect(result.text).toContain('seat_token');
+      expect(harness.store.listMembers('checkout').map(member => member.name)).not.toContain('api');
+    },
+  );
 
   it('puts the seat token right under the joined line', async () => {
     const api = await harness.agent({ name: 'claude-code' });

@@ -6,6 +6,9 @@ import { INSTRUCTIONS_MAX_CHARS, nameSchema, roleSchema } from './room.ts';
 export const AGENT_KINDS = ['claude', 'codex', 'other'] as const;
 export const WAIT_MAX_S = 270;
 export const NOTE_MAX_CHARS = 200;
+// Only tokens join minted, so every token seat can free up after a long time away.
+export const SEAT_TOKEN_PREFIX = 'tok-';
+const SEAT_TOKEN_PATTERN = new RegExp(`^${SEAT_TOKEN_PREFIX}[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$`);
 
 const roomField = nameSchema.describe('Room name: lowercase letters, digits and dashes, 1 to 40 chars.');
 // One line only: a newline in a topic could forge a messhall line in the join reply.
@@ -39,7 +42,7 @@ export const joinInputSchema = z.object({
   room: roomField.describe('Room to join. It is made on first join.'),
   seat_token: z
     .string()
-    .min(1)
+    .regex(SEAT_TOKEN_PATTERN, 'a seat token from an earlier join')
     .optional()
     .describe('The seat token an earlier join gave you, so you get your seat back with its role.'),
   thread_id: z

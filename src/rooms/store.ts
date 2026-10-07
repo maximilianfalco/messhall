@@ -4,6 +4,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { randomUUID } from 'node:crypto';
 
+import { SEAT_TOKEN_PREFIX } from '../../contracts/mcp.ts';
 import {
   HUMAN_NAME,
   launchSchema,
@@ -62,7 +63,6 @@ interface Reclaim {
 }
 
 const NAME_MAX = 40;
-const SEAT_TOKEN_PREFIX = 'tok-';
 
 /** A fresh seat token for a join with no other seat key. Its prefix lets a lost one free the seat later. */
 export const newSeatToken = () => `${SEAT_TOKEN_PREFIX}${randomUUID()}`;
