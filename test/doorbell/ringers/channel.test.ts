@@ -96,7 +96,10 @@ describe('createChannelRinger', () => {
     await vi.waitFor(() =>
       expect(received).toStrictEqual([{ content: '2 new in #checkout. Call read_since.', meta: RING.meta }]),
     );
-    expect(client.getServerCapabilities()?.experimental).toStrictEqual({ 'claude/channel': {} });
+    expect(client.getServerCapabilities()?.experimental).toStrictEqual({
+      'claude/channel': {},
+      'claude/channel/permission': {},
+    });
     await client.close();
     scratch.cleanup();
   });

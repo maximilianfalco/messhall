@@ -1,6 +1,6 @@
 import type { BusEvent } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Member, Message, Room } from '../../contracts/room.ts';
+import type { Approval, Member, Message, Room } from '../../contracts/room.ts';
 
 import { stripVTControlCharacters } from 'node:util';
 
@@ -49,6 +49,19 @@ const message = (overrides: Partial<Message> = {}): Message => ({
   mentions: [],
   room_id: 'room-1',
   text: 'hello',
+  ...overrides,
+});
+
+const approval = (overrides: Partial<Approval> = {}): Approval => ({
+  answered_at: null,
+  created_at: AT,
+  description: 'Run the tests',
+  id: '4b0c6a52-0d7e-4b8e-9c55-0f6a1e2b3c4d',
+  input_preview: '{"command": "pnpm test"}',
+  member: 'api',
+  room: 'checkout',
+  state: 'pending',
+  tool: 'Bash',
   ...overrides,
 });
 
@@ -117,11 +130,30 @@ describe('renderEvent', () => {
   });
 });
 
+describe('renderEvent approvals', () => {
+  it('shows a pending ask with the tool and what it runs', () => {
+    expect(render({ approval: approval(), room: 'checkout', type: 'approval' })).toStrictEqual([
+      '       #checkout  ? api asks to use Bash: Run the tests {"command": "pnpm test"}',
+    ]);
+  });
+
+  it.each([
+    ['allowed', 'allowed'],
+    ['denied', 'denied'],
+    ['expired', 'expired, denied'],
+  ] as const)('shows an %s ask as %s', (state, word) => {
+    expect(render({ approval: approval({ state }), room: 'checkout', type: 'approval' }, 'checkout')).toStrictEqual([
+      `       · api Bash ${word}`,
+    ]);
+  });
+});
+
 const snapshot: Snapshot = {
-  contract_version: 1,
+  contract_version: 2,
   rooms: [
     {
       ...room({ topic: 'ship the cart' }),
+      approvals: [],
       members: [
         member(),
         member({ kind: 'codex', name: 'web', presence: 'waiting' }),
@@ -134,6 +166,7 @@ const snapshot: Snapshot = {
     },
     {
       ...room({ closed_at: AT, created_by: 'human', id: 'room-2', name: 'search', standing: true }),
+      approvals: [],
       first_message_id: null,
       members: [],
       message_count: 0,

@@ -35,20 +35,24 @@ public func parseStamp(_ stamp: String) -> Date? {
 }
 
 /// The banner a live event earns, or nil: a mention of the human or all, a question from the
-/// only agent in the room, or a room that closes. Never for the human's own posts.
+/// only agent in the room, a room that closes, or a new tool ask. Never for the human's own posts.
 public func notificationFor(event: BusEvent, state: NotifyState) -> NotificationContent? {
   guard state.enabled else { return nil }
   switch event {
   case .message(let e):
     guard isLive(e.message.createdAt, since: state.liveSince), wants(e.message, in: state.room) else { return nil }
-    return content(room: e.room, from: e.message.from, text: e.message.text, muted: state.mutedRooms)
+    return content(room: e.room, body: "\(e.message.from): \(e.message.text)", muted: state.mutedRooms)
   case .room(let e):
     guard e.change == .closed, let closedAt = e.room.closedAt, isLive(closedAt, since: state.liveSince) else {
       return nil
     }
     let line = state.room?.messages.last { $0.kind == .system }?.text ?? "room closed"
     guard !line.hasSuffix(humanCloseSuffix) else { return nil }
-    return content(room: e.room.name, from: systemName, text: line, muted: state.mutedRooms)
+    return content(room: e.room.name, body: "\(systemName): \(line)", muted: state.mutedRooms)
+  case .approval(let e):
+    let ask = e.approval
+    guard ask.state == .pending, isLive(ask.createdAt, since: state.liveSince) else { return nil }
+    return content(room: e.room, body: "\(ask.member) asks to use \(ask.tool): \(ask.description)", muted: state.mutedRooms)
   case .member, .presence, .unknown:
     return nil
   }
@@ -70,9 +74,8 @@ private func wants(_ message: Message, in room: SnapshotRoom?) -> Bool {
   return agents == [message.from]
 }
 
-private func content(room: String, from: String, text: String, muted: Set<String>) -> NotificationContent? {
+private func content(room: String, body: String, muted: Set<String>) -> NotificationContent? {
   guard !muted.contains(room) else { return nil }
-  let body = "\(from): \(text)"
   let cut = body.count > bodyLimit ? body.prefix(bodyLimit - 1) + "…" : body
   return NotificationContent(room: room, title: "#\(room)", body: String(cut))
 }

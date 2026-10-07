@@ -116,7 +116,7 @@ export async function startDaemon({
   const routes: Route[] = [
     { handle: (_req, res) => sendJson(res, 200, health({ now, startedAt, store })), method: 'GET', path: '/health' },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ keys, now, spawner: createSpawner({ dataDir, store, url }), store }),
+    ...feedRoutes({ keys, now, relay: mcp.relay, spawner: createSpawner({ dataDir, store, url }), store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
@@ -126,6 +126,8 @@ export async function startDaemon({
       store.clearStale();
       store.expireInvites();
       doorbell.endPauses();
+      // relay never rejects: a gone session only gives false.
+      store.expireApprovals().forEach(ask => mcp.relay({ ...ask, behavior: 'deny' }));
     } catch (error) {
       logger.error(asError(error), { message: 'presence sweep failed' });
     }

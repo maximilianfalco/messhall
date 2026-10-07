@@ -33,11 +33,15 @@ struct RoomDetail: View {
       if let block = notifier.windowBlock { NotifyBanner(block: block) }
       RoomHeader(room: room, subtitle: subtitle)
       MemberStrip(
-        live: room.liveMembers, away: room.awayMembers, mention: room.isOpen ? { mention($0) } : nil,
+        live: room.liveMembers, away: room.awayMembers, asking: Set(room.approvals.map(\.member)),
+        mention: room.isOpen ? { mention($0) } : nil,
         setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) },
         mute: room.isOpen ? { mute($0) } : nil
       )
       .id(room.name)
+      if !room.approvals.isEmpty {
+        ApprovalCards(approvals: room.approvals, answer: answer)
+      }
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
@@ -115,6 +119,10 @@ struct RoomDetail: View {
 
   private func mute(_ member: Member) {
     Task { refusal = await store.mute(member.name, muted: !member.muted, room: room.name, via: client) }
+  }
+
+  private func answer(_ approval: Approval, allow: Bool) {
+    Task { refusal = await store.answer(approval, allow: allow, via: client) }
   }
 }
 
@@ -235,6 +243,7 @@ struct OlderAppBanner: View {
 struct MemberStrip: View {
   let live: [Member]
   let away: [Member]
+  let asking: Set<String>
   let mention: ((String) -> Void)?
   let setRole: ((_ role: String, _ member: String) -> Void)?
   let remove: ([String]) -> Void
@@ -296,11 +305,11 @@ struct MemberStrip: View {
 
   @ViewBuilder private func mentionable(_ member: Member) -> some View {
     if let mention, member.kind != .human, member.presence != .left {
-      Button { mention(member.name) } label: { MemberChip(member: member) }
+      Button { mention(member.name) } label: { MemberChip(member: member, asks: asking.contains(member.name)) }
         .buttonStyle(.plain)
         .accessibilityHint("Mentions \(member.name) in your message")
     } else {
-      MemberChip(member: member)
+      MemberChip(member: member, asks: asking.contains(member.name))
     }
   }
 }
@@ -363,6 +372,7 @@ struct AwayChip: View {
 
 struct MemberChip: View {
   let member: Member
+  var asks = false
 
   var body: some View {
     HStack(spacing: 8) {
@@ -379,6 +389,9 @@ struct MemberChip: View {
           }
           if member.muted {
             MutedPill()
+          }
+          if asks {
+            AskPill()
           }
         }
         HStack(spacing: 4) {

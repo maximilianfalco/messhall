@@ -11,8 +11,10 @@ import {
   isAccessory,
   leftoverApps,
   MENU_LAYERS,
+  pickShots,
   pickWindow,
   PULL_REQUEST_ANSWERS,
+  seedShotAsk,
   seedShotRooms,
   shotArgs,
   strayApps,
@@ -66,6 +68,7 @@ describe('seedShotRooms', () => {
     expect(rooms).toStrictEqual([
       ['billing', false, 'ledger', false],
       ['checkout', true, 'qa', false],
+      ['deploy', true, 'deployer', false],
       ['docs-sync', true, 'writer', false],
       ['handoff', true, 'api', false],
       ['history', true, 'planner', false],
@@ -185,6 +188,58 @@ describe('seedShotRooms', () => {
 
     expect(history?.message_count).toBe(120);
     expect(page.ok && page.messages[1]?.text).toBe('step 1 of 120: read the plan');
+  });
+});
+
+describe('seedShotAsk', () => {
+  it('leaves the deploy agent active with one pending tool ask, added after the daemon starts', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+    seedShotRooms({ dataDir, now });
+
+    seedShotAsk({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const store = createRoomStore({ db, now: () => now });
+    const asks = store.pendingApprovals('deploy');
+    const presence = store.listMembers('deploy').find(member => member.name === 'deployer')?.presence;
+    db.close();
+    expect(asks.map(ask => [ask.member, ask.tool, ask.state])).toStrictEqual([['deployer', 'Bash', 'pending']]);
+    expect(presence).toBe('active');
+  });
+
+  it('leaves a long ask in #release whose real tail sits past the first lines', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+    const now = new Date('2026-01-01T12:00:00.000Z');
+    seedShotRooms({ dataDir, now });
+
+    seedShotAsk({ dataDir, now });
+
+    const db = openDb({ dataDir });
+    const [ask] = createRoomStore({ db, now: () => now }).pendingApprovals('release');
+    db.close();
+    expect(ask?.input_preview.split('\n').length).toBeGreaterThan(6);
+    expect(ask?.input_preview).toMatch(/git push --force origin main/);
+  });
+});
+
+describe('pickShots', () => {
+  it('takes every shot when no names are given', () => {
+    const picked = pickShots();
+
+    expect(picked.ok && picked.shots.length).toBeGreaterThan(40);
+  });
+
+  it('takes only the named shots, in their own order', () => {
+    expect(pickShots('ask-dark,ask-light,ask-long-light').ok && pickShots('ask-long-light').ok).toBe(true);
+    expect(pickShots('ask-dark,ask-light')).toMatchObject({
+      ok: true,
+      shots: [{ name: 'ask-light' }, { name: 'ask-dark' }],
+    });
+  });
+
+  it('names a shot that does not exist', () => {
+    expect(pickShots('ask-light,nope')).toStrictEqual({ ok: false, unknown: ['nope'] });
   });
 });
 

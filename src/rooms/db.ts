@@ -146,6 +146,24 @@ export const MIGRATIONS = [
   `
   ALTER TABLE members ADD COLUMN paused_at TEXT;
   `,
+  // An agent's tool ask relayed for the human to answer. One row per room its seat is in, all under one id.
+  `
+  CREATE TABLE approvals (
+    id TEXT NOT NULL,
+    room_id TEXT NOT NULL REFERENCES rooms (id),
+    member TEXT NOT NULL,
+    session TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    description TEXT NOT NULL,
+    input_preview TEXT NOT NULL,
+    state TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    answered_at TEXT,
+    PRIMARY KEY (id, room_id)
+  );
+  CREATE INDEX approvals_state ON approvals (state, created_at);
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

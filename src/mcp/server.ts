@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { CLI_VERSION } from '../config.js';
 
 import { INSTRUCTIONS, PROTOCOL_VERSIONS, SERVER_NAME, TOOL_DESCRIPTIONS, TOOL_NAMES } from './constants.js';
+import { registerPermissionRelay } from './permission.js';
 import { registerAssignRole } from './tools/assignRole.js';
 import { registerJoin } from './tools/join.js';
 import { registerKick } from './tools/kick.js';
@@ -42,11 +43,16 @@ export function createMesshallServer(deps: ToolDeps) {
   const server = new McpServer(
     { name: SERVER_NAME, version: CLI_VERSION },
     {
-      capabilities: { experimental: { 'claude/channel': {} }, tools: { listChanged: false } },
+      // The permission key is safe to declare because only the human key can answer an ask.
+      capabilities: {
+        experimental: { 'claude/channel': {}, 'claude/channel/permission': {} },
+        tools: { listChanged: false },
+      },
       instructions: INSTRUCTIONS,
       supportedProtocolVersions: PROTOCOL_VERSIONS,
     },
   );
   TOOL_NAMES.forEach(name => TOOLS[name](server, deps, TOOL_DESCRIPTIONS[name]));
+  registerPermissionRelay(server, deps);
   return server;
 }

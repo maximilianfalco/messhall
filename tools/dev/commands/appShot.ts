@@ -100,6 +100,10 @@ const SHOTS = [
   { appearance: 'dark', name: 'settings-notify-asked-dark', notify: 'notAsked', settings: 'notifications' },
   { appearance: 'light', name: 'pr-cards-light', pullRequests: true, room: 'reviews' },
   { appearance: 'dark', name: 'pr-cards-dark', pullRequests: true, room: 'reviews' },
+  { appearance: 'light', name: 'ask-light', room: 'deploy' },
+  { appearance: 'dark', name: 'ask-dark', room: 'deploy' },
+  { appearance: 'light', name: 'ask-long-light', room: 'release' },
+  { appearance: 'dark', name: 'ask-long-dark', room: 'release' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
 ] as const;
@@ -324,10 +328,62 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     });
     store.postMessage({ done: true, from: 'writer', room: 'release-notes', text: 'notes drafted' });
     store.createRoom({ created_by: 'human', name: 'kickoff' });
+    store.joinRoom({ as: 'deployer', client: CLAUDE, kind: 'claude', room: 'deploy' });
+    store.postMessage({ from: 'deployer', room: 'deploy', text: 'migration is ready, running it on staging next' });
     store.sweepPresence({ ringable: () => false });
   } finally {
     db.close();
   }
+}
+
+// Harmless first lines and the real step at the end, so the shot proves the card shows the whole call.
+const LONG_ASK = [
+  '{ "command": "set -e',
+  'pnpm install --frozen-lockfile',
+  'pnpm build',
+  'pnpm test',
+  'git tag v2.0.0',
+  'git push origin v2.0.0',
+  'git push --force origin main',
+  'npm publish --access public" }',
+].join('\n');
+
+/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release. Runs after the daemon starts, since its start marks
+ * every agent away and expires every pending ask. */
+export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
+  const db = openDb({ dataDir });
+  try {
+    const store = createRoomStore({ db, now: () => now });
+    store.touch({ as: 'deployer', room: 'deploy', state: 'active' });
+    store.openApproval({
+      description: 'Run the staging migration',
+      inputPreview: '{"command": "pnpm db:migrate --env staging"}',
+      requestId: 'abcde',
+      seats: [{ name: 'deployer', room: 'deploy' }],
+      session: 'shot',
+      tool: 'Bash',
+    });
+    store.joinRoom({ as: 'shipper', client: CLAUDE, kind: 'claude', room: 'release' });
+    store.openApproval({
+      description: 'Tag and publish the release',
+      inputPreview: LONG_ASK,
+      requestId: 'fghij',
+      seats: [{ name: 'shipper', room: 'release' }],
+      session: 'shot-long',
+      tool: 'Bash',
+    });
+  } finally {
+    db.close();
+  }
+}
+
+/** The shots named in a comma list, in table order, or every shot when no list is given. */
+export function pickShots(only?: string) {
+  if (only === undefined) return { ok: true, shots: SHOTS } as const;
+  const names = only.split(',').map(name => name.trim());
+  const unknown = names.filter(name => !SHOTS.some(shot => shot.name === name));
+  if (unknown.length) return { ok: false, unknown } as const;
+  return { ok: true, shots: SHOTS.filter(shot => names.includes(shot.name)) } as const;
 }
 
 /** Kills each launched app that is still alive and returns those pids, so a shot run never leaves one behind. */
@@ -563,10 +619,12 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, Shift Return making a new line at the end and mid-draft, the New Room sheet, a standing room, a closed room, PR cards, each Settings pane, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
-async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, Shift Return making a new line at the end and mid-draft, the New Room sheet, a standing room, a closed room, PR cards, each Settings pane, a tool ask card, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `only`, just the named shots. With `sidebar`, records the sidebar toggle instead. */
+async function appShot({ home, only, port, sidebar }: { home: string; only?: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
+  const picked = pickShots(only);
+  if (!picked.ok) return { code: 1, report: bad(`no shot named ${picked.unknown.join(', ')}`) };
   rmSync(home, { force: true, recursive: true });
   mkdirSync(home, { recursive: true });
   mkdirSync(OUT_DIR, { recursive: true });
@@ -577,6 +635,7 @@ async function appShot({ home, port, sidebar }: { home: string; port: number; si
   if (sidebar && !buildRecorder()) return { code: 1, report: bad('building the window recorder failed') };
   const daemon = await spawnDaemon({ detached: false, home, port });
   if (!daemon.ok) return { code: 1, report: daemon.report };
+  seedShotAsk({ dataDir: home, now: new Date() });
 
   const env = { ...process.env, MESSHALL_HOME: home, MESSHALL_PORT: String(port) };
   const rows: string[][] = [];
@@ -587,17 +646,19 @@ async function appShot({ home, port, sidebar }: { home: string; port: number; si
       const [[name = '', mov = ''] = []] = await shootAll({ app, env, launched, shots: [RECORDING] });
       rows.push([name, await toGif(mov)]);
     } else {
-      spawnSync(path.join(app, 'Contents', 'MacOS', 'Messhall'), ['-renderStatus', OUT_DIR], { env });
-      rows.push(
-        ['menu-light', path.join(OUT_DIR, 'menu-light.png')],
-        ['menu-dark', path.join(OUT_DIR, 'menu-dark.png')],
-      );
-      rows.push(...(await shootAll({ app, env, launched, shots: SHOTS })));
+      if (only === undefined) {
+        spawnSync(path.join(app, 'Contents', 'MacOS', 'Messhall'), ['-renderStatus', OUT_DIR], { env });
+        rows.push(
+          ['menu-light', path.join(OUT_DIR, 'menu-light.png')],
+          ['menu-dark', path.join(OUT_DIR, 'menu-dark.png')],
+        );
+      }
+      rows.push(...(await shootAll({ app, env, launched, shots: picked.shots })));
     }
   } finally {
     await daemon.stop();
   }
-  if (!sidebar) rows.push(...(await shootAll({ app, env, launched, shots: DOWN_SHOTS })));
+  if (!sidebar && only === undefined) rows.push(...(await shootAll({ app, env, launched, shots: DOWN_SHOTS })));
   const sized = rows.map(([name = '', file = '']) => {
     const size = file.startsWith('/')
       ? `${Math.round((statSync(file, { throwIfNoEntry: false })?.size ?? 0) / 1000)} kB`
@@ -624,7 +685,7 @@ async function appShot({ home, port, sidebar }: { home: string; port: number; si
   return { code, report: [table, '', ...anchors, verdict, quit, stray].join('\n') };
 }
 
-/** Registers `app-shot [--port <n>] [--home <dir>] [--sidebar]`. */
+/** Registers `app-shot [--port <n>] [--home <dir>] [--sidebar] [--only <names>]`. */
 export function registerAppShot(program: Command) {
   program
     .command('app-shot')
@@ -634,9 +695,11 @@ export function registerAppShot(program: Command) {
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)
     .option('--sidebar', 'instead of the shots, record a human post and the sidebar hiding and showing, as a gif')
-    .action(async (options: { home: string; port: string; sidebar?: boolean }) => {
+    .option('--only <names>', 'only these shots, a comma list like ask-light,ask-dark')
+    .action(async (options: { home: string; only?: string; port: string; sidebar?: boolean }) => {
       const result = await appShot({
         home: options.home,
+        only: options.only,
         port: Number(options.port),
         sidebar: options.sidebar ?? false,
       });
