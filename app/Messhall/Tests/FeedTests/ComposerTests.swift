@@ -10,7 +10,9 @@ struct ComposerTests {
     #expect(returnSends(modifiers))
   }
 
-  @Test("shift or option return makes a new line", arguments: [EventModifiers.shift, .option, [.shift, .option], [.shift, .capsLock]])
+  @Test(
+    "shift or option return makes a new line",
+    arguments: [EventModifiers.shift, .option, [.shift, .option], [.shift, .capsLock]])
   func newLine(modifiers: EventModifiers) {
     #expect(!returnSends(modifiers))
   }
