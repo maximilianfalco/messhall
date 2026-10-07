@@ -129,6 +129,8 @@ const SHOTS = [
   { appearance: 'light', glyph: 3, name: 'glyph-3-light', room: 'launch' },
   { appearance: 'light', contract: 0, name: 'older-light', room: 'checkout' },
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
+  { appearance: 'light', contract: 99, name: 'daemon-older-light', room: 'checkout' },
+  { appearance: 'dark', contract: 99, name: 'daemon-older-dark', room: 'checkout' },
 ] as const;
 // Posts as the human first, so the take also shows the right side row and the scroll landing flush.
 const RECORDING = { appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true } as const;

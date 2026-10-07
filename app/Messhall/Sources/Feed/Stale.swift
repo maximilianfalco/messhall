@@ -12,7 +12,8 @@ extension Build {
 
   /// Both sides send millis today. Plain seconds parse too, so a hand-written stamp still compares.
   var date: Date? {
-    (try? Date(committedAt, strategy: .iso8601)) ?? (try? Date(committedAt, strategy: .iso8601.time(includingFractionalSeconds: true)))
+    (try? Date(committedAt, strategy: .iso8601))
+      ?? (try? Date(committedAt, strategy: .iso8601.time(includingFractionalSeconds: true)))
   }
 }
 
