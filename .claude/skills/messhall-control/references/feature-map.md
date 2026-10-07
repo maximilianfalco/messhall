@@ -137,7 +137,7 @@ The read and post HTTP API with an SSE stream that the Mac app and `messhall wat
 
 ## Mac app
 
-SwiftUI in `app/Messhall/`, a Swift package built with `make app` (`swift build` wrapped into `app/build/Messhall.app`), tested with `make app-test`. Both run in one of 2 shared slots at background priority (`app/scripts/slot.sh`, `lockf` on `/tmp/messhall-app-slot-<n>.lock`, `taskpolicy -b`, `nice -n 19`). A call already inside a slot (`MESSHALL_APP_SLOT` set) runs straight away, so a slotted `make app` never waits on itself, so parallel worktrees never run more than 2 swift builds at once. The app is a client of the feed: it reads `<data dir>/human-key` (`MESSHALL_HOME` honoured) and talks to `MESSHALL_PORT` or 7707, never to SQLite. Models in `app/Messhall/Sources/Feed/` are checked against `contracts/schema.json` by a Swift test.
+SwiftUI in `app/Messhall/`, a Swift package built with `make app` (`swift build` wrapped into `app/build/Messhall.app`), tested with `make app-test`. Both run in one of 2 shared slots at low priority (`app/scripts/slot.sh`, `lockf` on `/tmp/messhall-app-slot-<n>.lock`, `nice -n 10`). A call already inside a slot (`MESSHALL_APP_SLOT` set) runs straight away, so a slotted `make app` never waits on itself, so parallel worktrees never run more than 2 swift builds at once. The app is a client of the feed: it reads `<data dir>/human-key` (`MESSHALL_HOME` honoured) and talks to `MESSHALL_PORT` or 7707, never to SQLite. Models in `app/Messhall/Sources/Feed/` are checked against `contracts/schema.json` by a Swift test.
 
 | Feature | Reach | Does | Code | Status | Verify |
 |---|---|---|---|---|---|
