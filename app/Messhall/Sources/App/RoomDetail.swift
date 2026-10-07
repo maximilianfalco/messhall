@@ -443,14 +443,27 @@ struct StatusLine: View {
     private var reduceMotion: Bool { systemReduceMotion }
   #endif
 
+  #if DEBUG
+    private func glyph(at date: Date, animated: Bool) -> String {
+      guard let shot = ShotHooks.glyphFrame else { return Thinking.glyph(at: date, animated: animated) }
+      return Thinking.glyph(at: Date(timeIntervalSinceReferenceDate: Double(shot) * Thinking.step), animated: true)
+    }
+  #else
+    private func glyph(at date: Date, animated: Bool) -> String { Thinking.glyph(at: date, animated: animated) }
+  #endif
+
+  // The caption style the line uses, so the box fits the glyphs as drawn.
+  private static let glyphBox = Thinking.box(for: .preferredFont(forTextStyle: .caption1))
+
   var body: some View {
     let animated = member.isThinking && !reduceMotion
     TimelineView(.periodic(from: .now, by: 60)) { minute in
       let text = member.statusLine(now: minute.date) ?? ""
       TimelineView(.animation(minimumInterval: Thinking.step, paused: !animated)) { frame in
         HStack(spacing: 4) {
-          Text(Thinking.glyph(at: frame.date, animated: animated))
+          Text(glyph(at: frame.date, animated: animated))
             .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
+            .frame(width: Self.glyphBox)
           Text(text)
             .foregroundStyle(animated ? AnyShapeStyle(shimmer(at: frame.date)) : AnyShapeStyle(.secondary))
             .lineLimit(1)

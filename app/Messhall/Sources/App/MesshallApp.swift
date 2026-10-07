@@ -111,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         Task { await ShotHooks.openSettings(numberInto: file) }
       }
       if UserDefaults.standard.bool(forKey: "shotMenu") { Task { await ShotHooks.openMenu() } }
+      let width = UserDefaults.standard.double(forKey: "shotWidth")
+      if width > 0 { Task { await ShotHooks.resize(width: width) } }
       if let file = UserDefaults.standard.string(forKey: "shotHotkey") {
         Task { await ShotHooks.pressHotkey(hotkey, settings: settings, logTo: file) }
       }

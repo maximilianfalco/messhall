@@ -1,8 +1,24 @@
+import AppKit
 import SwiftUI
 
 /// The GitHub mark, drawn from its official 16 pt octicon path since SF Symbols has none.
-struct GitHubMark: Shape {
-  func path(in rect: CGRect) -> Path {
+public struct GitHubMark: Shape {
+  /// The mark as a 16 pt template image. Menus, like the toolbar's overflow menu, only draw images, not shapes.
+  @MainActor public static let image: NSImage = {
+    let size = NSSize(width: 16, height: 16)
+    let image = NSImage(size: size, flipped: true) { rect in
+      NSGraphicsContext.current?.cgContext.addPath(GitHubMark().path(in: rect).cgPath)
+      NSGraphicsContext.current?.cgContext.fillPath()
+      return true
+    }
+    image.isTemplate = true
+    image.accessibilityDescription = "GitHub"
+    return image
+  }()
+
+  public init() {}
+
+  public func path(in rect: CGRect) -> Path {
     let scale = min(rect.width, rect.height) / 16
     func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * scale, y: rect.minY + y * scale) }
     var p = Path()
