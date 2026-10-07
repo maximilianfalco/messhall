@@ -268,7 +268,7 @@ describe('the /mcp endpoint', () => {
     clients.push(first.client);
     const orchestrator = await agent(url);
     const joined = await first.client.callTool({ arguments: { as: 'api', room: 'checkout' }, name: 'join' });
-    const token = /seat token: ([0-9a-f-]{36})\./.exec(textOf(joined))?.[1];
+    const token = /seat token: (tok-[0-9a-f-]{36})\./.exec(textOf(joined))?.[1];
     await orchestrator.call('join', { as: 'orchestrator', room: 'checkout' });
     await orchestrator.call('assign_role', { member: 'api', role: 'worker', room: 'checkout' });
     await first.transport.terminateSession();

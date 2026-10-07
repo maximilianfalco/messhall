@@ -40,7 +40,7 @@ Enter
 Wait+Screen@60s /name taken/
 Sleep 3s
 
-Type "claude-seat api $(grep -o '[0-9a-f-]\{36\}' /tmp/plain-claude-seat.out); echo exit $?"
+Type "claude-seat api $(grep -o 'tok-[0-9a-f-]\{36\}' /tmp/plain-claude-seat.out); echo exit $?"
 Sleep 500ms
 Enter
 Wait+Screen@60s /worker/

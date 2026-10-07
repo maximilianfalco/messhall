@@ -2,12 +2,13 @@ import type { Message } from '../../../contracts/room.ts';
 import type { ToolDeps } from './registry.js';
 import type { McpServer, ServerContext } from '@modelcontextprotocol/server';
 
-import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { joinInputSchema } from '../../../contracts/mcp.ts';
 import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
+import { SEAT_TOKEN_FREE_AFTER_MS } from '../../config.js';
+import { newSeatToken } from '../../rooms/store.js';
 import { clientType, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
 import { memberLabel, roleBlock } from '../render.js';
 import { bindSeat } from '../seats.js';
@@ -39,7 +40,7 @@ const TOPIC_NOT_SET =
   'the room already has a topic, so yours was not set. the maker or an orchestrator can change it with set_topic.';
 
 const seatTokenLine = (token: string) =>
-  `seat token: ${token}. pass it as seat_token on your next join to get this seat back. without it only a kick frees the name.`;
+  `seat token: ${token}. pass it as seat_token on your next join to get this seat back. without it the name frees up after ${SEAT_TOKEN_FREE_AFTER_MS / 60_000} min away.`;
 
 const summaryBlock = (summary: Message | undefined) =>
   summary
@@ -72,7 +73,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       const holderDead = holders.every(entry => entry.session.dead());
       // A claude started by hand sends no seat header, so it gets a token to bring back on its next join.
       const keyless = !session.seat && !input.thread_id && !input.invite;
-      token = keyless ? (input.seat_token ?? (kind === 'claude' ? randomUUID() : undefined)) : undefined;
+      token = keyless ? (input.seat_token ?? (kind === 'claude' ? newSeatToken() : undefined)) : undefined;
       // Codex sends no seat header, so its thread id is its seat key.
       const seat = session.seat ?? input.thread_id ?? token;
       const { invite, observe, room, topic } = input;
@@ -101,12 +102,12 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
     return reply(
       [
         reconnected ? `reconnected #${input.room} as ${as}, your bookmark is kept.` : `joined #${input.room} as ${as}.`,
+        ...(token ? [seatTokenLine(token)] : []),
         `topic: ${room.topic ?? 'none'}. ${room.closed_at ? 'closed' : 'open'}, ${room.message_count} posts.`,
         ...(input.topic && input.topic !== room.topic ? [TOPIC_NOT_SET] : []),
         `members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,
-        ...(token ? [seatTokenLine(token)] : []),
         ...roleBlock({ role: store.roleOf({ name: as, room: input.room })!, room: input.room }),
         ...(kind === 'codex' || input.thread_id
           ? [session.threadId ? 'doorbell: codex' : 'doorbell: none (call wait)']
