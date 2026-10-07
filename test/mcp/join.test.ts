@@ -32,6 +32,24 @@ describe('join', () => {
     expect(result.text.split('\n').filter(line => line.startsWith('rules: '))).toHaveLength(2);
   });
 
+  it('says how many notes wait for the name and from whom', async () => {
+    const web = await harness.joined('checkout', 'web');
+    await web.call('post', { room: 'checkout', text: '@api the schema is in src/order.ts' });
+    const api = await harness.agent();
+
+    const result = await api.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result.text).toContain('1 note waits for you from web, call read_since to read it.');
+  });
+
+  it('says nothing about notes when none wait', async () => {
+    const api = await harness.agent();
+
+    const result = await api.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result.text).not.toContain('waits for you');
+  });
+
   it('counts posts waiting for the member, not daemon lines', async () => {
     const web = await harness.joined('checkout', 'web');
     await web.call('post', { room: 'checkout', text: 'anyone here?' });

@@ -77,6 +77,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
 
     let reconnected = false;
     let token: string | undefined;
+    let notes = { count: 0, from: [] as string[] };
     if (!held) {
       const holders = sessions.sessionsFor({ name: as, room: input.room });
       const holderDead = holders.every(entry => entry.session.dead());
@@ -96,6 +97,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       if (!joined.ok && joined.reason === 'room_closed') return refuse('room is closed, ask the human to reopen.');
       if (!joined.ok) return refuse(`name taken, try ${joined.suggestion}.`);
       reconnected = joined.change === 'reconnected';
+      notes = joined.notes;
     }
     bindSeat({ client, kind, name: as, room: input.room, session, sessions, store, threadId });
 
@@ -118,6 +120,11 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
         ...agreementsBlock({ agreements: store.agreementsIn(input.room), room: input.room }),
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,
+        ...(notes.count
+          ? [
+              `${notes.count} ${notes.count === 1 ? 'note waits' : 'notes wait'} for you from ${notes.from.join(' and ')}, call read_since to read ${notes.count === 1 ? 'it' : 'them'}.`,
+            ]
+          : []),
         ...roleBlock({ role: store.roleOf({ name: as, room: input.room })!, room: input.room }),
         ...store
           .questionsOf({ as, room: input.room })

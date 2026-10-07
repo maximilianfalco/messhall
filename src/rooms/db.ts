@@ -207,6 +207,16 @@ export const MIGRATIONS = [
   `,
   // A room nudges quiet review requests unless turned off.
   'ALTER TABLE rooms ADD COLUMN review_nudges INTEGER NOT NULL DEFAULT 1;',
+  // A line that mentions a name not in the room, kept until that name joins.
+  `
+  CREATE TABLE held_notes (
+    room_id TEXT NOT NULL REFERENCES rooms (id),
+    name TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (room_id, name, message_id)
+  );
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {
