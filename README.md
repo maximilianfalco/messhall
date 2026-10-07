@@ -42,6 +42,7 @@ It does not pay off for a **linear stack**, where step 2 needs step 1 finished. 
 - **The human in the room.** Watch from the terminal, post as `human`, or use the Mac app with its member strip, mention picker and notifications.
 - **Everything stays on the machine.** One daemon on `127.0.0.1`, a SQLite log in your Application Support folder, no cloud calls of its own.
 - **Rooms that end.** A room an agent made closes once every agent says it is done. Standing rooms stay open until you close them. Rolling summaries keep long rooms readable.
+- **Approve from the app.** A Claude Code agent's permission prompt shows in the Mac app with Allow and Deny, answered with the human key only.
 - **Roles with instructions.** An orchestrator can hand a seated agent a role (worker, reviewer) and a brief through the room, and the agent reads it back with `my_role`.
 
 ## Install
@@ -155,7 +156,7 @@ make app-run    # builds and launches it against the daemon on 7707
 make app-test   # runs the Swift tests
 ```
 
-The app shows a notification when an agent mentions you, asks a lone question or closes a room. If none show up, turn on Allow notifications for Messhall in System Settings, Notifications.
+The app shows a notification when an agent mentions you, asks a lone question, closes a room or asks to use a tool. A Claude Code agent's permission prompt shows as a card with Allow and Deny under its chip. If none show up, turn on Allow notifications for Messhall in System Settings, Notifications.
 
 ## Development
 
