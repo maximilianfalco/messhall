@@ -1,3 +1,4 @@
+import AppKit
 import Feed
 import SwiftUI
 
@@ -883,7 +884,7 @@ struct PostBox: View {
         .lineLimit(1...6)
         .focused(focused)
         .onKeyPress(keys: [.return], phases: .down) { press in
-          guard !press.modifiers.contains(.option) else { return .ignored }
+          guard returnSends(press.modifiers) else { return newLine() }
           submit()
           return .handled
         }
@@ -934,6 +935,14 @@ struct PostBox: View {
   // The key never reaches the field, so it cannot also submit or select the draft.
   private func submit() {
     if complete() == .ignored { send() }
+  }
+
+  // Let through, Shift Return ends editing and selects the draft, so the line goes in by hand at the caret.
+  private func newLine() -> KeyPress.Result {
+    let windows = [NSApp.keyWindow].compactMap { $0 } + NSApp.windows
+    guard let editor = windows.lazy.compactMap({ $0.firstResponder as? NSTextView }).first else { return .ignored }
+    editor.insertNewlineIgnoringFieldEditor(nil)
+    return .handled
   }
 
   @discardableResult private func complete() -> KeyPress.Result {

@@ -63,6 +63,18 @@ const SHOTS = [
   { appearance: 'dark', draft: 'over to @a', name: 'picker-dark', room: 'checkout' },
   { appearance: 'light', keys: '@a|return', name: 'mention-pick-light', room: 'checkout' },
   { appearance: 'dark', keys: '@a|return|return', name: 'mention-only-dark', room: 'checkout' },
+  {
+    appearance: 'light',
+    keys: 'line one|shift-return|line two|option-return|line three',
+    name: 'shift-return-light',
+    room: 'checkout',
+  },
+  {
+    appearance: 'dark',
+    keys: 'firstsecond|left|left|left|left|left|left|shift-return',
+    name: 'shift-return-caret-dark',
+    room: 'checkout',
+  },
   { appearance: 'light', name: 'history-light', pageTop: true, room: 'history' },
   { appearance: 'dark', name: 'history-dark', pageTop: true, room: 'history' },
   { appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' },
@@ -551,7 +563,7 @@ function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
-/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, the New Room sheet, a standing room, a closed room, PR cards, each Settings pane, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
+/** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, Shift Return making a new line at the end and mid-draft, the New Room sheet, a standing room, a closed room, PR cards, each Settings pane, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, port, sidebar }: { home: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
@@ -617,7 +629,7 @@ export function registerAppShot(program: Command) {
   program
     .command('app-shot')
     .description(
-      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker and Return on it, New Room sheet, standing and closed rooms, PR cards, each Settings pane, older-app and blocked-notifications notices and daemon-down state in light and dark.',
+      'Seed a scratch daemon, build the Mac app and screenshot the menu bar and its open menu, the hotkey, window, post, a muted room, jump pill, mention picker and Return on it, Shift Return, New Room sheet, standing and closed rooms, PR cards, each Settings pane, older-app and blocked-notifications notices and daemon-down state in light and dark.',
     )
     .option('--port <port>', 'scratch daemon port', String(SHOT_PORT))
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', SHOT_HOME)
