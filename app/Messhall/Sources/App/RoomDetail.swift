@@ -856,6 +856,7 @@ struct PostBox: View {
   @State private var refusal: String?
   @State private var highlight: String?
   @State private var dismissedOn: String?
+  @State private var emptyOn: String?
 
   private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -873,7 +874,11 @@ struct PostBox: View {
         .textFieldStyle(.plain)
         .lineLimit(1...6)
         .focused(focused)
-        .onSubmit(submit)
+        .onKeyPress(keys: [.return], phases: .down) { press in
+          guard !press.modifiers.contains(.option) else { return .ignored }
+          submit()
+          return .handled
+        }
         .onKeyPress(.downArrow) { move(by: 1) }
         .onKeyPress(.upArrow) { move(by: -1) }
         .onKeyPress(.tab) { complete() }
@@ -899,6 +904,10 @@ struct PostBox: View {
         Text(refusal)
           .font(.caption)
           .foregroundStyle(.red)
+      } else if text == emptyOn {
+        Text("Say something after the mention")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
     }
     .padding(.horizontal, 16)
@@ -914,6 +923,7 @@ struct PostBox: View {
   }
 
   // Return picks the name while the list is up, so a half typed mention is never sent.
+  // The key never reaches the field, so it cannot also submit or select the draft.
   private func submit() {
     if complete() == .ignored { send() }
   }
@@ -938,6 +948,10 @@ struct PostBox: View {
 
   private func send() {
     guard !trimmed.isEmpty, !sending else { return }
+    guard !onlyMentions(trimmed) else {
+      emptyOn = text
+      return
+    }
     let draft = trimmed
     sending = true
     Task {

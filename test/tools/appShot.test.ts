@@ -243,6 +243,13 @@ describe('shotArgs', () => {
     expect(args[args.indexOf('-shotPageTop') + 1]).toMatch(/demo\/out\/shots\/history-dark\.anchor$/);
   });
 
+  it('presses keys in the composer and has the app note the field after each one', () => {
+    const args = shotArgs({ appearance: 'light', keys: '@a|return', name: 'mention-pick-light', room: 'checkout' });
+
+    expect(args).toStrictEqual(expect.arrayContaining(['-shotKeys', '@a|return']));
+    expect(args[args.indexOf('-shotKeysOut') + 1]).toMatch(/demo\/out\/shots\/mention-pick-light\.keys$/);
+  });
+
   it('sets a role through the app for the role shot', () => {
     expect(shotArgs({ appearance: 'light', name: 'role-light', role: 'qa=reviewer', room: 'checkout' })).toStrictEqual(
       expect.arrayContaining(['-shotRole', 'qa=reviewer', '-shotRoom', 'checkout']),
