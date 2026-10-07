@@ -40,8 +40,18 @@ const logTail = (home: string) => {
   }
 };
 
-/** Spawns `messhall daemon` from source on `home` and `port` and waits for /health. */
-export async function spawnDaemon({ detached, home, port }: { detached: boolean; home: string; port: number }) {
+/** Spawns `messhall daemon` from source on `home` and `port` and waits for /health. `env` adds to the daemon's. */
+export async function spawnDaemon({
+  detached,
+  env = {},
+  home,
+  port,
+}: {
+  detached: boolean;
+  env?: NodeJS.ProcessEnv;
+  home: string;
+  port: number;
+}) {
   const url = `http://${DAEMON_HOST}:${port}`;
   const child = spawn(
     process.execPath,
@@ -49,7 +59,7 @@ export async function spawnDaemon({ detached, home, port }: { detached: boolean;
     {
       cwd: REPO_ROOT,
       detached,
-      env: { ...process.env, MESSHALL_HOME: home, MESSHALL_PORT: String(port) },
+      env: { ...process.env, ...env, MESSHALL_HOME: home, MESSHALL_PORT: String(port) },
       stdio: 'ignore',
     },
   );

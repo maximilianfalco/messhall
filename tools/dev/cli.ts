@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 
 import { registerAgent } from './commands/agent.js';
+import { registerAppPerf } from './commands/appPerf.js';
 import { registerAppShot } from './commands/appShot.js';
 import { registerChannel } from './commands/channel.js';
 import { registerCheck } from './commands/check.js';
@@ -39,6 +40,7 @@ const program = new Command()
   registerMcp,
   registerAgent,
   registerAppShot,
+  registerAppPerf,
   registerChannel,
   registerCodex,
   registerCodexTypes,

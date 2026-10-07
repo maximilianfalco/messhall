@@ -20,7 +20,7 @@ const SHOT_PORT = 7796;
 const SHOT_HOME = '/tmp/messhall-tape-home-app';
 const OUT_DIR = path.join(REPO_ROOT, 'demo', 'out', 'shots');
 const BUNDLE_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'bundle.sh');
-const WINDOWS_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'windows.swift');
+export const WINDOWS_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'windows.swift');
 const RECORD_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'record.swift');
 const RECORDER = path.join(REPO_ROOT, 'demo', 'out', 'record');
 // The app waits this long before each sidebar toggle, so the take holds both slides.
@@ -526,6 +526,14 @@ export function layoutResets(bundleId: string) {
   return SAVED_LAYOUT.map(key => ['delete', bundleId, key]);
 }
 
+/** Forgets the window frame and sidebar the last app from this build saved, so the next one opens on screen. */
+export function forgetLayout(app: string) {
+  const bundleId = spawnSync('defaults', ['read', path.join(app, 'Contents', 'Info'), 'CFBundleIdentifier'], {
+    encoding: 'utf8',
+  }).stdout.trim();
+  layoutResets(bundleId).forEach(args => spawnSync('defaults', args, { stdio: 'ignore' }));
+}
+
 /** The launch args for one shot. The real app may share the bundle id, so a window closed there would stay shut here. */
 export function shotArgs(shot: Shot) {
   return [
@@ -579,7 +587,7 @@ export function isAccessory(lsappinfo: string) {
 }
 
 /** Pids running this build's app binary, matched by its full path. */
-function appPids(app: string) {
+export function appPids(app: string) {
   const result = spawnSync('pgrep', ['-f', path.join(app, 'Contents', 'MacOS', 'Messhall')], { encoding: 'utf8' });
   return result.stdout.split('\n').filter(Boolean).map(Number);
 }
@@ -590,7 +598,8 @@ async function settingsWindow(shot: Shot) {
   return (await waitFile(file)) ?? readFileSync(file, 'utf8').trim();
 }
 
-async function waitWindow(
+/** The app's main window number once it draws one, or undefined after 30 s. */
+export async function waitWindow(
   pid: number,
   layers = WINDOW_LAYERS,
   deadline = Date.now() + WINDOW_WITHIN_MS,
@@ -626,10 +635,7 @@ async function shoot({
   rmSync(anchorFile(shot), { force: true });
   rmSync(hotkeyFile(shot), { force: true });
   rmSync(keysFile(shot), { force: true });
-  const bundleId = spawnSync('defaults', ['read', path.join(app, 'Contents', 'Info'), 'CFBundleIdentifier'], {
-    encoding: 'utf8',
-  }).stdout.trim();
-  layoutResets(bundleId).forEach(args => spawnSync('defaults', args, { stdio: 'ignore' }));
+  forgetLayout(app);
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
@@ -715,7 +721,8 @@ async function toGif(mov: string) {
   return size > GIF_LIMIT_BYTES ? `gif is ${Math.round(size / 1e6)} MB, over the 10 MB limit` : gif;
 }
 
-function buildApp() {
+/** Runs `app/scripts/bundle.sh` and gives the app path, or undefined when the build fails. */
+export function buildApp() {
   const result = spawnSync('bash', [BUNDLE_SCRIPT], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
   if (result.status !== 0) return;
   return result.stdout.trim().split('\n').at(-1);

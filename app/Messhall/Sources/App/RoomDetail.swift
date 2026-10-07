@@ -461,24 +461,22 @@ struct StatusLine: View {
   // The caption style the line uses, so the box fits the glyphs as drawn.
   private static let glyphBox = Thinking.box(for: .preferredFont(forTextStyle: .caption1))
 
+  // The frame is read only while spinning, so a still line never redraws on a tick.
   var body: some View {
+    let clock = ThinkingClock.shared
     let animated = member.isThinking && !reduceMotion
-    TimelineView(.periodic(from: .now, by: 60)) { minute in
-      let text = member.statusLine(now: minute.date) ?? ""
-      TimelineView(.animation(minimumInterval: Thinking.step, paused: !animated)) { frame in
-        HStack(spacing: 4) {
-          Text(glyph(at: frame.date, animated: animated))
-            .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
-            .frame(width: Self.glyphBox)
-          Text(text)
-            .foregroundStyle(animated ? AnyShapeStyle(shimmer(at: frame.date)) : AnyShapeStyle(.secondary))
-            .lineLimit(1)
-            .truncationMode(.tail)
-        }
-        .font(.caption)
-        .frame(maxWidth: maxWidth, alignment: .leading)
-      }
+    let frame = animated ? clock.frame : .distantPast
+    HStack(spacing: 4) {
+      Text(glyph(at: frame, animated: animated))
+        .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
+        .frame(width: Self.glyphBox)
+      Text(member.statusLine(now: clock.minute) ?? "")
+        .foregroundStyle(animated ? AnyShapeStyle(shimmer(at: frame)) : AnyShapeStyle(.secondary))
+        .lineLimit(1)
+        .truncationMode(.tail)
     }
+    .font(.caption)
+    .frame(maxWidth: maxWidth, alignment: .leading)
   }
 
   // A light band slides across the secondary text, a little past each edge so it fades in and out.
@@ -545,6 +543,36 @@ struct OlderPages {
   let load: () -> Void
 }
 
+/// The height of every row measured so far, by row id. A class, so a measure writes it without a redraw.
+@MainActor
+final class RowHeights {
+  private var byId: [Int: Double] = [:]
+  private var guess = RowWindow.defaultHeight
+  private var stale = false
+
+  func set(_ height: Double, for id: Int) {
+    byId[id] = height
+    stale = true
+  }
+
+  /// Each row's height, the guess for rows never shown.
+  func heights(of rows: [TranscriptItem]) -> [Double] {
+    if stale {
+      guess = RowWindow.guess(measured: Array(byId.values))
+      stale = false
+    }
+    return rows.map { byId[$0.id] ?? guess }
+  }
+}
+
+/// The part of the rows stack on screen, in its own coordinates.
+private struct Band: Equatable {
+  let top: Double
+  let bottom: Double
+
+  var height: Double { bottom - top }
+}
+
 /// Where rows sat on screen when an older page was asked for. A class, so a scroll writes it without a redraw.
 @MainActor
 final class ScrollMarks {
@@ -569,8 +597,14 @@ struct Transcript: View {
   @State private var ready = false
   @State private var anchorRow: Int?
   @State private var flashing: Int?
+  /// The ids of the rows built for real, by both ends. Nil until the first scroll geometry lands.
+  @State private var window: ClosedRange<Int>?
+  @State private var heights = RowHeights()
 
   private static let end = "end"
+  private static let spacing = 6.0
+  /// How long the view takes to settle at the bottom after it opens.
+  private static let settle = 0.8
 
   // A filter shows the matching lines as they are, so a search for a name is not hidden in a fold.
   private var items: [TranscriptItem] {
@@ -588,16 +622,21 @@ struct Transcript: View {
       let rows = items
       let watched: Set<Int?> = [rows.first?.id, anchorRow]
       let (hasMore, loading) = (older.hasMore, older.loading)
+      let real = span(of: rows)
+      let rowHeights = heights.heights(of: rows)
+      let spacers = RowWindow.spacers(heights: rowHeights, spacing: Self.spacing, window: real)
+      let senders = Dictionary(members.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
       ScrollViewReader { proxy in
         ScrollView {
           VStack(spacing: 0) {
             if older.hasMore { OlderPagesRow(loading: older.loading) }
-            VStack(alignment: .leading, spacing: 6) {
-              ForEach(rows) { item in
+            VStack(alignment: .leading, spacing: Self.spacing) {
+              if spacers.above > 0 { Color.clear.frame(height: spacers.above) }
+              ForEach(rows[real]) { item in
                 Group {
                   switch item {
                   case .message(let message):
-                    MessageRow(message: message, sender: members.first { $0.name == message.from })
+                    MessageRow(message: message, sender: senders[message.from])
                   case .fold(let fold):
                     let open = isOpen(fold)
                     FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }
@@ -608,7 +647,18 @@ struct Transcript: View {
                   Color.accentColor.opacity(flashing == item.id ? 0.15 : 0), in: RoundedRectangle(cornerRadius: 8)
                 )
                 .modifier(RowMark(id: item.id, marks: watched.contains(item.id) ? marks : nil))
+                .onGeometryChange(for: Double.self) { $0.size.height } action: { heights.set($0, for: item.id) }
               }
+              if spacers.below > 0 { Color.clear.frame(height: spacers.below) }
+            }
+            .onGeometryChange(for: Band.self) { geometry in
+              let visible = geometry.bounds(of: .scrollView) ?? .zero
+              return Band(top: visible.minY, bottom: visible.maxY)
+            } action: { band in
+              #if DEBUG
+                PerfHooks.note("band \(Int(band.top))...\(Int(band.bottom)) rows \(rows.count) real \(real) at \(Int(CACurrentMediaTime() * 1000) % 100000) ms, hasMore \(hasMore), loading \(loading)")
+              #endif
+              place(band, rows: rows, heights: rowHeights, real: real)
             }
             .padding(16)
             Color.clear.frame(height: 1).id(Self.end)
@@ -629,6 +679,9 @@ struct Transcript: View {
             return Follow.isNearBottom(
               contentBottom: geometry.size.height - visible.minY, viewportHeight: visible.height)
           } action: { atBottom in
+            // The first layout after a room opens can throw the view to the top. Until the view has settled,
+            // leaving the bottom is that throw, not a scroll, so the end is put back.
+            if nearBottom, !atBottom, !ready { scroll(proxy, animated: false) }
             nearBottom = atBottom
             if atBottom { showPill = false }
           }
@@ -643,8 +696,9 @@ struct Transcript: View {
         }
         .onAppear { start(proxy) }
         .onChange(of: reveal) { show(reveal, proxy) }
-        .onChange(of: older.loading) { _, loading in
-          if !loading { keepPlace(proxy) }
+        // The oldest id, not the loading flag: the flag flips before the page lands, with the old rows still in hand.
+        .onChange(of: messages.first?.id) { before, after in
+          if let before, let after, after < before { keepPlace(proxy) }
         }
         .onChange(of: messages.last?.id) { before, after in
           let fromHuman = messages.last?.from == humanName
@@ -666,32 +720,69 @@ struct Transcript: View {
     scroll(proxy, animated: false)
     // The bottom anchor wins the first layout, so the reveal waits a turn.
     if reveal != nil { DispatchQueue.main.async { show(reveal, proxy) } }
-    // The first layout can sit at the top before the bottom anchor lands, so paging waits a turn.
     DispatchQueue.main.async {
+      #if DEBUG
+        PerfHooks.transcriptDidLayout()
+      #endif
+    }
+    // The view sits at the top for a beat after the bottom lands, so paging waits until it has settled.
+    // A page asked for then would keep the place of a top the reader never saw.
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.settle) {
       ready = true
       if marks.wantsPage { loadOlder(items) }
     }
     #if DEBUG
-      // The bottom anchor wins the first layout, so the shot scrolls up a beat later.
-      if ShotHooks.pageTopNote != nil {
+      // The view settles at the bottom first, so the shot scrolls up once that beat has passed.
+      if ShotHooks.pageTopNote != nil || ShotHooks.startAtTop {
         Task {
-          try? await Task.sleep(for: .milliseconds(500))
-          proxy.scrollTo(items.first?.id, anchor: .top)
-        }
-      }
-      if ShotHooks.startAtTop {
-        Task {
-          try? await Task.sleep(for: .milliseconds(500))
-          proxy.scrollTo(messages.first?.id, anchor: .top)
+          try? await Task.sleep(for: .seconds(Self.settle + 0.2))
+          scrollTo(items.first?.id, anchor: .top, proxy)
         }
       }
     #endif
   }
 
+  /// The row indices built for real: the window's ids, else the newest rows before any geometry landed.
+  private func span(of rows: [TranscriptItem]) -> Range<Int> {
+    window.map { RowWindow.indices(ofIds: $0, in: rows) } ?? RowWindow.start(count: rows.count)
+  }
+
+  /// Moves the window once the band needs rows outside it. A window reaching the newest row stays open at
+  /// that end, so a new post is real the moment it lands.
+  private func place(_ band: Band, rows: [TranscriptItem], heights: [Double], real: Range<Int>) {
+    let needed = RowWindow.range(
+      heights: heights, spacing: Self.spacing, top: band.top, bottom: band.bottom, margin: band.height)
+    guard !RowWindow.covers(real, needed: needed) else { return }
+    let wide = RowWindow.range(
+      heights: heights, spacing: Self.spacing, top: band.top, bottom: band.bottom, margin: band.height * 2)
+    guard let ids = RowWindow.ids(of: wide, in: rows) else { return }
+    window = wide.upperBound == rows.count ? ids.lowerBound...Int.max : ids
+    #if DEBUG
+      PerfHooks.note("window: rows \(wide) of \(rows.count), band \(Int(band.top))...\(Int(band.bottom))")
+    #endif
+  }
+
+  /// Scrolls to a row. A row behind a spacer is made real first, since a scroll can only aim at a row that exists.
+  private func scrollTo(_ id: Int?, anchor: UnitPoint, _ proxy: ScrollViewProxy, animated: Bool = false) {
+    guard let id else { return }
+    let rows = items
+    let index = RowWindow.indices(ofIds: id...id, in: rows)
+    let aim = {
+      guard animated else { return proxy.scrollTo(id, anchor: anchor) }
+      withAnimation(.easeOut) { proxy.scrollTo(id, anchor: anchor) }
+    }
+    guard let first = index.first, !span(of: rows).contains(first) else { return aim() }
+    window = RowWindow.ids(of: RowWindow.around(first, count: rows.count), in: rows)
+    #if DEBUG
+      PerfHooks.note("scroll to row \(first) of \(rows.count), made real first")
+    #endif
+    DispatchQueue.main.async(execute: aim)
+  }
+
   /// Scrolls to the revealed post and lights it up for a moment. A post no longer loaded is skipped.
   private func show(_ reveal: Reveal?, _ proxy: ScrollViewProxy) {
     guard let id = reveal?.messageId, messages.contains(where: { $0.id == id }) else { return }
-    withAnimation(.easeOut) { proxy.scrollTo(id, anchor: .center) }
+    scrollTo(id, anchor: .center, proxy, animated: true)
     flashing = id
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
       withAnimation(.easeOut) { if flashing == id { flashing = nil } }
@@ -700,6 +791,9 @@ struct Transcript: View {
 
   private func loadOlder(_ rows: [TranscriptItem]) {
     guard ready, marks.pending == nil, let first = messages.first, let row = rows.first else { return }
+    #if DEBUG
+      PerfHooks.note("page: asked below \(first.id), first row \(row.id)")
+    #endif
     marks.pending = (first.id, row.id)
     older.load()
   }
@@ -708,6 +802,9 @@ struct Transcript: View {
   private func keepPlace(_ proxy: ScrollViewProxy) {
     guard let pending = marks.pending else { return }
     marks.pending = nil
+    #if DEBUG
+      PerfHooks.note("page landed: first \(String(describing: messages.first?.id)), was \(pending.messageId)")
+    #endif
     guard let before = marks.frames[pending.rowId], messages.first.map({ $0.id < pending.messageId }) == true,
       let anchor = Paging.anchor(firstMessageId: pending.messageId, in: items)
     else { return }
@@ -715,7 +812,7 @@ struct Transcript: View {
     let aim = Paging.aim(gap: before.minY, rowHeight: before.height, viewportHeight: marks.viewport)
     // The next turn, so the new rows have their sizes before the scroll aims.
     DispatchQueue.main.async {
-      proxy.scrollTo(anchor, anchor: UnitPoint(x: 0.5, y: aim))
+      scrollTo(anchor, anchor: UnitPoint(x: 0.5, y: aim), proxy)
       #if DEBUG
         if let note = ShotHooks.pageTopNote { noteAnchor(anchor, before: before.minY, to: note, proxy) }
       #endif
@@ -728,10 +825,11 @@ struct Transcript: View {
       Task {
         try? await Task.sleep(for: .milliseconds(400))
         let after = marks.frames[anchor]?.minY ?? .nan
+        PerfHooks.note("note: anchor \(anchor) after \(after)")
         let text = String(
           format: "anchor row %d top %.1f pt before the page, %.1f pt after, %d messages loaded", anchor, before, after,
           messages.count)
-        proxy.scrollTo(items.first?.id, anchor: .top)
+        scrollTo(items.first?.id, anchor: .top, proxy)
         try? await Task.sleep(for: .milliseconds(400))
         try? text.write(toFile: file, atomically: true, encoding: .utf8)
       }
@@ -755,6 +853,9 @@ struct Transcript: View {
   }
 
   private func scroll(_ proxy: ScrollViewProxy, animated: Bool) {
+    #if DEBUG
+      PerfHooks.note("scroll to end, animated \(animated), rows \(items.count), window \(String(describing: window)) at \(Int(CACurrentMediaTime() * 1000) % 100000) ms")
+    #endif
     showPill = false
     guard animated else {
       proxy.scrollTo(Self.end, anchor: .bottom)
@@ -863,6 +964,9 @@ struct MessageRow: View {
   let sender: Member?
 
   var body: some View {
+    #if DEBUG
+      let _ = PerfHooks.countRow()
+    #endif
     switch message.kind {
     case .system, .unknown:
       Text("\(message.text)  \(message.time)")

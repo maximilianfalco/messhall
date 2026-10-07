@@ -76,13 +76,13 @@ struct AgentsPanelTests {
   @Test("the last post is the agent's newest chat or done line, not a system line")
   func lastPost() {
     let dev = room(
-      "dev", [member("api", .active), member("web", .idle)],
+      "dev", [member("api", .active), member("web", .idle), member("quiet", .idle)],
       messages: [
         post(1, from: "api", "first"), post(2, from: "web", "hi"), post(3, from: "api", "shipped", kind: .done),
         post(4, from: "api", "api is away", kind: .system),
       ])
     let panel = AgentsPanel(rooms: [dev])
-    #expect(panel.shown.map { $0.lastPost?.id } == [3, 2])
+    #expect(panel.shown.map { $0.lastPost?.id } == [3, nil, 2])
   }
 
   @Test("the PR link comes from the status first, then the last post")
