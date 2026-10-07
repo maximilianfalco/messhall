@@ -95,10 +95,54 @@ describe('concerns', () => {
     ).toStrictEqual([true, true, true]);
   });
 
-  it('concerns everyone when the human posts', () => {
+  it('concerns everyone when the human posts and no orchestrator is in the room', () => {
     expect(concerns({ pausedWith: {}, member: three[1]!, members: three, message: message({ from: 'human' }) })).toBe(
       true,
     );
+  });
+
+  describe('a human line with an orchestrator in the room', () => {
+    const lead = (fields: Partial<Member> = {}) => member({ name: 'lead', role: 'orchestrator', ...fields });
+    const ringed = (members: Member[], fields: Partial<Message> = {}) =>
+      members
+        .filter(m => m.kind !== 'human')
+        .map(m => [
+          m.name,
+          concerns({ member: m, members, message: message({ from: 'human', ...fields }), pausedWith: {} }),
+        ]);
+
+    it('concerns only the live orchestrator when it names nobody', () => {
+      expect(ringed([...three, lead()])).toStrictEqual([
+        ['api', false],
+        ['web', false],
+        ['infra', false],
+        ['lead', true],
+      ]);
+    });
+
+    it.each(['idle', 'waiting'] as const)('counts a seat that is %s as a live orchestrator', presence => {
+      expect(ringed([...three, lead({ presence })]).filter(([, hit]) => hit)).toStrictEqual([['lead', true]]);
+    });
+
+    it.each([
+      ['away', { presence: 'away' }],
+      ['gone', { left_at: T0 }],
+      ['muted', { muted: true }],
+    ] as const)('concerns every agent when the orchestrator is %s', (_state, fields) => {
+      expect(ringed([...three, lead(fields)]).slice(0, 3)).toStrictEqual([
+        ['api', true],
+        ['web', true],
+        ['infra', true],
+      ]);
+    });
+
+    it('concerns who it names and not the orchestrator', () => {
+      expect(ringed([...three, lead()], { mentions: ['web'] }).filter(([, hit]) => hit)).toStrictEqual([['web', true]]);
+    });
+
+    it('concerns everyone on @all', () => {
+      expect(ringed([...three, lead()], { mentions: ['all'] }).every(([, hit]) => hit)).toBe(true);
+    });
   });
 
   it('concerns a muted member never, not even a mention or the human', () => {

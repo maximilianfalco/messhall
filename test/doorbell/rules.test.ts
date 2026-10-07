@@ -81,6 +81,16 @@ describe('ringsFor', () => {
     expect(rung({ message: message({ from: 'messhall', kind: 'system', mentions: ['all'] }) })).toStrictEqual([]);
   });
 
+  it('rings only the live orchestrator for an unmentioned human line', () => {
+    const members = [...THREE, member({ name: 'lead', role: 'orchestrator' })];
+    expect(rung({ members, message: message({ from: 'human' }) })).toStrictEqual(['lead']);
+  });
+
+  it('rings every agent for an unmentioned human line when the orchestrator is away', () => {
+    const members = [...THREE, member({ name: 'lead', presence: 'away', role: 'orchestrator' })];
+    expect(rung({ members, message: message({ from: 'human' }) })).toStrictEqual(['api', 'web', 'infra', 'lead']);
+  });
+
   it('never rings the human', () => {
     expect(rung({ message: message({ from: 'api', mentions: ['human', 'web'] }) })).toStrictEqual(['web']);
   });

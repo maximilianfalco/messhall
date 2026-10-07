@@ -27,7 +27,11 @@ export function isAgent(member: Pick<Member, 'kind' | 'role'>) {
   return member.kind !== 'human' && member.role !== OBSERVER_ROLE;
 }
 
-/** True when the message is one the member should answer: a mention, `@all`, the human, or a room of two agents.
+function isLive(member: Member) {
+  return member.left_at === null && !member.muted && member.presence !== 'away';
+}
+
+/** True when the member should answer: a mention, `@all`, a room of two agents, or the human (only the live orchestrator when it names nobody).
  * Daemon lines, summaries and lines from the partner a member is paused with concern nobody, and nothing concerns a muted member. */
 export function concerns({
   member,
@@ -43,7 +47,11 @@ export function concerns({
   if (message.kind === 'system' || message.kind === 'summary' || message.from === member.name) return false;
   if (member.muted || pausedWith[member.name] === message.from) return false;
   if (message.mentions.includes(member.name) || message.mentions.includes(ALL_MENTION)) return true;
-  if (message.from === HUMAN_NAME) return true;
+  if (message.from === HUMAN_NAME) {
+    const router = members.find(other => other.role === ORCHESTRATOR_ROLE && isLive(other));
+    if (!router) return true;
+    return message.mentions.length === 0 && member.name === router.name;
+  }
   const agents = members.filter(other => isAgent(other) && other.left_at === null).map(other => other.name);
   return agents.length === 2 && agents.includes(member.name) && agents.includes(message.from);
 }
