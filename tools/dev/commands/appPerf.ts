@@ -318,6 +318,18 @@ async function measure({
   }
 }
 
+/** Shoots the window into `file`, trying once more after a beat, since the window server refuses a window now and then. */
+async function capture(window: number, file: string, tries = 2): Promise<string> {
+  try {
+    await run('screencapture', ['-o', '-x', '-l', String(window), file]);
+    return file;
+  } catch (error) {
+    if (tries <= 1) return `screencapture failed: ${error instanceof Error ? error.message.trim() : String(error)}`;
+    await sleep(1000);
+    return capture(window, file, tries - 1);
+  }
+}
+
 async function shoot({
   app,
   appearance,
@@ -336,8 +348,7 @@ async function shoot({
     const window = await checkWindow(running.child.pid ?? 0);
     if (typeof window === 'string') return window;
     await sleep(SETTLE_MS);
-    await run('screencapture', ['-o', '-x', '-l', String(window), file]);
-    return file;
+    return capture(window, file);
   } finally {
     await running.quit();
   }
@@ -367,8 +378,7 @@ async function shootFollow({
     const refused = await burst({ count: 1, dataDir: home, url });
     if (refused) return `agent post refused: ${refused}`;
     await sleep(SETTLE_MS);
-    await run('screencapture', ['-o', '-x', '-l', String(window), file]);
-    return file;
+    return capture(window, file);
   } finally {
     await running.quit();
   }
