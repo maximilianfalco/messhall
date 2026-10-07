@@ -171,6 +171,16 @@ public final class FeedStore {
         room.questions.removeAll { $0.id == e.question.id }
         if e.question.state == .open { room.questions.append(e.question) }
       }
+    case .agreement(let e):
+      update(e.room) { room in
+        let index = room.agreements.firstIndex { $0.id == e.agreement.id }
+        switch (index, e.agreement.isLive) {
+        case (let i?, true): room.agreements[i] = e.agreement
+        case (let i?, false): room.agreements.remove(at: i)
+        case (nil, true): room.agreements.append(e.agreement)
+        case (nil, false): break
+        }
+      }
     case .unknown:
       break
     }

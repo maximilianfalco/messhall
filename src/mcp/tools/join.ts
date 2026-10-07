@@ -10,7 +10,7 @@ import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
 import { SEAT_TOKEN_FREE_AFTER_MS } from '../../config.js';
 import { newSeatToken } from '../../rooms/store.js';
 import { clientType, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
-import { memberLabel, roleBlock } from '../render.js';
+import { agreementsBlock, memberLabel, roleBlock } from '../render.js';
 import { bindSeat } from '../seats.js';
 
 import { refuse, registerRoomTool, reply } from './registry.js';
@@ -106,6 +106,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
         `topic: ${room.topic ?? 'none'}. ${room.closed_at ? 'closed' : 'open'}, ${room.message_count} posts.`,
         ...(input.topic && input.topic !== room.topic ? [TOPIC_NOT_SET] : []),
         `members: ${members.map(member => memberLabel({ as, member })).join(', ')}`,
+        ...agreementsBlock({ agreements: store.agreementsIn(input.room), room: input.room }),
         ...summaryBlock(store.latestSummary(input.room)),
         `${count} unseen. call read_since to read them.`,
         ...roleBlock({ role: store.roleOf({ name: as, room: input.room })!, room: input.room }),

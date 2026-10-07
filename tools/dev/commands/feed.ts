@@ -43,6 +43,10 @@ function eventLine(event: BusEvent) {
     const { id, member, state } = event.question;
     return `#${event.room} ${member} question ${state} (${id})`;
   }
+  if (event.type === 'agreement') {
+    const { id, proposer, state } = event.agreement;
+    return `#${event.room} ${proposer} agreement ${state} (${id})`;
+  }
   return `#${event.room.name} ${event.change}`;
 }
 

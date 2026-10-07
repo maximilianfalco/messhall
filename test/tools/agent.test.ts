@@ -233,6 +233,46 @@ describe('agentRun', () => {
     expect(text).toMatch(/human → @api\] @api answer to your question #\d+: ship it/);
   });
 
+  it('proposes an agreement and waits until the named agent confirms it', async () => {
+    const sitting = agentRun({ keyFile: keyFile(), role: 'web', room: 'checkout', url: daemon.url, wait: true });
+    await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'web', room: 'checkout' })).toHaveLength(1));
+    const proposing = agentRun({
+      keyFile: keyFile(),
+      propose: 'amount_minor is integer cents',
+      role: 'api',
+      room: 'checkout',
+      url: daemon.url,
+      wait: true,
+      with: ['web'],
+    });
+    await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'api', room: 'checkout' })).toHaveLength(1));
+    const human = { [KEY_HEADER]: readFileSync(path.join(home, KEY_FILES.human), 'utf8') };
+    const id = await vi.waitFor(async () => {
+      const snapshot = (await (await fetch(`${daemon.url}/api/snapshot`, { headers: human })).json()) as {
+        rooms: { agreements: { id: number }[] }[];
+      };
+      const [agreement] = snapshot.rooms[0]?.agreements ?? [];
+      if (!agreement) throw new Error('no agreement yet');
+      return agreement.id;
+    });
+
+    expect(stripVTControlCharacters((await sitting).report)).toContain('proposal to confirm or reject');
+    const confirming = await agentRun({
+      confirm: id,
+      keyFile: keyFile(),
+      role: 'web',
+      room: 'checkout',
+      url: daemon.url,
+    });
+    const result = await proposing;
+
+    expect(stripVTControlCharacters(confirming.report)).toContain(`confirmed agreement #${id}. it is settled`);
+    const text = stripVTControlCharacters(result.report);
+    expect(result.code).toBe(0);
+    expect(text).toContain(`proposed agreement #${id} in #checkout`);
+    expect(text).toContain(`@api agreement #${id} is settled, confirmed by web`);
+  });
+
   it.each(['allow', 'deny'])(
     'asks to run a command like Claude Code and prints the %s it gets back',
     async behavior => {

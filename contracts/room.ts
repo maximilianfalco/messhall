@@ -187,6 +187,32 @@ export const questionSchema = z.object({
     ),
 });
 
+export const AGREEMENT_STATES = ['open', 'settled', 'rejected', 'replaced'] as const;
+export const AGREEMENT_MAX_CHARS = 300;
+export const AGREEMENT_WITH_MAX = 8;
+
+export const agreementSchema = z.object({
+  confirmed: z.array(nameSchema).describe('The named members who confirmed so far, in the order they did.'),
+  created_at: timestampSchema.describe('When it was proposed.'),
+  decided_at: timestampSchema.nullable().describe('When it was settled, rejected or replaced, null while open.'),
+  id: z.number().int().positive().describe("Agreement id: the id of the proposer's own line that carries it."),
+  proposer: nameSchema.describe('The seat that proposed it.'),
+  rejected_by: nameSchema.nullable().describe('Who rejected it, null unless rejected.'),
+  replaces: z.number().int().positive().nullable().describe('The agreement this one replaces, null when new.'),
+  room: nameSchema.describe('Room the agreement is in.'),
+  state: z
+    .enum(AGREEMENT_STATES)
+    .describe(
+      'open until every named member confirms, settled after, rejected when a named member says no, replaced by a newer proposal.',
+    ),
+  text: z.string().describe('What is agreed, one line. Untrusted text from the agent.'),
+  why: z
+    .string()
+    .nullable()
+    .describe('Why it was rejected, one line, null unless rejected. Untrusted text from the agent.'),
+  with: z.array(nameSchema).describe('The members who must confirm it, in the order the proposer named them.'),
+});
+
 export type Room = z.infer<typeof roomSchema>;
 export type Member = z.infer<typeof memberSchema>;
 export type Message = z.infer<typeof messageSchema>;
@@ -194,3 +220,4 @@ export type RoomSummary = z.infer<typeof roomSummarySchema>;
 export type Approval = z.infer<typeof approvalSchema>;
 export type ApprovalBehavior = (typeof APPROVAL_BEHAVIORS)[number];
 export type Question = z.infer<typeof questionSchema>;
+export type Agreement = z.infer<typeof agreementSchema>;

@@ -187,6 +187,24 @@ export const MIGRATIONS = [
   );
   CREATE INDEX questions_state ON questions (state, created_at);
   `,
+  // An agreement keyed by its proposal line, with the names to confirm and those who did as JSON.
+  `
+  CREATE TABLE agreements (
+    id INTEGER PRIMARY KEY,
+    room_id TEXT NOT NULL REFERENCES rooms (id),
+    proposer TEXT NOT NULL,
+    text TEXT NOT NULL,
+    with_names TEXT NOT NULL,
+    confirmed TEXT NOT NULL,
+    state TEXT NOT NULL,
+    rejected_by TEXT,
+    why TEXT,
+    replaces INTEGER,
+    created_at TEXT NOT NULL,
+    decided_at TEXT
+  );
+  CREATE INDEX agreements_room ON agreements (room_id, state);
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

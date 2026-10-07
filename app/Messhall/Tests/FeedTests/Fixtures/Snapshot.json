@@ -1,6 +1,6 @@
 {
   "seq": 7,
-  "contract_version": 4,
+  "contract_version": 5,
   "version": "0.1.0",
   "rooms": [
     {
@@ -24,6 +24,22 @@
           "state": "pending",
           "created_at": "2026-01-01T09:02:00.000Z",
           "answered_at": null
+        }
+      ],
+      "agreements": [
+        {
+          "id": 3,
+          "room": "checkout",
+          "proposer": "api",
+          "text": "amount_minor is integer cents",
+          "with": ["web"],
+          "confirmed": ["web"],
+          "state": "settled",
+          "rejected_by": null,
+          "why": null,
+          "replaces": null,
+          "created_at": "2026-01-01T09:03:00.000Z",
+          "decided_at": "2026-01-01T09:04:00.000Z"
         }
       ],
       "questions": [

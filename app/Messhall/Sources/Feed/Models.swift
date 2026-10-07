@@ -4,7 +4,7 @@ import Foundation
 
 /// The feed contract this app was built against. A newer daemon sends a higher one.
 public enum FeedContract {
-  public static let version = 4
+  public static let version = 5
 }
 
 /// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
@@ -74,6 +74,39 @@ public struct Question: Codable, Equatable, Identifiable, Sendable {
     case messageId = "message_id"
     case createdAt = "created_at"
     case answeredAt = "answered_at"
+  }
+}
+
+public enum AgreementState: String, OpenEnum, CaseIterable, Sendable {
+  case open, settled, rejected, replaced, unknown
+}
+
+/// A contract the proposer's named agents confirm. `text` and `why` are the agents' own text.
+public struct Agreement: Codable, Equatable, Identifiable, Sendable {
+  /// The id of the proposer's own line that carries it.
+  public var id: Int
+  public var room: String
+  public var proposer: String
+  public var text: String
+  public var with: [String]
+  public var confirmed: [String]
+  public var state: AgreementState
+  public var rejectedBy: String?
+  public var why: String?
+  public var replaces: Int?
+  public var createdAt: String
+  public var decidedAt: String?
+
+  /// The named agents who have not confirmed yet, in the order the proposer named them.
+  public var waitingOn: [String] { with.filter { !confirmed.contains($0) } }
+  /// Open and settled agreements stay listed. Rejected and replaced ones are done with.
+  public var isLive: Bool { state == .open || state == .settled }
+
+  enum CodingKeys: String, CodingKey, CaseIterable {
+    case id, room, proposer, text, with, confirmed, state, why, replaces
+    case rejectedBy = "rejected_by"
+    case createdAt = "created_at"
+    case decidedAt = "decided_at"
   }
 }
 
@@ -159,6 +192,7 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var messages: [Message]
   public var approvals: [Approval] = []
   public var questions: [Question] = []
+  public var agreements: [Agreement] = []
 
   public var isOpen: Bool { closedAt == nil }
   /// The asks a seat's agent is waiting on, oldest first.
@@ -179,7 +213,7 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var liveAgents: [Member] { members.filter { $0.kind != .human && !$0.presence.isAway } }
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case id, name, topic, standing, members, messages, approvals, questions
+    case id, name, topic, standing, members, messages, approvals, questions, agreements
     case createdAt = "created_at"
     case createdBy = "created_by"
     case closedAt = "closed_at"
@@ -345,6 +379,24 @@ public struct QuestionEvent: Decodable, Equatable, Sendable {
   }
 }
 
+public struct AgreementEvent: Decodable, Equatable, Sendable {
+  public var room: String
+  public var agreement: Agreement
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case type, room, agreement }
+
+  public init(room: String, agreement: Agreement) {
+    self.room = room
+    self.agreement = agreement
+  }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      room: try c.decode(String.self, forKey: .room), agreement: try c.decode(Agreement.self, forKey: .agreement))
+  }
+}
+
 /// One change in the room store, picked by its `type` field.
 public enum BusEvent: Decodable, Equatable, Sendable {
   case message(MessageEvent)
@@ -353,6 +405,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
   case room(RoomEvent)
   case approval(ApprovalEvent)
   case question(QuestionEvent)
+  case agreement(AgreementEvent)
   /// A type this build does not know. The store skips it but still moves the sequence.
   case unknown(type: String)
 
@@ -367,6 +420,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .room(let e): e.room.name
     case .approval(let e): e.room
     case .question(let e): e.room
+    case .agreement(let e): e.room
     case .unknown: ""
     }
   }
@@ -379,6 +433,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .room: "room"
     case .approval: "approval"
     case .question: "question"
+    case .agreement: "agreement"
     case .unknown(let type): type
     }
   }
@@ -392,6 +447,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case "room": self = .room(try RoomEvent(from: decoder))
     case "approval": self = .approval(try ApprovalEvent(from: decoder))
     case "question": self = .question(try QuestionEvent(from: decoder))
+    case "agreement": self = .agreement(try AgreementEvent(from: decoder))
     default: self = .unknown(type: type)
     }
   }
