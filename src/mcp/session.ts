@@ -86,9 +86,9 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     get channel() {
       return channel;
     },
-    /** True when a ringer can reach this session: a Claude channel that did not fail its check, or a checked codex thread. */
+    /** True when a ringer can reach this session: a Claude channel, even one that failed its check, or a checked codex thread. */
     get ringable() {
-      return (channel && this.doorbell !== 'off') || (kind === 'codex' && threadId !== undefined);
+      return channel || (kind === 'codex' && threadId !== undefined);
     },
     get kind() {
       return kind;

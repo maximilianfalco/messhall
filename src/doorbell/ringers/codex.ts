@@ -42,7 +42,7 @@ export function createCodexRinger({
           return false;
         }),
       );
-      return sent.filter(Boolean).length;
+      return { sessions: sent.filter(Boolean).length, unconfirmed: 0 };
     },
   };
   return ringer;

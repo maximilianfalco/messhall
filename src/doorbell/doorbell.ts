@@ -31,9 +31,12 @@ export function startDoorbell({
     const ringer = ringers.for(kind);
     if (!ringer) return;
     ringer.ring({ member: { name, rooms }, meta, text }).then(
-      sessions => {
+      ({ sessions, unconfirmed }) => {
         const line = { kind, name, rooms: rooms.join(','), sessions, text };
-        if (sessions > 0) return logger.info('doorbell rang', line);
+        // A session that never answered its check may be a plain claude that drops the ring.
+        if (sessions > 0) {
+          return logger.info(unconfirmed === sessions ? 'doorbell rang, unconfirmed' : 'doorbell rang', line);
+        }
         held.set(name, batch);
         logger.info('doorbell held, no session', line);
       },

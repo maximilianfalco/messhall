@@ -18,7 +18,8 @@ const CLAUDE_PREFIX = 'messhall: ';
 
 /**
  * Rings any client that takes Claude Channels: one notification on each live channel session that
- * holds the member and did not fail its doorbell check. A session that went away is dropped, so wait still works.
+ * holds the member. A session that failed its doorbell check still gets it, since a busy claude may answer late,
+ * but counts as unconfirmed. A session that went away is dropped, so wait still works.
  */
 export function createChannelRinger({
   sessionsFor,
@@ -32,21 +33,22 @@ export function createChannelRinger({
       const byId = new Map(
         member.rooms
           .flatMap(room => sessionsFor({ name: member.name, room }))
-          .filter(entry => entry.session.channel && entry.session.doorbell !== 'off')
+          .filter(entry => entry.session.channel)
           .map(entry => [entry.session.id, entry]),
       );
       const sent = await Promise.all(
         [...byId.values()].map(entry =>
           entry.server.server
             .notification({ method: CHANNEL_METHOD, params: { content, meta } })
-            .then(() => true)
+            .then(() => entry.session.doorbell)
             .catch((error: unknown) => {
               logger.info('doorbell session gone', { error: String(error), session: entry.session.id });
-              return false;
+              return undefined;
             }),
         ),
       );
-      return sent.filter(Boolean).length;
+      const reached = sent.filter(doorbell => doorbell !== undefined);
+      return { sessions: reached.length, unconfirmed: reached.filter(doorbell => doorbell === 'off').length };
     },
   };
   return ringer;

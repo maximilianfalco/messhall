@@ -23,7 +23,7 @@ export function registerListMembers(server: McpServer, deps: ToolDeps, descripti
       const noDoorbell = (member: Member) => {
         const held = sessions.sessionsFor({ name: member.name, room }).map(entry => entry.session);
         if (member.kind === 'codex') return !held.some(one => one.threadId);
-        return held.some(one => one.doorbell === 'off') && !held.some(one => one.ringable);
+        return held.some(one => one.doorbell === 'off') && !held.some(one => one.doorbell === 'on');
       };
       return reply(
         [

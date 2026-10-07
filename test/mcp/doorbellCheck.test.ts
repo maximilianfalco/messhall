@@ -46,7 +46,7 @@ describe('the doorbell check on a session', () => {
     time.advance(DOORBELL_CHECK_MS);
 
     expect(session.doorbell).toBe('off');
-    expect(session.ringable).toBe(false);
+    expect(session.ringable).toBe(true);
   });
 
   it('turns back on when the ack comes late', () => {

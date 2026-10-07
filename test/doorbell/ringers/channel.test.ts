@@ -43,7 +43,7 @@ describe('createChannelRinger', () => {
     const one = fakeEntry({ id: 's1' });
     const two = fakeEntry({ id: 's2' });
     const ringer = createChannelRinger({ sessionsFor: () => [one.entry, two.entry] });
-    await expect(ringer.ring(RING)).resolves.toBe(2);
+    await expect(ringer.ring(RING)).resolves.toStrictEqual({ sessions: 2, unconfirmed: 0 });
     const sent = {
       method: 'notifications/claude/channel',
       params: { content: '2 new in #checkout. Call read_since.', meta: RING.meta },
@@ -62,16 +62,16 @@ describe('createChannelRinger', () => {
   it('skips sessions that cannot take the channel', async () => {
     const plain = fakeEntry({ channel: false, id: 's1' });
     const ringer = createChannelRinger({ sessionsFor: () => [plain.entry] });
-    await expect(ringer.ring(RING)).resolves.toBe(0);
+    await expect(ringer.ring(RING)).resolves.toStrictEqual({ sessions: 0, unconfirmed: 0 });
     expect(plain.notification).not.toHaveBeenCalled();
   });
 
-  it('skips a session that never answered its doorbell check', async () => {
+  it('still rings a session that never answered its doorbell check and counts it unconfirmed', async () => {
     const off = fakeEntry({ doorbell: 'off', id: 's1' });
     const on = fakeEntry({ doorbell: 'on', id: 's2' });
     const ringer = createChannelRinger({ sessionsFor: () => [off.entry, on.entry] });
-    await expect(ringer.ring(RING)).resolves.toBe(1);
-    expect(off.notification).not.toHaveBeenCalled();
+    await expect(ringer.ring(RING)).resolves.toStrictEqual({ sessions: 2, unconfirmed: 1 });
+    expect(off.notification).toHaveBeenCalledTimes(1);
   });
 
   it('serves the claude and other kinds', () => {
@@ -83,7 +83,7 @@ describe('createChannelRinger', () => {
     const dead = fakeEntry({ fails: true, id: 's1' });
     const live = fakeEntry({ id: 's2' });
     const ringer = createChannelRinger({ sessionsFor: () => [dead.entry, live.entry] });
-    await expect(ringer.ring(RING)).resolves.toBe(1);
+    await expect(ringer.ring(RING)).resolves.toStrictEqual({ sessions: 1, unconfirmed: 0 });
     expect(live.notification).toHaveBeenCalledTimes(1);
   });
 

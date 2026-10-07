@@ -185,7 +185,7 @@ describe('the /mcp endpoint', () => {
     });
   });
 
-  it('shows a quiet claude that never answered its doorbell check as away with no doorbell', async () => {
+  it('keeps a quiet claude that never answered its doorbell check idle and marks it no doorbell', async () => {
     const { url } = await start(10);
     const api = await agent(url);
     const outsider = await agent(url);
@@ -195,7 +195,7 @@ describe('the /mcp endpoint', () => {
 
     await vi.waitFor(async () => {
       const members = (await outsider.call('list_members', { room: 'checkout' })).text;
-      expect(members).toContain('- api (messhall-http 0.1.0 (no doorbell), away)');
+      expect(members).toContain('- api (messhall-http 0.1.0 (no doorbell), idle)');
     });
   });
 
