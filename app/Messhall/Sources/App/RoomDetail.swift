@@ -351,6 +351,8 @@ struct AwayChip: View {
           .foregroundStyle(.secondary)
         }
       }
+      // One layer before the fade, so a faded avatar never shows through the one on top.
+      .compositingGroup()
       .opacity(0.6)
       .contentShape(Rectangle())
     }
