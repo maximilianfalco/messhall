@@ -17,6 +17,8 @@
     static let scrollSeconds = 4.0
     /// Points per second of the paced scroll, a fast flick. The dash covers the whole transcript in the same time.
     static let scrollPace = 3000.0
+    /// How long each sidebar slide gets to draw. The system slide takes about 0.4 s.
+    static let sidebarSeconds = 0.6
     static let settle = Duration.milliseconds(500)
 
     /// How many times a transcript row built its body. Counted everywhere, read only here.
@@ -37,16 +39,19 @@
     static func run(store: FeedStore, client: FeedClient, navigation: Navigation, file: String) async {
       while !store.loaded { try? await Task.sleep(for: .milliseconds(50)) }
       while mainWindow == nil { try? await Task.sleep(for: .milliseconds(50)) }
-      // A covered window draws only a few frames a second, so the run floats it on top, still without focus.
-      mainWindow?.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
-      mainWindow?.level = .floating
-      mainWindow?.orderFrontRegardless()
+      bringFront()
       try? await Task.sleep(for: .seconds(1))
 
       let openStart = CACurrentMediaTime()
-      navigation.room = room
-      await withCheckedContinuation { transcriptLaidOut = $0 }
+      // A room already open (a shot launched on it) has nothing to switch to.
+      if navigation.room != room {
+        navigation.room = room
+        await withCheckedContinuation { transcriptLaidOut = $0 }
+      }
       let openMs = (CACurrentMediaTime() - openStart) * 1000
+      try? await Task.sleep(for: .milliseconds(500))
+      noteOffset("after open")
+      bringFront()
 
       try? await Task.sleep(for: .seconds(1))
       let idleCpuPercent = await idleCpu()
@@ -63,8 +68,12 @@
       let pageAllCpuMs = (cpuSeconds() - pageCpuStart) * 1000
       let rows = store.room(named: room)?.messages.count ?? 0
 
+      bringFront()
       let scroll = await scrollFromTop(points: scrollPace * scrollSeconds)
+      bringFront()
       let dash = await scrollFromTop(points: .infinity)
+      bringFront()
+      let sidebar = await toggleSidebar()
 
       FileManager.default.createFile(atPath: file + ".ready", contents: nil)
       let burst = await awaitBurst(store: store)
@@ -73,14 +82,36 @@
         openMs: openMs, idleCpuPercent: idleCpuPercent, pages: pages, rows: rows, pageAllMs: pageAllMs,
         pageAllCpuMs: pageAllCpuMs, scrollFps: Perf.fps(frames: scroll.frames, seconds: scrollSeconds),
         scrollWorstFrameMs: scroll.worstGap * 1000, dashFps: Perf.fps(frames: dash.frames, seconds: scrollSeconds),
-        dashWorstFrameMs: dash.worstGap * 1000, events: events, eventCpuMs: burst.cpuMs,
+        dashWorstFrameMs: dash.worstGap * 1000, sidebarFps: Perf.fps(frames: sidebar.frames, seconds: sidebarSeconds * 2),
+        sidebarWorstFrameMs: sidebar.worstGap * 1000, events: events, eventCpuMs: burst.cpuMs,
         eventRowBodies: burst.rowBodies, eventWallMs: burst.wallMs, pullRequestReads: pullRequestReads,
         residentMb: Double(residentBytes()) / 1_000_000)
       try? JSONEncoder().encode(report).write(to: URL(fileURLWithPath: file))
     }
 
+    /// Where the transcript sits, straight from AppKit, so a probe needs no SwiftUI geometry.
+    static func noteOffset(_ when: String) {
+      guard let content = mainWindow?.contentView, let scrollView = transcriptScrollView(in: content),
+        let document = scrollView.documentView
+      else { return note("\(when): no transcript scroll view") }
+      let clip = scrollView.contentView
+      note("\(when): offset \(Int(clip.bounds.origin.y)) of \(Int(document.frame.height)) with clip \(Int(clip.bounds.height))")
+    }
+
     private static var mainWindow: NSWindow? {
       NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) }
+        ?? NSApp.windows.first { $0.styleMask.contains(.titled) }
+    }
+
+    /// Floats the window on top of the human's desktop, still without focus, and puts it back when something
+    /// shut or covered it mid-run. A covered window draws only a few frames a second. The clock runs through
+    /// the run too, since the idle number is about the spinners, not about what covers the window.
+    private static func bringFront() {
+      guard let window = mainWindow else { return }
+      window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+      window.level = .floating
+      window.orderFrontRegardless()
+      ThinkingClock.shared.visible = true
     }
 
     private static func idleCpu() async -> Double {
@@ -127,6 +158,32 @@
       }
       note("scroll: \(run.frames) frames over \(span) pt, worst gap \(run.worstGap * 1000) ms")
       return (run.frames, run.worstGap)
+    }
+
+    /// Hides the sidebar and shows it again, counting the display frames that land during each slide.
+    private static func toggleSidebar() async -> (frames: Int, worstGap: Double) {
+      guard let content = mainWindow?.contentView, let split = ShotHooks.splitController() else {
+        return note("no split view for the sidebar", giving: (0, 0))
+      }
+      let run = ScrollRun()
+      let link = content.displayLink(target: run, selector: #selector(ScrollRun.tick))
+      run.onTick = { _ in }
+      link.add(to: .main, forMode: .common)
+      var frames = 0
+      var worst = 0.0
+      for _ in 0..<2 {
+        let before = run.frames
+        run.resetWorst()
+        split.toggleSidebar(nil)
+        try? await Task.sleep(for: .seconds(sidebarSeconds))
+        frames += run.frames - before
+        worst = max(worst, run.worstGap)
+        try? await Task.sleep(for: settle)
+      }
+      link.invalidate()
+      run.onTick = nil
+      note("sidebar: \(frames) frames over two slides, worst gap \(worst * 1000) ms")
+      return (frames, worst)
     }
 
     private static func scrollViews(in view: NSView) -> [NSScrollView] {
@@ -214,6 +271,11 @@
     private(set) var worstGap = 0.0
     private var start: Double?
     private var last = 0.0
+
+    func resetWorst() {
+      worstGap = 0
+      last = CACurrentMediaTime()
+    }
 
     @objc func tick(_ link: CADisplayLink) {
       let now = CACurrentMediaTime()

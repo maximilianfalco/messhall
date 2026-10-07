@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 
-import { execFile, spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { type ChildProcess, execFile, spawn } from 'node:child_process';
+import { mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { promisify } from 'node:util';
@@ -25,6 +25,7 @@ import {
   PULL_REQUEST_ANSWERS,
   strayApps,
   waitWindow,
+  WINDOWS_SCRIPT,
 } from './appShot.js';
 import { spawnDaemon } from './daemon.js';
 
@@ -161,6 +162,8 @@ const perfReportSchema = z.object({
   rows: z.number(),
   scroll_fps: z.number(),
   scroll_worst_frame_ms: z.number(),
+  sidebar_fps: z.number(),
+  sidebar_worst_frame_ms: z.number(),
 });
 
 export type PerfReport = z.infer<typeof perfReportSchema>;
@@ -181,6 +184,10 @@ export function perfRows(report: PerfReport) {
       `${report.scroll_fps.toFixed(1)} fps, worst frame ${ms(report.scroll_worst_frame_ms)}`,
     ],
     ['dash top to bottom in 4 s', `${report.dash_fps.toFixed(1)} fps, worst frame ${ms(report.dash_worst_frame_ms)}`],
+    [
+      'sidebar hides and shows, 0.6 s each',
+      `${report.sidebar_fps.toFixed(1)} fps, worst frame ${ms(report.sidebar_worst_frame_ms)}`,
+    ],
     [
       `${report.events} incoming posts`,
       `cpu ${report.event_cpu_ms.toFixed(1)} ms per post, ${Math.round(report.event_row_bodies)} row bodies per post, ${ms(report.event_wall_ms)} wall`,
@@ -262,7 +269,11 @@ function launch({
   launched: number[];
 }) {
   forgetLayout(app);
-  const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), args, { env, stdio: 'ignore' });
+  const errors = openSync(path.join(OUT_DIR, 'app.stderr'), 'a');
+  const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), args, {
+    env,
+    stdio: ['ignore', 'ignore', errors],
+  });
   if (child.pid) launched.push(child.pid);
   const exited = new Promise(resolve => {
     child.once('exit', resolve);
@@ -321,14 +332,21 @@ async function measure({
 }
 
 /** Shoots the window into `file`, trying once more after a beat, since the window server refuses a window now and then. */
-async function capture(window: number, file: string, tries = 2): Promise<string> {
+async function capture(window: number, file: string, child: ChildProcess, tries = 2): Promise<string> {
+  const pid = child.pid ?? 0;
   try {
     await run('screencapture', ['-o', '-x', '-l', String(window), file]);
     return file;
   } catch (error) {
-    if (tries <= 1) return `screencapture failed: ${error instanceof Error ? error.message.trim() : String(error)}`;
-    await sleep(1000);
-    return capture(window, file, tries - 1);
+    if (tries > 1) {
+      await sleep(1000);
+      return capture(window, file, child, tries - 1);
+    }
+    const { stdout: windows } = await run('swift', [WINDOWS_SCRIPT, String(pid)]).catch(() => ({ stdout: '?' }));
+    const { stdout: cpu } = await run('ps', ['-o', '%cpu=', '-p', String(pid)]).catch(() => ({ stdout: '?' }));
+    const why = error instanceof Error ? error.message.trim() : String(error);
+    const state = `exit ${child.exitCode} signal ${child.signalCode}`;
+    return `screencapture failed: ${why} (${state}, windows ${windows.trim().replaceAll('\n', ', ')}, cpu ${cpu.trim()})`;
   }
 }
 
@@ -350,7 +368,9 @@ async function shoot({
     const window = await checkWindow(running.child.pid ?? 0);
     if (typeof window === 'string') return window;
     await sleep(SETTLE_MS);
-    return capture(window, file);
+    // Awaited here, else the finally quits the app under the capture.
+    const shot = await capture(window, file, running.child);
+    return shot;
   } finally {
     await running.quit();
   }
@@ -380,7 +400,9 @@ async function shootFollow({
     const refused = await burst({ count: 1, dataDir: home, url });
     if (refused) return `agent post refused: ${refused}`;
     await sleep(SETTLE_MS);
-    return capture(window, file);
+    // Awaited here, else the finally quits the app under the capture.
+    const shot = await capture(window, file, running.child);
+    return shot;
   } finally {
     await running.quit();
   }
@@ -396,7 +418,19 @@ function processAlive(pid: number) {
 }
 
 /** Seeds the big room on a scratch daemon, builds the app, measures it and shoots the room light and dark. */
-async function appPerf({ events, home, port, posts }: { events: number; home: string; port: number; posts: number }) {
+async function appPerf({
+  events,
+  home,
+  measure: wantsMeasure,
+  port,
+  posts,
+}: {
+  events: number;
+  home: string;
+  measure: boolean;
+  port: number;
+  posts: number;
+}) {
   const refused = checkShotHome(home);
   if (refused) return { code: 1, report: bad(refused) };
   rmSync(home, { force: true, recursive: true });
@@ -417,7 +451,7 @@ async function appPerf({ events, home, port, posts }: { events: number; home: st
   let report: PerfReport | string;
   const shots: string[][] = [];
   try {
-    report = await measure({ app, env, events, home, launched, url: daemon.url });
+    report = wantsMeasure ? await measure({ app, env, events, home, launched, url: daemon.url }) : 'skipped';
     shots.push(['perf-light', await shoot({ app, appearance: 'light', env, launched })]);
     shots.push(['perf-dark', await shoot({ app, appearance: 'dark', env, launched })]);
     shots.push(['perf-follow-light', await shootFollow({ app, env, home, launched, url: daemon.url })]);
@@ -429,23 +463,24 @@ async function appPerf({ events, home, port, posts }: { events: number; home: st
   const failedShots = shots.filter(([, file]) => !file?.startsWith('/'));
   const lines = [
     typeof report === 'string'
-      ? bad(report)
+      ? dim(report)
       : formatTable(['measure', `${posts} posts, ${PERF_MEMBERS} members`], perfRows(report)),
     '',
     formatTable(['shot', 'file'], shots),
     '',
-    typeof report === 'string' ? bad('no report') : ok(`report in ${REPORT_FILE}`),
+    typeof report === 'string' ? dim('no report') : ok(`report in ${REPORT_FILE}`),
     left.length
       ? bad(`${left.length} launched apps did not quit and were killed: ${left.join(', ')}`)
       : ok('every launched app quit'),
     strays.length ? bad(`apps from ${app} still running: ${strays.join(', ')}`) : ok(`no app from ${app} left running`),
     dim('debug build, so every number is above what the installed app sees'),
   ];
-  const code = typeof report === 'string' || failedShots.length || left.length || strays.length ? 1 : 0;
+  const noReport = wantsMeasure && typeof report === 'string';
+  const code = noReport || failedShots.length || left.length || strays.length ? 1 : 0;
   return { code, report: lines.join('\n') };
 }
 
-/** Registers `app-perf [--port <n>] [--home <dir>] [--posts <n>] [--events <n>]`. */
+/** Registers `app-perf [--port <n>] [--home <dir>] [--posts <n>] [--events <n>] [--shots-only]`. */
 export function registerAppPerf(program: Command) {
   program
     .command('app-perf')
@@ -456,10 +491,12 @@ export function registerAppPerf(program: Command) {
     .option('--home <dir>', 'scratch MESSHALL_HOME, wiped first', PERF_HOME)
     .option('--posts <n>', 'chat lines in the room', String(PERF_POSTS))
     .option('--events <n>', 'posts sent while the app measures cpu per post', String(PERF_EVENTS))
-    .action(async (options: { events: string; home: string; port: string; posts: string }) => {
+    .option('--shots-only', 'skip the measurement, only shoot the room')
+    .action(async (options: { events: string; home: string; port: string; posts: string; shotsOnly?: boolean }) => {
       const result = await appPerf({
         events: Number(options.events),
         home: options.home,
+        measure: !options.shotsOnly,
         port: Number(options.port),
         posts: Number(options.posts),
       });

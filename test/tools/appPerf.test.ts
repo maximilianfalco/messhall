@@ -116,6 +116,8 @@ describe('perfRows', () => {
       rows: 5000,
       scroll_fps: 59.94,
       scroll_worst_frame_ms: 30.2,
+      sidebar_fps: 58.4,
+      sidebar_worst_frame_ms: 40.4,
     });
 
     expect(rows).toStrictEqual([
@@ -124,6 +126,7 @@ describe('perfRows', () => {
       ['page in every post', '50 pages, 5000 rows, 3001 ms, cpu 2500 ms'],
       ['scroll 3,000 pt per s for 4 s', '59.9 fps, worst frame 30 ms'],
       ['dash top to bottom in 4 s', '12.0 fps, worst frame 110 ms'],
+      ['sidebar hides and shows, 0.6 s each', '58.4 fps, worst frame 40 ms'],
       ['50 incoming posts', 'cpu 2.5 ms per post, 20 row bodies per post, 400 ms wall'],
       ['pr reads during the run', '3'],
       ['resident memory at the end', '300 MB'],

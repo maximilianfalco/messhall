@@ -20,7 +20,7 @@ const SHOT_PORT = 7796;
 const SHOT_HOME = '/tmp/messhall-tape-home-app';
 const OUT_DIR = path.join(REPO_ROOT, 'demo', 'out', 'shots');
 const BUNDLE_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'bundle.sh');
-const WINDOWS_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'windows.swift');
+export const WINDOWS_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'windows.swift');
 const RECORD_SCRIPT = path.join(REPO_ROOT, 'app', 'scripts', 'record.swift');
 const RECORDER = path.join(REPO_ROOT, 'demo', 'out', 'record');
 // The app waits this long before each sidebar toggle, so the take holds both slides.
