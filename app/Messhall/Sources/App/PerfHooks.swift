@@ -13,6 +13,8 @@
     static let room = UserDefaults.standard.string(forKey: "shotPerfRoom") ?? "perf"
     /// `-shotPerfEvents <n>`: how many posts the dev tool sends once `.ready` lands.
     static let events = UserDefaults.standard.integer(forKey: "shotPerfEvents")
+    /// `-shotPerfLoop YES`: after the open, slide the sidebar in and out without end, for a profiler to sample.
+    static let loops = UserDefaults.standard.bool(forKey: "shotPerfLoop")
     static let idleSeconds = 5.0
     static let scrollSeconds = 4.0
     /// Points per second of the paced scroll, a fast flick. The dash covers the whole transcript in the same time.
@@ -55,6 +57,10 @@
 
       try? await Task.sleep(for: .seconds(1))
       let idleCpuPercent = await idleCpu()
+      if loops {
+        note("looping the sidebar slide")
+        while true { _ = await toggleSidebar() }
+      }
 
       let pageStart = CACurrentMediaTime()
       let pageCpuStart = cpuSeconds()
@@ -74,6 +80,11 @@
       let dash = await scrollFromTop(points: .infinity)
       bringFront()
       let sidebar = await toggleSidebar()
+      navigation.showsAgents = true
+      try? await Task.sleep(for: settle)
+      bringFront()
+      let panel = await toggleSidebar()
+      navigation.showsAgents = false
 
       FileManager.default.createFile(atPath: file + ".ready", contents: nil)
       let burst = await awaitBurst(store: store)
@@ -83,7 +94,8 @@
         pageAllCpuMs: pageAllCpuMs, scrollFps: Perf.fps(frames: scroll.frames, seconds: scrollSeconds),
         scrollWorstFrameMs: scroll.worstGap * 1000, dashFps: Perf.fps(frames: dash.frames, seconds: scrollSeconds),
         dashWorstFrameMs: dash.worstGap * 1000, sidebarFps: Perf.fps(frames: sidebar.frames, seconds: sidebarSeconds * 2),
-        sidebarWorstFrameMs: sidebar.worstGap * 1000, events: events, eventCpuMs: burst.cpuMs,
+        sidebarWorstFrameMs: sidebar.worstGap * 1000, panelFps: Perf.fps(frames: panel.frames, seconds: sidebarSeconds * 2),
+        panelWorstFrameMs: panel.worstGap * 1000, events: events, eventCpuMs: burst.cpuMs,
         eventRowBodies: burst.rowBodies, eventWallMs: burst.wallMs, pullRequestReads: pullRequestReads,
         residentMb: Double(residentBytes()) / 1_000_000)
       try? JSONEncoder().encode(report).write(to: URL(fileURLWithPath: file))
@@ -111,11 +123,9 @@
       window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
       window.level = .floating
       window.orderFrontRegardless()
-      ThinkingClock.shared.visible = true
     }
 
     private static func idleCpu() async -> Double {
-      note("idle: clock ticking \(ThinkingClock.shared.isTicking), thinking \(ThinkingClock.shared.thinking), visible \(ThinkingClock.shared.visible)")
       let cpu = cpuSeconds()
       let wall = CACurrentMediaTime()
       try? await Task.sleep(for: .seconds(idleSeconds))
