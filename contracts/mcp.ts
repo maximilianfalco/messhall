@@ -11,12 +11,9 @@ export const SEAT_TOKEN_PREFIX = 'tok-';
 const SEAT_TOKEN_PATTERN = new RegExp(`^${SEAT_TOKEN_PREFIX}[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$`);
 
 const roomField = nameSchema.describe('Room name: lowercase letters, digits and dashes, 1 to 40 chars.');
-// One line only: a newline in a topic could forge a messhall line in the join reply.
-const topicField = z
-  .string()
-  .min(1)
-  .max(TOPIC_MAX_CHARS)
-  .regex(/^\P{Cc}*$/u, 'one line, no control characters');
+// One line only: a newline in agent text that join prints could forge a messhall line in the reply.
+const oneLine = (max: number) => z.string().max(max).regex(/^\P{Cc}*$/u, 'one line, no control characters');
+const topicField = oneLine(TOPIC_MAX_CHARS).min(1);
 
 export const joinInputSchema = z.object({
   as: nameSchema
