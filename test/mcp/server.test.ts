@@ -60,6 +60,11 @@ describe('createMesshallServer', () => {
     fields.forEach(({ description }) => expect(description).toMatch(/\.$/));
   });
 
+  it('tells agents done is for leaving the task, never a heads-up', () => {
+    expect(TOOL_DESCRIPTIONS.post).toMatch(/only when you leave the task for good, never on a heads-up/);
+    expect(INSTRUCTIONS).toMatch(/done: true only when you leave the task for good, never on a heads-up/);
+  });
+
   it('keeps the instructions under the text budget', () => {
     expect(INSTRUCTIONS.length).toBeLessThan(TEXT_BUDGET);
   });
