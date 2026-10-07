@@ -50,6 +50,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
   public var avatars = AvatarOverrides()
   public var pane = SettingsPane.appearance
   public var hotkey = Hotkey()
+  public var pullRequestCards = true
 
   public init() {}
 
@@ -63,6 +64,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
     avatars = try c.decodeIfPresent(AvatarOverrides.self, forKey: .avatars) ?? avatars
     pane = try c.decodeIfPresent(SettingsPane.self, forKey: .pane) ?? pane
     hotkey = try c.decodeIfPresent(Hotkey.self, forKey: .hotkey) ?? hotkey
+    pullRequestCards = try c.decodeIfPresent(Bool.self, forKey: .pullRequestCards) ?? pullRequestCards
   }
 
   public mutating func toggleMute(_ room: String) {

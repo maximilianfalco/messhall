@@ -2,14 +2,16 @@ import type { RunResult } from '../lib/run.js';
 import type { Command } from 'commander';
 
 import { REPO_ROOT } from '../lib/paths.js';
-import { bad, dim, formatTable, ok } from '../lib/print.js';
+import { bad, dim, formatTable, ok, warn } from '../lib/print.js';
 import { run } from '../lib/run.js';
 
+import { appBuildsStep } from './appBuilds.js';
 import { readFeatureMap } from './featuremap.js';
+import { mainCheckout } from './spawn.js';
 
 export interface CheckStep {
   name: string;
-  run: () => Promise<RunResult>;
+  run: () => Promise<RunResult & { warn?: boolean }>;
 }
 
 const pnpm = (name: string, script: string): CheckStep => ({ name, run: () => run('pnpm', [script], REPO_ROOT) });
@@ -26,22 +28,30 @@ export const CHECK_STEPS: CheckStep[] = [
   pnpm('types', 'lint:types'),
   pnpm('tests', 'test'),
   { name: 'feature map', run: featureMapStep },
+  { name: 'app builds', run: async () => appBuildsStep({ mainCheckout: await mainCheckout() }) },
 ];
 
 const tail = (text: string, lines: number) => text.trim().split('\n').slice(-lines).join('\n');
 
-/** Runs every step at once and builds one pass/fail table. Any failed step makes the code 1. */
+const status = (result: RunResult & { warn?: boolean }) => {
+  if (result.code !== 0) return bad('fail');
+  return result.warn ? warn('warn') : ok('pass');
+};
+
+/** Runs every step at once and builds one pass/fail table. Any failed step makes the code 1, a warning does not. */
 export async function runCheck({ steps }: { steps: CheckStep[] }) {
   const started = Date.now();
   const results = await Promise.all(steps.map(async step => ({ name: step.name, result: await step.run() })));
   const failed = results.filter(item => item.result.code !== 0);
+  const warned = results.filter(item => item.result.code === 0 && item.result.warn);
   const table = formatTable(
     ['step', 'status', 'time'],
-    results.map(item => [item.name, item.result.code === 0 ? ok('pass') : bad('fail'), `${item.result.ms}ms`]),
+    results.map(item => [item.name, status(item.result), `${item.result.ms}ms`]),
   );
-  const details = failed.map(
-    item => `\n${bad(item.name)}\n${dim(tail(`${item.result.stdout}\n${item.result.stderr}`, 40))}`,
-  );
+  const details = [
+    ...warned.map(item => `\n${warn(item.name)}\n${item.result.stdout.trim()}`),
+    ...failed.map(item => `\n${bad(item.name)}\n${dim(tail(`${item.result.stdout}\n${item.result.stderr}`, 40))}`),
+  ];
   const verdict = `\n${failed.length ? bad('check failed') : ok('all checks passed')} ${dim(`in ${Date.now() - started}ms`)}`;
   return {
     code: failed.length ? 1 : 0,

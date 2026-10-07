@@ -25,6 +25,7 @@ struct AppSettingsTests {
     #expect(settings.snapshot.notificationsEnabled)
     #expect(settings.snapshot.mutedRooms.isEmpty)
     #expect(settings.snapshot.avatars.colors.isEmpty)
+    #expect(settings.snapshot.pullRequestCards)
   }
 
   @Test("every change is read back by a new store on the same defaults")
@@ -38,6 +39,7 @@ struct AppSettingsTests {
     settings.snapshot.mutedRooms = ["checkout"]
     settings.snapshot.avatars.set(Self.teal, for: "web")
     settings.snapshot.pane = .avatars
+    settings.snapshot.pullRequestCards = false
 
     #expect(AppSettings(defaults: defaults).snapshot == settings.snapshot)
   }
@@ -51,6 +53,7 @@ struct AppSettingsTests {
 
     #expect(snapshot.appearance == .light)
     #expect(snapshot.notificationsEnabled)
+    #expect(snapshot.pullRequestCards)
   }
 
   @Test("a blob that does not parse falls back to the defaults")

@@ -24,6 +24,20 @@ describe('runCheck', () => {
     expect(result.report).toContain('check failed');
   });
 
+  it('shows a warning step with its output and still exits 0', async () => {
+    const warning = {
+      name: 'app builds',
+      run: () => Promise.resolve({ code: 0, ms: 5, stderr: '', stdout: 'stray build /x/Messhall.app', warn: true }),
+    };
+
+    const result = await runCheck({ steps: [step('format', 0), warning] });
+
+    expect(result.code).toBe(0);
+    expect(result.report).toContain('warn');
+    expect(result.report).toContain('stray build /x/Messhall.app');
+    expect(result.report).toContain('all checks passed');
+  });
+
   it('runs the steps at the same time', async () => {
     const started: string[] = [];
     let release = () => {};
