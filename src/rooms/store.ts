@@ -174,8 +174,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     unpauseAll: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ?'),
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
+    // A seat still held keeps its status. One that left starts without it.
     rejoin: db.prepare(
-      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = done * ? WHERE room_id = ? AND name = ?",
+      "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = done * ?, status = iif(left_at IS NULL, status, NULL), status_at = iif(left_at IS NULL, status_at, NULL) WHERE room_id = ? AND name = ?",
     ),
     reopen: db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?'),
     room: db.prepare('SELECT * FROM rooms WHERE name = ?'),
@@ -196,6 +197,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'UPDATE members SET role = ?, role_instructions = ?, role_set_by = ? WHERE room_id = ? AND name = ?',
     ),
     setMuted: db.prepare('UPDATE members SET muted = ? WHERE room_id = ? AND name = ?'),
+    setStatus: db.prepare('UPDATE members SET status = ?, status_at = ? WHERE room_id = ? AND name = ?'),
     setDone: db.prepare('UPDATE members SET done = ? WHERE room_id = ? AND name = ?'),
     setTopic: db.prepare('UPDATE rooms SET topic = ? WHERE id = ?'),
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
@@ -654,6 +656,19 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         emit({ change: 'topic', room: updated, type: 'room' });
         systemLine(updated, `topic set by ${by}: ${topic}`, emit);
         return { ok: true, room: updated } as const;
+      });
+    },
+
+    /** Sets the member's own status, or clears it when empty. It writes no line, so it never rings anyone. */
+    setStatus({ as, room: roomName, status }: { as: string; room: string; status: string }) {
+      return transaction(emit => {
+        const found = seat(roomName, as);
+        if (!found.ok) return found;
+        if (found.member.muted) return { ok: false, reason: 'muted' } as const;
+        sql.setStatus.run(status || null, status ? stamp() : null, found.room.id, as);
+        const member = findMember(found.room, as)!;
+        emit({ change: 'status', member, room: found.room.name, type: 'member' });
+        return { member, ok: true } as const;
       });
     },
 

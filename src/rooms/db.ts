@@ -164,6 +164,13 @@ export const MIGRATIONS = [
   );
   CREATE INDEX approvals_state ON approvals (state, created_at);
   `,
+  // One line a member sets on itself, so progress lives on the seat, not in the transcript. Old events get nulls.
+  `
+  ALTER TABLE members ADD COLUMN status TEXT;
+  ALTER TABLE members ADD COLUMN status_at TEXT;
+  UPDATE events SET payload = json_set(payload, '$.member.status', json('null'), '$.member.status_at', json('null'))
+    WHERE kind = 'member';
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

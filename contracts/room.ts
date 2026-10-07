@@ -10,6 +10,7 @@ export const NAME_PATTERN = /^[a-z0-9-]{1,40}$/;
 export const MODEL_PATTERN = /^[a-z0-9][a-z0-9.[\]-]{0,63}$/i;
 export const TEXT_MAX_CHARS = 4000;
 export const INSTRUCTIONS_MAX_CHARS = 4000;
+export const STATUS_MAX_CHARS = 80;
 export const HUMAN_NAME = 'human';
 export const SYSTEM_NAME = 'messhall';
 export const ALL_MENTION = 'all';
@@ -104,6 +105,12 @@ export const memberSchema = z.object({
     'What the member does here. Starts unassigned, orchestrator for a member named orchestrator.',
   ),
   room_id: z.string().describe('Room id.'),
+  status: z
+    .string()
+    .max(STATUS_MAX_CHARS)
+    .nullable()
+    .describe('What the member is doing now, one line it set itself, like tests green. Null when unset.'),
+  status_at: timestampSchema.nullable().describe('When the member set its status, null when unset.'),
 });
 
 export const messageSchema = z.object({
