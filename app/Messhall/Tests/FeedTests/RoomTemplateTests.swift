@@ -106,4 +106,12 @@ struct RoomTemplateTests {
     #expect(pair.renamed("mine", topic: "ours").topic == "ours")
     #expect(pair.renamed("mine", topic: "ours").bots == pair.bots)
   }
+
+  @Test("a template with an empty topic makes a room with no topic")
+  func emptyTopic() {
+    let pair = template(room: "review").renamed("mine", topic: "")
+
+    #expect(pair.newRoom(named: "mine") == NewRoom(name: "mine", topic: nil))
+    #expect(pair.draft(taken: []).topic == nil)
+  }
 }

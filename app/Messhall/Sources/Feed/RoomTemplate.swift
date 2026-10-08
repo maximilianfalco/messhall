@@ -57,7 +57,12 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
 
   /// What the New Room sheet fills in on a pick: a free room name and the topic.
   public func draft(taken: [String]) -> NewRoom {
-    NewRoom(name: roomName(taken: taken), topic: topic)
+    newRoom(named: roomName(taken: taken))
+  }
+
+  /// The room to make for this template. An empty topic is left out, since the daemon refuses an empty one.
+  public func newRoom(named name: String) -> NewRoom {
+    NewRoom(name: name, topic: topic.isEmpty ? nil : topic)
   }
 
   /// The same template under the name and topic the human typed.

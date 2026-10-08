@@ -19,7 +19,7 @@ struct NewRoomSheet: View {
     self.store = store
     self.client = client
     self.navigation = navigation
-    let shotTemplate = RoomTemplate.templates.first { $0.id == UserDefaults.standard.string(forKey: "shotNewRoomTemplate") }
+    let shotTemplate = RoomTemplate.templates.first { $0.id == navigation.newRoomTemplate }
     let draft = shotTemplate?.draft(taken: store.rooms.map(\.name))
     _selected = State(initialValue: shotTemplate?.id)
     _name = State(initialValue: draft?.name ?? navigation.newRoomDraft ?? "")
@@ -62,6 +62,7 @@ struct NewRoomSheet: View {
       if !RoomTemplate.templates.isEmpty { templatePicker }
       Section {
         TextField("Name", text: $name, prompt: Text("release-notes"))
+          .disabled(startedRoom != nil)
           .onSubmit(create)
       } footer: {
         Text(problem ?? "Lowercase letters, numbers and dashes, up to \(RoomName.maxLength).")
