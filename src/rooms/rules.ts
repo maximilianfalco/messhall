@@ -1,7 +1,15 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
 import { ALL_MENTION, HUMAN_NAME, OBSERVER_ROLE, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
-import { AWAY_AFTER_MS, DONE_AWAY_LEAVE_MS, IDLE_AFTER_MS, RECONNECT_MS } from '../config.js';
+import {
+  AWAY_AFTER_MS,
+  DONE_AWAY_LEAVE_MS,
+  IDLE_AFTER_MS,
+  RECONNECT_MS,
+  SPAWN_RATE_MAX,
+  SPAWN_RATE_WINDOW_MS,
+  SPAWN_SEAT_CAP,
+} from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
 const MENTION = /(?<![\w.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])/g;
@@ -130,4 +138,12 @@ export function leavesDone({
 /** Only the human seat and an orchestrator hand out roles, mutes or kick, so an agent cannot promote itself. */
 export function canAssignRole({ by }: { by: Pick<Member, 'kind' | 'role'> }) {
   return by.kind === 'human' || by.role === ORCHESTRATOR_ROLE;
+}
+
+/** Whether an orchestrator may spawn one more seat: `seats` spawned seats are still in the room,
+ * and `spawnedAt` holds the time of every spawn, even one that was kicked or failed since. */
+export function spawnAllowed({ now, seats, spawnedAt }: { now: Date; seats: number; spawnedAt: number[] }) {
+  if (seats >= SPAWN_SEAT_CAP) return 'seat_cap';
+  const since = now.getTime() - SPAWN_RATE_WINDOW_MS;
+  return spawnedAt.filter(at => at > since).length >= SPAWN_RATE_MAX ? 'spawn_rate' : 'ok';
 }

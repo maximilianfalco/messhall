@@ -15,6 +15,7 @@ import { scratchStore } from '../rooms/scratch.js';
 const CHANNELS = `WARNING: Loading development channels
  ❯ 1. Exit
    2. I am using this for local development`;
+const TRUST_PANE = ' ❯ 1. Yes, I trust this folder\n   2. No, exit';
 const LOGIN = 'Select login method:\n ❯ 1. Claude account with subscription';
 const HOSTILE = "$(touch /tmp/pwned) `id` ' ; rm -rf ~";
 
@@ -204,6 +205,33 @@ describe('createSpawner', () => {
       .filter(args => !['new-session', 'set-buffer'].includes(args[0]!))
       .map(args => args[args.indexOf('-t') + 1]);
     expect(new Set(targets)).toStrictEqual(new Set(['=messhall_demo_api:']));
+  });
+
+  it('trusts the folder when the human spawns', async () => {
+    const tmux = fakeTmux({ onAnswer: seatFromConfig, pane: TRUST_PANE });
+
+    const outcome = await spawnApi(tmux);
+
+    expect(outcome).toMatchObject({ ok: true });
+    expect(calls(tmux)).toContainEqual(['send-keys', '-t', '=messhall_demo_api:', 'Enter']);
+  });
+
+  it('never trusts a folder for an orchestrator, and drops the seat', async () => {
+    store().joinRoom({ as: 'boss', kind: 'claude', room: 'demo' });
+    store().assignRole({ by: 'human', member: 'boss', role: 'orchestrator', room: 'demo' });
+    const tmux = fakeTmux({ onAnswer: seatFromConfig, pane: TRUST_PANE });
+
+    const outcome = await spawner(tmux).spawn({
+      by: 'boss',
+      launch: { agent: 'claude', cwd },
+      name: 'api',
+      role: 'worker',
+      room: 'demo',
+    });
+
+    expect(outcome).toStrictEqual({ ok: false, reason: 'untrusted' });
+    expect(calls(tmux).some(args => args[0] === 'send-keys')).toBe(false);
+    expect(memberOf('api')).toBeUndefined();
   });
 
   it('refuses a cwd that is not a folder before any invite or tmux call', async () => {

@@ -2,7 +2,13 @@ import type { SequencedEvent } from '../../contracts/events.ts';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { INVITE_TTL_MS } from '../../src/config.js';
+import {
+  INVITE_TTL_MS,
+  SPAWN_CAP_RING_EVERY_MS,
+  SPAWN_RATE_MAX,
+  SPAWN_RATE_WINDOW_MS,
+  SPAWN_SEAT_CAP,
+} from '../../src/config.js';
 
 import { scratchStore } from './scratch.js';
 
@@ -52,7 +58,7 @@ describe('invite', () => {
       role: 'worker',
     });
     expect(store().launchOf({ name: 'api', room: 'demo' })).toStrictEqual({ ...LAUNCH, brief: 'b.md', model: 'opus' });
-    expect(texts()).toContain('messhall: api invited by human as worker');
+    expect(texts()).toContain('messhall: human started api (worker) in /tmp/api');
   });
 
   it('gives each invite its own seat key', () => {
@@ -124,6 +130,97 @@ describe('invite', () => {
     expect(invite({ room: 'nope' })).toStrictEqual({ ok: false, reason: 'no_room' });
     store().closeRoom('demo');
     expect(invite()).toStrictEqual({ ok: false, reason: 'room_closed' });
+  });
+});
+
+describe('the spawn cap', () => {
+  const fill = (count: number, from = 0) =>
+    Array.from({ length: count }, (_, index) => {
+      if (index > 0 && index % SPAWN_RATE_MAX === 0) scratch.clock.advance(SPAWN_RATE_WINDOW_MS);
+      return invite({ by: 'boss', name: `w${from + index}` });
+    });
+
+  beforeEach(() => {
+    seated('boss', 'orchestrator');
+  });
+
+  it(`refuses an orchestrator past ${SPAWN_SEAT_CAP} spawned seats and rings the human`, () => {
+    fill(SPAWN_SEAT_CAP);
+    scratch.clock.advance(SPAWN_RATE_WINDOW_MS);
+
+    expect(invite({ by: 'boss' })).toStrictEqual({ cap: SPAWN_SEAT_CAP, ok: false, reason: 'seat_cap' });
+    expect(memberOf('api')).toBeUndefined();
+    const ring = store().listMessages({ limit: 50, room: 'demo' }).messages!.at(-1);
+    expect(ring).toMatchObject({
+      from: 'messhall',
+      mentions: ['human'],
+      text: `@human boss asked for api (worker) but #demo is at its cap of ${SPAWN_SEAT_CAP} spawned seats. start it yourself, or kick a seat first`,
+    });
+  });
+
+  it('frees a place when a spawned seat leaves', () => {
+    const [first] = fill(SPAWN_SEAT_CAP);
+    scratch.clock.advance(SPAWN_RATE_WINDOW_MS);
+    store().joinRoom({ as: 'w0', kind: 'claude', room: 'demo', seatKey: first?.ok ? first.seatKey : undefined });
+    store().leaveRoom({ as: 'w0', room: 'demo' });
+
+    expect(invite({ by: 'boss' }).ok).toBe(true);
+  });
+
+  it('leaves seats that joined on their own out of the count', () => {
+    Array.from({ length: SPAWN_SEAT_CAP }, (_, index) => seated(`own-${index}`, 'worker'));
+
+    expect(invite({ by: 'boss' }).ok).toBe(true);
+  });
+
+  it('never caps the human', () => {
+    fill(SPAWN_SEAT_CAP);
+
+    expect(invite({ name: 'extra' }).ok).toBe(true);
+  });
+
+  it(`refuses an orchestrator past ${SPAWN_RATE_MAX} spawns in a window, then lets it go on`, () => {
+    Array.from({ length: SPAWN_RATE_MAX }, (_, index) => invite({ by: 'boss', name: `w${index}` }));
+
+    expect(invite({ by: 'boss' })).toStrictEqual({ ok: false, reason: 'spawn_rate' });
+    scratch.clock.advance(SPAWN_RATE_WINDOW_MS);
+    expect(invite({ by: 'boss' }).ok).toBe(true);
+  });
+
+  it('counts spawns that were kicked or dropped toward the rate', () => {
+    Array.from({ length: SPAWN_RATE_MAX }, (_, index) => invite({ by: 'boss', name: `w${index}` }));
+    Array.from({ length: SPAWN_RATE_MAX }, (_, index) => store().removeMember({ member: `w${index}`, room: 'demo' }));
+
+    expect(invite({ by: 'boss' })).toStrictEqual({ ok: false, reason: 'spawn_rate' });
+  });
+
+  it('rings the human once for a run of capped retries', () => {
+    fill(SPAWN_SEAT_CAP);
+    scratch.clock.advance(SPAWN_RATE_WINDOW_MS);
+
+    invite({ by: 'boss' });
+    invite({ by: 'boss', name: 'web' });
+
+    expect(texts().filter(text => text.includes('@human'))).toHaveLength(1);
+  });
+
+  it('rings the human again once the ring is old', () => {
+    fill(SPAWN_SEAT_CAP);
+    invite({ by: 'boss' });
+    scratch.clock.advance(SPAWN_CAP_RING_EVERY_MS);
+
+    invite({ by: 'boss' });
+
+    expect(texts().filter(text => text.includes('@human'))).toHaveLength(2);
+  });
+
+  it('checks the caller before the cap, so a plain agent never rings the human', () => {
+    fill(SPAWN_SEAT_CAP);
+    seated('web', 'worker');
+    const before = texts().length;
+
+    expect(invite({ by: 'web' })).toStrictEqual({ ok: false, reason: 'not_allowed' });
+    expect(texts()).toHaveLength(before);
   });
 });
 

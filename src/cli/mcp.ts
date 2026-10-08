@@ -17,7 +17,7 @@ import { parseSettings, readServer, withoutServer, withServer } from '../lib/set
 import { SEAT_ENV, SERVER_NAME, TEXT_BUDGET } from '../mcp/constants.js';
 import { createMesshallServer } from '../mcp/server.js';
 import { createSession, createSessionRegistry } from '../mcp/session.js';
-import { connectInMemory } from '../mcp/testing.js';
+import { connectInMemory, scratchSpawner } from '../mcp/testing.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 
@@ -278,7 +278,9 @@ async function toolChecks(): Promise<Check[]> {
   const sessions = createSessionRegistry<{ session: McpSession }>();
   const store = createRoomStore({ db, now });
   const codex = createCodexClient({ socketPath: codexControlSocket() });
-  const client = await connectInMemory(() => createMesshallServer({ codex, now, session, sessions, store }));
+  const client = await connectInMemory(() =>
+    createMesshallServer({ codex, now, session, sessions, spawner: scratchSpawner, store }),
+  );
   try {
     const { tools } = await client.listTools();
     return tools.map(tool => {

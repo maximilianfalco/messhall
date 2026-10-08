@@ -33,21 +33,25 @@ describe('dialogKeys', () => {
 
   it('trusts the folder on the codex trust prompt', () => {
     const pane = '  Trust this folder?\n› 1. Trust and continue\n  2. Back to Agent Command Center';
-    expect(dialogKeys(pane)).toStrictEqual({ keys: ['Enter'], kind: 'answer' });
+    expect(dialogKeys(pane)).toStrictEqual({ keys: ['Enter'], kind: 'trust' });
   });
 
   it('leaves the codex composer alone', () => {
     expect(dialogKeys('› Ask Codex to do anything\n  GPT-6-Luna high')).toStrictEqual({ kind: 'none' });
   });
 
-  it('moves down to trust on the folder trust prompt', () => {
-    expect(dialogKeys(TRUST)).toStrictEqual({ keys: ['Down', 'Enter'], kind: 'answer' });
+  it('moves down to trust on the folder trust prompt, marked as a trust answer', () => {
+    expect(dialogKeys(TRUST)).toStrictEqual({ keys: ['Down', 'Enter'], kind: 'trust' });
   });
 
-  it('confirms a prompt already on the safe option', () => {
+  it('marks the older yes proceed trust prompt as a trust answer', () => {
+    expect(dialogKeys(' ❯ 1. Yes, proceed\n   2. No, exit')).toStrictEqual({ keys: ['Enter'], kind: 'trust' });
+  });
+
+  it('confirms a trust prompt already on the trust option', () => {
     expect(dialogKeys(' ❯ 1. Yes, I trust this folder\n   2. No, exit')).toStrictEqual({
       keys: ['Enter'],
-      kind: 'answer',
+      kind: 'trust',
     });
   });
 

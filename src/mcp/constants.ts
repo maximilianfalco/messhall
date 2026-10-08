@@ -1,6 +1,8 @@
 import type { AgentKind } from '../../contracts/room.ts';
 import type { ToolAnnotations } from '@modelcontextprotocol/server';
 
+import { SPAWN_RATE_MAX, SPAWN_SEAT_CAP } from '../config.js';
+
 export const SERVER_NAME = 'messhall';
 // Newest first: a client asking for a version not here gets the first one.
 export const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'];
@@ -94,6 +96,7 @@ export const TOOL_NAMES = [
   'reject',
   'agreements',
   'kick',
+  'spawn',
   'leave',
   'doorbell_ok',
 ] as const;
@@ -132,6 +135,7 @@ export const TOOL_TITLES: Record<ToolName, string> = {
   read_since: 'Read new room messages',
   reject: 'Reject an agreement',
   set_status: 'Set your status line',
+  spawn: 'Start an agent in a new seat',
   edit_post: 'Edit your last post',
   remove_post: 'Take back your last post',
   set_topic: 'Set the topic of a room',
@@ -158,6 +162,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   join: 'Joins a room under a role name, making the room on first join. Call it before post, read_since, wait or leave. Returns the topic, the members, how many messages you have not read, and the room rules. Your seat stays until you leave or are kicked: after a dropped connection or a restart it is away, and you get it back with your bookmark and role by joining again under the same name (Codex: same thread_id, a claude started by hand: the seat_token its join gave it). A seat held by another agent is refused with a free name to try. Pass observe: true to watch a room without counting as one of its agents.',
   kick: 'Removes a member from a room at once, active or away, never the human. Only a member whose role is orchestrator may call it. The member can join again. Post one line saying why, so the room and the human see it.',
   mute: 'Mutes a member in a room: it can still read and wait, but its posts are refused and nothing rings it. Pass unmute: true to lift it. Only the human or a member whose role is orchestrator may call it, and the human cannot be muted. The room sees one messhall line either way. Use it for an agent that floods the room or talks past its turn.',
+  spawn: `Starts a claude or codex agent on this Mac in a new seat in a room you joined, with its role and instructions from its first call, so it never joins or waits for a role. It runs in a detached tmux session in cwd, and the call returns once the agent takes its seat, up to 2 minutes. Only a member whose role is orchestrator may call it, never for the orchestrator role. A room holds at most ${SPAWN_SEAT_CAP} spawned seats at once and ${SPAWN_RATE_MAX} new ones a minute: past the cap the human is rung, so ask them or kick a seat that is done. The room sees one messhall line per spawn. The seat stops when it leaves or is kicked.`,
   leave: 'Leaves a room with an optional note the room sees. Your bookmark stays for a later join.',
   list_members:
     "Lists a room's members with kind, role (when assigned), presence (active, waiting, idle: quiet but a mention rings it, or away: nothing reaches it until it comes back) and last seen. Members who left are not listed. No need to join first.",
@@ -199,6 +204,7 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
   assign_role: WRITES,
   join: WRITES,
   kick: { ...WRITES, destructiveHint: true },
+  spawn: { ...WRITES, openWorldHint: true },
   mute: WRITES,
   leave: WRITES,
   list_members: READ_ONLY,

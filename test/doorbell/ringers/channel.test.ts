@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { CHANNEL_METHOD, createChannelRinger } from '../../../src/doorbell/ringers/channel.js';
 import { createMesshallServer } from '../../../src/mcp/server.js';
 import { createSession, createSessionRegistry } from '../../../src/mcp/session.js';
-import { connectInMemory } from '../../../src/mcp/testing.js';
+import { connectInMemory, scratchSpawner } from '../../../src/mcp/testing.js';
 import { fakeCodexRpc } from '../../codex/fakeCodex.js';
 import { scratchStore } from '../../rooms/scratch.js';
 
@@ -129,6 +129,7 @@ describe('createChannelRinger', () => {
       now: scratch.clock.now,
       session,
       sessions,
+      spawner: scratchSpawner,
       store: scratch.store,
     });
     const client = await connectInMemory(() => server);

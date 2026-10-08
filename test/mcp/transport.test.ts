@@ -13,7 +13,7 @@ import { AWAY_AFTER_MS, DAEMON_HOST, SESSION_DEAD_MS } from '../../src/config.js
 import { KEY_FILES, KEY_HEADER } from '../../src/daemon/keys.js';
 import { startDaemon } from '../../src/daemon/server.js';
 import { CHANNEL_METHOD } from '../../src/doorbell/ringers/channel.js';
-import { connectHttp } from '../../src/mcp/testing.js';
+import { connectHttp, scratchSpawner } from '../../src/mcp/testing.js';
 import { createMcpEndpoint } from '../../src/mcp/transport.js';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
@@ -366,7 +366,7 @@ describe('createMcpEndpoint sweep', () => {
     const db = openDb({ dataDir: home });
     closeDb = () => db.close();
     store = createRoomStore({ db, now });
-    endpoint = createMcpEndpoint({ codex: fakeCodexRpc(), now, store });
+    endpoint = createMcpEndpoint({ codex: fakeCodexRpc(), now, spawner: scratchSpawner, store });
     server = createServer((req, res) => {
       endpoint.handle(req, res)?.catch(() => {});
     });

@@ -145,6 +145,8 @@ export function humanRoutes({
       case 'not_member':
       case 'not_allowed':
       case 'muted':
+      case 'seat_cap':
+      case 'spawn_rate':
         return sendJson(res, 403, { error: `the human seat cannot spawn here: ${result.reason}` });
       case 'tmux':
         return sendJson(res, 502, { error: `tmux could not start: ${result.detail}. is tmux installed?` });

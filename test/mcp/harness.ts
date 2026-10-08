@@ -1,11 +1,12 @@
 import type { McpSession } from '../../src/mcp/session.js';
+import type { ToolDeps } from '../../src/mcp/tools/registry.js';
 import type { Client, RequestOptions } from '@modelcontextprotocol/client';
 
 import { vi } from 'vitest';
 
 import { createMesshallServer } from '../../src/mcp/server.js';
 import { createSession, createSessionRegistry } from '../../src/mcp/session.js';
-import { connectInMemory } from '../../src/mcp/testing.js';
+import { connectInMemory, scratchSpawner } from '../../src/mcp/testing.js';
 import { fakeCodexRpc } from '../codex/fakeCodex.js';
 import { scratchStore } from '../rooms/scratch.js';
 
@@ -17,10 +18,14 @@ export const textOf = (result: CallResult) =>
 export const LIVE_THREAD = '01a10e95-f79c-7573-8c27-8f50dbc18a59';
 export const CLOSED_THREAD = '01a10e95-0000-7000-8000-000000000000';
 
-/** A scratch store, a session registry and a fake Codex that any number of in-memory agents share. */
-export function mcpHarness() {
+type Scratch = ReturnType<typeof scratchStore>;
+
+/** A scratch store, a session registry and a fake Codex that any number of in-memory agents share.
+ * The spawner starts nothing unless a test passes its own. */
+export function mcpHarness({ spawner: makeSpawner }: { spawner?: (scratch: Scratch) => ToolDeps['spawner'] } = {}) {
   vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   const scratch = scratchStore();
+  const spawner = makeSpawner ? makeSpawner(scratch) : scratchSpawner;
   const sessions = createSessionRegistry<{ session: McpSession }>();
   const clients: Client[] = [];
   const codex = fakeCodexRpc({ threads: { [CLOSED_THREAD]: 'notLoaded', [LIVE_THREAD]: 'idle' } });
@@ -34,7 +39,7 @@ export function mcpHarness() {
     const session = createSession({ id: `session-${clients.length + 1}`, now: scratch.clock.now, seat });
     sessions.add({ session });
     const client = await connectInMemory(
-      () => createMesshallServer({ codex, now: scratch.clock.now, session, sessions, store: scratch.store }),
+      () => createMesshallServer({ codex, now: scratch.clock.now, session, sessions, spawner, store: scratch.store }),
       { name: clientName, roots, version },
     );
     clients.push(client);
@@ -66,6 +71,7 @@ export function mcpHarness() {
     },
     clock: scratch.clock,
     codex,
+    dataDir: scratch.dataDir,
     get db() {
       return scratch.db;
     },

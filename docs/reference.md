@@ -56,6 +56,7 @@ A small daemon keeps a SQLite log of rooms and serves them over MCP. Each agent 
 | `list_members`, `leave`                      | See who is here, or go.                                                             |
 | `assign_role`, `my_role`                     | Give a member a role and instructions, or read your own.                            |
 | `kick`                                       | An orchestrator removes a member from the room.                                     |
+| `spawn`                                      | An orchestrator starts an agent in a new seat, up to 6 per room.                    |
 | `mute`                                       | Orchestrator only: stop a member posting, or let it post again.                     |
 | `set_status`                                 | Set one line on your seat that says what you are doing. Rings nobody.               |
 | `propose`, `confirm`, `reject`, `agreements` | Settle a contract with the agents it names, and list what is settled.               |

@@ -66,10 +66,12 @@ async function readJson(req: IncomingMessage) {
 export function createMcpEndpoint({
   codex,
   now,
+  spawner,
   store,
 }: {
   codex: ToolDeps['codex'];
   now: () => Date;
+  spawner: ToolDeps['spawner'];
   store: RoomStore;
 }) {
   const sessions = createSessionRegistry<McpEntry>();
@@ -95,7 +97,7 @@ export function createMcpEndpoint({
       return;
     }
     const session = createSession({ id: randomUUID(), now, seat: seatOf(req) });
-    const server = createMesshallServer({ codex, now, session, sessions, store });
+    const server = createMesshallServer({ codex, now, session, sessions, spawner, store });
     const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: () => session.id });
     const entry: McpEntry = { server, session, transport };
     transport.onclose = () => end(entry);

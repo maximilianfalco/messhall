@@ -1,3 +1,4 @@
+import type { ToolDeps } from './tools/registry.js';
 import type { McpServer } from '@modelcontextprotocol/server';
 
 import { Client, InMemoryTransport, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -42,3 +43,8 @@ export async function connectHttp({
   await client.connect(transport);
   return { client, transport };
 }
+
+/** A spawner for an in-memory server on a scratch store: it starts nothing and says so. */
+export const scratchSpawner: ToolDeps['spawner'] = {
+  spawn: async () => ({ detail: 'a scratch server starts no agents', ok: false, reason: 'tmux' }) as const,
+};
