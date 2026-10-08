@@ -390,7 +390,10 @@ describe('nudgeRun', () => {
   const STUCK = ['─'.repeat(40), '❯ carry on', '─'.repeat(40)].join('\n');
   const EMPTY = ['─'.repeat(40), '❯ ', '─'.repeat(40)].join('\n');
   const paneAfter = (panes: string[]) =>
-    vi.fn<Runner>(args => Promise.resolve(result(args[0] === 'capture-pane' ? (panes.shift() ?? EMPTY) : '')));
+    vi.fn<Runner>(args => {
+      if (args[0] === 'display-message') return Promise.resolve(result('✳ Claude Code\n'));
+      return Promise.resolve(result(args[0] === 'capture-pane' ? (panes.shift() ?? EMPTY) : ''));
+    });
 
   it('refuses a session tmux does not have', async () => {
     const tmux = vi.fn<Runner>(() => Promise.resolve(result('', 1)));
@@ -405,9 +408,12 @@ describe('nudgeRun', () => {
     expect(outcome.code).toBe(0);
     expect(tmux.mock.calls.map(([args]) => args.join(' '))).toStrictEqual([
       'has-session -t messhall-B82',
+      'display-message -p -t messhall-B82 #{pane_title}',
       'send-keys -t messhall-B82 -l carry on',
+      'display-message -p -t messhall-B82 #{pane_title}',
       'send-keys -t messhall-B82 Enter',
       'capture-pane -p -e -t messhall-B82',
+      'display-message -p -t messhall-B82 #{pane_title}',
       'send-keys -t messhall-B82 Enter',
       'capture-pane -p -e -t messhall-B82',
     ]);

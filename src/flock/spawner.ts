@@ -196,10 +196,14 @@ export function createSpawner({
         return { ok: false, reason: ready } as const;
       }
       if (agent === 'claude') {
-        const typed = await typePrompt(exactTarget(seat), seatedPrompt({ ...seat, role }), { run: tmux, settleMs });
-        if (typed === 'stuck') {
+        const typed = await typePrompt(exactTarget(seat), seatedPrompt({ ...seat, role }), {
+          run: tmux,
+          settleMs,
+          titleWaitMs: readyWithinMs,
+        });
+        if (typed !== 'sent') {
           await giveUp(seat);
-          return { ok: false, reason: 'stuck' } as const;
+          return { ok: false, reason: typed } as const;
         }
       }
       const member = store.listMembers(room).find(found => found.name === name);

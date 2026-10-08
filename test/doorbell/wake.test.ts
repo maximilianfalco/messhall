@@ -90,6 +90,7 @@ describe('wakeSeats', () => {
       calls.push(args);
       const config = path.join(dataDir, 'spawn', 'B106-mcp.json');
       if (args[0] === 'list-panes') return Promise.resolve(result(`messhall-B106\tclaude --mcp-config '${config}'`));
+      if (args[0] === 'display-message') return Promise.resolve(result('✳ Claude Code\n'));
       return Promise.resolve(result(args[0] === 'capture-pane' ? pane : ''));
     };
     const queued: unknown[] = [];
