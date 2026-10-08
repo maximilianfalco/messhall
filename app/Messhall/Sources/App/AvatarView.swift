@@ -41,19 +41,18 @@ struct AvatarView: View {
   }
 }
 
-/// Two eyes and a mouth in unit space, drawn in the ink that reads on the circle.
+/// Two eyes and a mouth in unit space, drawn in the foreground style the circle sets.
 struct FaceView: View {
   let name: String
 
   var body: some View {
     let face = avatarFace(for: name)
-    let ink = Color(avatarInk(on: avatarRGB(for: name)))
     Canvas { context, size in
       let w = size.width
       let spread = eyeSpreads[face.eyeSpread]
       for x in [0.5 - spread, 0.5 + spread] {
         let eye = CGRect(x: (x - 0.06) * w, y: 0.36 * w, width: 0.12 * w, height: 0.12 * w)
-        context.fill(Path(ellipseIn: eye), with: .color(ink))
+        context.fill(Path(ellipseIn: eye), with: .foreground)
       }
       let stroke = StrokeStyle(lineWidth: 0.05 * w, lineCap: .round)
       switch face.mouth {
@@ -62,16 +61,16 @@ struct FaceView: View {
           Path { p in
             p.move(to: CGPoint(x: 0.34 * w, y: 0.6 * w))
             p.addQuadCurve(to: CGPoint(x: 0.66 * w, y: 0.6 * w), control: CGPoint(x: 0.5 * w, y: 0.76 * w))
-          }, with: .color(ink), style: stroke)
+          }, with: .foreground, style: stroke)
       case 1:
         context.stroke(
           Path { p in
             p.move(to: CGPoint(x: 0.37 * w, y: 0.66 * w))
             p.addLine(to: CGPoint(x: 0.63 * w, y: 0.66 * w))
-          }, with: .color(ink), style: stroke)
+          }, with: .foreground, style: stroke)
       default:
         let open = CGRect(x: 0.42 * w, y: 0.6 * w, width: 0.16 * w, height: 0.12 * w)
-        context.fill(Path(ellipseIn: open), with: .color(ink))
+        context.fill(Path(ellipseIn: open), with: .foreground)
       }
     }
   }

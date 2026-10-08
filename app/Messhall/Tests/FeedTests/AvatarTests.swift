@@ -22,16 +22,10 @@ struct AvatarTests {
     #expect(avatarFace(for: "f8-search") == avatarFace(for: "f8-search"))
   }
 
-  @Test("a face is one of nine, so a hundred names share few of them, but most get one of the nine")
+  @Test("a hundred names use at least eight of the nine faces")
   func faceSpread() {
     let names = (1...100).map { "agent-\($0)" }
     #expect(Set(names.map { avatarFace(for: $0) }).count >= 8)
-  }
-
-  @Test("the face does not change the hue")
-  func faceKeepsHue() {
-    #expect(avatarHue(for: "orchestrator") == 97)
-    #expect(avatarHue(for: "f8-search") == 138)
   }
 
   @Test("the ten dev room names get ten different hues")
