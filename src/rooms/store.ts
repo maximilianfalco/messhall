@@ -40,6 +40,7 @@ import {
   LOOP_GUARD_BACKSTOP,
   LOOP_GUARD_LINES,
   LOOP_GUARD_PAUSE_MS,
+  NOTE_HOLD_MS,
   LOOP_GUARD_WITHIN_MS,
   QUESTION_TTL_MS,
   READ_LIMIT,
@@ -194,6 +195,17 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     unpause: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ? AND name IN (?, ?)'),
     unpauseAll: db.prepare('UPDATE members SET paused_with = NULL, paused_at = NULL WHERE room_id = ?'),
     postsAfter: db.prepare(`SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} AND id > ? ORDER BY id`),
+    holdNote: db.prepare(
+      'INSERT OR IGNORE INTO held_notes (room_id, name, message_id, created_at) VALUES (?, ?, ?, ?)',
+    ),
+    heldNotes: db.prepare(
+      'SELECT n.message_id, m.from_name FROM held_notes n JOIN messages m ON m.id = n.message_id WHERE n.room_id = ? AND n.name = ? AND n.created_at >= ? ORDER BY n.message_id',
+    ),
+    dropNotes: db.prepare('DELETE FROM held_notes WHERE room_id = ? AND name = ?'),
+    dropOldNotes: db.prepare('DELETE FROM held_notes WHERE created_at < ?'),
+    noteMessages: db.prepare(
+      'SELECT m.* FROM held_notes n JOIN messages m ON m.id = n.message_id WHERE n.room_id = ? AND n.name = ? AND n.created_at >= ? ORDER BY m.id',
+    ),
     moveCursor: db.prepare('UPDATE members SET cursor = ? WHERE room_id = ? AND name = ?'),
     rejoin: db.prepare(
       "UPDATE members SET kind = ?, client_name = ?, client_version = ?, seat_key = ?, left_at = NULL, last_seen_at = ?, presence = 'active', done = done * ? WHERE room_id = ? AND name = ?",
@@ -302,6 +314,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   const countPosts = (room: Room) => Number(sql.countPosts.get(room.id)?.n);
   const latestSummaryRow = (room: Room) => sql.latestSummary.get(room.id);
   // A new member starts where the latest summary stands, so its first read is that summary.
+  const noteCutoff = () => new Date(now().getTime() - NOTE_HOLD_MS).toISOString();
   const startCursor = (room: Room) => Number(latestSummaryRow(room)?.covers_id ?? 0);
 
   // The sender's kind and label go on the post, so the transcript can show them after the sender leaves.
@@ -461,7 +474,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       guardLoop(room, member.name, emit);
     }
     if (kind === 'done') closeIfAllDone(room, emit);
-    return { message, missing: missingMentions({ names, text }) };
+    const missing = missingMentions({ names, text });
+    for (const name of missing) sql.holdNote.run(room.id, name, message.id, stamp());
+    return { message, missing };
   }
 
   // Finds the room and a member still in it, the gate every member call goes through.
@@ -578,6 +593,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const change: MemberChange =
           existing?.left_at === null && existing.presence !== 'invited' ? 'reconnected' : 'joined';
         const cursor = startCursor(room);
+        const held = sql.heldNotes.all(room.id, as, noteCutoff());
         const [name, version] = [client?.name ?? null, client?.version ?? null];
         const role = observe ? OBSERVER_ROLE : as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
         const seatKeyOrNull = seatKey ?? invite ?? null;
@@ -587,10 +603,11 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
           const at = stamp();
           sql.insertMember.run(room.id, as, kind, at, at, 'active', cursor, name, version, role, seatKeyOrNull);
         }
+        const notes = { count: held.length, from: Array.from(new Set(held.map(row => String(row.from_name)))) };
         const member = findMember(room, as)!;
         emit({ change, member, room: room.name, type: 'member' });
         systemLine(room, `${as} ${change}`, emit);
-        return { change, member, ok: true, room } as const;
+        return { change, member, notes, ok: true, room } as const;
       });
     },
 
@@ -905,10 +922,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const { member, room } = found;
         const take = Math.min(limit, READ_LIMIT);
         const rows = sql.unseen.all(room.id, afterId ?? member.cursor, as, take + 1);
-        const messages = rows.slice(0, take).map(toMessage);
+        const notes = afterId === undefined ? sql.noteMessages.all(room.id, as, noteCutoff()).map(toMessage) : [];
+        if (notes.length) sql.dropNotes.run(room.id, as);
+        const noted = new Set(notes.map(note => note.id));
+        const page = rows.slice(0, take).map(toMessage);
+        const messages = [...notes, ...page.filter(message => !noted.has(message.id))];
         const more = rows.length > take;
         if (afterId === undefined) {
-          const last = more ? messages.at(-1)!.id : Number(sql.latestId.get(room.id)?.id ?? member.cursor);
+          const last = more ? page.at(-1)!.id : Number(sql.latestId.get(room.id)?.id ?? member.cursor);
           if (last > member.cursor) sql.moveCursor.run(last, room.id, as);
         }
         setPresence(room, member, 'active', emit, true);
@@ -1278,6 +1299,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     clearStale() {
       return transaction(emit => {
         const cutoff = new Date(now().getTime() - STALE_AFTER_MS).toISOString();
+        sql.dropOldNotes.run(noteCutoff());
         return sql.stale.all(cutoff).map(row => {
           const member = toMember(row);
           const room = roomById(member.room_id);

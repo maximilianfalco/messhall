@@ -106,6 +106,8 @@ export const REVIEW_STALE_MS = 10 * 60_000;
 export const REVIEW_HANDOFF_MS = 15 * 60_000;
 // An older request is left alone, so a daemon back from a long stop does not nudge old news.
 export const REVIEW_NUDGE_WINDOW_MS = 60 * 60_000;
+// A note for a name not in the room waits this long for that name to join.
+export const NOTE_HOLD_MS = 24 * 60 * 60_000;
 // Codex reads its first prompt and joins before its seat is taken, which is slower than a claude connect.
 export const SPAWN_READY_MS = 2 * 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.

@@ -8,7 +8,7 @@ import { notJoined, refuse, registerRoomTool, removedFrom, reply } from './regis
 import { unreadConcerning } from './wait.js';
 
 /** Registers `post`: membership, the open room and the text limit all come from the store.
- * The reply names mentions of people not in the room, since nobody was rung for them.
+ * The reply names mentions of people not in the room, since nobody was rung. The note waits for them until they join.
  * It also counts unread lines that concern the poster, so crossed posts get read first. */
 export function registerPost(server: McpServer, deps: ToolDeps, description: string) {
   const { session, store } = deps;
@@ -25,7 +25,7 @@ export function registerPost(server: McpServer, deps: ToolDeps, description: str
         const mentioned = mentions.length ? `, mentioned ${mentions.map(name => `@${name}`).join(' ')}` : '';
         const { missing } = posted;
         const absent = missing.length
-          ? ` ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not in #${room}, nobody was rung for them. ask @${HUMAN_NAME} for help.`
+          ? ` ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not in #${room}, your note waits for them until they join.`
           : '';
         const crossed = unreadConcerning({ as, room, store });
         const senders = [...new Set(crossed.map(message => message.from))].join(' and ');

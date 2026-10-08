@@ -33,14 +33,14 @@ describe('post', () => {
     expect(message).toMatchObject({ from: 'api', mentions: ['web'], text: '@web total is cents now' });
   });
 
-  it('names a mention of someone not in the room and points at human', async () => {
+  it('names a mention of someone not in the room and says the note waits', async () => {
     const api = await harness.joined('checkout', 'api');
     await harness.joined('checkout', 'web');
 
     const result = await api.call('post', { room: 'checkout', text: '@web and @reviewer-2 can you look?' });
 
     expect(result.text).toMatch(
-      /^posted #\d+ in #checkout, mentioned @web\. reviewer-2 is not in #checkout, nobody was rung for them\. ask @human for help\.$/,
+      /^posted #\d+ in #checkout, mentioned @web\. reviewer-2 is not in #checkout, your note waits for them until they join\.$/,
     );
   });
 
@@ -50,7 +50,7 @@ describe('post', () => {
     const result = await api.call('post', { room: 'checkout', text: '@ghost @mobile @ghost ping' });
 
     expect(result.text).toMatch(
-      /^posted #\d+ in #checkout\. ghost and mobile are not in #checkout, nobody was rung for them\. ask @human for help\.$/,
+      /^posted #\d+ in #checkout\. ghost and mobile are not in #checkout, your note waits for them until they join\.$/,
     );
   });
 
