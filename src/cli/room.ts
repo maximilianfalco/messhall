@@ -3,11 +3,13 @@ import type { Command } from 'commander';
 import pc from 'picocolors';
 
 import { feedErrorSchema, snapshotSchema } from '../../contracts/feed.ts';
+import { ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { daemonUrl, dataDir } from '../config.js';
 import { KEY_HEADER } from '../daemon/keys.js';
 import { renderRooms } from '../feed/render.js';
 
 import { readHumanKey } from './say.js';
+import { ORCHESTRATOR_BRIEF, readBrief, seatedLines, spawnOrchestrator } from './spawn.js';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -16,7 +18,7 @@ type RoomAction =
   | { action: 'kick'; member: string; name: string }
   | { action: 'list' }
   | { action: 'mute' | 'unmute'; member: string; name: string }
-  | { action: 'new'; name: string; topic?: string }
+  | { action: 'new'; name: string; orchestrator?: { brief?: string; cwd: string }; topic?: string }
   | { action: 'nudges'; name: string; on: boolean };
 
 function done(input: Exclude<RoomAction, { action: 'list' }>) {
@@ -52,7 +54,8 @@ function request(input: RoomAction, url: string) {
   return { init: { method: 'POST' }, url: `${url}/api/rooms/${encodeURIComponent(input.name)}/${action}` };
 }
 
-/** Makes, closes, reopens or lists rooms, turns review nudges on or off, kicks any agent seat, or mutes a member, as the human through the daemon. Prints one line per room, or one red line. */
+/** Makes, closes, reopens or lists rooms, turns review nudges on or off, kicks any agent seat, or mutes a member, as the human through the daemon. Prints one line per room, or one red line.
+ * A new room with `orchestrator` also spawns claude as its orchestrator, the brief checked before the room is made. */
 export async function runRoom({
   dataDir: dir,
   fetch,
@@ -66,6 +69,9 @@ export async function runRoom({
 }) {
   const key = readHumanKey(dir);
   if (!key) return fail(`no human key in ${dir}, start the daemon once`);
+  const lead = input.action === 'new' ? input.orchestrator : undefined;
+  const brief = lead && readBrief(lead.brief ?? ORCHESTRATOR_BRIEF);
+  if (brief && !brief.ok) return fail(brief.error);
 
   const call = request(input, url);
   let response: Response;
@@ -85,7 +91,12 @@ export async function runRoom({
   if (input.action === 'list') {
     return { code: 0, output: renderRooms({ snapshot: snapshotSchema.parse(body) }) } as const;
   }
-  return { code: 0, output: [done(input)] } as const;
+  if (!lead || !brief?.ok) return { code: 0, output: [done(input)] } as const;
+  const room = input.name;
+  const spawned = await spawnOrchestrator({ brief: brief.text, cwd: lead.cwd, dataDir: dir, fetch, room, url });
+  if (!spawned.ok) return { code: 1, output: [done(input), pc.red(spawned.error)] } as const;
+  const seated = seatedLines({ name: ORCHESTRATOR_ROLE, role: ORCHESTRATOR_ROLE, room, session: spawned.session });
+  return { code: 0, output: [done(input), ...seated] } as const;
 }
 
 async function print(input: RoomAction) {
@@ -105,7 +116,15 @@ export function registerRoom(program: Command) {
     .description('Make a standing room. It stays open until you close it.')
     .argument('<name>', 'room name')
     .option('--topic <text>', 'what the room is for')
-    .action((name: string, options: { topic?: string }) => print({ action: 'new', name, ...options }));
+    .option('--orchestrator', 'also start claude as the room orchestrator, in tmux')
+    .option('--cwd <dir>', 'with --orchestrator, the folder it starts in, this one by default')
+    .option('--brief <file>', 'with --orchestrator, its role instructions, docs/briefs/orchestrator.md by default')
+    .action((name: string, options: { brief?: string; cwd?: string; orchestrator?: boolean; topic?: string }) => {
+      const { brief, cwd, orchestrator, topic } = options;
+      if (!orchestrator && (brief || cwd)) return program.error('--cwd and --brief go with --orchestrator');
+      const lead = orchestrator ? { brief, cwd: cwd ?? '.' } : undefined;
+      return print({ action: 'new', name, orchestrator: lead, topic });
+    });
   room
     .command('close')
     .description('Close a room. Agents cannot post until you reopen it.')
