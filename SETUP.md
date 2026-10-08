@@ -180,6 +180,15 @@ The example briefs in [docs/briefs/](docs/briefs/) set up a review loop:
 
 Copy the briefs and edit them for your own projects. Each brief stays under 4,000 characters.
 
+### What a spawned role may run
+
+When the app spawns a Claude for a role, it passes `docs/briefs/<role>.settings.json` with `--settings`, if that file exists. It is a plain Claude Code settings file, so its allow list skips the prompt for those commands. The shipped ones:
+
+- [worker.settings.json](docs/briefs/worker.settings.json): `gh pr merge` and `queue.py done`, so a worker can merge after approval or a human go and close its row. The brief still says when.
+- [reviewer.settings.json](docs/briefs/reviewer.settings.json): `gh api repos/*/pulls/*/reviews`, so a reviewer can post its GitHub review.
+
+Edit them to give a role more or less. A role with no file gets only the messhall tools. Auto mode decides on its own and can still refuse a listed command.
+
 ### Run a flock
 
 A flock is one orchestrator plus a few agents in one room. Start each one in its own terminal:
