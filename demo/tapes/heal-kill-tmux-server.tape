@@ -21,10 +21,13 @@ Hide
 Type "unset TMUX; rm -rf $MESSHALL_HOME /tmp/messhall-tape-heal-api /tmp/messhall-tape-heal-web; mkdir -p $TMUX_TMPDIR /tmp/messhall-tape-heal-api /tmp/messhall-tape-heal-web; pnpm -s messhall-dev daemon --keep > /dev/null; pnpm -s dev room new demo > /dev/null"
 Enter
 Sleep 8s
-Type "pnpm -s dev spawn demo api --role worker --cwd /tmp/messhall-tape-heal-api --model haiku --instructions 'post one line saying you read your role, then end your turn' > /dev/null; pnpm -s dev spawn demo web --role reviewer --cwd /tmp/messhall-tape-heal-web --model haiku --instructions 'post one line saying you read your role, then end your turn' > /dev/null; clear"
+Type "pnpm -s dev spawn demo api --role worker --cwd /tmp/messhall-tape-heal-api --model haiku --instructions 'post one line saying you read your role, then end your turn' > /dev/null; pnpm -s dev spawn demo web --role reviewer --cwd /tmp/messhall-tape-heal-web --model haiku --instructions 'post one line saying you read your role, then end your turn' > /dev/null; clear; echo seated"
 Enter
-Wait+Screen@300s /\$ $/
+Wait+Screen@300s /^seated/
 Sleep 20s
+Type "clear"
+Enter
+Sleep 1s
 Show
 
 Type "pnpm -s dev flock; echo exit $?"
@@ -58,6 +61,6 @@ Wait+Screen@30s /exit [0-9](.|\n)*exit [0-9]/
 Sleep 8s
 
 Hide
-Type "tmux kill-server; kill $(lsof -t -iTCP:7891 -sTCP:LISTEN)"
+Type "kill $(lsof -t -iTCP:7891 -sTCP:LISTEN); sleep 1; tmux kill-server"
 Enter
 Sleep 1s
