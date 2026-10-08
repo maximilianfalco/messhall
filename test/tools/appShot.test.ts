@@ -64,6 +64,7 @@ describe('seedShotRooms', () => {
     const members = store.listMembers('checkout');
     const page = store.listMessages({ limit: 50, room: 'checkout' });
     const docs = store.listMessages({ limit: 50, room: 'docs-sync' });
+    const edits = store.listMessages({ limit: 50, room: 'edits' });
     db.close();
 
     expect(rooms).toStrictEqual([
@@ -71,6 +72,7 @@ describe('seedShotRooms', () => {
       ['checkout', true, 'qa', false],
       ['deploy', true, 'deployer', false],
       ['docs-sync', true, 'writer', false],
+      ['edits', true, 'api', false],
       ['handoff', true, 'api', false],
       ['history', true, 'planner', false],
       ['kickoff', true, 'human', true],
@@ -91,6 +93,16 @@ describe('seedShotRooms', () => {
     ).toStrictEqual(['script']);
     expect(docs.ok && docs.messages.length).toBeGreaterThan(20);
     expect(docs.ok && docs.messages.findIndex(message => message.from === 'human')).toBe(7);
+    expect(
+      edits.ok &&
+        edits.messages
+          .filter(message => message.kind === 'chat')
+          .map(message => [message.edited_at !== null, message.removed_at !== null]),
+    ).toStrictEqual([
+      [true, false],
+      [true, true],
+      [false, false],
+    ]);
   });
 
   it('leaves a reviews room whose lines link known PRs, one line with more than three and one PR gh cannot read', () => {

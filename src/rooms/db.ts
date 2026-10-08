@@ -65,7 +65,7 @@ export const MIGRATIONS = [
     '$.room.standing', json('false')
   ) WHERE kind = 'room';
   `,
-  // Search reads the text from messages. Posts are never edited or deleted, so an insert trigger keeps it whole.
+  // Search reads the text from messages. An insert trigger keeps it whole, and a later migration adds the edit one.
   `
   CREATE VIRTUAL TABLE messages_fts USING fts5(text, content = 'messages', content_rowid = 'id');
   INSERT INTO messages_fts (rowid, text) SELECT id, text FROM messages;
@@ -216,6 +216,17 @@ export const MIGRATIONS = [
     created_at TEXT NOT NULL,
     PRIMARY KEY (room_id, name, message_id)
   );
+  `,
+  // A sender can edit or take back its last post for a few minutes. Stored message events get the new fields too, so replay still parses.
+  `
+  ALTER TABLE messages ADD COLUMN edited_at TEXT;
+  ALTER TABLE messages ADD COLUMN removed_at TEXT;
+  UPDATE events SET payload = json_set(payload, '$.message.edited_at', NULL, '$.message.removed_at', NULL)
+    WHERE kind = 'message';
+  CREATE TRIGGER messages_fts_update AFTER UPDATE OF text ON messages BEGIN
+    INSERT INTO messages_fts (messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
+    INSERT INTO messages_fts (rowid, text) VALUES (new.id, new.text);
+  END;
   `,
 ];
 

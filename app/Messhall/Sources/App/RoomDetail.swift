@@ -1029,12 +1029,23 @@ struct ChatRow: View {
           Text(message.time)
             .font(.caption)
             .foregroundStyle(.secondary)
+          if message.editedAt != nil && message.removedAt == nil {
+            Text("edited")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
         .foregroundStyle(line.mine ? Color.accentColor : .primary)
-        Text(mentionText(message))
-          .multilineTextAlignment(line.mine ? .trailing : .leading)
-          .textSelection(.enabled)
-          .fixedSize(horizontal: false, vertical: true)
+        if message.removedAt != nil {
+          Text("Taken back")
+            .italic()
+            .foregroundStyle(.secondary)
+        } else {
+          Text(mentionText(message))
+            .multilineTextAlignment(line.mine ? .trailing : .leading)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+        }
         PullRequestCards(row: pullRequests)
           .padding(.top, 10)
       }
