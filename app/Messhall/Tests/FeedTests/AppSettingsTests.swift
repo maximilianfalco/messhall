@@ -26,6 +26,7 @@ struct AppSettingsTests {
     #expect(settings.snapshot.mutedRooms.isEmpty)
     #expect(settings.snapshot.collapsedAgreements.isEmpty)
     #expect(settings.snapshot.avatars.colors.isEmpty)
+    #expect(settings.snapshot.avatarStyle == .face)
     #expect(settings.snapshot.pullRequestCards)
   }
 
@@ -40,6 +41,7 @@ struct AppSettingsTests {
     settings.snapshot.mutedRooms = ["checkout"]
     settings.snapshot.collapsedAgreements = ["contract"]
     settings.snapshot.avatars.set(Self.teal, for: "web")
+    settings.snapshot.avatarStyle = .initials
     settings.snapshot.pane = .avatars
     settings.snapshot.pullRequestCards = false
 
