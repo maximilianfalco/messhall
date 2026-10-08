@@ -74,6 +74,19 @@ struct RoomTemplateTests {
     #expect(bot.count == 1)
     #expect(RoomName.isValid(RoomTemplate.bringInRunning.room, taken: []))
     #expect(bot[0].instructions.contains("plan"))
+    #expect(bot[0].instructions.contains("messhall claude --room"))
+    #expect(!bot[0].instructions.localizedCaseInsensitiveContains("invite"))
+    #expect(!bot[0].instructions.contains(".claude/projects"))
     #expect((1...4000).contains(bot[0].instructions.count))
+  }
+
+  @Test("bots already seated in the room are skipped, so a second Start adds only the missing ones")
+  func pendingBots() {
+    let bots = ["worker", "reviewer"].map { RoomTemplate.Bot(name: $0, role: $0, instructions: "x") }
+    let pair = template(bots: bots)
+
+    #expect(pair.bots(notSeated: []).map(\.name) == ["worker", "reviewer"])
+    #expect(pair.bots(notSeated: ["worker"]).map(\.name) == ["reviewer"])
+    #expect(pair.bots(notSeated: ["worker", "reviewer", "human"]).isEmpty)
   }
 }

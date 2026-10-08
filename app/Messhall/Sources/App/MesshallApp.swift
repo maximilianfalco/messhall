@@ -115,6 +115,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       {
         Task { await ShotHooks.pressKeys(keys, logTo: file) }
       }
+      if let spec = UserDefaults.standard.string(forKey: "shotStart"),
+        let file = UserDefaults.standard.string(forKey: "shotStartOut")
+      {
+        Task { await ShotHooks.start(spec, logTo: file, store: store, client: client, navigation: navigation) }
+      }
       if let file = UserDefaults.standard.string(forKey: "shotSettings") {
         Task { await ShotHooks.openSettings(numberInto: file) }
       }

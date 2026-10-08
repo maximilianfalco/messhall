@@ -6,7 +6,8 @@ struct WelcomeSheet: View {
   let client: FeedClient
   let navigation: Navigation
   @State private var selected = RoomTemplate.templates.first?.id
-  @State private var folder = FileManager.default.homeDirectoryForCurrentUser
+  @State private var folder: URL?
+  @State private var startedRoom: String?
   @State private var choosingFolder = false
   @State private var starting = false
   @State private var refusal: String?
@@ -36,7 +37,7 @@ struct WelcomeSheet: View {
         Spacer()
         Button("Start", action: { start(template) })
           .keyboardShortcut(.defaultAction)
-          .disabled(template == nil || starting)
+          .disabled(template == nil || folder == nil || starting)
       }
       Divider()
       bringIn
@@ -74,15 +75,20 @@ struct WelcomeSheet: View {
   private var folderRow: some View {
     HStack {
       Text("Agents start in").foregroundStyle(.secondary)
-      Text(folder.path(percentEncoded: false)).lineLimit(1).truncationMode(.middle)
+      Text(folder?.path(percentEncoded: false) ?? "Pick a project folder")
+        .foregroundStyle(folder == nil ? .tertiary : .primary)
+        .lineLimit(1)
+        .truncationMode(.middle)
       Spacer()
       Button("Choose\u{2026}") { choosingFolder = true }
     }
+    .help("Agents trust the folder they start in, so pick one project, not your home folder.")
   }
 
   private var bringIn: some View {
     VStack(alignment: .leading, spacing: 6) {
       Button("Bring in my running agents") { start(RoomTemplate.bringInRunning) }
+        .disabled(folder == nil || starting)
       Text(
         "One helper lists your Claude sessions and shows a plan first. Agents that already report to another tool may get confused about where to post."
       )
@@ -94,19 +100,21 @@ struct WelcomeSheet: View {
   private func summary(_ template: RoomTemplate) -> String {
     let name = template.roomName(taken: store.rooms.map(\.name))
     let count = template.bots.count
-    return "Makes #\(name) and starts \(count) Claude agent\(count == 1 ? "" : "s"). You can stop them any time."
+    return "Makes #\(startedRoom ?? name) and starts \(count) Claude agent\(count == 1 ? "" : "s") that trust the folder you pick."
   }
 
   private func start(_ template: RoomTemplate?) {
-    guard let template else { return }
-    let room = template.roomName(taken: store.rooms.map(\.name))
+    guard let template, let folder else { return }
     starting = true
     refusal = nil
     Task {
-      refusal = await store.start(template, in: folder.path(percentEncoded: false), via: client)
+      let started = await store.start(
+        template, in: folder.path(percentEncoded: false), room: startedRoom, via: client)
+      startedRoom = started.room
+      refusal = started.refusal
       starting = false
       guard refusal == nil else { return }
-      navigation.room = room
+      navigation.room = started.room
       finish()
     }
   }

@@ -55,11 +55,16 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
     return room
   }
 
-  /// The second button: one claude that plans first, then invites the sessions already running once the human okays it.
+  /// The bots whose seat is not in the room yet.
+  public func bots(notSeated seated: [String]) -> [Bot] {
+    bots.filter { !seated.contains($0.name) }
+  }
+
+  /// The second button: one claude that plans and hands the human join lines to paste. It starts nothing itself.
   public static let bringInRunning = RoomTemplate(
     id: "bring-in",
     title: "Bring in my running agents",
-    blurb: "One helper looks at your Claude sessions and proposes rooms. Nothing starts until you say so.",
+    blurb: "One helper plans your rooms and gives you a line to paste into each session. Nothing is started for you.",
     room: "home",
     topic: "Sorting the sessions on this Mac into rooms",
     bots: [
@@ -67,13 +72,14 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
         name: "concierge",
         role: "worker",
         instructions: """
-          Find the Claude Code sessions on this Mac: live ones (tmux panes and terminals) and past ones \
-          (folders under ~/.claude/projects). Group them into rooms by project folder.
-          First post the plan here: each room, its topic and the sessions that would join it. Ask the human \
-          with ask_human to okay it. Start nothing before the human says yes.
-          After the okay, create each room with a topic and invite or start the sessions with the messhall \
-          tools. Do not restart a session, so its history stays. Skip any session that already reports to \
-          another tool, and say which ones you skipped.
+          Help the human put the Claude sessions they already run into rooms. You cannot start or type into \
+          another session, and you must not read session files.
+          Ask the human which projects they work on. Post a plan: one room per project, with its topic. For \
+          each room give two lines the human pastes themselves, the launch line `messhall claude --room <room>` \
+          for a new session, and the join prompt for one already running: Join the messhall room #<room> with \
+          the messhall MCP tools: call join (room "<room>", pick a short role name), then call wait.
+          Use ask_human to get the okay on the plan, then create nothing else. Warn that a session that already \
+          reports to another tool may get confused about where to post.
           """
       )
     ]

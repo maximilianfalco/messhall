@@ -129,21 +129,26 @@ extension FeedStore {
     }
   }
 
-  /// Makes the template's room, then starts its bots one by one in `folder`. Returns the refusal text, or nil.
-  /// A bot that fails to start stops the rest, and the room it made stays.
-  public func start(_ template: RoomTemplate, in folder: String, via client: FeedClient) async -> String? {
+  /// Makes the template's room unless `room` already exists, then starts the bots not seated in it, one by one in
+  /// `folder`. Returns the room's name and the refusal text, if any. A failed bot stops the rest and the room stays.
+  public func start(
+    _ template: RoomTemplate, in folder: String, room existing: String?, via client: FeedClient
+  ) async -> (room: String, refusal: String?) {
     let seat = HumanSeat(client: client)
-    let name = template.roomName(taken: rooms.map(\.name))
-    switch await seat.create(NewRoom(name: name, topic: template.topic)) {
-    case .refused(let reason): return reason
-    case .done(let room): add(room)
+    let name = existing ?? template.roomName(taken: rooms.map(\.name))
+    if existing == nil {
+      switch await seat.create(NewRoom(name: name, topic: template.topic)) {
+      case .refused(let reason): return (name, reason)
+      case .done(let room): add(room)
+      }
     }
-    for bot in template.bots {
+    let seated = room(named: name)?.members.map(\.name) ?? []
+    for bot in template.bots(notSeated: seated) {
       let spawn = HumanSpawn(
         name: bot.name, role: bot.role, cwd: folder, instructions: bot.instructions, model: bot.model)
-      if case .refused(let reason) = await seat.spawn(spawn, room: name) { return "\(bot.name): \(reason)" }
+      if case .refused(let reason) = await seat.spawn(spawn, room: name) { return (name, "\(bot.name): \(reason)") }
     }
-    return nil
+    return (name, nil)
   }
 
   /// A snapshot it cannot read is judged by its own version fields, an event by the last snapshot's.
