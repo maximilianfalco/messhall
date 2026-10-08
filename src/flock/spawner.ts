@@ -3,7 +3,7 @@ import type { Launch } from '../../contracts/room.ts';
 import type { RoomStore } from '../rooms/store.js';
 import type { Tmux } from './tmux.js';
 
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -11,6 +11,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { SPAWN_READY_MS } from '../config.js';
 import { KEY_FILES, KEY_HEADER } from '../daemon/keys.js';
 import { logger } from '../lib/logger.js';
+import { packageRoot } from '../lib/packageRoot.js';
 import { shellLine } from '../lib/shell.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
@@ -18,6 +19,8 @@ import { dialogKeys, typePrompt, until, tmux as runTmux } from './tmux.js';
 
 export const SESSION_PREFIX = 'messhall_';
 export const SPAWN_DIR = 'spawn';
+/** Where `<role>.settings.json` lives, next to the role briefs, so the user can edit what each role may run. */
+export const PROFILES_DIR = path.join(packageRoot(), 'docs', 'briefs');
 const SETTLE_MS = 1000;
 const PANE_FORMAT = '#{session_name}\t#{pane_pid}';
 
@@ -60,7 +63,8 @@ export function agentArgv({
   model,
   name,
   room,
-}: Seat & { agent: Launch['agent']; invite: string; mcpConfig: string; model?: string }) {
+  settings,
+}: Seat & { agent: Launch['agent']; invite: string; mcpConfig: string; model?: string; settings?: string }) {
   const modelArgs = model ? ['--model', model] : [];
   if (agent === 'codex') return ['codex', ...modelArgs, codexPrompt({ invite, name, room })];
   return [
@@ -72,6 +76,7 @@ export function agentArgv({
     '--allowedTools',
     `mcp__${SERVER_NAME}`,
     ...modelArgs,
+    ...(settings ? ['--settings', settings] : []),
   ];
 }
 
@@ -108,6 +113,7 @@ const isFolder = (dir: string) =>
 export function createSpawner({
   dataDir,
   pollMs,
+  profilesDir = PROFILES_DIR,
   readyWithinMs = SPAWN_READY_MS,
   settleMs = SETTLE_MS,
   shell = userInfo().shell ?? '/bin/zsh',
@@ -117,6 +123,7 @@ export function createSpawner({
 }: {
   dataDir: string;
   pollMs?: number;
+  profilesDir?: string;
   readyWithinMs?: number;
   settleMs?: number;
   shell?: string;
@@ -132,6 +139,12 @@ export function createSpawner({
     const key = readFileSync(path.join(dataDir, KEY_FILES.agent), 'utf8').trim();
     mkdirSync(spawnDir, { recursive: true });
     writeFileSync(configFile(seat), mcpConfigJson({ key, seatKey, url }), { mode: 0o600 });
+  };
+
+  // The role is a checked slug, so it can only name a file in this folder.
+  const profileOf = (role: string) => {
+    const file = path.join(profilesDir, `${role}.settings.json`);
+    return existsSync(file) ? file : undefined;
   };
 
   const presenceOf = ({ name, room }: Seat) => store.listMembers(room).find(member => member.name === name)?.presence;
@@ -192,7 +205,14 @@ export function createSpawner({
       const seat = { name, room };
       const session = sessionName(seat);
       const { agent, cwd, model } = launch;
-      const argv = agentArgv({ ...seat, agent, invite: invited.seatKey, mcpConfig: configFile(seat), model });
+      const argv = agentArgv({
+        ...seat,
+        agent,
+        invite: invited.seatKey,
+        mcpConfig: configFile(seat),
+        model,
+        settings: profileOf(role),
+      });
       await stop(seat);
       if (agent === 'claude') writeConfig(seat, invited.seatKey);
       const started = await tmux(tmuxStartArgs({ argv, cwd, session, shell }));

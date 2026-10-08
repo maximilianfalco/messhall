@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { INSTRUCTIONS_MAX_CHARS } from '../../contracts/room.ts';
+import { PROFILES_DIR } from '../../src/flock/spawner.js';
 import { REPO_ROOT } from '../../tools/dev/lib/paths.js';
 import { DEFAULT_REVIEWER } from '../../tools/dev/lib/spawn.js';
 
@@ -83,5 +84,46 @@ describe('orchestrator brief models', () => {
 
   it('names the model and why in the spawn line it posts', () => {
     expect(orchestrator).toContain('model and why');
+  });
+});
+
+describe('role settings profiles', () => {
+  const allowed = (role: string) =>
+    (
+      JSON.parse(readFileSync(path.join(BRIEFS, `${role}.settings.json`), 'utf8')) as {
+        permissions: { allow: string[] };
+      }
+    ).permissions.allow;
+
+  it('lets a worker ship its job branch but merge only through the veto check', () => {
+    expect(allowed('worker')).toStrictEqual([
+      'Bash(git push -u origin HEAD)',
+      'Bash(git push)',
+      'Bash(gh pr create:*)',
+      'Bash(gh pr edit:*)',
+      'Bash(pnpm -s messhall-dev qa-upload:*)',
+      'Bash(pnpm -s messhall-dev merge:*)',
+      'Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)',
+    ]);
+  });
+
+  it('lets a worker push only its own branch, with no room for a force flag or another refspec', () => {
+    expect(
+      allowed('worker')
+        .filter(rule => rule.startsWith('Bash(git push'))
+        .filter(rule => rule.includes('*')),
+    ).toStrictEqual([]);
+  });
+
+  it('never lets a worker run gh pr merge itself, which skips the veto label', () => {
+    expect(allowed('worker').filter(rule => rule.includes('gh pr merge'))).toStrictEqual([]);
+  });
+
+  it('lets a reviewer post its GitHub review', () => {
+    expect(allowed('reviewer')).toStrictEqual(['Bash(gh api repos/*/pulls/*/reviews:*)']);
+  });
+
+  it('sit where the spawner looks for them', () => {
+    expect(PROFILES_DIR).toBe(BRIEFS);
   });
 });

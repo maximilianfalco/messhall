@@ -1,6 +1,6 @@
 import type { Tmux } from '../../src/flock/tmux.js';
 
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -20,12 +20,15 @@ const HOSTILE = "$(touch /tmp/pwned) `id` ' ; rm -rf ~";
 
 let scratch: ReturnType<typeof scratchStore>;
 let cwd: string;
+let profiles: string;
 
 beforeEach(() => {
   scratch = scratchStore();
   scratch.store.createRoom({ created_by: 'human', name: 'demo' });
   loadKeys({ dataDir: scratch.dataDir });
   cwd = mkdtempSync(path.join(tmpdir(), 'messhall-spawn-cwd-'));
+  profiles = mkdtempSync(path.join(tmpdir(), 'messhall-spawn-profiles-'));
+  writeFileSync(path.join(profiles, 'worker.settings.json'), '{}');
 });
 
 afterEach(() => {
@@ -78,6 +81,7 @@ const spawner = (tmux: Tmux) =>
   createSpawner({
     dataDir: scratch.dataDir,
     pollMs: 1,
+    profilesDir: profiles,
     readyWithinMs: 50,
     settleMs: 0,
     shell: '/bin/zsh',
@@ -88,13 +92,16 @@ const spawner = (tmux: Tmux) =>
 const seatFromConfig = () =>
   store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: seatKeyInConfig().headers['x-messhall-seat'] });
 
-const spawnApi = (tmux: Tmux, input: { agent?: 'claude' | 'codex'; cwd?: string; instructions?: string } = {}) =>
+const spawnApi = (
+  tmux: Tmux,
+  input: { agent?: 'claude' | 'codex'; cwd?: string; instructions?: string; role?: string } = {},
+) =>
   spawner(tmux).spawn({
     by: 'human',
     instructions: input.instructions,
     launch: { agent: input.agent ?? 'claude', cwd: input.cwd ?? cwd, model: 'opus' },
     name: 'api',
-    role: 'worker',
+    role: input.role ?? 'worker',
     room: 'demo',
   });
 
@@ -120,6 +127,19 @@ describe('agentArgv', () => {
       '--model',
       'opus',
     ]);
+  });
+
+  it('passes the role settings profile to claude when there is one', () => {
+    const argv = agentArgv({
+      agent: 'claude',
+      invite: 'key-1',
+      mcpConfig: '/d/c.json',
+      name: 'api',
+      room: 'demo',
+      settings: '/briefs/worker.settings.json',
+    });
+
+    expect(argv.slice(-2)).toStrictEqual(['--settings', '/briefs/worker.settings.json']);
   });
 
   it('keeps the seat key out of the claude argv, since claude sends it from its mcp config', () => {
@@ -253,6 +273,22 @@ describe('createSpawner', () => {
     expect(outcome).toMatchObject({ ok: true });
     expect(existsSync(configFile())).toBe(false);
     expect(calls(tmux).some(args => args.includes('-l'))).toBe(false);
+  });
+
+  it('starts claude with the settings profile named after its role', async () => {
+    const tmux = fakeTmux({ onStart: seatFromConfig });
+    await spawnApi(tmux);
+    const started = calls(tmux).find(args => args[0] === 'new-session');
+
+    expect(started?.at(-1)).toContain(`--settings ${path.join(profiles, 'worker.settings.json')}`);
+  });
+
+  it('starts claude with no settings profile when its role has none', async () => {
+    const tmux = fakeTmux({ onStart: seatFromConfig });
+    await spawnApi(tmux, { role: 'observer' });
+    const started = calls(tmux).find(args => args[0] === 'new-session');
+
+    expect(started?.at(-1)).not.toContain('--settings');
   });
 
   it('never puts the instructions in any tmux call', async () => {
