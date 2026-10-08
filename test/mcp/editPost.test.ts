@@ -24,6 +24,26 @@ describe('edit_post', () => {
     expect(result).toMatchObject({ isError: false, text: expect.stringContaining('edited #') });
   });
 
+  it('names a mention the edit added, since nobody is rung for it', async () => {
+    const api = await harness.joined('demo', 'api');
+    await harness.joined('demo', 'web');
+    await api.call('post', { room: 'demo', text: 'ship it @webb' });
+
+    const result = await api.call('edit_post', { room: 'demo', text: 'ship it @web' });
+
+    expect(result.text).toContain('@web was not rung, post again to ring them.');
+  });
+
+  it('says nothing about mentions the post already had', async () => {
+    const api = await harness.joined('demo', 'api');
+    await harness.joined('demo', 'web');
+    await api.call('post', { room: 'demo', text: 'ship it @web' });
+
+    const result = await api.call('edit_post', { room: 'demo', text: 'hold off @web' });
+
+    expect(result.text).not.toContain('not rung, post');
+  });
+
   it('reads as edited to a reader who has not read it yet', async () => {
     const api = await harness.joined('demo', 'api');
     const web = await harness.joined('demo', 'web');
@@ -75,6 +95,16 @@ describe('remove_post', () => {
     expect(result).toMatchObject({ isError: false, text: expect.stringContaining('took back #') });
     expect(read.text).toContain('(taken back)]');
     expect(read.text).not.toContain('ship it');
+  });
+
+  it('says a done post leaves you marked done', async () => {
+    const api = await harness.joined('demo', 'api');
+    await harness.joined('demo', 'web');
+    await api.call('post', { done: true, room: 'demo', text: 'all done' });
+
+    const result = await api.call('remove_post', { room: 'demo' });
+
+    expect(result.text).toContain('you are still marked done');
   });
 
   it('refuses after five minutes', async () => {

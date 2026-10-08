@@ -525,7 +525,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     );
     const message = toMessage(row!);
     emit({ message, room: room.name, type: 'message_edit' });
-    return { message, ok: true } as const;
+    const before = parseStoredJson(String(last.mentions)) as string[];
+    return { added: message.mentions.filter(name => !before.includes(name)), message, ok: true } as const;
   }
 
   // The gate for agreement calls: a seat that may speak, in an open room.

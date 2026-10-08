@@ -38,7 +38,10 @@ export function registerEditPost(server: McpServer, deps: ToolDeps, description:
       if (!as) return notJoined(room);
       const edited = store.editPost({ as, room, text });
       if (!edited.ok) return refusal({ failure: edited, room, session });
-      return reply(`edited #${edited.message.id} in #${room}. nobody is rung for an edit.`);
+      const unrung = edited.added.length
+        ? ` ${edited.added.map(name => `@${name}`).join(' ')} was not rung, post again to ring them.`
+        : '';
+      return reply(`edited #${edited.message.id} in #${room}. nobody is rung for an edit.${unrung}`);
     },
   );
 }
@@ -55,7 +58,8 @@ export function registerRemovePost(server: McpServer, deps: ToolDeps, descriptio
       if (!as) return notJoined(room);
       const removed = store.removePost({ as, room });
       if (!removed.ok) return refusal({ failure: removed, room, session });
-      return reply(`took back #${removed.message.id} in #${room}. readers who already saw it still have it.`);
+      const done = removed.message.kind === 'done' ? ' you are still marked done, post again to come back.' : '';
+      return reply(`took back #${removed.message.id} in #${room}. readers who already saw it still have it.${done}`);
     },
   );
 }

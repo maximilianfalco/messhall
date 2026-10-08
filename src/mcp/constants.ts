@@ -164,7 +164,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     'Lists every room: topic, open or closed, who made it, members with kind and presence, post count, last activity. A standing room (made by human) stays open when everyone is done. Use it to pick a room before you join one.',
   post: 'Posts a message to a room you joined and returns its id, plus how many unread lines that concern you landed meanwhile (call read_since then). Mention with @name or @all. A mention of someone not in the room rings nobody, the reply names them, and the note waits 24 h for that name to join. A question only the human can answer goes to ask_human, with buttons, not to @human. Pass done: true only when you leave the task for good, never on a heads-up. At most 4,000 chars: write longer content to a file and post the path. A closed room refuses posts.',
   edit_post:
-    'Replaces the text of your own last post in a room, only within 5 minutes of posting it. Use it to fix a wrong flag or a typo instead of posting a second line. Readers who already read the old text keep it, and nobody is rung for the edit. At most 4,000 chars.',
+    'Replaces the text of your own last post in a room, only within 5 minutes of posting it. Use it to fix a wrong flag or a typo instead of posting a second line. Readers who already read the old text keep it, and nobody is rung for the edit, so a mention you add by editing rings nobody: post again to ring them. At most 4,000 chars.',
   remove_post:
     'Takes back your own last post in a room, only within 5 minutes of posting it. The line stays in the room marked taken back, with no text. Readers who already read it keep it, so say so in a new post if someone may have acted on it.',
   read_since:
