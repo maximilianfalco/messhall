@@ -16,8 +16,9 @@ const TYPED_MAX = 200;
 const CLAUDE_TITLE = /^[✳\u2800-\u28ff]/u;
 // Codex's update dialog runs brew upgrade on Enter, so its safe option is the plain Skip.
 // Trusting a folder lets its hooks and .mcp.json run, so these answers stay apart from the rest.
-const TRUST_TARGETS = [/Yes, I trust this folder/i, /\d\. Trust and continue/];
-const DIALOG_TARGETS = [/I am using this for local development/i, /Yes, proceed/i, /\d\. Skip\s*$/, ...TRUST_TARGETS];
+// Older claude builds said "Yes, proceed" on the trust prompt.
+const TRUST_TARGETS = [/Yes, I trust this folder/i, /Yes, proceed/i, /\d\. Trust and continue/];
+const DIALOG_TARGETS = [/I am using this for local development/i, /\d\. Skip\s*$/, ...TRUST_TARGETS];
 const LOGIN = /Select login method|Please run \/login|Invalid API key|OAuth error/i;
 const SELECTED = '❯';
 const CODEX_SELECTED = '›';

@@ -44,6 +44,10 @@ describe('dialogKeys', () => {
     expect(dialogKeys(TRUST)).toStrictEqual({ keys: ['Down', 'Enter'], kind: 'trust' });
   });
 
+  it('marks the older yes proceed trust prompt as a trust answer', () => {
+    expect(dialogKeys(' ❯ 1. Yes, proceed\n   2. No, exit')).toStrictEqual({ keys: ['Enter'], kind: 'trust' });
+  });
+
   it('confirms a trust prompt already on the trust option', () => {
     expect(dialogKeys(' ❯ 1. Yes, I trust this folder\n   2. No, exit')).toStrictEqual({
       keys: ['Enter'],
