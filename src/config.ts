@@ -114,6 +114,11 @@ export const NOTE_HOLD_MS = 24 * 60 * 60_000;
 export const EDIT_WINDOW_MS = 5 * 60_000;
 // Codex reads its first prompt and joins before its seat is taken, which is slower than a claude connect.
 export const SPAWN_READY_MS = 2 * 60_000;
+// Seats an orchestrator may have spawned in one room at once, and how fast it may spawn them.
+// The human is never capped, so past these it asks the human instead.
+export const SPAWN_SEAT_CAP = 6;
+export const SPAWN_RATE_MAX = 3;
+export const SPAWN_RATE_WINDOW_MS = 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.
 export const SESSION_DEAD_MS = 60_000;
 // A channel session that has not answered its test ring this long reads as no doorbell.

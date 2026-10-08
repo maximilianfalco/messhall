@@ -5,6 +5,7 @@ import {
   AGREEMENT_MAX_CHARS,
   AGREEMENT_WITH_MAX,
   INSTRUCTIONS_MAX_CHARS,
+  launchSchema,
   nameSchema,
   OPTION_MAX_CHARS,
   OPTIONS_MAX,
@@ -125,6 +126,20 @@ export const muteInputSchema = z.object({
   unmute: z.boolean().optional().describe('True lifts the mute. Left out, the member is muted.'),
 });
 
+export const spawnInputSchema = z.object({
+  agent: launchSchema.shape.agent.optional().describe('Which agent to start: claude or codex. Defaults to claude.'),
+  cwd: oneLine(1024).min(1).describe('Full path of the folder the agent starts in, like its repo. It must exist.'),
+  instructions: assignRoleInputSchema.shape.instructions.describe(
+    'What the agent does in its role, at most 4,000 chars. It reads them with my_role from its first call.',
+  ),
+  model: launchSchema.shape.model,
+  name: nameSchema.describe('Name of the new seat, like api or reviewer-2.'),
+  role: roleSchema.describe(
+    'The role it holds from its first call: worker, reviewer or any short slug, not orchestrator.',
+  ),
+  room: roomField.describe('Room you joined, where the new seat sits.'),
+});
+
 export const setTopicInputSchema = z.object({
   room: roomField.describe('Room you joined.'),
   topic: topicField.describe('What the room is for, one line, at most 200 chars. It replaces the old topic.'),
@@ -220,6 +235,7 @@ export type WaitInput = z.infer<typeof waitInputSchema>;
 export type ListMembersInput = z.infer<typeof listMembersInputSchema>;
 export type AssignRoleInput = z.infer<typeof assignRoleInputSchema>;
 export type KickInput = z.infer<typeof kickInputSchema>;
+export type SpawnInput = z.infer<typeof spawnInputSchema>;
 export type MuteInput = z.infer<typeof muteInputSchema>;
 export type EditPostInput = z.infer<typeof editPostInputSchema>;
 export type RemovePostInput = z.infer<typeof removePostInputSchema>;

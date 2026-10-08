@@ -49,6 +49,7 @@ import {
   REVIEW_NUDGE_WINDOW_MS,
   SEARCH_LIMIT,
   SEAT_TOKEN_FREE_AFTER_MS,
+  SPAWN_SEAT_CAP,
   STALE_AFTER_MS,
 } from '../config.js';
 import { parseStoredJson } from '../lib/json.js';
@@ -58,7 +59,16 @@ import { agreementSql, involves, isLive, leftOut, proposalText, rejectText, sett
 import { createEventBus } from './events.js';
 import { answerText, askText, expiryText, questionSql } from './questions.js';
 import { reviewNudges } from './reviews.js';
-import { canAssignRole, isAgent, leavesDone, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
+import {
+  canAssignRole,
+  isAgent,
+  leavesDone,
+  loopPair,
+  missingMentions,
+  nextPresence,
+  parseMentions,
+  spawnAllowed,
+} from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -164,6 +174,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     insertRoom: db.prepare(
       'INSERT INTO rooms (id, name, topic, created_at, created_by, standing) VALUES (?, ?, ?, ?, ?, ?)',
     ),
+    spawnedAt: db.prepare('SELECT joined_at FROM members WHERE room_id = ? AND left_at IS NULL AND launch IS NOT NULL'),
     expiredInvites: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE presence = 'invited' AND joined_at <= ? ORDER BY rooms.name, members.name",
     ),
@@ -665,6 +676,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     /**
      * Makes a seat ahead of its agent: presence invited, with its role, instructions and how to launch it.
      * Only the human or an unmuted orchestrator may, and only the human makes an orchestrator.
+     * An orchestrator is held to the spawn cap and rate here, in one transaction, so two calls at once cannot pass it.
      * Returns the fresh seat key, the one thing that later sits in the seat.
      */
     invite({
@@ -692,6 +704,14 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (!canAssignRole({ by: inviter }) || madeOrchestrator) return { ok: false, reason: 'not_allowed' } as const;
         if (inviter.muted) return { ok: false, reason: 'muted' } as const;
         if (room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
+        const invitedAt = sql.spawnedAt.all(room.id).map(row => String(row.joined_at));
+        const allowed = inviter.kind === 'human' ? 'ok' : spawnAllowed({ invitedAt, now: now() });
+        if (allowed === 'seat_cap') {
+          const text = `@${HUMAN_NAME} ${by} asked for ${name} (${role}) but #${room.name} is at its cap of ${SPAWN_SEAT_CAP} spawned seats. start it yourself, or kick a seat first`;
+          post(room, SYSTEM_NAME, 'system', text, [HUMAN_NAME], emit);
+          return { cap: SPAWN_SEAT_CAP, ok: false, reason: allowed } as const;
+        }
+        if (allowed === 'spawn_rate') return { ok: false, reason: allowed } as const;
         if (findMember(room, name)) {
           return { ok: false, reason: 'name_taken', suggestion: suggestName(room, name) } as const;
         }
@@ -713,7 +733,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         );
         const member = findMember(room, name)!;
         emit({ change: 'invited', member, room: room.name, type: 'member' });
-        systemLine(room, `${name} invited by ${by} as ${role}`, emit);
+        systemLine(room, `${by} started ${name} (${role}) in ${launch.cwd}`, emit);
         return { member, ok: true, seatKey } as const;
       });
     },

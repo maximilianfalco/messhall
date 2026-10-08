@@ -24,6 +24,7 @@ import { registerPost } from './tools/post.js';
 import { registerReadSince } from './tools/readSince.js';
 import { registerSetStatus } from './tools/setStatus.js';
 import { registerSetTopic } from './tools/setTopic.js';
+import { registerSpawn } from './tools/spawn.js';
 import { registerWait } from './tools/wait.js';
 
 const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: string) => void> = {
@@ -47,6 +48,7 @@ const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: s
   remove_post: registerRemovePost,
   set_status: registerSetStatus,
   set_topic: registerSetTopic,
+  spawn: registerSpawn,
   wait: registerWait,
 };
 
