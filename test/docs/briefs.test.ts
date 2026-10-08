@@ -95,11 +95,19 @@ describe('role settings profiles', () => {
       }
     ).permissions.allow;
 
-  it('lets a worker merge its PR and close its queue row', () => {
+  it('lets a worker ship its job branch but merge only through the veto check', () => {
     expect(allowed('worker')).toStrictEqual([
-      'Bash(gh pr merge:*)',
+      'Bash(git push -u origin f*)',
+      'Bash(gh pr create:*)',
+      'Bash(gh pr edit:*)',
+      'Bash(pnpm -s messhall-dev qa-upload:*)',
+      'Bash(pnpm -s messhall-dev merge:*)',
       'Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)',
     ]);
+  });
+
+  it('never lets a worker run gh pr merge itself, which skips the veto label', () => {
+    expect(allowed('worker').filter(rule => rule.includes('gh pr merge'))).toStrictEqual([]);
   });
 
   it('lets a reviewer post its GitHub review', () => {
