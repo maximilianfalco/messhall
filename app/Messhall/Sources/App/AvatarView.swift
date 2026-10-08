@@ -1,9 +1,10 @@
+import AppKit
 import Feed
 import SwiftUI
 
 private let eyeSpreads = [0.14, 0.2, 0.26]
 
-/// A colored circle with a face, or the member's initials in the face style's fallback.
+/// A colored circle with a face or a bundled picture, or the member's initials.
 /// The human gets the accent color and a person glyph.
 /// The human reads `.tint`, so the accent picked in Settings shows there too.
 /// With a presence, a dot sits on the circle's corner.
@@ -24,6 +25,12 @@ struct AvatarView: View {
             .font(.system(size: size * 0.5))
         } else if style == .face {
           FaceView(name: name)
+        } else if let art = AvatarArt.image(for: name, style: style) {
+          Image(nsImage: art)
+            .resizable()
+            .renderingMode(style == .notionists ? .template : .original)
+            .scaledToFit()
+            .clipShape(Circle())
         } else {
           Text(avatarLabel(for: name))
             .font(.system(size: size * (avatarLabel(for: name).count > 1 ? 0.4 : 0.5), weight: .semibold))
@@ -38,6 +45,21 @@ struct AvatarView: View {
         }
       }
       .accessibilityHidden(true)
+  }
+}
+
+/// The bundled pictures, read once each. A missing file falls back to initials.
+@MainActor
+enum AvatarArt {
+  private static var cache: [URL: NSImage] = [:]
+
+  static func image(for name: String, style: AvatarStyle) -> NSImage? {
+    guard let folder = style.artFolder, let root = Bundle.main.resourceURL else { return nil }
+    let url = root.appendingPathComponent("Avatars/\(folder)/\(avatarArtFile(avatarArt(for: name)))")
+    if let image = cache[url] { return image }
+    guard let image = NSImage(contentsOf: url) else { return nil }
+    cache[url] = image
+    return image
   }
 }
 

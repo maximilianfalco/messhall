@@ -25,9 +25,27 @@ public enum AccentChoice: String, Codable, CaseIterable, Sendable {
   }
 }
 
-/// A face on each circle, or the plain circle with initials.
+/// A drawn face, a bundled picture set (DiceBear Shapes or Notionists Neutral), or the plain circle with initials.
 public enum AvatarStyle: String, Codable, CaseIterable, Sendable {
-  case face, initials
+  case face, shapes, notionists, initials
+
+  public var title: String {
+    switch self {
+    case .face: "Faces"
+    case .shapes: "Shapes"
+    case .notionists: "Notionists"
+    case .initials: "Initials"
+    }
+  }
+
+  /// The folder under the app's `Avatars` resources, or nil when the style is drawn.
+  public var artFolder: String? {
+    switch self {
+    case .shapes: "shapes"
+    case .notionists: "notionists-neutral"
+    case .face, .initials: nil
+    }
+  }
 }
 
 public enum SettingsPane: String, Codable, CaseIterable, Sendable {

@@ -17,6 +17,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Messhall"
 cp Messhall/Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R Messhall/Resources/Templates "$APP/Contents/Resources/Templates"
+cp -R Messhall/Resources/Avatars "$APP/Contents/Resources/Avatars"
 # The same stamp the daemon serves as build, so the app and messhall status can say which side is older.
 if COMMIT="$(git rev-parse HEAD 2>/dev/null)"; then
   AT="$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%S.000Z)"

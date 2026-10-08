@@ -28,6 +28,58 @@ struct AvatarTests {
     #expect(Set(names.map { avatarFace(for: $0) }).count >= 8)
   }
 
+  @Test("a name gets the same art every time")
+  func artStable() {
+    #expect(avatarArt(for: "f8-search") == avatarArt(for: "f8-search"))
+    #expect(avatarArt(for: "f8-search") == 17)
+  }
+
+  @Test("the art number stays inside the shipped set")
+  func artInRange() {
+    for name in (1...200).map({ "agent-\($0)" }) {
+      #expect((0..<avatarArtCount).contains(avatarArt(for: name)))
+    }
+  }
+
+  @Test("a hundred names use at least 24 of the 32 pictures")
+  func artSpread() {
+    let names = (1...100).map { "agent-\($0)" }
+    #expect(Set(names.map { avatarArt(for: $0) }).count >= 24)
+  }
+
+  @Test("names with the same hue still get many different pictures")
+  func artIndependentOfHue() {
+    let names = (1...20_000).map { "agent-\($0)" }
+    let sameHue = names.filter { avatarHue(for: $0) == 138 }
+    #expect(Set(sameHue.map { avatarArt(for: $0) }).count >= 24)
+  }
+
+  @Test("the picker lists faces, shapes, notionists, then initials")
+  func styleOrder() {
+    #expect(AvatarStyle.allCases.map(\.title) == ["Faces", "Shapes", "Notionists", "Initials"])
+  }
+
+  @Test("an old saved style still decodes")
+  func oldStylesDecode() throws {
+    let face = try JSONDecoder().decode(AvatarStyle.self, from: Data(#""face""#.utf8))
+    let initials = try JSONDecoder().decode(AvatarStyle.self, from: Data(#""initials""#.utf8))
+    #expect(face == .face && initials == .initials)
+  }
+
+  @Test("the shipped art has a picture for every number in each picture style")
+  func shippedArt() throws {
+    let root = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+      .appendingPathComponent("Resources/Avatars")
+    for style in AvatarStyle.allCases {
+      guard let folder = style.artFolder else { continue }
+      for number in 0..<avatarArtCount {
+        let file = root.appendingPathComponent(folder).appendingPathComponent(avatarArtFile(number))
+        #expect(FileManager.default.fileExists(atPath: file.path), "\(folder)/\(avatarArtFile(number))")
+      }
+    }
+  }
+
   @Test("the ten dev room names get ten different hues")
   func devRoomDiffers() {
     #expect(Set(Self.devRoom.map { avatarHue(for: $0) }).count == Self.devRoom.count)

@@ -41,6 +41,18 @@ public func avatarFace(for name: String) -> AvatarFace {
   return AvatarFace(eyeSpread: Int(bits % 3), mouth: Int(bits / 3 % 3))
 }
 
+/// How many pictures each bundled style ships.
+public let avatarArtCount = 32
+
+/// Which of the shipped pictures a name gets. Uses hash bits the hue does not.
+public func avatarArt(for name: String) -> Int {
+  Int(avatarHash(for: name) / 360 % UInt32(avatarArtCount))
+}
+
+public func avatarArtFile(_ number: Int) -> String {
+  String(format: "%02d.png", number + 1)
+}
+
 /// The circle fill for a hue: the lightest tone that still keeps white text at WCAG AA.
 /// Yellow and green go darker than blue so every hue reads the same.
 public func avatarFill(hue: Int) -> RGB {
