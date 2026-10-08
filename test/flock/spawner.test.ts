@@ -65,6 +65,7 @@ function fakeTmux({
       return Promise.resolve(result('', started));
     }
     if (args[0] === 'capture-pane') return Promise.resolve(result(args.includes('-e') ? '' : screen));
+    if (args[0] === 'display-message') return Promise.resolve(result('✳ Claude Code\n'));
     if (args[0] === 'send-keys' && !args.includes('-l')) {
       screen = '';
       onAnswer?.();
@@ -180,7 +181,7 @@ describe('createSpawner', () => {
     await spawner(tmux).stop({ name: 'api', room: 'demo' });
 
     const targets = calls(tmux)
-      .filter(args => args[0] !== 'new-session')
+      .filter(args => !['new-session', 'set-buffer'].includes(args[0]!))
       .map(args => args[args.indexOf('-t') + 1]);
     expect(new Set(targets)).toStrictEqual(new Set(['=messhall_demo_api:']));
   });
@@ -201,17 +202,32 @@ describe('createSpawner', () => {
     expect(outcome).toStrictEqual({ ok: false, reason: 'no_cwd' });
   });
 
-  it('answers the dialog, waits for the seat to be taken, then types the first prompt', async () => {
+  it('answers the dialog, waits for the seat to be taken, then pastes the first prompt', async () => {
     const tmux = fakeTmux({ onAnswer: seatFromConfig, pane: CHANNELS });
 
     const outcome = await spawnApi(tmux);
 
     expect(outcome).toMatchObject({ ok: true, session: 'messhall_demo_api' });
     expect(memberOf('api')).toMatchObject({ presence: 'active', role: 'worker' });
-    const sent = calls(tmux).filter(args => args[0] === 'send-keys');
+    const sent = calls(tmux).filter(args => ['paste-buffer', 'send-keys', 'set-buffer'].includes(args[0]!));
     expect(sent[0]).toStrictEqual(['send-keys', '-t', '=messhall_demo_api:', 'Down', 'Enter']);
-    expect(sent[1]?.slice(0, 4)).toStrictEqual(['send-keys', '-t', '=messhall_demo_api:', '-l']);
-    expect(sent[1]?.[4]).toContain('call my_role');
+    expect(sent[1]?.[0]).toBe('set-buffer');
+    expect(sent[1]?.at(-1)).toContain('call my_role');
+    expect(sent[2]?.slice(0, 3)).toStrictEqual(['paste-buffer', '-p', '-d']);
+    expect(sent[2]?.slice(-2)).toStrictEqual(['-t', '=messhall_demo_api:']);
+  });
+
+  it('drops the seat when the pane never shows claude in its title, typing nothing', async () => {
+    const tmux = vi.fn<Tmux>(args => {
+      if (args[0] === 'new-session') seatFromConfig();
+      return Promise.resolve(result(args[0] === 'display-message' ? 'zsh\n' : ''));
+    });
+
+    const outcome = await spawnApi(tmux);
+
+    expect(outcome).toStrictEqual({ ok: false, reason: 'not_ready' });
+    expect(calls(tmux).some(args => args.includes('-l') || args[0] === 'paste-buffer')).toBe(false);
+    expect(memberOf('api')).toBeUndefined();
   });
 
   it('writes the seat mcp config 0600 with this daemon url, the agent key and the seat key', async () => {

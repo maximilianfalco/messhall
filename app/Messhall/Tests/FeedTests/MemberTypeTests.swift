@@ -78,6 +78,15 @@ struct MemberTypeTests {
     #expect(web.help(as: "web") == "web runs on opencode 1.18.34 and is waiting")
   }
 
+  @Test("a signed off agent says so in the spoken label and help")
+  func signedOff() {
+    var web = Self.member(client: nil, version: nil, label: nil)
+    web.done = true
+
+    #expect(web.spokenLabel(as: "web") == "web, other, waiting, signed off")
+    #expect(web.help(as: "web") == "web runs on other and is waiting, signed off")
+  }
+
   @Test("an agent offers Mute, a muted one Unmute and says so, the human seat neither")
   func muteAction() {
     var web = Self.member(client: nil, version: nil, label: nil)

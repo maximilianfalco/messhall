@@ -8,7 +8,7 @@ import path from 'node:path';
 import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
 import { daemonUrl, dataDir as defaultDataDir, DB_FILE } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
-import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
+import { typePrompt, untypedLine, until } from '../../../src/flock/tmux.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { reviewQueue } from '../../../src/rooms/reviews.js';
@@ -228,9 +228,10 @@ export async function spawnRun({
     await runTmux(['kill-session', '-t', session]);
     return giveBack(`claude did not come up (${ready})`);
   }
-  if ((await typePrompt(session, prompt)) === 'stuck') {
+  const typed = await typePrompt(session, prompt);
+  if (typed !== 'sent') {
     await runTmux(['kill-session', '-t', session]);
-    return giveBack(stuckLine(session));
+    return giveBack(untypedLine(session, typed));
   }
   lines.push(
     ok(`claude on ${model} in tmux session ${session}, prompt typed`),
@@ -309,9 +310,10 @@ export async function seatRun({
     await tmux(['kill-session', '-t', session]);
     return { code: 1, report: bad(`claude did not come up (${ready})`) };
   }
-  if ((await type(session, prompt)) === 'stuck') {
+  const typed = await type(session, prompt);
+  if (typed !== 'sent') {
     await tmux(['kill-session', '-t', session]);
-    return { code: 1, report: bad(stuckLine(session)) };
+    return { code: 1, report: bad(untypedLine(session, typed)) };
   }
   return {
     code: 0,
@@ -397,7 +399,7 @@ export async function nudgeRun({
   const typed = await typePrompt(session, text, { run: tmux, settleMs });
   return typed === 'sent'
     ? { code: 0, report: ok(`sent to ${session}`) }
-    : { code: 1, report: bad(stuckLine(session)) };
+    : { code: 1, report: bad(untypedLine(session, typed)) };
 }
 
 /** Open review requests in `room`: the latest round per PR, who asked, who is named, and answered, waiting or stale. */

@@ -31,7 +31,11 @@ export function registerPost(server: McpServer, deps: ToolDeps, description: str
         const news = crossed.length
           ? ` ${crossed.length} new from ${senders} since your last read, call read_since before you go on.`
           : '';
-        return reply(`posted #${posted.message.id} in #${room}${mentioned}.${absent}${news}`);
+        const asked =
+          mentions.includes(HUMAN_NAME) && text.trimEnd().endsWith('?')
+            ? ' for buttons, ask with ask_human instead.'
+            : '';
+        return reply(`posted #${posted.message.id} in #${room}${mentioned}.${absent}${news}${asked}`);
       }
       switch (posted.reason) {
         case 'too_long':

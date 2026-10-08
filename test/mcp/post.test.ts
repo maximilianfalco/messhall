@@ -103,6 +103,29 @@ describe('post', () => {
     expect(result.text).toMatch(/^posted #\d+ in #checkout\.$/);
   });
 
+  it('hints at ask_human when a post to the human ends in a question', async () => {
+    const api = await harness.joined('checkout', 'api');
+
+    const result = await api.call('post', { room: 'checkout', text: '@human merge now or wait?' });
+
+    expect(result.text).toMatch(
+      /^posted #\d+ in #checkout, mentioned @human\. for buttons, ask with ask_human instead\.$/,
+    );
+  });
+
+  it.each([
+    ['a statement to the human', '@human cents is in, merged'],
+    ['a question to another agent', '@web merge now or wait?'],
+    ['a question mark in the middle', '@human is it cents? yes'],
+  ])('gives no ask_human hint for %s', async (_, text) => {
+    const api = await harness.joined('checkout', 'api');
+    await harness.joined('checkout', 'web');
+
+    const result = await api.call('post', { room: 'checkout', text });
+
+    expect(result.text).not.toContain('ask_human');
+  });
+
   it('refuses text over 4,000 chars and says to post a path', async () => {
     const api = await harness.joined('checkout', 'api');
 
