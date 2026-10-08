@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push -u origin f*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(pnpm -s messhall-dev qa-upload:*)",
+      "Bash(pnpm -s messhall-dev merge:*)",
+      "Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)"
+    ]
+  }
+}
