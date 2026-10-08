@@ -1,6 +1,7 @@
 import type { FlockSeat } from '../../contracts/feed.ts';
 import type { Launch, Presence } from '../../contracts/room.ts';
 import type { RoomStore } from '../rooms/store.js';
+import type { HealSeat, HealStep, Watch } from './heal.js';
 import type { Tmux } from './tmux.js';
 
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -16,6 +17,7 @@ import { packageRoot } from '../lib/packageRoot.js';
 import { shellLine } from '../lib/shell.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
+import { healPlan, keepsDyingLine, restartLine } from './heal.js';
 import { dialogKeys, typePrompt, until, tmux as runTmux } from './tmux.js';
 
 export const SESSION_PREFIX = 'messhall_';
@@ -24,6 +26,8 @@ export const SPAWN_DIR = 'spawn';
 export const PROFILES_DIR = path.join(packageRoot(), 'docs', 'briefs');
 const SETTLE_MS = 1000;
 const PANE_FORMAT = '#{session_name}\t#{pane_pid}';
+// What tmux says when no server runs, so every session is gone. Any other failed listing says nothing.
+const NO_SERVER = /no server running|error connecting/i;
 
 const panePids = (listing: string) =>
   new Map(
@@ -54,6 +58,14 @@ export const seatedPrompt = ({ name, role, room }: Seat & { role: string }) =>
     `Talk in the room only through the messhall tools and keep your seat until your role says to leave.`,
     `Answer a ring, a human line or a mention of you right away, then go back to work.`,
     `Whenever a role line mentions you, call my_role again and switch to what it says.`,
+  ].join(' ');
+
+/** The prompt typed into a claude that messhall started again. It is a fresh session, so it reads its role again. */
+export const healedPrompt = (seat: Seat & { role: string }) =>
+  [
+    `Your agent stopped and messhall started it again in the same seat.`,
+    seatedPrompt(seat),
+    `Call read_since for #${seat.room} to see what happened while you were gone.`,
   ].join(' ');
 
 const codexPrompt = ({ invite, name, room }: Seat & { invite: string }) =>
@@ -121,6 +133,7 @@ const isFolder = (dir: string) =>
  * A seat that leaves or is removed gets its session stopped. */
 export function createSpawner({
   dataDir,
+  now = () => new Date(),
   pollMs,
   profilesDir = PROFILES_DIR,
   readyWithinMs = SPAWN_READY_MS,
@@ -131,6 +144,7 @@ export function createSpawner({
   url,
 }: {
   dataDir: string;
+  now?: () => Date;
   pollMs?: number;
   profilesDir?: string;
   readyWithinMs?: number;
@@ -199,10 +213,18 @@ export function createSpawner({
     return killed.code === 0;
   };
 
+  // Sessions whose seat sat back down after a restart, so the healer knows the new agent took it.
+  const rejoined = new Set<string>();
+  let watches = new Map<string, Watch>();
+  const healing = new Set<string>();
+
   // A seat that left or was dropped must not keep its agent running. Only spawned seats have a session by this name.
   store.events.on(({ event }) => {
-    if (event.type !== 'member' || (event.change !== 'left' && event.change !== 'removed')) return;
-    stop({ name: event.member.name, room: event.room }).catch((error: unknown) =>
+    if (event.type !== 'member') return;
+    const seat = { name: event.member.name, room: event.room };
+    if (event.change === 'reconnected') rejoined.add(sessionName(seat));
+    if (event.change !== 'left' && event.change !== 'removed') return;
+    stop(seat).catch((error: unknown) =>
       logger.error(error instanceof Error ? error : new Error(String(error)), { message: 'stopping a seat failed' }),
     );
   });
@@ -232,6 +254,38 @@ export function createSpawner({
   const giveUp = async (seat: Seat) => {
     await stop(seat);
     store.removeMember({ member: seat.name, room: seat.room });
+  };
+
+  // Starts the agent again on the seat key it had, so it keeps its name, role and bookmark. A failed try kills the new
+  // session and keeps the seat, so the next sweep can try again. Its folder was trusted at the first start.
+  const restart = async ({ seat: { name, room, session }, try: n }: HealStep) => {
+    const seat = { name, room };
+    const launch = store.launchOf(seat);
+    const seatKey = store.seatKeyOf(seat);
+    const role = store.roleOf(seat)?.role;
+    if (!launch || !seatKey || !role) return 'dropped';
+    store.systemNote({ room, text: restartLine({ name, try: n }) });
+    rejoined.delete(session);
+    const started = await startAgent({ launch, role, seat, seatKey });
+    if (started.code !== 0) return 'tmux';
+    const ready = await waitSeated(seat, { taken: () => rejoined.has(session), trust: false });
+    const typed = ready === 'seated' ? await typeFirst(seat, healedPrompt({ ...seat, role })) : ready;
+    if (typed !== 'sent') await tmux(['kill-session', '-t', exactTarget(seat)]);
+    return typed === 'sent' ? 'healed' : typed;
+  };
+
+  const healOne = async (step: HealStep) => {
+    const { name, room, session } = step.seat;
+    if (step.action === 'give_up') {
+      store.systemNote({ ringHuman: true, room, text: keepsDyingLine({ name, room }) });
+      return { name, outcome: 'gave_up', room } as const;
+    }
+    healing.add(session);
+    try {
+      return { name, outcome: await restart(step), room } as const;
+    } finally {
+      healing.delete(session);
+    }
   };
 
   return {
@@ -275,6 +329,27 @@ export function createSpawner({
 
     /** Kills the seat's tmux session, if it has one, and removes its mcp config. */
     stop,
+
+    /** Restarts each watched spawned seat whose tmux session is gone, after `held` says no mcp session holds it.
+     * Backs off between tries and rings the human once they run out. Called on the sweep, so it skips a restart in flight. */
+    async heal({ held }: { held: (seat: Seat) => boolean }) {
+      const listed = await tmux(['list-sessions', '-F', '#{session_name}']);
+      if (listed.code !== 0 && !NO_SERVER.test(listed.stderr)) return [];
+      const running = new Set(listed.stdout.split('\n'));
+      const seats = spawnedSeats().map(({ launch, member, room, session }): HealSeat => ({
+        agent: launch.agent,
+        alive: running.has(session) || healing.has(session),
+        done: member.done,
+        held: held({ name: member.name, room }),
+        name: member.name,
+        presence: member.presence,
+        room,
+        session,
+      }));
+      const plan = healPlan({ now: now().getTime(), seats, watches });
+      watches = plan.watches;
+      return Promise.all(plan.steps.map(healOne));
+    },
 
     /** Every seat started from an invite, in `room` or in every room, with its session and whether it runs. */
     async list({ room }: { room?: string }) {

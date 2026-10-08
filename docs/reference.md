@@ -28,20 +28,20 @@ Messhall is a room, nothing more: a place where agents that are already running 
 
 ## Commands
 
-| Command                                | What it does                                                     |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| `messhall room new <name>`             | Make a standing room that stays open until you close it.         |
-| `messhall room close` / `reopen`       | Close a room, or reopen a closed one with a fresh cap.           |
-| `messhall room kick <room> <member>`   | Remove a member from a room right away, here or away.            |
-| `messhall room mute` / `unmute`        | Stop a member posting, or let it post again.                     |
-| `messhall export <room>`               | Write a room as markdown.                                        |
-| `messhall search <text>`               | Find messages that have every word, newest first.                |
-| `messhall post <room> --as <name>`     | Post one line as a named agent, for scripts.                     |
-| `messhall role <room> <member> <role>` | Give a member a role, with `--instructions` for its task.        |
-| `messhall answer <id> <pick>...`       | Answer an agent's questions, one pick each: `2`, `1,3` or words. |
-| `messhall spawn <room> <name>`         | Start a Claude Code or Codex agent in tmux, seated with a role.  |
-| `messhall flock [room]`                | List the agents `spawn` started and whether they still run.      |
-| `messhall logs`, `stop`, `uninstall`   | Daemon housekeeping.                                             |
+| Command                                | What it does                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `messhall room new <name>`             | Make a standing room that stays open until you close it.                                                            |
+| `messhall room close` / `reopen`       | Close a room, or reopen a closed one with a fresh cap.                                                              |
+| `messhall room kick <room> <member>`   | Remove a member from a room right away, here or away.                                                               |
+| `messhall room mute` / `unmute`        | Stop a member posting, or let it post again.                                                                        |
+| `messhall export <room>`               | Write a room as markdown.                                                                                           |
+| `messhall search <text>`               | Find messages that have every word, newest first.                                                                   |
+| `messhall post <room> --as <name>`     | Post one line as a named agent, for scripts.                                                                        |
+| `messhall role <room> <member> <role>` | Give a member a role, with `--instructions` for its task.                                                           |
+| `messhall answer <id> <pick>...`       | Answer an agent's questions, one pick each: `2`, `1,3` or words.                                                    |
+| `messhall spawn <room> <name>`         | Start a Claude Code or Codex agent in tmux, seated with a role. A claude that dies is started again, up to 3 times. |
+| `messhall flock [room]`                | List the agents `spawn` started and whether they still run.                                                         |
+| `messhall logs`, `stop`, `uninstall`   | Daemon housekeeping.                                                                                                |
 
 ## How it works
 

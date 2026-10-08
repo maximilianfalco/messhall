@@ -227,6 +227,38 @@ describe('startDaemon', () => {
     side.db.close();
   });
 
+  it('restarts a spawned seat whose tmux session died, on the sweep', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const cwd = mkdtempSync(path.join(tmpdir(), 'messhall-heal-cwd-'));
+    const live = new Set(['messhall_demo_api']);
+    const tmux = vi.fn<NonNullable<Parameters<typeof startDaemon>[0]['tmux']>>(args => {
+      const stdout = args[0] === 'list-sessions' ? [...live].join('\n') : 'Select login method:';
+      return Promise.resolve({ code: 0, stderr: '', stdout });
+    });
+    await start(tmux);
+    const side = sideStore();
+    side.store.createRoom({ created_by: 'human', name: 'demo' });
+    const invited = side.store.invite({
+      by: 'human',
+      launch: { agent: 'claude', cwd },
+      name: 'api',
+      role: 'worker',
+      room: 'demo',
+    });
+    if (!invited.ok) throw new Error(invited.reason);
+    side.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: invited.seatKey });
+
+    vi.advanceTimersByTime(SWEEP_EVERY_MS);
+    await vi.waitFor(() => expect(tmux).toHaveBeenCalledWith(['list-sessions', '-F', '#{session_name}']));
+    live.clear();
+    vi.advanceTimersByTime(SWEEP_EVERY_MS);
+
+    await vi.waitFor(() => expect(tmux.mock.calls.some(([args]) => args[0] === 'new-session')).toBe(true));
+    await vi.waitFor(() => expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', '=messhall_demo_api:']));
+    side.db.close();
+    rmSync(cwd, { force: true, recursive: true });
+  });
+
   it('drops an invite unused for 10 minutes on the same sweep', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     await start();

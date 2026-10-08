@@ -121,7 +121,7 @@ export async function startDaemon({
   const codex = createCodexClient({ socketPath: codexControlSocket() });
   const url = `http://${DAEMON_HOST}:${bound.port}`;
   // One spawner for the human route and the orchestrator's tool, so both stop the same sessions.
-  const spawner = createSpawner({ dataDir, store, tmux, url });
+  const spawner = createSpawner({ dataDir, now, store, tmux, url });
   const mcp = createMcpEndpoint({ codex, now, spawner, store });
   const ringers = createRingers([
     createChannelRinger({ sessionsFor: mcp.sessionsFor }),
@@ -163,6 +163,11 @@ export async function startDaemon({
       logger.error(asError(error), { message: 'presence sweep failed' });
     }
     mcp.sweep().catch((error: unknown) => logger.error(asError(error), { message: 'mcp session sweep failed' }));
+    // A seat still held by a live mcp session would refuse the restarted agent, so it waits until that session is dead.
+    spawner
+      .heal({ held: seat => mcp.sessionsFor(seat).some(entry => !entry.session.dead()) })
+      .then(healed => healed.forEach(seat => logger.info('healed a seat', seat)))
+      .catch((error: unknown) => logger.error(asError(error), { message: 'healing seats failed' }));
   }, sweepEveryMs);
 
   // A spawned agent idle at the restart lost its event stream, so nothing rings it until it is woken.
