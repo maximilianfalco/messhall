@@ -16,7 +16,7 @@ const mutedOf = (name: string) => harness.store.listMembers('dev').find(member =
 
 describe('mute', () => {
   it('lets the orchestrator mute a member, whose post is then refused with the next step', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const web = await harness.joined('dev', 'web');
 
     const result = await orchestrator.call('mute', { member: 'web', room: 'dev' });
@@ -32,7 +32,7 @@ describe('mute', () => {
   });
 
   it('unmutes with unmute: true, so the member posts again', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const web = await harness.joined('dev', 'web');
     await orchestrator.call('mute', { member: 'web', room: 'dev' });
 
@@ -57,7 +57,7 @@ describe('mute', () => {
   });
 
   it('refuses a muted orchestrator that tries to unmute itself', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     harness.store.muteMember({ by: 'human', member: 'orchestrator', muted: true, room: 'dev' });
 
     const result = await orchestrator.call('mute', { member: 'orchestrator', room: 'dev', unmute: true });
@@ -70,7 +70,7 @@ describe('mute', () => {
   });
 
   it('refuses the human seat', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
 
     const result = await orchestrator.call('mute', { member: 'human', room: 'dev' });
 
@@ -78,7 +78,7 @@ describe('mute', () => {
   });
 
   it('refuses a member who is not in the room, with the next step', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
 
     const result = await orchestrator.call('mute', { member: 'ghost', room: 'dev' });
 

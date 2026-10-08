@@ -37,9 +37,20 @@ afterEach(async () => {
 
 const keyFile = () => path.join(home, KEY_FILES.agent);
 
+async function humanMakesOrchestrator() {
+  await agentRun({ keyFile: keyFile(), role: 'orchestrator', room: 'dev', say: 'here', url: daemon.url });
+  const key = readFileSync(path.join(home, KEY_FILES.human), 'utf8').trim();
+  await fetch(`${daemon.url}/api/rooms/dev/members/orchestrator/role`, {
+    body: JSON.stringify({ role: 'orchestrator' }),
+    headers: { 'content-type': 'application/json', [KEY_HEADER]: key },
+    method: 'POST',
+  });
+}
+
 describe('agentRun', () => {
-  it('posts the role line and sets the role when it joins as the orchestrator', async () => {
+  it('posts the role line and sets the role when it joins as the orchestrator the human made', async () => {
     await agentRun({ keyFile: keyFile(), role: 'reviewer-1', room: 'dev', say: 'hi', url: daemon.url });
+    await humanMakesOrchestrator();
 
     const result = await agentRun({
       assign: 'reviewer-1=reviewer',
@@ -61,6 +72,7 @@ describe('agentRun', () => {
 
   it('sends the instructions file with the role', async () => {
     await agentRun({ keyFile: keyFile(), role: 'reviewer-1', room: 'dev', say: 'hi', url: daemon.url });
+    await humanMakesOrchestrator();
     const file = path.join(home, 'reviewer.md');
     writeFileSync(file, 'review PRs that mention you');
 

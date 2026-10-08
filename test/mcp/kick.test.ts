@@ -16,7 +16,7 @@ const names = () => harness.store.listMembers('dev', { left: true }).map(member 
 
 describe('kick', () => {
   it('lets the orchestrator drop an active seat at once', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     await harness.joined('dev', 'api');
 
     const result = await orchestrator.call('kick', { member: 'api', room: 'dev' });
@@ -26,7 +26,7 @@ describe('kick', () => {
   });
 
   it('tells a kicked agent on its next call that it was removed, and lets it join again', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const api = await harness.joined('dev', 'api');
     await orchestrator.call('kick', { member: 'api', room: 'dev' });
 
@@ -41,7 +41,7 @@ describe('kick', () => {
   });
 
   it.each(['read_since', 'my_role', 'wait'])('says removed on %s too', async tool => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const api = await harness.joined('dev', 'api');
     await orchestrator.call('kick', { member: 'api', room: 'dev' });
 
@@ -64,7 +64,7 @@ describe('kick', () => {
   });
 
   it('refuses the human seat and a member who is not there', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
 
     const human = await orchestrator.call('kick', { member: 'human', room: 'dev' });
     const ghost = await orchestrator.call('kick', { member: 'ghost', room: 'dev' });

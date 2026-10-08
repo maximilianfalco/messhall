@@ -33,6 +33,7 @@ import {
   rowInstructions,
   spawnPlan,
 } from '../../tools/dev/lib/spawn.js';
+import { seatOrchestrator } from '../rooms/scratch.js';
 
 const LISTING = [
   'B80  claimed  [C] branch=`f8/follow-reconnect` owner=agent 2026-10-06 15:20 f8/follow-reconnect  `agent --follow` survives a restart',
@@ -294,7 +295,7 @@ describe('writeSpawnConfig', () => {
     const store = createRoomStore({ db, now: () => new Date() });
     writeSpawnConfig({ file, key: 'k', url: 'http://127.0.0.1:1' });
     store.joinRoom({ as: 'f8-thing', kind: 'claude', room: 'dev', seatKey: seatIn(file) });
-    store.joinRoom({ as: 'orchestrator', kind: 'claude', room: 'dev' });
+    seatOrchestrator(store, 'dev');
     store.assignRole({ by: 'orchestrator', member: 'f8-thing', role: 'worker', room: 'dev' });
     store.markReconnecting();
 

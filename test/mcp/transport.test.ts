@@ -54,6 +54,12 @@ async function start(sweepEveryMs?: number) {
   return started.daemon;
 }
 
+function humanGivesRole(member: string, role: string) {
+  const db = openDb({ dataDir: home });
+  createRoomStore({ db, now }).assignRole({ by: 'human', member, role, room: 'checkout' });
+  db.close();
+}
+
 const agentKey = () => readFileSync(path.join(home, KEY_FILES.agent), 'utf8').trim();
 
 async function agent(url: string, key = agentKey(), seat?: string) {
@@ -202,10 +208,8 @@ describe('the /mcp endpoint', () => {
   it('seats a client that comes back with its seat header after a restart, with its role, and no join', async () => {
     const first = await start();
     const api = await agent(first.url, agentKey(), 'seat-a');
-    const orchestrator = await agent(first.url);
     await api.call('join', { as: 'api', room: 'checkout' });
-    await orchestrator.call('join', { as: 'orchestrator', room: 'checkout' });
-    await orchestrator.call('assign_role', { member: 'api', role: 'worker', room: 'checkout' });
+    humanGivesRole('api', 'worker');
     await first.close();
     daemon = undefined;
     const second = await start();
@@ -314,11 +318,9 @@ describe('the /mcp endpoint', () => {
     const { url } = await start();
     const first = await connectHttp({ key: agentKey(), name: 'claude-code', url });
     clients.push(first.client);
-    const orchestrator = await agent(url);
     const joined = await first.client.callTool({ arguments: { as: 'api', room: 'checkout' }, name: 'join' });
     const token = /seat token: (tok-[0-9a-f-]{36})\./.exec(textOf(joined))?.[1];
-    await orchestrator.call('join', { as: 'orchestrator', room: 'checkout' });
-    await orchestrator.call('assign_role', { member: 'api', role: 'worker', room: 'checkout' });
+    humanGivesRole('api', 'worker');
     await first.transport.terminateSession();
     const back = await connectHttp({ key: agentKey(), name: 'claude-code', url });
     clients.push(back.client);

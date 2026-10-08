@@ -666,7 +666,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const cursor = startCursor(room);
         const held = sql.heldNotes.all(room.id, as, noteCutoff());
         const [name, version] = [client?.name ?? null, client?.version ?? null];
-        const role = observe ? OBSERVER_ROLE : as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
+        const role = observe ? OBSERVER_ROLE : UNASSIGNED_ROLE;
         const seatKeyOrNull = seatKey ?? invite ?? null;
         if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), reattach ? 1 : 0, room.id, as);
         if (existing && observe) sql.setRole.run(OBSERVER_ROLE, null, as, room.id, as);

@@ -1,3 +1,5 @@
+import type { RoomStore } from '../../src/rooms/store.js';
+
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -43,4 +45,10 @@ export function scratchStore() {
       vi.unstubAllEnvs();
     },
   };
+}
+
+/** Seats `as` in the room with the orchestrator role, given by the human, the only way an agent gets it. */
+export function seatOrchestrator(store: RoomStore, room = 'demo', as = 'orchestrator') {
+  store.joinRoom({ as, kind: 'claude', room });
+  store.assignRole({ by: 'human', member: as, role: 'orchestrator', room });
 }

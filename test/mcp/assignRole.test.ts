@@ -16,7 +16,7 @@ const roleOf = (name: string) => harness.store.listMembers('dev').find(member =>
 
 describe('assign_role', () => {
   it('lets the orchestrator set a role, which list_members then shows', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const reviewer = await harness.joined('dev', 'reviewer-1');
 
     const result = await orchestrator.call('assign_role', { member: 'reviewer-1', role: 'reviewer', room: 'dev' });
@@ -28,7 +28,7 @@ describe('assign_role', () => {
   });
 
   it('takes a free slug as a role', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     await harness.joined('dev', 'web');
 
     await orchestrator.call('assign_role', { member: 'web', role: 'release-captain', room: 'dev' });
@@ -60,7 +60,7 @@ describe('assign_role', () => {
   });
 
   it('refuses a member who is not in the room, with the next step', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
 
     const result = await orchestrator.call('assign_role', { member: 'ghost', role: 'reviewer', room: 'dev' });
 

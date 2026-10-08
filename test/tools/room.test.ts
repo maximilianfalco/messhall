@@ -3,7 +3,7 @@ import { stripVTControlCharacters } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { roomReport } from '../../tools/dev/commands/room.js';
-import { scratchStore } from '../rooms/scratch.js';
+import { scratchStore, seatOrchestrator } from '../rooms/scratch.js';
 
 let scratch: ReturnType<typeof scratchStore>;
 
@@ -45,7 +45,7 @@ describe('roomReport', () => {
   });
 
   it('shows the role each member holds', () => {
-    scratch.store.joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    seatOrchestrator(scratch.store);
     scratch.store.joinRoom({ as: 'reviewer-1', kind: 'claude', room: 'demo' });
     scratch.store.assignRole({ by: 'orchestrator', member: 'reviewer-1', role: 'reviewer', room: 'demo' });
 
