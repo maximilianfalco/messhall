@@ -35,12 +35,11 @@ struct QuestionForm: View {
 
   init(question: Question) {
     self.question = question
-    _draft = State(initialValue: QuestionDraft(items: question.items))
+    var draft = QuestionDraft(items: question.items)
     #if DEBUG
-      if let other = ShotHooks.other, let last = question.items.indices.last {
-        _draft.wrappedValue.setOther(other, in: last)
-      }
+      if let other = ShotHooks.other, let last = question.items.indices.last { draft.setOther(other, in: last) }
     #endif
+    _draft = State(initialValue: draft)
   }
 
   var body: some View {
