@@ -9,9 +9,11 @@ const OTHER = 'https://github.com/acme/widgets/pull/13';
 
 const message = (id: number, from: string, text: string, at: string, mentions: string[] = []) => ({
   created_at: at,
+  edited_at: null,
   from,
   id,
   mentions,
+  removed_at: null,
   text,
 });
 
@@ -132,10 +134,12 @@ describe('reviewNudges', () => {
 
   const line = (fields: Partial<Message> & Pick<Message, 'from' | 'id' | 'text'>): Message => ({
     created_at: T0,
+    edited_at: null,
     from_client_label: null,
     from_kind: null,
     kind: 'chat',
     mentions: [],
+    removed_at: null,
     room_id: 'r1',
     ...fields,
   });

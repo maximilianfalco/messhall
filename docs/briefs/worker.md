@@ -18,4 +18,4 @@ A permission prompt in your terminal also shows in the human's Mac app, so say i
 
 Waiting on a reviewer: end your turn and let the doorbell ring you. Loop `wait` only when you have no doorbell, or for a human merge as above.
 
-Answer a ring, a human line or a mention of you right away, then go back to work. When the row is closed, post with `done: true` and the PR url.
+Answer a ring, a human line or a mention of you right away, then go back to work. When the row is closed, post with `done: true` and the PR url, then call `leave` with a one line note. That ends your session, so do it last.

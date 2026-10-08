@@ -20,6 +20,8 @@
     "kind": "chat",
     "text": "@api Ship it",
     "mentions": ["api"],
+    "edited_at": null,
+    "removed_at": null,
     "created_at": "2026-01-01T09:02:40.000Z"
   }
 }

@@ -163,3 +163,80 @@ describe('the doorbell check over mcp', () => {
     expect(result.text).not.toContain('doorbell:');
   });
 });
+
+describe('a normal ring to a seat that reads off', () => {
+  async function offSeat() {
+    const harness = mcpHarness();
+    const api = await harness.agent({ name: 'claude-code', version: '2.1.293' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+    harness.clock.advance(DOORBELL_CHECK_MS);
+    expect(api.session.doorbell).toBe('off');
+    return { api, harness };
+  }
+
+  it('stays off after read_since when nothing acked', async () => {
+    const { api, harness } = await offSeat();
+
+    await api.call('read_since', { room: 'checkout' });
+
+    expect(api.session.doorbell).toBe('off');
+    await harness.cleanup();
+  });
+
+  it('turns on when doorbell_ok carries an id that came on a later ring', async () => {
+    const { api, harness } = await offSeat();
+    api.session.checkDoorbell('ring-2');
+
+    const result = await api.call('doorbell_ok', { id: 'ring-2' });
+
+    expect(result.isError).toBe(false);
+    expect(api.session.doorbell).toBe('on');
+    await harness.cleanup();
+  });
+
+  it('tells a seat that never acks only once across new check ids', async () => {
+    const { api, harness } = await offSeat();
+    expect(api.session.tellDoorbellOff()).toBe(true);
+
+    api.session.checkDoorbell('ring-2');
+    harness.clock.advance(DOORBELL_CHECK_MS);
+
+    expect(api.session.tellDoorbellOff()).toBe(false);
+    await harness.cleanup();
+  });
+
+  it('still takes the ack of an earlier id after a newer check started', async () => {
+    const { api, harness } = await offSeat();
+    api.session.checkDoorbell('ring-2');
+    api.session.checkDoorbell('ring-3');
+
+    expect(api.session.ackDoorbell('ring-2')).toBe(true);
+    expect(api.session.doorbell).toBe('on');
+    await harness.cleanup();
+  });
+
+  it('sends a fresh test ring when the seat joins its room again after the first one timed out', async () => {
+    const harness = mcpHarness();
+    const api = await harness.agent({ name: 'claude-code', version: '2.1.293' });
+    const rings: string[] = [];
+    api.client.setNotificationHandler(
+      CHANNEL_METHOD,
+      { params: z.object({ content: z.string(), meta: z.record(z.string(), z.string()) }) },
+      params => {
+        rings.push(params.meta.doorbell_check!);
+      },
+    );
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await vi.waitFor(() => expect(rings).toHaveLength(1));
+    harness.clock.advance(DOORBELL_CHECK_MS);
+
+    const result = await api.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result.text).toContain('doorbell: checking');
+    await vi.waitFor(() => expect(rings).toHaveLength(2));
+    expect(rings[1]).not.toBe(rings[0]);
+    await api.call('doorbell_ok', { id: rings[1]! });
+    expect(api.session.doorbell).toBe('on');
+    await harness.cleanup();
+  });
+});

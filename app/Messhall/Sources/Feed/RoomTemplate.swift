@@ -55,6 +55,24 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
     return room
   }
 
+  /// What the New Room sheet fills in on a pick: a free room name and the topic.
+  public func draft(taken: [String]) -> NewRoom {
+    newRoom(named: roomName(taken: taken))
+  }
+
+  /// The room to make for this template. An empty topic is left out, since the daemon refuses an empty one.
+  public func newRoom(named name: String) -> NewRoom {
+    NewRoom(name: name, topic: topic.isEmpty ? nil : topic)
+  }
+
+  /// The same template under the name and topic the human typed.
+  public func renamed(_ name: String, topic: String) -> RoomTemplate {
+    var copy = self
+    copy.room = name
+    copy.topic = topic
+    return copy
+  }
+
   /// The bots whose seat is not in the room yet.
   public func bots(notSeated seated: [String]) -> [Bot] {
     bots.filter { !seated.contains($0.name) }

@@ -2,12 +2,15 @@ import type { Agreement, Member, Message } from '../../contracts/room.ts';
 
 import { HUMAN_NAME, OBSERVER_ROLE, UNASSIGNED_ROLE } from '../../contracts/room.ts';
 
-/** One read line: `[#<id> <from> → @<mentions>] <text>`, with `✓ done` on a done post and `summary` on a summary. */
+/** One read line: `[#<id> <from> → @<mentions>] <text>`, with `✓ done` on a done post, `summary` on a summary,
+ * `(edited)` on a post whose text changed and `(taken back)` on one its sender removed. */
 export function messageLine(message: Message) {
   if (message.kind === 'summary') return `[#${message.id} ${message.from} summary] ${message.text}`;
   const mentions = message.mentions.length ? ` → ${message.mentions.map(name => `@${name}`).join(' ')}` : '';
   const done = message.kind === 'done' ? ' ✓ done' : '';
-  return `[#${message.id} ${message.from}${mentions}${done}] ${message.text}`;
+  if (message.removed_at) return `[#${message.id} ${message.from}${done} (taken back)]`;
+  const edited = message.edited_at ? ' (edited)' : '';
+  return `[#${message.id} ${message.from}${mentions}${done}${edited}] ${message.text}`;
 }
 
 // A fence longer than any backtick run in the text, so a post cannot close the block early.

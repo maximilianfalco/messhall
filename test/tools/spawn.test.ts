@@ -164,7 +164,7 @@ describe('seatPrompt', () => {
     const prompt = seatPrompt({ name: 'reviewer-1', room: 'dev' });
     expect(prompt).toContain('Read the using-messhall skill first.');
     expect(prompt).toContain('join #dev as reviewer-1');
-    expect(prompt).toContain('never call leave.');
+    expect(prompt).toContain('keep the seat until your role says to leave.');
     expect(prompt).toContain('call my_role');
     expect(prompt).toContain('a role line mentions you later, call my_role again');
     expect(prompt).not.toContain('until your work is finished');

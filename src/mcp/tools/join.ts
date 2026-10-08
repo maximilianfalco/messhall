@@ -99,6 +99,7 @@ export function registerJoin(server: McpServer, deps: ToolDeps, description: str
       reconnected = joined.change === 'reconnected';
       notes = joined.notes;
     }
+    if (held || reconnected) session.recheckDoorbell();
     bindSeat({ client, kind, name: as, room: input.room, session, sessions, store, threadId });
 
     const members = store.listMembers(input.room);

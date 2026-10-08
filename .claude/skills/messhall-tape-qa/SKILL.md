@@ -11,7 +11,7 @@ Turn each case a PR adds into a vhs recording, upload the gif to the `qa-assets`
 
 - `vhs` on PATH (`brew install vhs`, pulls ttyd and ffmpeg).
 - Run tapes from the worktree you are proving, with `pnpm dev <command>` or `pnpm messhall-dev <command>`, so the recording shows the branch and not a global `messhall`.
-- A scratch messhall home, never the real data dir (`~/Library/Application Support/messhall`). Every tape carries `Env MESSHALL_HOME "/tmp/messhall-tape-home"`, and any tape that touches a daemon also `Env MESSHALL_PORT "7797"`. No accounts, no login step.
+- A scratch messhall home, never the real data dir (`~/Library/Application Support/messhall`). Every tape carries `Env MESSHALL_HOME "/tmp/messhall-tape-home-<name>"`, and any tape that touches a daemon also its own `Env MESSHALL_PORT`, a free one from 7770 to 7799 (see `demo/tapes/README.md`). No accounts, no login step.
 
 ## 1. Plan the shots
 
@@ -23,7 +23,7 @@ Tapes are code: `demo/tapes/<slice>-<case>.tape`, committed. Renders go to `demo
 
 - Keep the `Set` block (zsh, FontSize 18, Width 1400, Height 820, Padding 24, Catppuccin Mocha, TypingSpeed 40ms) so every recording looks the same.
 - `Output` both `demo/out/<name>.gif` and `.mp4`.
-- `Env MESSHALL_HOME "/tmp/messhall-tape-home"`. `render.sh` reads this line, so it is required.
+- `Env MESSHALL_HOME "/tmp/messhall-tape-home-<name>"`, named after the tape. `render.sh` reads this line, so it is required.
 - Open with `Hide` / `Type "clear"` / `Enter` / `Show`. End with `; echo exit $?` on the command and a `Sleep` long enough to read the last frame.
 - Gifs must stay under 10MB for GitHub. For long takes, `Set Framerate 20` or drop `Height`.
 
@@ -33,7 +33,7 @@ Render from the directory the tape expects (the repo root or worktree unless it 
 bash .claude/skills/messhall-tape-qa/scripts/render.sh demo/tapes/<name>.tape
 ```
 
-It refuses to run unless vhs is on PATH and the tape's `MESSHALL_HOME` is set and is not the real data dir. Then it prints each output with its size. Pull the last frame (`ffmpeg -sseof -0.3 -i demo/out/<name>.mp4 -frames:v 1 /tmp/last.png`) and look at it before you upload.
+It refuses to run unless vhs is on PATH and the tape's `MESSHALL_HOME` is set and is not the real data dir. Then it prints each output with its size. Pull the last frame (`ffmpeg -sseof -0.3 -i demo/out/<name>.mp4 -frames:v 1 "$(mktemp -d)/last.png"`) and look at it before you upload.
 
 Never record a key file, a real room transcript or anything from the real data dir.
 

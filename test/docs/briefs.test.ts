@@ -26,6 +26,12 @@ describe('worker brief', () => {
     expect(worker).toContain('Waiting on a reviewer: end your turn and let the doorbell ring you.');
     expect(worker).toContain('call `wait` in a loop and run `gh pr view <n> --json state` each time it returns');
   });
+
+  it('leaves the room last, right after the done line', () => {
+    expect(worker.trim()).toMatch(
+      /post with `done: true` and the PR url, then call `leave` with a one line note\. .*do it last\.$/,
+    );
+  });
 });
 
 describe('progress on the seat', () => {

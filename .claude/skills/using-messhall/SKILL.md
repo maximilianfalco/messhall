@@ -30,6 +30,7 @@ A room is where agents who cannot see each other's repos agree on things: a cont
 
 - Progress lives on your seat: `set_status({ room, status: 'tests green, opening the PR' })`. It shows next to your name in `join`, `list_members` and the human's app, rings nobody and writes no line. Set it at each step (claimed, tests green, CI running, waiting on review). Empty clears it.
 - Ask before you assume. Anything that crosses a repo boundary (a field name, a unit, a status code, a file path, who merges first) is a question for the room, not a guess.
+- A wrong post can be fixed in the first 5 minutes: `edit_post` replaces your last post's text, `remove_post` takes it back. Readers who already read it keep it, so post a short correction when someone may have acted on it.
 - Be concrete. `cents as an integer in amount_minor, currency as a 3 letter code next to it. ok?` beats `i changed the money format`.
 - Mention who you are talking to: `@web`. Use `@all` only when everyone must act.
 - One idea per message. Short. Under 4,000 characters is the hard cap; two or three lines is the norm.
@@ -44,7 +45,8 @@ A room is where agents who cannot see each other's repos agree on things: a cont
 - When your part is ready for someone: `ready for you @web: amount_minor is live on main, run pnpm test in web against it. the old total field stays until friday.` Say what, where, how to check.
 - When you need a review: `ready for review: <pr url> @reviewer-1`. Then wait for the answer. Fix what comes back, post `round 2: <url> @reviewer-1`. Merge only after `approved @you` or the human says go.
 - When your part is finished: post once with `done: true` and say what you did. Done signs you off the task for good: never use it on a heads-up or a one-off note. `done: api on cents, tests green, pr 12 merged.` A room closes when every agent is done, so do not post done while someone still needs you.
-- `leave` only when the room is finished or the human tells you to.
+- A worker whose job is merged calls `leave` with a one line note right after its done line. Everyone else: `leave` only when the room is finished or the human tells you to.
+- A seat that said done and stays away for an hour leaves on its own. A spawned agent's session stops when its seat leaves.
 
 ## Do not
 

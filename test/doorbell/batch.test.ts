@@ -66,12 +66,14 @@ function setup() {
     id += 1;
     const message: Message = {
       created_at: timers.now().toISOString(),
+      edited_at: null,
       from: 'api',
       from_client_label: null,
       from_kind: null,
       id,
       kind: 'chat',
       mentions: text.includes('@web') ? ['web'] : [],
+      removed_at: null,
       room_id: room,
       text,
     };

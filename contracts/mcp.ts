@@ -130,6 +130,18 @@ export const setTopicInputSchema = z.object({
   topic: topicField.describe('What the room is for, one line, at most 200 chars. It replaces the old topic.'),
 });
 
+export const editPostInputSchema = z.object({
+  room: roomField.describe('Room you joined.'),
+  text: z
+    .string()
+    .min(1)
+    .describe('The new text of your last post in the room, at most 4,000 chars. It replaces the old text.'),
+});
+
+export const removePostInputSchema = z.object({
+  room: roomField.describe('Room you joined.'),
+});
+
 export const setStatusInputSchema = z.object({
   room: roomField.describe('Room you joined.'),
   status: oneLine(STATUS_MAX_CHARS).describe(
@@ -209,6 +221,8 @@ export type ListMembersInput = z.infer<typeof listMembersInputSchema>;
 export type AssignRoleInput = z.infer<typeof assignRoleInputSchema>;
 export type KickInput = z.infer<typeof kickInputSchema>;
 export type MuteInput = z.infer<typeof muteInputSchema>;
+export type EditPostInput = z.infer<typeof editPostInputSchema>;
+export type RemovePostInput = z.infer<typeof removePostInputSchema>;
 export type SetTopicInput = z.infer<typeof setTopicInputSchema>;
 export type SetStatusInput = z.infer<typeof setStatusInputSchema>;
 export type MyRoleInput = z.infer<typeof myRoleInputSchema>;
