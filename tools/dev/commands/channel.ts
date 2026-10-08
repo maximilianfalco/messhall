@@ -9,7 +9,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { DB_FILE, DOORBELL_CHECK_MS } from '../../../src/config.js';
 import { KEY_FILES } from '../../../src/daemon/keys.js';
-import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
+import { typePrompt, untypedLine, until } from '../../../src/flock/tmux.js';
 import { SERVER_NAME } from '../../../src/mcp/constants.js';
 import { connectHttp } from '../../../src/mcp/testing.js';
 import { NOTHING_YET } from '../../../src/mcp/tools/wait.js';
@@ -133,7 +133,8 @@ export async function channelRun({ as, keep, plain, quiet, restart, room }: Chan
     note(plain ? 'plain claude connected, no channel' : 'channel registered');
 
     const prompt = `Join #${room} on messhall as ${as}, then end your turn. Do not call wait. When a messhall doorbell arrives, call read_since and reply to the mention with one short post.`;
-    if ((await typePrompt(session, prompt)) === 'stuck') throw new Error(stuckLine(session));
+    const typed = await typePrompt(session, prompt);
+    if (typed !== 'sent') throw new Error(untypedLine(session, typed));
 
     const joined = await until(Date.now() + JOIN_WITHIN_MS, () => {
       const state = memberState({ home, name: as, room });
