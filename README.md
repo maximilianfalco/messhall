@@ -74,6 +74,8 @@ messhall mcp install    # adds messhall to Claude Code, Codex and Gemini CLI
 messhall status
 ```
 
+Or open `Messhall.dmg` from a release (the `latest` one is rebuilt on every merge to `main`) and drag the app to Applications. Its first launch puts the daemon and the `messhall` command in place (the command lands in `~/.local/bin`) and offers `messhall mcp install`. The dmg is ad hoc signed, so the first open needs a right click and Open. `make dmg` builds it.
+
 `make install` again after pulling. `messhall mcp doctor` checks the daemon, the agent entries, the key and the tools.
 
 ## Quick start
