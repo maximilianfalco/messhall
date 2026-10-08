@@ -521,15 +521,19 @@ describe('presence', () => {
     expect(texts('demo').at(-1)).toBe('messhall: web is away');
   });
 
-  it('lists the reconnecting seats with their kind and seat key, for the wake', () => {
+  it('lists the reconnecting and away seats with their kind and seat key, for the wake', () => {
     store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: 'seat-api' });
     store().joinRoom({ as: 'web', kind: 'codex', room: 'demo', seatKey: 'thread-1' });
     store().joinRoom({ as: 'ios', kind: 'other', room: 'demo' });
+    store().joinRoom({ as: 'gone', kind: 'claude', room: 'demo', seatKey: 'seat-gone' });
     store().touch({ as: 'ios', room: 'demo', state: 'away' });
+    store().touch({ as: 'gone', room: 'demo', state: 'away' });
     store().markReconnecting();
 
-    expect(store().reconnectingSeats()).toStrictEqual([
+    expect(store().wakeableSeats()).toStrictEqual([
       { kind: 'claude', name: 'api', room: 'demo', seatKey: 'seat-api' },
+      { kind: 'claude', name: 'gone', room: 'demo', seatKey: 'seat-gone' },
+      { kind: 'other', name: 'ios', room: 'demo', seatKey: null },
       { kind: 'codex', name: 'web', room: 'demo', seatKey: 'thread-1' },
     ]);
   });
