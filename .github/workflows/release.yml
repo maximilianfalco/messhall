@@ -1,0 +1,21 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    name: Dmg
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: make dmg
+      - run: gh release create "$GITHUB_REF_NAME" app/build/Messhall.dmg --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

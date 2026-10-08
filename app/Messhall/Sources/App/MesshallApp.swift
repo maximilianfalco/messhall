@@ -83,6 +83,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     #endif
     Task { await store.run(client) }
     #if DEBUG
+      if let dir = UserDefaults.standard.string(forKey: "shotFirstLaunch") {
+        Task { await ShotHooks.renderFirstLaunch(into: URL(fileURLWithPath: dir)) }
+      } else if !ShotHooks.isShot {
+        Task { await FirstLaunch.run() }
+      }
+    #else
+      Task { await FirstLaunch.run() }
+    #endif
+    #if DEBUG
       // A shot app must not take the real app's keys.
       if !ShotHooks.isShot { trackHotkey() }
       if let text = UserDefaults.standard.string(forKey: "shotPost") {

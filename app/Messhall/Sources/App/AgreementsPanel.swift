@@ -2,13 +2,35 @@ import Feed
 import SwiftUI
 
 /// The room's open and settled agreements, oldest first, with who confirmed each one.
+/// The header folds the list to one line, and the fold is kept per room.
 struct AgreementsPanel: View {
+  let room: String
   let agreements: [Agreement]
+  @Bindable var settings = AppSettings.shared
+
+  private var collapsed: Bool { settings.snapshot.collapsedAgreements.contains(room) }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Label("Agreements: \(summary)", systemImage: "checkmark.seal")
-        .font(.callout.weight(.medium))
-      ForEach(agreements) { AgreementRow(agreement: $0) }
+      Button {
+        withAnimation(.snappy(duration: 0.2)) { settings.snapshot.toggleAgreementsFold(room) }
+      } label: {
+        HStack(spacing: 6) {
+          Image(systemName: "chevron.right")
+            .font(.caption.weight(.semibold))
+            .rotationEffect(.degrees(collapsed ? 0 : 90))
+            .frame(width: 12)
+          Label("Agreements: \(summary)", systemImage: "checkmark.seal")
+            .font(.callout.weight(.medium))
+          Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityHint(collapsed ? "Shows the agreements" : "Hides the agreements")
+      if !collapsed {
+        ForEach(agreements) { AgreementRow(agreement: $0) }
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal, 16)

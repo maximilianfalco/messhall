@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { dialogKeys, inputText, menuOpen, typeIfClear, typePrompt } from '../../src/flock/tmux.js';
+import { findBin } from '../../src/config.js';
+import { dialogKeys, inputText, menuOpen, tmux, typeIfClear, typePrompt } from '../../src/flock/tmux.js';
 
 const paneFixture = (name: string) => readFileSync(new URL(`fixtures/panes/${name}.txt`, import.meta.url), 'utf8');
 
@@ -201,5 +202,25 @@ describe('typeIfClear', () => {
 
     await expect(typeIfClear('=s:', 'wake up', { run, settleMs: 0 })).resolves.toBe('draft');
     expect(sent).toStrictEqual([]);
+  });
+});
+
+describe.skipIf(!existsSync(findBin('tmux')))('tmux', () => {
+  const socket = `messhall-test-${process.pid}`;
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await tmux(['-L', socket, 'kill-server']);
+  });
+
+  it('reads the ✳ of an idle claude title when the daemon runs with no utf-8 locale, as under launchd', async () => {
+    for (const name of ['LANG', 'LC_ALL', 'LC_CTYPE', 'TMUX']) vi.stubEnv(name, undefined);
+    const title = '✳ Messhall #dev reviewer-1 seat';
+
+    await tmux(['-L', socket, '-f', '/dev/null', 'new-session', '-d', '-s', 'idle', 'sleep 30']);
+    await tmux(['-L', socket, 'select-pane', '-t', '=idle:', '-T', title]);
+
+    const read = await tmux(['-L', socket, 'display-message', '-p', '-t', '=idle:', '#{pane_title}']);
+    expect(read.stdout).toBe(`${title}\n`);
   });
 });
