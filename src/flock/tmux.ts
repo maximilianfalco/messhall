@@ -1,5 +1,6 @@
 import type { RunResult } from '../lib/run.js';
 
+import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { findBin } from '../config.js';
@@ -7,7 +8,12 @@ import { runCommand } from '../lib/run.js';
 
 export const SUBMIT_TRIES = 5;
 const POLL_MS = 500;
-const SETTLE_MS = 300;
+// Claude Code can keep text as a draft when Enter lands right behind it, so Enter waits this long.
+const SETTLE_MS = 500;
+const TITLE_WAIT_MS = 5_000;
+const TYPED_MAX = 200;
+// Claude Code starts its pane title with ✳ when idle and a braille spinner while working.
+const CLAUDE_TITLE = /^[✳\u2800-\u28ff]/u;
 // Codex's update dialog runs brew upgrade on Enter, so its safe option is the plain Skip.
 const DIALOG_TARGETS = [
   /I am using this for local development/i,
@@ -26,6 +32,10 @@ const MENU = /^\s*❯\s*\d+\.|Enter to confirm|Esc to cancel/m;
 const DIM_RUN = /\x1b\[2m.*?(\x1b\[0m|$)/gm;
 // oxlint-disable-next-line no-control-regex
 const STYLE = /\x1b\[[\d;]*m/g;
+// oxlint-disable-next-line no-control-regex
+const ESC = /\x1b/g;
+// oxlint-disable-next-line no-control-regex
+const CONTROL = /[\x00-\x1f\x7f]/;
 
 export type Tmux = (args: string[]) => Promise<RunResult>;
 type Dialog = { keys: string[]; kind: 'answer' } | { kind: 'login' } | { kind: 'none' };
@@ -75,17 +85,46 @@ export function inputText(screen: string) {
     .trim();
 }
 
-/** Types `text`, then sends a lone Enter until the input box is empty, at most 5 times.
+/** True once the pane title shows Claude Code idle or working, polled up to `waitMs`. A shell or anything else is not ready. */
+async function claudeReady(session: string, run: Tmux, waitMs: number) {
+  const ready = await until(Date.now() + waitMs, async () => {
+    const title = (await run(['display-message', '-p', '-t', session, '#{pane_title}'])).stdout;
+    return CLAUDE_TITLE.test(title) || undefined;
+  });
+  return ready === true;
+}
+
+/** Puts `text` in the input box with ESC bytes stripped. A short single line is typed. Anything longer or with a
+ * newline goes in as one bracketed paste, since a typed newline would send the first part on its own. */
+async function enterText(session: string, text: string, run: Tmux) {
+  const clean = text.replace(ESC, '');
+  if (clean.length <= TYPED_MAX && !CONTROL.test(clean)) {
+    await run(['send-keys', '-t', session, '-l', clean]);
+    return;
+  }
+  const buffer = `messhall-${randomUUID()}`;
+  await run(['set-buffer', '-b', buffer, '--', clean]);
+  await run(['paste-buffer', '-p', '-d', '-b', buffer, '-t', session]);
+}
+
+/** Puts `text` in the input box, then sends a lone Enter until the box is empty, at most 5 times. Types nothing
+ * and presses nothing unless the pane title shows Claude Code idle or working.
  * Text and Enter in one burst read as a paste, so the Enter turns into a newline and the prompt sits unsent. */
 export async function typePrompt(
   session: string,
   text: string,
-  { run: send = tmux, settleMs = SETTLE_MS }: { run?: Tmux; settleMs?: number } = {},
-): Promise<'sent' | 'stuck'> {
-  await send(['send-keys', '-t', session, '-l', text]);
-  const submit = async (triesLeft: number): Promise<'sent' | 'stuck'> => {
+  {
+    run: send = tmux,
+    settleMs = SETTLE_MS,
+    titleWaitMs = TITLE_WAIT_MS,
+  }: { run?: Tmux; settleMs?: number; titleWaitMs?: number } = {},
+): Promise<'not_ready' | 'sent' | 'stuck'> {
+  if (!(await claudeReady(session, send, titleWaitMs))) return 'not_ready';
+  await enterText(session, text, send);
+  const submit = async (triesLeft: number): Promise<'not_ready' | 'sent' | 'stuck'> => {
     if (!triesLeft) return 'stuck';
     await sleep(settleMs);
+    if (!(await claudeReady(session, send, titleWaitMs))) return 'not_ready';
     await send(['send-keys', '-t', session, 'Enter']);
     await sleep(settleMs);
     const left = inputText((await send(['capture-pane', '-p', '-e', '-t', session])).stdout);
@@ -94,9 +133,11 @@ export async function typePrompt(
   return submit(SUBMIT_TRIES);
 }
 
-/** The error line for a prompt that is still in the input box after every Enter. */
-export const stuckLine = (session: string) =>
-  `the prompt is stuck in the input box of tmux session ${session} after ${SUBMIT_TRIES} enters`;
+/** The error line for a prompt that did not go out: a pane that never showed Claude Code, or a prompt still in the box. */
+export const untypedLine = (session: string, outcome: 'not_ready' | 'stuck') =>
+  outcome === 'not_ready'
+    ? `tmux session ${session} never showed claude idle or working in its title, nothing typed`
+    : `the prompt is stuck in the input box of tmux session ${session} after ${SUBMIT_TRIES} enters`;
 
 /** True when the pane shows a menu or a dialog, so nothing gets typed into it. */
 export const menuOpen = (pane: string) => MENU.test(pane.replace(STYLE, ''));
@@ -106,10 +147,11 @@ export const menuOpen = (pane: string) => MENU.test(pane.replace(STYLE, ''));
 export async function typeIfClear(
   session: string,
   text: string,
-  { run = tmux, settleMs }: { run?: Tmux; settleMs?: number } = {},
-): Promise<'draft' | 'menu' | 'sent' | 'stuck'> {
+  options: { run?: Tmux; settleMs?: number; titleWaitMs?: number } = {},
+): Promise<'draft' | 'menu' | 'not_ready' | 'sent' | 'stuck'> {
+  const { run = tmux } = options;
   const screen = (await run(['capture-pane', '-p', '-e', '-t', session])).stdout;
   if (menuOpen(screen)) return 'menu';
   if (inputText(screen)) return 'draft';
-  return typePrompt(session, text, { run, settleMs });
+  return typePrompt(session, text, options);
 }
