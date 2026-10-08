@@ -20,10 +20,25 @@ public struct RGB: Codable, Equatable, Sendable {
 private let saturation = 0.6
 private let lightestFill = 0.5
 
-/// The member's hue from 0 to 359. FNV-1a, since Swift's own hash changes on every launch.
+/// FNV-1a, since Swift's own hash changes on every launch.
+private func avatarHash(for name: String) -> UInt32 {
+  name.utf8.reduce(UInt32(2_166_136_261)) { ($0 ^ UInt32($1)) &* 16_777_619 }
+}
+
+/// The member's hue from 0 to 359.
 public func avatarHue(for name: String) -> Int {
-  let hash = name.utf8.reduce(UInt32(2_166_136_261)) { ($0 ^ UInt32($1)) &* 16_777_619 }
-  return Int(hash % 360)
+  Int(avatarHash(for: name) % 360)
+}
+
+/// The face on a member's circle. Eyes and mouth come from the hash bits the hue does not use.
+public struct AvatarFace: Equatable, Hashable, Sendable {
+  public let eyeSpread: Int
+  public let mouth: Int
+}
+
+public func avatarFace(for name: String) -> AvatarFace {
+  let bits = avatarHash(for: name) / 360
+  return AvatarFace(eyeSpread: Int(bits % 3), mouth: Int(bits / 3 % 3))
 }
 
 /// The circle fill for a hue: the lightest tone that still keeps white text at WCAG AA.

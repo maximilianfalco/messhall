@@ -141,6 +141,13 @@ private struct AvatarsPane: View {
   var body: some View {
     Form {
       Section {
+        Picker("Style", selection: $settings.snapshot.avatarStyle) {
+          ForEach(AvatarStyle.allCases, id: \.self) { style in
+            Text(style.rawValue.capitalized).tag(style)
+          }
+        }
+      }
+      Section {
         if names.isEmpty {
           Text("Agents show here once they join a room.")
             .foregroundStyle(.secondary)

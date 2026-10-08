@@ -103,6 +103,9 @@ const SHOTS = [
   { appearance: 'dark', name: 'settings-appearance-dark', settings: 'appearance' },
   { appearance: 'light', name: 'settings-avatars-light', settings: 'avatars' },
   { appearance: 'dark', name: 'settings-avatars-dark', settings: 'avatars' },
+  { appearance: 'light', name: 'avatars-face-light', room: 'launch' },
+  { appearance: 'dark', name: 'avatars-face-dark', room: 'launch' },
+  { appearance: 'light', avatarStyle: 'initials', name: 'avatars-initials-light', room: 'launch' },
   { appearance: 'light', name: 'settings-notifications-light', settings: 'notifications' },
   { appearance: 'dark', name: 'settings-notifications-dark', settings: 'notifications' },
   { appearance: 'light', name: 'settings-shortcut-light', settings: 'shortcut' },
@@ -558,6 +561,7 @@ export function shotArgs(shot: Shot) {
     JSON.stringify(
       JSON.stringify({
         ...('muted' in shot ? MUTED : {}),
+        ...('avatarStyle' in shot ? { avatarStyle: shot.avatarStyle } : {}),
         ...('settings' in shot ? { pane: shot.settings, ...PANE_SETTINGS[shot.settings] } : {}),
         ...('hotkey' in shot ? SHOT_HOTKEY : {}),
       }),

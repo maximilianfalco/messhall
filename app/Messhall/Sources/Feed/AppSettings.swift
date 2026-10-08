@@ -25,6 +25,11 @@ public enum AccentChoice: String, Codable, CaseIterable, Sendable {
   }
 }
 
+/// A face on each circle, or the plain circle with initials.
+public enum AvatarStyle: String, Codable, CaseIterable, Sendable {
+  case face, initials
+}
+
 public enum SettingsPane: String, Codable, CaseIterable, Sendable {
   case appearance, avatars, notifications, shortcut
 }
@@ -48,6 +53,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
   public var notificationsEnabled = true
   public var mutedRooms: Set<String> = []
   public var avatars = AvatarOverrides()
+  public var avatarStyle = AvatarStyle.face
   public var pane = SettingsPane.appearance
   public var hotkey = Hotkey()
   public var pullRequestCards = true
@@ -62,6 +68,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
     notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? notificationsEnabled
     mutedRooms = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRooms) ?? mutedRooms
     avatars = try c.decodeIfPresent(AvatarOverrides.self, forKey: .avatars) ?? avatars
+    avatarStyle = try c.decodeIfPresent(AvatarStyle.self, forKey: .avatarStyle) ?? avatarStyle
     pane = try c.decodeIfPresent(SettingsPane.self, forKey: .pane) ?? pane
     hotkey = try c.decodeIfPresent(Hotkey.self, forKey: .hotkey) ?? hotkey
     pullRequestCards = try c.decodeIfPresent(Bool.self, forKey: .pullRequestCards) ?? pullRequestCards
