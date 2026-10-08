@@ -89,4 +89,21 @@ struct RoomTemplateTests {
     #expect(pair.bots(notSeated: ["worker"]).map(\.name) == ["reviewer"])
     #expect(pair.bots(notSeated: ["worker", "reviewer", "human"]).isEmpty)
   }
+
+  @Test("picking a template fills the room name, free of taken ones, and its topic")
+  func draft() {
+    let pair = template(room: "review")
+
+    #expect(pair.draft(taken: ["dev"]) == NewRoom(name: "review", topic: "x"))
+    #expect(pair.draft(taken: ["review"]) == NewRoom(name: "review-2", topic: "x"))
+  }
+
+  @Test("a name and topic typed after the pick win over the template's")
+  func renamed() {
+    let pair = template(room: "review")
+
+    #expect(pair.renamed("mine", topic: "ours").room == "mine")
+    #expect(pair.renamed("mine", topic: "ours").topic == "ours")
+    #expect(pair.renamed("mine", topic: "ours").bots == pair.bots)
+  }
 }
