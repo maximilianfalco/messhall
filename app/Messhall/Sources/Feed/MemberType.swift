@@ -28,13 +28,13 @@ extension Member {
 
   /// `web, opencode 1.18.34, waiting, tests green`. A member with no client says its kind instead.
   public func spokenLabel(as displayName: String) -> String {
-    "\(displayName), \(client ?? kind.rawValue), \(presence.rawValue)\(muted ? ", muted" : "")"
+    "\(displayName), \(client ?? kind.rawValue), \(presence.rawValue)\(muted ? ", muted" : "")\(done ? ", signed off" : "")"
       + (status.map { ", \($0)" } ?? "")
   }
 
   /// `web runs on opencode 1.18.34 and is waiting: tests green`, the hover help on the chip.
   public func help(as displayName: String) -> String {
-    "\(displayName) runs on \(client ?? kind.rawValue) and is \(presence.rawValue)\(muted ? ", muted" : "")"
+    "\(displayName) runs on \(client ?? kind.rawValue) and is \(presence.rawValue)\(muted ? ", muted" : "")\(done ? ", signed off" : "")"
       + (status.map { ": \($0)" } ?? "")
   }
 

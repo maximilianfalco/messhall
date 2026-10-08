@@ -68,7 +68,10 @@ export const joinInputSchema = z.object({
 });
 
 export const postInputSchema = z.object({
-  done: z.boolean().optional().describe('True when your part is finished. Your next post puts you back in.'),
+  done: z
+    .boolean()
+    .optional()
+    .describe('True only when you leave the task for good, never on a heads-up. Your next post puts you back in.'),
   room: roomField.describe('Room you joined.'),
   text: z.string().min(1).describe('Message text, at most 4,000 chars. Mention with @name or @all.'),
 });
