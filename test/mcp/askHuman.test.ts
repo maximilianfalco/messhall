@@ -35,6 +35,100 @@ describe('ask_human', () => {
     );
   });
 
+  it('takes 1 to 4 questions with headers, descriptions, a recommended pick and multi select', async () => {
+    const api = await joined();
+
+    const result = await api.call('ask_human', {
+      questions: [
+        {
+          header: 'Merge',
+          options: [{ description: 'squash it on green CI', label: 'ship it', recommended: true }, { label: 'wait' }],
+          question: 'merge the cents change now?',
+        },
+        {
+          header: 'Suites',
+          multi_select: true,
+          options: [{ label: 'unit' }, { label: 'e2e' }],
+          question: 'which run?',
+        },
+      ],
+      room: 'checkout',
+    });
+
+    expect(result.isError).toBe(false);
+    expect(harness.store.openQuestions('checkout')[0]?.questions).toStrictEqual([
+      {
+        header: 'Merge',
+        multi_select: false,
+        options: [
+          { description: 'squash it on green CI', label: 'ship it', recommended: true },
+          { description: null, label: 'wait', recommended: false },
+        ],
+        question: 'merge the cents change now?',
+      },
+      {
+        header: 'Suites',
+        multi_select: true,
+        options: [
+          { description: null, label: 'unit', recommended: false },
+          { description: null, label: 'e2e', recommended: false },
+        ],
+        question: 'which run?',
+      },
+    ]);
+  });
+
+  it('maps the short form to one question with no header', async () => {
+    const api = await joined();
+
+    await api.call('ask_human', { options: ['ship it', 'wait'], question: 'merge now?', room: 'checkout' });
+
+    expect(harness.store.openQuestions('checkout')[0]?.questions).toStrictEqual([
+      {
+        header: null,
+        multi_select: false,
+        options: [
+          { description: null, label: 'ship it', recommended: false },
+          { description: null, label: 'wait', recommended: false },
+        ],
+        question: 'merge now?',
+      },
+    ]);
+  });
+
+  const listed = (overrides: Record<string, unknown>) => ({
+    questions: [{ header: 'Merge', options: [{ label: 'yes' }, { label: 'no' }], question: 'go?', ...overrides }],
+  });
+
+  it.each([
+    ['no questions', { questions: [] }],
+    ['five questions', { questions: Array.from({ length: 5 }, () => listed({}).questions[0]) }],
+    ['questions and the short form together', { ...listed({}), options: ['yes', 'no'], question: 'go?' }],
+    ['a short question without options', { question: 'go?' }],
+    ['options without a short question', { options: ['yes', 'no'] }],
+    ['a long header', listed({ header: 'h'.repeat(13) })],
+    ['an @ in a header', listed({ header: '@web' })],
+    ['a newline in a header', listed({ header: 'a\nb' })],
+    [
+      'two recommended options',
+      listed({
+        options: [
+          { label: 'yes', recommended: true },
+          { label: 'no', recommended: true },
+        ],
+      }),
+    ],
+    ['a long description', listed({ options: [{ description: 'd'.repeat(121), label: 'yes' }, { label: 'no' }] })],
+    ['one option in a listed question', listed({ options: [{ label: 'yes' }] })],
+  ])('refuses %s', async (_case, overrides) => {
+    const api = await joined();
+
+    const result = await api.call('ask_human', { ...overrides, room: 'checkout' });
+
+    expect(result.isError).toBe(true);
+    expect(harness.store.openQuestions('checkout')).toStrictEqual([]);
+  });
+
   it.each([
     ['one option', { options: ['ok'] }],
     ['five options', { options: ['a', 'b', 'c', 'd', 'e'] }],

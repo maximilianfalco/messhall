@@ -45,7 +45,7 @@ struct ModelTests {
     #expect(try Fixture.decode(FeedError.self, "FeedError").error == "room not found")
   }
 
-  @Test("decode a question's options in order and a state the app does not know as unknown")
+  @Test("decode a question's header, options in order, multi select and a state the app does not know as unknown")
   func question() throws {
     let json = try Fixture.text("QuestionEvent")
       .replacingOccurrences(of: #""state": "open""#, with: #""state": "snoozed""#)
@@ -53,10 +53,14 @@ struct ModelTests {
     guard case .question(let e) = try JSONDecoder().decode(BusEvent.self, from: Data(json.utf8)) else {
       Issue.record("not a question event"); return
     }
-    #expect(e.question.options == ["Unit", "Integration", "Both"])
+    let item = try #require(e.question.items.first)
+    #expect(item.header == "Suites")
+    #expect(item.multiSelect)
+    #expect(item.options.map(\.label) == ["Unit", "Integration", "Both"])
+    #expect(item.options[0] == QuestionOption(label: "Unit", description: "fast, no daemon", recommended: true))
     #expect(e.question.messageId == 2)
     #expect(e.question.state == .unknown)
-    #expect(e.question.answer == nil)
+    #expect(e.question.answers == nil)
   }
 
   @Test("decode an agreement's names in order and a state the app does not know as unknown")
@@ -78,7 +82,7 @@ struct ModelTests {
     let result = try Fixture.decode(AnswerResult.self, "AnswerResult")
 
     #expect(result.question.state == .answered)
-    #expect(result.question.answer == 0)
+    #expect(result.question.answers == [QuestionAnswer(picks: [0])])
     #expect(result.message.from == "human")
   }
 

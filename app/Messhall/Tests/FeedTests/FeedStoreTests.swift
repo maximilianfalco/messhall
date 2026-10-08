@@ -343,10 +343,11 @@ struct FeedStoreTests {
   func snapshotQuestions() throws {
     let store = try loaded()
 
-    #expect(store.rooms[0].questions.map(\.options) == [["Ship it", "Wait"]])
+    #expect(store.rooms[0].questions.map { $0.items.map(\.question) } == [["Ship the schema change today?"]])
+    #expect(store.rooms[0].settledQuestions.isEmpty)
   }
 
-  @Test("an open question adds a card, and an answered, expired or replaced one takes it away", arguments: [
+  @Test("an open question waits, and an answered, expired or replaced one moves to the settled ones", arguments: [
     QuestionState.answered, .expired, .replaced,
   ])
   func questionEvents(state: QuestionState) throws {
@@ -356,12 +357,13 @@ struct FeedStoreTests {
 
     store.apply(.event(seq: 8, asked))
     store.apply(.event(seq: 9, asked))
-    #expect(store.rooms[0].questions.map(\.question) == ["Ship the schema change today?", "Which test suite first?"])
+    #expect(store.rooms[0].questions.map(\.id) == [store.rooms[0].questions[0].id, payload.question.id])
 
     var closed = payload.question
     closed.state = state
     store.apply(.event(seq: 10, .question(QuestionEvent(room: "checkout", question: closed))))
-    #expect(store.rooms[0].questions.map(\.question) == ["Ship the schema change today?"])
+    #expect(store.rooms[0].questions.map(\.id) == ["7e2a9c41-3b5d-4f60-a8e1-5c4d2b1f0a93"])
+    #expect(store.rooms[0].settledQuestions.map(\.state) == [state])
   }
 
   @Test("a question the human just answered leaves at once and shows the human's line")
@@ -372,6 +374,8 @@ struct FeedStoreTests {
     store.settle(result)
 
     #expect(store.rooms[0].questions.isEmpty)
+    #expect(store.rooms[0].settledQuestions.map(\.answers) == [[QuestionAnswer(picks: [0])]])
+    #expect(store.rooms[0].asks[result.question.messageId]?.state == .answered)
     #expect(store.rooms[0].messages.last?.text == "@api Ship it")
   }
 

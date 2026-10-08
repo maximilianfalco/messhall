@@ -67,6 +67,8 @@ async function askingAgent(url: string) {
   return { client, question: question! };
 }
 
+const picked = (...picks: number[]) => ({ answers: [{ picks }] });
+
 const answer = (url: string, id: string, body: unknown, key = keyOf('human')) =>
   fetch(`${url}/api/questions/${id}`, {
     body: JSON.stringify(body),
@@ -79,11 +81,11 @@ describe('POST /api/questions/:id', () => {
     const { url } = await start();
     const { client, question } = await askingAgent(url);
 
-    const res = await answer(url, question.id, { option: 0 });
+    const res = await answer(url, question.id, picked(0));
 
     expect(res.status).toBe(200);
     const result = answerResultSchema.parse(await res.json());
-    expect(result.question).toMatchObject({ answer: 0, state: 'answered' });
+    expect(result.question).toMatchObject({ answers: [{ other: null, picks: [0] }], state: 'answered' });
     expect(result.message).toMatchObject({ from: 'human', mentions: ['api'] });
     const waited = await client.callTool({ arguments: { room: 'demo', timeout_s: 1 }, name: 'wait' });
     expect(text(waited)).toContain('1 new since your last read in #demo (human mentioned you)');
@@ -96,7 +98,7 @@ describe('POST /api/questions/:id', () => {
     const { url } = await start();
     const { question } = await askingAgent(url);
 
-    const res = await answer(url, question.id, { option: 0 }, keyOf('agent'));
+    const res = await answer(url, question.id, picked(0), keyOf('agent'));
 
     expect(res.status).toBe(403);
     expect((await openQuestions(url)).map(item => item.id)).toStrictEqual([question.id]);
@@ -105,9 +107,9 @@ describe('POST /api/questions/:id', () => {
   it('refuses a second answer with 404', async () => {
     const { url } = await start();
     const { question } = await askingAgent(url);
-    await answer(url, question.id, { option: 0 });
+    await answer(url, question.id, picked(0));
 
-    const res = await answer(url, question.id, { option: 1 });
+    const res = await answer(url, question.id, picked(1));
 
     expect(res.status).toBe(404);
   });
@@ -116,23 +118,40 @@ describe('POST /api/questions/:id', () => {
     const { url } = await start();
     await askingAgent(url);
 
-    const res = await answer(url, '00000000-0000-4000-8000-000000000000', { option: 0 });
+    const res = await answer(url, '00000000-0000-4000-8000-000000000000', picked(0));
 
     expect(res.status).toBe(404);
   });
 
-  it.each([{ option: 2 }, { option: -1 }, { option: 'ship it' }, {}])(
-    'refuses %j with 400 and leaves the question open',
-    async body => {
-      const { url } = await start();
-      const { question } = await askingAgent(url);
+  it('answers with what the human typed in place of a pick', async () => {
+    const { url } = await start();
+    const { question } = await askingAgent(url);
 
-      const res = await answer(url, question.id, body);
+    const res = await answer(url, question.id, { answers: [{ other: 'after lunch', picks: [] }] });
 
-      expect(res.status).toBe(400);
-      expect((await openQuestions(url)).map(item => item.id)).toStrictEqual([question.id]);
-    },
-  );
+    expect(res.status).toBe(200);
+    expect(answerResultSchema.parse(await res.json()).message.text).toBe(
+      `@api answer to your question #${question.message_id}: "after lunch"`,
+    );
+  });
+
+  it.each([
+    picked(2),
+    picked(-1),
+    picked(0, 1),
+    { answers: [{ other: 'one\ntwo', picks: [] }] },
+    { answers: [{ picks: [0] }, { picks: [1] }] },
+    { option: 0 },
+    {},
+  ])('refuses %j with 400 and leaves the question open', async body => {
+    const { url } = await start();
+    const { question } = await askingAgent(url);
+
+    const res = await answer(url, question.id, body);
+
+    expect(res.status).toBe(400);
+    expect((await openQuestions(url)).map(item => item.id)).toStrictEqual([question.id]);
+  });
 });
 
 describe('question expiry', () => {

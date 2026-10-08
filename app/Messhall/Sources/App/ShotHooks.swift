@@ -66,6 +66,9 @@
     /// `-shotDraft <text>`: the composer opens with this typed, so a draft ending in `@` shows the mention picker.
     static let draft = UserDefaults.standard.string(forKey: "shotDraft")
 
+    /// `-shotOther <text>`: each open question's last question opens with this typed in its Other box.
+    static let other = UserDefaults.standard.string(forKey: "shotOther")
+
     /// `-shotKeys <steps>`: steps split by `|`, each `down`, `up`, `left`, `return`, `shift-return`, `option-return`, `tab`, `escape` or text to type.
     /// The app sends them to its own composer, so the real app never gets a key. After each step the field goes to `-shotKeysOut`.
     static func pressKeys(_ steps: String, logTo file: String) async {

@@ -1,4 +1,5 @@
 import type { SequencedEvent } from '../../contracts/events.ts';
+import type { QuestionItem, QuestionOption } from '../../contracts/room.ts';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -21,8 +22,36 @@ afterEach(() => {
 
 const store = () => scratch.store;
 
+const choice = (label: string, extra: Partial<QuestionOption> = {}): QuestionOption => ({
+  description: null,
+  label,
+  recommended: false,
+  ...extra,
+});
+
+const item = (extra: Partial<QuestionItem> = {}): QuestionItem => ({
+  header: null,
+  multi_select: false,
+  options: [choice('ship it'), choice('wait')],
+  question: 'merge now?',
+  ...extra,
+});
+
+const threeItems = [
+  item({ header: 'Merge', options: [choice('ship it', { recommended: true }), choice('wait')] }),
+  item({
+    header: 'Suites',
+    multi_select: true,
+    options: [choice('unit'), choice('e2e'), choice('smoke')],
+    question: 'which suites run first?',
+  }),
+  item({ header: 'Scope', options: [choice('api only'), choice('api and web')], question: 'how wide?' }),
+];
+
 const ask = (overrides: Partial<Parameters<ReturnType<typeof scratchStore>['store']['askQuestion']>[0]> = {}) =>
-  store().askQuestion({ as: 'api', options: ['ship it', 'wait'], question: 'merge now?', room: 'demo', ...overrides });
+  store().askQuestion({ as: 'api', questions: [item()], room: 'demo', ...overrides });
+
+const pick = (...picks: number[]) => ({ other: null, picks });
 
 const asked = () => {
   const result = ask();
@@ -43,11 +72,10 @@ describe('askQuestion', () => {
     const question = asked();
 
     expect(question).toMatchObject({
-      answer: null,
       answered_at: null,
+      answers: null,
       member: 'api',
-      options: ['ship it', 'wait'],
-      question: 'merge now?',
+      questions: [item()],
       room: 'demo',
       state: 'open',
     });
@@ -63,6 +91,27 @@ describe('askQuestion', () => {
     expect(store().openQuestions('demo')).toStrictEqual([question]);
   });
 
+  it('lists every question with its header, a recommended mark and a pick any hint', () => {
+    const result = ask({ questions: threeItems });
+
+    const page = lastLine();
+    expect(result.ok && result.question.questions).toStrictEqual(threeItems);
+    expect(page.ok && page.messages[0]?.text).toBe(
+      [
+        '@human Merge: merge now?',
+        '1. ship it (recommended)',
+        '2. wait',
+        'Suites: which suites run first? (pick any)',
+        '1. unit',
+        '2. e2e',
+        '3. smoke',
+        'Scope: how wide?',
+        '1. api only',
+        '2. api and web',
+      ].join('\n'),
+    );
+  });
+
   it('replaces the asker older open question in the room', () => {
     const older = asked();
 
@@ -72,7 +121,7 @@ describe('askQuestion', () => {
     expect(
       store()
         .openQuestions('demo')
-        .map(item => item.id),
+        .map(open => open.id),
     ).not.toContain(older.id);
   });
 
@@ -107,9 +156,9 @@ describe('answerQuestion', () => {
   it('closes the question and posts a human line that names the asker and the label only', () => {
     const question = asked();
 
-    const result = store().answerQuestion({ id: question.id, option: 1 });
+    const result = store().answerQuestion({ answers: [pick(1)], id: question.id });
 
-    expect(result.ok && result.question).toMatchObject({ answer: 1, id: question.id, state: 'answered' });
+    expect(result.ok && result.question).toMatchObject({ answers: [pick(1)], id: question.id, state: 'answered' });
     expect(result.ok && result.message).toMatchObject({
       from: 'human',
       mentions: ['api'],
@@ -120,30 +169,84 @@ describe('answerQuestion', () => {
 
   it('answers a question once', () => {
     const question = asked();
-    store().answerQuestion({ id: question.id, option: 0 });
+    store().answerQuestion({ answers: [pick(0)], id: question.id });
 
-    expect(store().answerQuestion({ id: question.id, option: 1 })).toStrictEqual({ ok: false, reason: 'no_question' });
+    expect(store().answerQuestion({ answers: [pick(1)], id: question.id })).toStrictEqual({
+      ok: false,
+      reason: 'no_question',
+    });
   });
 
-  it('refuses an option out of range and leaves the question open', () => {
+  it('names each header and the picks, typed text in quotes, one line per question', () => {
+    const result = ask({ questions: threeItems });
+    const question = result.ok ? result.question : undefined;
+
+    const answered = store().answerQuestion({
+      answers: [pick(0), { other: 'and a lint run', picks: [0, 2] }, { other: 'just the store', picks: [] }],
+      id: question!.id,
+    });
+
+    expect(answered.ok && answered.message.text).toBe(
+      [
+        `@api answer to your question #${question!.message_id}:`,
+        'Merge: ship it',
+        'Suites: unit, smoke, "and a lint run"',
+        'Scope: "just the store"',
+      ].join('\n'),
+    );
+  });
+
+  it('keeps one headed question on one line', () => {
+    const result = ask({ questions: [threeItems[0]!] });
+    const question = result.ok ? result.question : undefined;
+
+    const answered = store().answerQuestion({ answers: [pick(1)], id: question!.id });
+
+    expect(answered.ok && answered.message.text).toBe(
+      `@api answer to your question #${question!.message_id}: Merge: wait`,
+    );
+  });
+
+  it.each([
+    ['a pick out of range', [pick(2)]],
+    ['two picks on a pick one question', [pick(0, 1)]],
+    ['a pick and typed text on a pick one question', [{ other: 'later', picks: [0] }]],
+    ['no pick and no text', [pick()]],
+    ['the same pick twice', [pick(0, 0)]],
+    ['too few answers', []],
+    ['too many answers', [pick(0), pick(1)]],
+  ])('refuses %s and leaves the question open', (_case, answers) => {
     const question = asked();
 
-    expect(store().answerQuestion({ id: question.id, option: 2 })).toStrictEqual({ ok: false, reason: 'bad_option' });
+    expect(store().answerQuestion({ answers, id: question.id })).toStrictEqual({ ok: false, reason: 'bad_answer' });
     expect(store().openQuestions('demo')).toStrictEqual([question]);
+  });
+
+  it('takes typed text alone on a pick one question', () => {
+    const question = asked();
+
+    const result = store().answerQuestion({ answers: [{ other: 'ship after lunch', picks: [] }], id: question.id });
+
+    expect(result.ok && result.message.text).toBe(
+      `@api answer to your question #${question.message_id}: "ship after lunch"`,
+    );
   });
 
   it('refuses a replaced question', () => {
     const older = asked();
     asked();
 
-    expect(store().answerQuestion({ id: older.id, option: 0 })).toStrictEqual({ ok: false, reason: 'no_question' });
+    expect(store().answerQuestion({ answers: [pick(0)], id: older.id })).toStrictEqual({
+      ok: false,
+      reason: 'no_question',
+    });
   });
 
   it('reopens a closed room to answer, as any human line does', () => {
     const question = asked();
     store().closeRoom('demo');
 
-    const result = store().answerQuestion({ id: question.id, option: 0 });
+    const result = store().answerQuestion({ answers: [pick(0)], id: question.id });
 
     expect(result.ok).toBe(true);
     expect(
@@ -161,7 +264,7 @@ describe('expireQuestions', () => {
 
     const expired = store().expireQuestions();
 
-    expect(expired.map(item => [item.id, item.state])).toStrictEqual([[question.id, 'expired']]);
+    expect(expired.map(closed => [closed.id, closed.state])).toStrictEqual([[question.id, 'expired']]);
     const page = lastLine();
     expect(page.ok && page.messages[0]).toMatchObject({
       from: 'messhall',
@@ -186,5 +289,28 @@ describe('questionsOf', () => {
     ask({ as: 'web' });
 
     expect(store().questionsOf({ as: 'api', room: 'demo' })).toStrictEqual([mine]);
+  });
+});
+
+describe('settledQuestions', () => {
+  it('lists the answered, replaced and expired questions, never the open ones', () => {
+    const answered = asked();
+    store().answerQuestion({ answers: [pick(0)], id: answered.id });
+    const replaced = asked();
+    const open = asked();
+
+    expect(
+      store()
+        .settledQuestions('demo')
+        .map(question => [question.id, question.state]),
+    ).toStrictEqual([
+      [answered.id, 'answered'],
+      [replaced.id, 'replaced'],
+    ]);
+    expect(
+      store()
+        .openQuestions('demo')
+        .map(question => question.id),
+    ).toStrictEqual([open.id]);
   });
 });

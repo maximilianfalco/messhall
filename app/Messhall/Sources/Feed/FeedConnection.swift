@@ -99,10 +99,10 @@ extension FeedStore {
     }
   }
 
-  /// Picks an option on an agent's question as the human and takes its card away at once.
+  /// Answers an agent's question as the human, one answer per question, and folds it at once.
   /// Returns the refusal text, or nil.
-  public func answer(_ question: Question, option: Int, via client: FeedClient) async -> String? {
-    switch await HumanSeat(client: client).answer(question, option: option) {
+  public func answer(_ question: Question, with answers: [QuestionAnswer], via client: FeedClient) async -> String? {
+    switch await HumanSeat(client: client).answer(question, with: answers) {
     case .done(let result):
       settle(result)
       return nil

@@ -185,13 +185,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  /// A pick from a banner answers through the same human seat as the card. A question already gone opens its room.
+  /// A pick from a banner answers through the same human seat as the room. A question already gone opens its room.
   private func answer(_ id: String, option: Int, room: String?) async {
     guard let question = store.room(named: room)?.questions.first(where: { $0.id == id }) else {
       show(room)
       return
     }
-    if let reason = await store.answer(question, option: option, via: client) {
+    if let reason = await store.answer(question, with: [QuestionAnswer(picks: [option])], via: client) {
       notifier.refused(reason, room: question.room)
     }
   }
