@@ -2,6 +2,7 @@ import type { ToolDeps } from './registry.js';
 import type { McpServer } from '@modelcontextprotocol/server';
 
 import { postInputSchema } from '../../../contracts/mcp.ts';
+import { HUMAN_NAME } from '../../../contracts/room.ts';
 
 import { notJoined, refuse, registerRoomTool, removedFrom, reply } from './registry.js';
 import { unreadConcerning } from './wait.js';
