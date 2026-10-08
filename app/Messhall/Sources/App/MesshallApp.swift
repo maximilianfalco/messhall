@@ -83,7 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     #endif
     Task { await store.run(client) }
     #if DEBUG
-      if !ShotHooks.isShot { Task { await FirstLaunch.run() } }
+      if let dir = UserDefaults.standard.string(forKey: "shotFirstLaunch") {
+        Task { await ShotHooks.renderFirstLaunch(into: URL(fileURLWithPath: dir)) }
+      } else if !ShotHooks.isShot {
+        Task { await FirstLaunch.run() }
+      }
     #else
       Task { await FirstLaunch.run() }
     #endif

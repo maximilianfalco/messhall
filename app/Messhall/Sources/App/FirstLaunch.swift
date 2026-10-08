@@ -14,7 +14,7 @@ enum FirstLaunch {
     do {
       try await installer.install(version: version)
     } catch {
-      alert("Messhall could not start its daemon", "Run messhall install in a terminal to see why. \(error)")
+      alert("Messhall could not start its daemon", "Run messhall install in a terminal to see why. \(detail(error))")
       return
     }
     await offerMcp(installer)
@@ -29,24 +29,36 @@ enum FirstLaunch {
   private static func offerMcp(_ installer: RuntimeInstaller) async {
     guard !UserDefaults.standard.bool(forKey: offeredMcpKey) else { return }
     UserDefaults.standard.set(true, forKey: offeredMcpKey)
+    guard mcpOffer.runModal() == .alertFirstButtonReturn else { return }
+    do {
+      try await installer.installMcp()
+    } catch {
+      alert("Could not add Messhall to your agents", "Run messhall mcp install in a terminal. \(detail(error))")
+    }
+  }
+
+  private static func detail(_ error: Error) -> String {
+    (error as? RuntimeInstaller.Failure)?.output ?? "\(error)"
+  }
+
+  static var mcpOffer: NSAlert {
     let ask = NSAlert()
     ask.messageText = "Add Messhall to your agents?"
     ask.informativeText = "This runs messhall mcp install, so Claude Code, Codex and Gemini CLI can join rooms."
     ask.addButton(withTitle: "Add")
     ask.addButton(withTitle: "Not now")
-    guard ask.runModal() == .alertFirstButtonReturn else { return }
-    do {
-      try await installer.installMcp()
-    } catch {
-      alert("Could not add Messhall to your agents", "Run messhall mcp install in a terminal. \(error)")
-    }
+    return ask
   }
 
-  private static func alert(_ title: String, _ detail: String) {
+  static func failure(_ title: String, _ detail: String) -> NSAlert {
     let alert = NSAlert()
     alert.messageText = title
     alert.informativeText = detail
-    alert.runModal()
+    return alert
+  }
+
+  private static func alert(_ title: String, _ detail: String) {
+    failure(title, detail).runModal()
   }
 
   @Sendable

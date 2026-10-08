@@ -172,6 +172,31 @@
       try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
     }
 
+    /// `-shotFirstLaunch <dir>`: writes the two first launch alerts as PNGs, so a PR can show what a person sees.
+    static func renderFirstLaunch(into dir: URL) async {
+      let alerts = [
+        ("add-to-agents", FirstLaunch.mcpOffer),
+        (
+          "could-not-start",
+          FirstLaunch.failure(
+            "Messhall could not start its daemon", "Run messhall install in a terminal to see why. messhall install exited 1")
+        ),
+      ]
+      try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+      for (name, alert) in alerts {
+        alert.layout()
+        alert.window.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(1))
+        defer { alert.window.orderOut(nil) }
+        let capture = Process()
+        capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        capture.arguments = ["-x", "-o", "-l", String(alert.window.windowNumber), dir.appendingPathComponent("\(name).png").path]
+        try? capture.run()
+        capture.waitUntilExit()
+      }
+      exit(0)
+    }
+
     /// `-shotSettings <file>`: picks Settings in the app menu, like cmd comma, and writes its window number.
     /// The main window stays in the window list after a close, so app-shot needs the number to find Settings.
     static func openSettings(numberInto file: String) async {

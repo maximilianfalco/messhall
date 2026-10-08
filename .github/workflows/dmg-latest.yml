@@ -20,10 +20,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: make dmg
-      - name: Replace the latest release with this build
+      - name: Point the latest release at this build
         run: |
-          gh release delete latest --cleanup-tag --yes || true
-          gh release create latest app/build/Messhall.dmg --prerelease --target "$GITHUB_SHA" \
-            --title "Messhall, main at ${GITHUB_SHA::7}" --notes "Built from $GITHUB_SHA."
+          gh release view latest >/dev/null 2>&1 || gh release create latest --prerelease --target "$GITHUB_SHA" --title latest --notes ""
+          gh release upload latest app/build/Messhall.dmg --clobber
+          git tag -f latest "$GITHUB_SHA"
+          git push -f origin refs/tags/latest
+          gh release edit latest --title "Messhall, main at ${GITHUB_SHA::7}" --notes "Built from $GITHUB_SHA."
         env:
           GH_TOKEN: ${{ github.token }}
