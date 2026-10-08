@@ -7,6 +7,7 @@ import { CLI_VERSION } from '../config.js';
 
 import { INSTRUCTIONS, PROTOCOL_VERSIONS, SERVER_NAME, TOOL_DESCRIPTIONS, TOOL_NAMES } from './constants.js';
 import { registerPermissionRelay } from './permission.js';
+import { registerJoinPrompt } from './prompts.js';
 import { registerAgreements, registerConfirm, registerPropose, registerReject } from './tools/agreements.js';
 import { registerAskHuman } from './tools/askHuman.js';
 import { registerAssignRole } from './tools/assignRole.js';
@@ -65,5 +66,6 @@ export function createMesshallServer(deps: ToolDeps) {
   );
   TOOL_NAMES.forEach(name => TOOLS[name](server, deps, TOOL_DESCRIPTIONS[name]));
   registerPermissionRelay(server, deps);
+  registerJoinPrompt(server);
   return server;
 }
