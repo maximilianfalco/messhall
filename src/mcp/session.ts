@@ -11,7 +11,7 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
   const marks = new Map<string, number>();
   let called = false;
   let channel = false;
-  let check: { acked: boolean; id: string; sentAt: number; told: boolean } | undefined;
+  let check: { acked: boolean; ids: Set<string>; sentAt: number; told: boolean } | undefined;
   let kind: AgentKind = 'other';
   let lastSeen = now().getTime();
   let open = 0;
@@ -34,15 +34,19 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
       // A codex thread id is only passed once thread/read has checked it.
       if (binding.threadId) ({ threadId } = binding);
     },
-    /** Starts the doorbell check: the test ring `ring` went out now and waits for doorbell_ok. */
+    /** Starts a doorbell check: the test ring `ring` went out now and waits for doorbell_ok. Ids of earlier rings still count. */
     checkDoorbell(ring: string) {
-      check = { acked: false, id: ring, sentAt: now().getTime(), told: false };
+      check = { acked: false, ids: new Set(check?.ids).add(ring), sentAt: now().getTime(), told: check?.told ?? false };
     },
-    /** Takes the answer to the test ring. A late answer still counts. False when `ring` is not the ring sent. */
+    /** Takes the answer to a test ring. A late answer still counts. False when `ring` is not a ring sent. */
     ackDoorbell(ring: string) {
-      if (check?.id !== ring) return false;
+      if (!check?.ids.has(ring)) return false;
       check.acked = true;
       return true;
+    },
+    /** Starts a new check on a rejoin, so a lost test ring gets another. A doorbell that reads on stays on. */
+    recheckDoorbell() {
+      if (this.doorbell !== 'on') check = undefined;
     },
     /** Whether the test ring got an answer: on, still checking, or off after the check timed out. */
     get doorbell(): 'checking' | 'off' | 'on' | 'unchecked' {

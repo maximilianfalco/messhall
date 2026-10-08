@@ -231,10 +231,12 @@ describe('openDb', () => {
       { from_client_label: null, from_kind: null, from_name: 'messhall' },
     ]);
     expect(JSON.parse(String(db.prepare('select payload from events').get()?.payload)).message).toStrictEqual({
+      edited_at: null,
       from: 'web',
       from_client_label: 'opencode',
       from_kind: 'other',
       id: 1,
+      removed_at: null,
     });
     db.close();
   });

@@ -307,6 +307,9 @@
           "$ref": "#/$defs/MessageEvent"
         },
         {
+          "$ref": "#/$defs/MessageEditEvent"
+        },
+        {
           "$ref": "#/$defs/MemberEvent"
         },
         {
@@ -730,6 +733,20 @@
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
           "description": "When it was posted."
         },
+        "edited_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the sender last changed the text, null when it never did. Set when it was taken back too."
+        },
         "from": {
           "type": "string",
           "description": "Member name, or messhall for daemon lines."
@@ -769,6 +786,20 @@
           },
           "description": "Member names mentioned with @, or all."
         },
+        "removed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the sender took the post back, null when it did not. The text is then empty."
+        },
         "room_id": {
           "type": "string",
           "description": "Room id."
@@ -781,14 +812,41 @@
       },
       "required": [
         "created_at",
+        "edited_at",
         "from",
         "from_client_label",
         "from_kind",
         "id",
         "kind",
         "mentions",
+        "removed_at",
         "room_id",
         "text"
+      ],
+      "additionalProperties": false
+    },
+    "MessageEditEvent": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "description": "The message after the sender edited or took it back.",
+          "$ref": "#/$defs/Message"
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "type": {
+          "type": "string",
+          "const": "message_edit",
+          "description": "The sender changed or took back a post. Nobody is rung for it."
+        }
+      },
+      "required": [
+        "message",
+        "room",
+        "type"
       ],
       "additionalProperties": false
     },
@@ -1230,6 +1288,20 @@
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
           "description": "When it was posted."
         },
+        "edited_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the sender last changed the text, null when it never did. Set when it was taken back too."
+        },
         "from": {
           "type": "string",
           "description": "Member name, or messhall for daemon lines."
@@ -1269,6 +1341,20 @@
           },
           "description": "Member names mentioned with @, or all."
         },
+        "removed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "description": "ISO 8601 time in UTC."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the sender took the post back, null when it did not. The text is then empty."
+        },
         "room_id": {
           "type": "string",
           "description": "Room id."
@@ -1286,12 +1372,14 @@
       },
       "required": [
         "created_at",
+        "edited_at",
         "from",
         "from_client_label",
         "from_kind",
         "id",
         "kind",
         "mentions",
+        "removed_at",
         "room_id",
         "text",
         "room"
@@ -1359,7 +1447,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 6,
+          "x-current": 7,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {

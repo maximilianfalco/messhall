@@ -31,12 +31,14 @@ const messageFrame = ({ id, room, text }: { id: number; room: string; text: stri
   const event: BusEvent = {
     message: {
       created_at: '2026-01-01T10:00:00.000Z',
+      edited_at: null,
       from: 'api',
       from_client_label: null,
       from_kind: null,
       id,
       kind: 'chat',
       mentions: [],
+      removed_at: null,
       room_id: 'room-1',
       text,
     },

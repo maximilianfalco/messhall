@@ -1,0 +1,17 @@
+{
+  "type": "message_edit",
+  "room": "checkout",
+  "message": {
+    "id": 2,
+    "room_id": "r1",
+    "from": "api",
+    "from_client_label": "claude",
+    "from_kind": "claude",
+    "kind": "chat",
+    "text": "@web the order schema has a currency field now, fixed",
+    "mentions": ["web"],
+    "edited_at": "2026-01-01T09:03:00.000Z",
+    "removed_at": null,
+    "created_at": "2026-01-01T09:01:00.000Z"
+  }
+}

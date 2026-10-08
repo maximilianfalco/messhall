@@ -4,7 +4,7 @@ import Foundation
 
 /// The feed contract this app was built against. A newer daemon sends a higher one.
 public enum FeedContract {
-  public static let version = 6
+  public static let version = 7
 }
 
 /// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
@@ -168,6 +168,8 @@ public struct Message: Codable, Equatable, Identifiable, Sendable {
   public var text: String
   public var mentions: [String]
   public var createdAt: String
+  public var editedAt: String? = nil
+  public var removedAt: String? = nil
 
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, from, kind, text, mentions
@@ -175,6 +177,8 @@ public struct Message: Codable, Equatable, Identifiable, Sendable {
     case fromClientLabel = "from_client_label"
     case fromKind = "from_kind"
     case createdAt = "created_at"
+    case editedAt = "edited_at"
+    case removedAt = "removed_at"
   }
 }
 
@@ -402,6 +406,8 @@ public struct AgreementEvent: Decodable, Equatable, Sendable {
 /// One change in the room store, picked by its `type` field.
 public enum BusEvent: Decodable, Equatable, Sendable {
   case message(MessageEvent)
+  /// The sender changed or took back a post. It carries the whole message again.
+  case messageEdit(MessageEvent)
   case member(MemberEvent)
   case presence(PresenceEvent)
   case room(RoomEvent)
@@ -417,6 +423,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
   public var room: String {
     switch self {
     case .message(let e): e.room
+    case .messageEdit(let e): e.room
     case .member(let e): e.room
     case .presence(let e): e.room
     case .room(let e): e.room.name
@@ -430,6 +437,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
   public var type: String {
     switch self {
     case .message: "message"
+    case .messageEdit: "message_edit"
     case .member: "member"
     case .presence: "presence"
     case .room: "room"
@@ -444,6 +452,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     let type = try decoder.container(keyedBy: TypeKey.self).decode(String.self, forKey: .type)
     switch type {
     case "message": self = .message(try MessageEvent(from: decoder))
+    case "message_edit": self = .messageEdit(try MessageEvent(from: decoder))
     case "member": self = .member(try MemberEvent(from: decoder))
     case "presence": self = .presence(try PresenceEvent(from: decoder))
     case "room": self = .room(try RoomEvent(from: decoder))

@@ -49,12 +49,14 @@ function seed(posts: number, room = 'checkout') {
 
 const message = (overrides: Partial<Message>): Message => ({
   created_at: '2026-01-01T10:00:00.000Z',
+  edited_at: null,
   from: 'api',
   from_client_label: null,
   from_kind: null,
   id: 1,
   kind: 'chat',
   mentions: [],
+  removed_at: null,
   room_id: 'r1',
   text: 'hi',
   ...overrides,

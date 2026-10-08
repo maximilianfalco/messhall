@@ -57,6 +57,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'post-dark' },
   { appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' },
   { appearance: 'dark', name: 'new-room-dark', newRoom: 'launch-week' },
+  { appearance: 'light', name: 'new-room-template-light', newRoom: '', newRoomTemplate: 'review-pair' },
+  { appearance: 'dark', name: 'new-room-template-dark', newRoom: '', newRoomTemplate: 'review-pair' },
   { appearance: 'light', name: 'welcome-light', welcome: true },
   { appearance: 'dark', name: 'welcome-dark', welcome: true },
   { appearance: 'light', name: 'start-light', start: 'daily-helper' },
@@ -128,6 +130,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'settings-notify-asked-dark', notify: 'notAsked', settings: 'notifications' },
   { appearance: 'light', name: 'pr-cards-light', pullRequests: true, room: 'reviews' },
   { appearance: 'dark', name: 'pr-cards-dark', pullRequests: true, room: 'reviews' },
+  { appearance: 'light', name: 'edited-light', room: 'edits' },
+  { appearance: 'dark', name: 'edited-dark', room: 'edits' },
   { appearance: 'light', name: 'ask-light', room: 'deploy' },
   { appearance: 'dark', name: 'ask-dark', room: 'deploy' },
   { appearance: 'light', name: 'ask-long-light', room: 'release' },
@@ -292,6 +296,23 @@ function seedHandoff({ step, store }: { step: (ms: number) => void; store: RoomS
   ['design', 'docs'].forEach(as => store.touch({ as, room, state: 'away' }));
 }
 
+/** A room where an agent fixed its own last post and another took one back, for the edited and taken back marks. */
+function seedEdits({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
+  const room = 'edits';
+  store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room });
+  store.joinRoom({ as: 'web', client: { name: 'codex-mcp-client', version: '0.160.1' }, kind: 'codex', room });
+  step(20_000);
+  store.postMessage({ from: 'api', room, text: '@web the migration is safe to run, go ahead' });
+  step(10_000);
+  store.editPost({ as: 'api', room, text: '@web hold off on the migration, one more check first' });
+  step(20_000);
+  store.postMessage({ from: 'web', room, text: 'done: the form is merged' });
+  step(10_000);
+  store.removePost({ as: 'web', room });
+  step(20_000);
+  store.postMessage({ from: 'web', room, text: '@api ok, waiting for your go' });
+}
+
 /** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft with five labels, a closed one, and one gh cannot read. */
 function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'reviews';
@@ -343,6 +364,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     at -= 20 * 60_000;
     seedHistory({ step, store });
     seedReviews({ step, store });
+    seedEdits({ step, store });
     at = now.getTime() - 20 * 60_000;
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'docs-sync' });
     store.postMessage({ from: 'writer', room: 'docs-sync', text: 'drafting the changelog for the currency change' });
@@ -587,6 +609,7 @@ export function shotArgs(shot: Shot) {
     ...('remove' in shot ? ['-shotRemove', shot.remove] : []),
     ...('mute' in shot ? ['-shotMute', shot.mute] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
+    ...('newRoomTemplate' in shot ? ['-shotNewRoomTemplate', shot.newRoomTemplate] : []),
     ...('start' in shot ? ['-shotStart', `${shot.start}=${startFolder(shot)}`, '-shotStartOut', startFile(shot)] : []),
     ...('welcome' in shot ? ['-shotWelcome', 'YES', '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),

@@ -21,7 +21,7 @@ export const TOPIC_MAX_CHARS = 200;
 
 export const SNAPSHOT_EVENT = 'snapshot';
 // Bump when a feed enum or event type grows, so an older app can tell it is behind.
-export const FEED_CONTRACT_VERSION = 6;
+export const FEED_CONTRACT_VERSION = 7;
 
 export const snapshotRoomSchema = roomSummarySchema.extend({
   agreements: z.array(agreementSchema).describe('Agreements still open and settled ones, oldest first.'),

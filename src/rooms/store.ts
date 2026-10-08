@@ -36,10 +36,12 @@ import {
 import {
   APPROVAL_TEXT_MAX,
   APPROVAL_TTL_MS,
+  DONE_AWAY_LEAVE_MS,
   INVITE_TTL_MS,
   LOOP_GUARD_BACKSTOP,
   LOOP_GUARD_LINES,
   LOOP_GUARD_PAUSE_MS,
+  EDIT_WINDOW_MS,
   NOTE_HOLD_MS,
   LOOP_GUARD_WITHIN_MS,
   QUESTION_TTL_MS,
@@ -56,7 +58,7 @@ import { agreementSql, involves, isLive, leftOut, proposalText, rejectText, sett
 import { createEventBus } from './events.js';
 import { answerText, askText, expiryText, questionSql } from './questions.js';
 import { reviewNudges } from './reviews.js';
-import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
+import { canAssignRole, isAgent, leavesDone, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -188,6 +190,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       'SELECT members.*, rooms.name AS room_name FROM members JOIN rooms ON rooms.id = members.room_id WHERE paused_with IS NOT NULL AND (paused_at IS NULL OR paused_at <= ?) ORDER BY rooms.name, members.name',
     ),
     endPause: db.prepare('UPDATE members SET paused_with = NULL WHERE room_id = ? AND name = ?'),
+    lastPostBy: db.prepare(
+      `SELECT * FROM messages WHERE room_id = ? AND from_name = ? AND ${IS_POST} ORDER BY id DESC LIMIT 1`,
+    ),
+    rewritePost: db.prepare(
+      'UPDATE messages SET text = ?, mentions = ?, edited_at = ?, removed_at = ? WHERE id = ? RETURNING *',
+    ),
     lastUnreadFrom: db.prepare(
       `SELECT * FROM messages WHERE room_id = ? AND from_name = ? AND id > ? AND ${IS_POST} ORDER BY id DESC LIMIT 1`,
     ),
@@ -239,6 +247,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
     stale: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE kind != 'human' AND left_at <= ? ORDER BY rooms.name, members.name",
+    ),
+    doneAway: db.prepare(
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND done = 1 AND presence = 'away' ORDER BY rooms.name, members.name",
     ),
     sweepable: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence NOT IN ('away', 'invited') ORDER BY rooms.name, members.name",
@@ -399,6 +410,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     );
   }
 
+  function leave(room: Room, name: string, line: string, emit: Emit) {
+    sql.leave.run(stamp(), room.id, name);
+    emit({ change: 'left', member: findMember(room, name)!, room: room.name, type: 'member' });
+    systemLine(room, line, emit);
+  }
+
   function drop(room: Room, member: Member, emit: Emit) {
     sql.removeMember.run(room.id, member.name);
     emit({ change: 'removed', member, room: room.name, type: 'member' });
@@ -486,6 +503,40 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     const member = findMember(room, name);
     if (!member || member.left_at !== null) return { ok: false, reason: 'not_member' } as const;
     return { member, ok: true, room } as const;
+  }
+
+  // Rewrites the member's last post inside the edit window and tells the feed. Nobody is rung for it.
+  function rewriteLastPost(
+    { as, room: roomName, text }: { as: string; room: string; text: string | null },
+    emit: Emit,
+  ) {
+    if (text !== null && text.length > TEXT_MAX_CHARS) {
+      return { length: text.length, ok: false, reason: 'too_long' } as const;
+    }
+    const found = seat(roomName, as);
+    if (!found.ok) return found;
+    const { member, room } = found;
+    if (member.muted) return { ok: false, reason: 'muted' } as const;
+    if (room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
+    const last = sql.lastPostBy.get(room.id, as);
+    if (!last) return { ok: false, reason: 'no_post' } as const;
+    if (last.removed_at !== null) return { ok: false, reason: 'removed' } as const;
+    if (now().getTime() - Date.parse(String(last.created_at)) > EDIT_WINDOW_MS) {
+      return { ok: false, reason: 'too_old' } as const;
+    }
+    const names = sql.liveMembers.all(room.id).map(row => String(row.name));
+    const at = stamp();
+    const row = sql.rewritePost.get(
+      text ?? '',
+      JSON.stringify(text === null ? [] : parseMentions({ names, text })),
+      at,
+      text === null ? at : null,
+      Number(last.id),
+    );
+    const message = toMessage(row!);
+    emit({ message, room: room.name, type: 'message_edit' });
+    const before = parseStoredJson(String(last.mentions)) as string[];
+    return { added: message.mentions.filter(name => !before.includes(name)), message, ok: true } as const;
   }
 
   // The gate for agreement calls: a seat that may speak, in an open room.
@@ -795,10 +846,27 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return transaction(emit => {
         const found = seat(roomName, as);
         if (!found.ok) return found;
-        sql.leave.run(stamp(), found.room.id, as);
-        emit({ change: 'left', member: findMember(found.room, as)!, room: found.room.name, type: 'member' });
-        systemLine(found.room, note ? `${as} left: ${note}` : `${as} left`, emit);
+        leave(found.room, as, note ? `${as} left: ${note}` : `${as} left`, emit);
         return { ok: true } as const;
+      });
+    },
+
+    /** Makes every seat that said done and has been away an hour leave, with a line each. */
+    leaveDoneAway() {
+      return transaction(emit => {
+        const at = now();
+        return sql.doneAway.all().flatMap(row => {
+          const member = toMember(row);
+          if (!leavesDone({ member, now: at })) return [];
+          const room = roomById(member.room_id);
+          leave(
+            room,
+            member.name,
+            `${member.name} left, done and away for ${DONE_AWAY_LEAVE_MS / 60_000} minutes`,
+            emit,
+          );
+          return [{ name: member.name, room: room.name }];
+        });
       });
     },
 
@@ -899,6 +967,17 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         }
         return { ...speak({ done, member, room, text }, emit), ok: true } as const;
       });
+    },
+
+    /** Replaces the text of the member's last post if it is under 5 minutes old. Mentions are read again but nobody
+     * is rung and no held note is made. */
+    editPost(input: { as: string; room: string; text: string }) {
+      return transaction(emit => rewriteLastPost(input, emit));
+    },
+
+    /** Takes back the member's last post if it is under 5 minutes old: the text goes, the line stays marked removed. */
+    removePost({ as, room }: { as: string; room: string }) {
+      return transaction(emit => rewriteLastPost({ as, room, text: null }, emit));
     },
 
     /**

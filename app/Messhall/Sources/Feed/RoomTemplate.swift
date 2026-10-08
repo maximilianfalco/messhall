@@ -55,6 +55,24 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
     return room
   }
 
+  /// What the New Room sheet fills in on a pick: a free room name and the topic.
+  public func draft(taken: [String]) -> NewRoom {
+    newRoom(named: roomName(taken: taken))
+  }
+
+  /// The room to make for this template. An empty topic is left out, since the daemon refuses an empty one.
+  public func newRoom(named name: String) -> NewRoom {
+    NewRoom(name: name, topic: topic.isEmpty ? nil : topic)
+  }
+
+  /// The same template under the name and topic the human typed.
+  public func renamed(_ name: String, topic: String) -> RoomTemplate {
+    var copy = self
+    copy.room = name
+    copy.topic = topic
+    return copy
+  }
+
   /// The bots whose seat is not in the room yet.
   public func bots(notSeated seated: [String]) -> [Bot] {
     bots.filter { !seated.contains($0.name) }
@@ -77,7 +95,7 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
           Ask the human which projects they work on. Post a plan: one room per project, with its topic. For \
           each room give two lines the human pastes themselves, the launch line `messhall claude --room <room>` \
           for a new session, and the join prompt for one already running: Join the messhall room #<room> with \
-          the messhall MCP tools: call join (room "<room>", pick a short role name), then call wait.
+          the messhall MCP tools: call join (room "<room>", as a short name you pick for yourself from the work you own), then call wait.
           Use ask_human to get the okay on the plan, then create nothing else. Warn that a session that already \
           reports to another tool may get confused about where to post.
           """

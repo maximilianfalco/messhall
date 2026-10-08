@@ -341,3 +341,77 @@ describe('createSpawner', () => {
     ]);
   });
 });
+
+describe('a seat that goes', () => {
+  function liveSessions() {
+    const sessions = new Set<string>();
+    const tmux = vi.fn<Tmux>(args => {
+      if (args[0] === 'kill-session') sessions.delete(String(args[2]).slice(1, -1));
+      return Promise.resolve(result());
+    });
+    return { sessions, tmux };
+  }
+
+  function spawnedSeat(name: string) {
+    const invited = store().invite({
+      by: 'human',
+      launch: { agent: 'claude', cwd },
+      name,
+      role: 'worker',
+      room: 'demo',
+    });
+    if (!invited.ok) throw new Error(invited.reason);
+    store().joinRoom({ as: name, kind: 'claude', room: 'demo', seatKey: invited.seatKey });
+  }
+
+  it('stops the tmux session of a spawned seat that leaves', () => {
+    const { sessions, tmux } = liveSessions();
+    spawner(tmux);
+    spawnedSeat('api');
+    sessions.add('messhall_demo_api');
+
+    store().leaveRoom({ as: 'api', note: 'merged', room: 'demo' });
+
+    expect(sessions).toStrictEqual(new Set());
+  });
+
+  it('stops the tmux session of a spawned seat that is kicked', () => {
+    const { sessions, tmux } = liveSessions();
+    spawner(tmux);
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    spawnedSeat('api');
+    sessions.add('messhall_demo_api');
+
+    store().kickMember({ by: 'orchestrator', member: 'api', room: 'demo' });
+
+    expect(sessions).toStrictEqual(new Set());
+  });
+
+  it('stops the tmux session of a done spawned seat that leaves on its own', () => {
+    const { sessions, tmux } = liveSessions();
+    spawner(tmux);
+    spawnedSeat('api');
+    store().joinRoom({ as: 'web', kind: 'claude', room: 'demo' });
+    sessions.add('messhall_demo_api');
+    store().postMessage({ done: true, from: 'api', room: 'demo', text: 'merged' });
+    scratch.clock.advance(61 * 60_000);
+    store().sweepPresence({ ringable: () => false });
+
+    store().leaveDoneAway();
+
+    expect(sessions).toStrictEqual(new Set());
+  });
+
+  it('stops no other session when a hand started seat leaves', () => {
+    const { sessions, tmux } = liveSessions();
+    spawner(tmux);
+    spawnedSeat('api');
+    store().joinRoom({ as: 'web', kind: 'claude', room: 'demo' });
+    sessions.add('messhall_demo_api');
+
+    store().leaveRoom({ as: 'web', room: 'demo' });
+
+    expect(sessions).toStrictEqual(new Set(['messhall_demo_api']));
+    expect(calls(tmux).flat()).not.toContain('=messhall_demo_api:');
+  });
+});

@@ -21,7 +21,7 @@ function joinText({ as, room }: { as?: string; room: string }) {
     `1. Call join with room "${room}" ${name}.`,
     '2. If the reply says doorbell: checking, call wait once with timeout_s 40. A test ring wakes it: answer it with doorbell_ok, using the id it carries.',
     '3. If a reply says doorbell: off, tell the human in one line: this chat cannot be rung. Start it with messhall claude so mentions reach it.',
-    '4. Post one line saying who you are. Keep the seat. Never call leave.',
+    '4. Post one line saying who you are. Keep the seat until your role says to leave.',
   ].join('\n');
 }
 

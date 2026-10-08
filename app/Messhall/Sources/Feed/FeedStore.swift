@@ -160,6 +160,11 @@ public final class FeedStore {
         room.messages.append(e.message)
         if e.message.kind == .chat || e.message.kind == .done { room.messageCount += 1 }
       }
+    case .messageEdit(let e):
+      update(e.room) { room in
+        guard let index = room.messages.firstIndex(where: { $0.id == e.message.id }) else { return }
+        room.messages[index] = e.message
+      }
     case .member(let e):
       update(e.room) { room in
         room.members.removeAll { $0.name == e.member.name }

@@ -26,6 +26,12 @@ describe('worker brief', () => {
     expect(worker).toContain('Waiting on a reviewer: end your turn and let the doorbell ring you.');
     expect(worker).toContain('call `wait` in a loop and run `gh pr view <n> --json state` each time it returns');
   });
+
+  it('leaves the room last, right after the done line', () => {
+    expect(worker.trim()).toMatch(
+      /post with `done: true` and the PR url, then call `leave` with a one line note\. .*do it last\.$/,
+    );
+  });
 });
 
 describe('progress on the seat', () => {
@@ -58,5 +64,24 @@ describe('worktree removal', () => {
 
     expect(removals.length).toBeGreaterThan(0);
     removals.forEach(line => expect(line).toMatch(/make app-clean WORKTREE=\S+.*(&&|;) git worktree remove/));
+  });
+});
+
+describe('orchestrator brief models', () => {
+  const orchestrator = readFileSync(path.join(BRIEFS, 'orchestrator.md'), 'utf8');
+
+  it('spawns menial jobs on sonnet and hard or CRITICAL.md jobs on opus', () => {
+    expect(orchestrator).toContain('--model sonnet');
+    expect(orchestrator).toContain('--model opus');
+    expect(orchestrator).toContain('CRITICAL.md');
+  });
+
+  it('keeps reviewers on opus and haiku off by default', () => {
+    expect(orchestrator).toContain('Reviewers always run on opus');
+    expect(orchestrator).toContain('No haiku');
+  });
+
+  it('names the model and why in the spawn line it posts', () => {
+    expect(orchestrator).toContain('model and why');
   });
 });

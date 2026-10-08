@@ -116,6 +116,9 @@ export const memberSchema = z.object({
 
 export const messageSchema = z.object({
   created_at: timestampSchema.describe('When it was posted.'),
+  edited_at: timestampSchema
+    .nullable()
+    .describe('When the sender last changed the text, null when it never did. Set when it was taken back too.'),
   from: z.string().describe('Member name, or messhall for daemon lines.'),
   from_client_label: z
     .string()
@@ -129,6 +132,9 @@ export const messageSchema = z.object({
   id: z.number().int().positive().describe('Global message id, one order across every room.'),
   kind: messageKindSchema.describe('Message kind.'),
   mentions: z.array(z.string()).describe('Member names mentioned with @, or all.'),
+  removed_at: timestampSchema
+    .nullable()
+    .describe('When the sender took the post back, null when it did not. The text is then empty.'),
   room_id: z.string().describe('Room id.'),
   text: z.string().max(TEXT_MAX_CHARS).describe('Message text, at most 4,000 chars.'),
 });

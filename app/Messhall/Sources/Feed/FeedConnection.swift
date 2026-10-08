@@ -137,7 +137,7 @@ extension FeedStore {
     let seat = HumanSeat(client: client)
     let name = existing ?? template.roomName(taken: rooms.map(\.name))
     if existing == nil {
-      switch await seat.create(NewRoom(name: name, topic: template.topic)) {
+      switch await seat.create(template.newRoom(named: name)) {
       case .refused(let reason): return (name, reason)
       case .done(let room): add(room)
       }

@@ -47,6 +47,7 @@ function eventLine(event: BusEvent) {
     const { id, proposer, state } = event.agreement;
     return `#${event.room} ${proposer} agreement ${state} (${id})`;
   }
+  if (event.type === 'message_edit') return `#${event.room} edit #${event.message.id}`;
   return `#${event.room.name} ${event.change}`;
 }
 

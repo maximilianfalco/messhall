@@ -35,7 +35,8 @@ function messageLine({ message, tag }: { message: Message; tag: string }) {
   const time = clock(message.created_at);
   if (message.kind === 'system') return pc.dim(`${time}  ${tag}${message.text}`);
   const to = message.mentions.length ? pc.dim(` → ${message.mentions.map(name => `@${name}`).join(' ')}`) : '';
-  const text = message.kind === 'done' ? `${pc.green('✓')} ${message.text}` : message.text;
+  const body = message.kind === 'done' ? `${pc.green('✓')} ${message.text}` : message.text;
+  const text = message.removed_at ? pc.dim('(taken back)') : message.edited_at ? `${body} ${pc.dim('(edited)')}` : body;
   return `${pc.dim(time)}  ${tag}${nameOf(message.from)}${to}  ${text}`;
 }
 
@@ -120,6 +121,10 @@ export function renderEvent({ event, room }: { event: BusEvent; room?: string })
   if (room && name !== room) return [];
   const tag = tagOf(name, room);
   if (event.type === 'message') return [messageLine({ message: event.message, tag })];
+  if (event.type === 'message_edit') {
+    const { id, removed_at: removed, text } = event.message;
+    return [pc.dim(`${GUTTER}${tag}· #${id} ${removed ? 'taken back' : `edited: ${text}`}`)];
+  }
   if (event.type === 'member') return [pc.dim(`${GUTTER}${tag}${memberLine(event.member, event.change)}`)];
   if (event.type === 'presence') return [pc.dim(`${GUTTER}${tag}· ${event.name} ${event.from} → ${event.to}`)];
   if (event.type === 'approval') return [approvalLine(event.approval, tag)];
