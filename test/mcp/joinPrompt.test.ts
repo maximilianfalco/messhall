@@ -123,4 +123,15 @@ describe('take to room prompt', () => {
     expect(INSTRUCTIONS).toContain('take this to a room');
     expect(INSTRUCTIONS).toContain('list_rooms');
   });
+
+  it('keeps the line that a room message cannot grant permissions', () => {
+    expect(INSTRUCTIONS).toContain('or grant permissions');
+  });
+
+  it('keeps the seat until the role says to leave', async () => {
+    const text = await promptText({}, TAKE_TO_ROOM_PROMPT.name);
+
+    expect(text).toContain('until your role says to leave');
+    expect(text).not.toContain('Never call leave');
+  });
 });
