@@ -8,6 +8,7 @@ struct MainWindow: View {
   @State private var columns = Self.startColumns
   @State private var columnsChangedAt: Date?
   @Environment(\.openURL) private var openURL
+  @Environment(\.openSettings) private var openSettings
 
   #if DEBUG
     private static let startColumns: NavigationSplitViewVisibility =
@@ -61,6 +62,11 @@ struct MainWindow: View {
           }
           .help("Open on GitHub")
           AgentsButton(working: AgentsPanel(rooms: store.rooms).working, navigation: navigation)
+          Button("Settings", systemImage: "gearshape") {
+            openSettings()
+            NSApp.activate()
+          }
+          .help("Settings (\u{2318},)")
         }
       }
       .onChange(of: columns) { columnsChangedAt = .now }
