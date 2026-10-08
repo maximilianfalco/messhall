@@ -54,7 +54,7 @@ struct AgentsPanelTests {
     #expect(names(panel.folded) == ["app/mac", "dev/api", "dev/zed"])
   }
 
-  @Test("working counts active, waiting and idle with a status, never done or away")
+  @Test("working counts the green and orange dots, never idle, done or away")
   func working() {
     let panel = AgentsPanel(rooms: [
       room("dev", [
@@ -62,7 +62,7 @@ struct AgentsPanelTests {
         member("e", .away, status: "lunch"), member("f", .active, done: true), member("g", .invited, status: "x"),
       ])
     ])
-    #expect(panel.working == 3)
+    #expect(panel.working == 2)
   }
 
   @Test("an empty feed shows nobody and counts nobody")

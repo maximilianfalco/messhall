@@ -14,13 +14,12 @@ public struct AgentRow: Equatable, Identifiable, Sendable {
     pullRequestLinks(in: member.status ?? "").first ?? pullRequestLinks(in: lastPost?.text ?? "").first
   }
 
-  /// Active or waiting, or idle with a status. A done agent is never working.
+  /// Active or waiting, the green and orange dots. An idle agent is not working, whatever its status says.
   public var isWorking: Bool {
     guard !member.done else { return false }
     switch member.presence {
     case .active, .waiting: return true
-    case .idle: return member.status != nil
-    case .invited, .reconnecting, .away, .left, .unknown: return false
+    case .idle, .invited, .reconnecting, .away, .left, .unknown: return false
     }
   }
 
