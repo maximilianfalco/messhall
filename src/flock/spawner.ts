@@ -1,6 +1,7 @@
 import type { FlockSeat } from '../../contracts/feed.ts';
-import type { Launch } from '../../contracts/room.ts';
+import type { Launch, Presence } from '../../contracts/room.ts';
 import type { RoomStore } from '../rooms/store.js';
+import type { HealSeat, HealStep, Watch } from './heal.js';
 import type { Tmux } from './tmux.js';
 
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -16,6 +17,7 @@ import { packageRoot } from '../lib/packageRoot.js';
 import { shellLine } from '../lib/shell.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
+import { healPlan, keepsDyingLine, restartLine } from './heal.js';
 import { dialogKeys, typePrompt, until, tmux as runTmux } from './tmux.js';
 
 export const SESSION_PREFIX = 'messhall_';
@@ -24,6 +26,16 @@ export const SPAWN_DIR = 'spawn';
 export const PROFILES_DIR = path.join(packageRoot(), 'docs', 'briefs');
 const SETTLE_MS = 1000;
 const PANE_FORMAT = '#{session_name}\t#{pane_pid}';
+// What tmux says when no server runs, so every session is gone. Any other failed listing says nothing.
+const NO_SERVER = /no server running|error connecting/i;
+
+const panePids = (listing: string) =>
+  new Map(
+    listing.split('\n').map(line => {
+      const [session = '', pid = ''] = line.split('\t');
+      return [session, Number(pid)] as const;
+    }),
+  );
 
 interface Seat {
   name: string;
@@ -46,6 +58,14 @@ export const seatedPrompt = ({ name, role, room }: Seat & { role: string }) =>
     `Talk in the room only through the messhall tools and keep your seat until your role says to leave.`,
     `Answer a ring, a human line or a mention of you right away, then go back to work.`,
     `Whenever a role line mentions you, call my_role again and switch to what it says.`,
+  ].join(' ');
+
+/** The prompt typed into a claude that messhall started again. It is a fresh session, so it reads its role again. */
+export const healedPrompt = (seat: Seat & { role: string }) =>
+  [
+    `Your agent stopped and messhall started it again in the same seat.`,
+    seatedPrompt(seat),
+    `Call read_since for #${seat.room} to see what happened while you were gone.`,
   ].join(' ');
 
 const codexPrompt = ({ invite, name, room }: Seat & { invite: string }) =>
@@ -113,6 +133,7 @@ const isFolder = (dir: string) =>
  * A seat that leaves or is removed gets its session stopped. */
 export function createSpawner({
   dataDir,
+  now = () => new Date(),
   pollMs,
   profilesDir = PROFILES_DIR,
   readyWithinMs = SPAWN_READY_MS,
@@ -123,6 +144,7 @@ export function createSpawner({
   url,
 }: {
   dataDir: string;
+  now?: () => Date;
   pollMs?: number;
   profilesDir?: string;
   readyWithinMs?: number;
@@ -148,18 +170,31 @@ export function createSpawner({
     return existsSync(file) ? file : undefined;
   };
 
+  // Every seat started from an invite and not left, with how it was launched.
+  const spawnedSeats = (room?: string) =>
+    (room ? [room] : store.listRooms().map(found => found.name)).flatMap(roomName =>
+      store.listMembers(roomName).flatMap(member => {
+        const seat = { name: member.name, room: roomName };
+        const launch = store.launchOf(seat);
+        return launch ? [{ launch, member, room: roomName, session: sessionName(seat) }] : [];
+      }),
+    );
+
   const presenceOf = ({ name, room }: Seat) => store.listMembers(room).find(member => member.name === name)?.presence;
 
   // Answers dialogs until the agent's first call takes the seat, or a login screen or the deadline stops it.
   // Only a seat the human asked for may trust its folder, since an agent picks the cwd of its own spawns.
-  const waitSeated = async (seat: Seat, { trust }: { trust: boolean }) => {
+  const waitSeated = async (
+    seat: Seat,
+    { taken, trust }: { taken: (presence: Presence) => boolean; trust: boolean },
+  ) => {
     const target = exactTarget(seat);
     const ready = await until<Ready>(
       Date.now() + readyWithinMs,
       async () => {
         const presence = presenceOf(seat);
         if (!presence) return 'dropped';
-        if (presence !== 'invited') return 'seated';
+        if (taken(presence)) return 'seated';
         const dialog = dialogKeys((await tmux(['capture-pane', '-p', '-t', target])).stdout);
         if (dialog.kind === 'login') return 'login';
         if (dialog.kind === 'none') return;
@@ -178,17 +213,79 @@ export function createSpawner({
     return killed.code === 0;
   };
 
+  // Sessions whose seat sat back down after a restart, so the healer knows the new agent took it.
+  const rejoined = new Set<string>();
+  let watches = new Map<string, Watch>();
+  const healing = new Set<string>();
+
   // A seat that left or was dropped must not keep its agent running. Only spawned seats have a session by this name.
   store.events.on(({ event }) => {
-    if (event.type !== 'member' || (event.change !== 'left' && event.change !== 'removed')) return;
-    stop({ name: event.member.name, room: event.room }).catch((error: unknown) =>
+    if (event.type !== 'member') return;
+    const seat = { name: event.member.name, room: event.room };
+    if (event.change === 'reconnected') rejoined.add(sessionName(seat));
+    if (event.change !== 'left' && event.change !== 'removed') return;
+    stop(seat).catch((error: unknown) =>
       logger.error(error instanceof Error ? error : new Error(String(error)), { message: 'stopping a seat failed' }),
     );
   });
 
+  // Codex has no seat header, so its seat key rides in its first prompt as the invite.
+  const startAgent = ({
+    launch,
+    role,
+    seat,
+    seatKey,
+  }: {
+    launch: Launch;
+    role: string;
+    seat: Seat;
+    seatKey: string;
+  }) => {
+    const { agent, cwd, model } = launch;
+    const mcpConfig = configFile(seat);
+    const argv = agentArgv({ ...seat, agent, invite: seatKey, mcpConfig, model, settings: profileOf(role) });
+    if (agent === 'claude') writeConfig(seat, seatKey);
+    return tmux(tmuxStartArgs({ argv, cwd, session: sessionName(seat), shell }));
+  };
+
+  const typeFirst = (seat: Seat, text: string) =>
+    typePrompt(exactTarget(seat), text, { run: tmux, settleMs, titleWaitMs: readyWithinMs });
+
   const giveUp = async (seat: Seat) => {
     await stop(seat);
     store.removeMember({ member: seat.name, room: seat.room });
+  };
+
+  // Starts the agent again on the seat key it had, so it keeps its name, role and bookmark. A failed try kills the new
+  // session and keeps the seat, so the next sweep can try again. Its folder was trusted at the first start.
+  const restart = async ({ seat: { name, room, session }, try: n }: HealStep) => {
+    const seat = { name, room };
+    const launch = store.launchOf(seat);
+    const seatKey = store.seatKeyOf(seat);
+    const role = store.roleOf(seat)?.role;
+    if (!launch || !seatKey || !role) return 'dropped';
+    store.systemNote({ room, text: restartLine({ name, try: n }) });
+    rejoined.delete(session);
+    const started = await startAgent({ launch, role, seat, seatKey });
+    if (started.code !== 0) return 'tmux';
+    const ready = await waitSeated(seat, { taken: () => rejoined.has(session), trust: false });
+    const typed = ready === 'seated' ? await typeFirst(seat, healedPrompt({ ...seat, role })) : ready;
+    if (typed !== 'sent') await tmux(['kill-session', '-t', exactTarget(seat)]);
+    return typed === 'sent' ? 'healed' : typed;
+  };
+
+  const healOne = async (step: HealStep) => {
+    const { name, room, session } = step.seat;
+    if (step.action === 'give_up') {
+      store.systemNote({ ringHuman: true, room, text: keepsDyingLine({ name, room }) });
+      return { name, outcome: 'gave_up', room } as const;
+    }
+    healing.add(session);
+    try {
+      return { name, outcome: await restart(step), room } as const;
+    } finally {
+      healing.delete(session);
+    }
   };
 
   return {
@@ -207,33 +304,19 @@ export function createSpawner({
       if (!invited.ok) return invited;
       const seat = { name, room };
       const session = sessionName(seat);
-      const { agent, cwd, model } = launch;
-      const argv = agentArgv({
-        ...seat,
-        agent,
-        invite: invited.seatKey,
-        mcpConfig: configFile(seat),
-        model,
-        settings: profileOf(role),
-      });
       await stop(seat);
-      if (agent === 'claude') writeConfig(seat, invited.seatKey);
-      const started = await tmux(tmuxStartArgs({ argv, cwd, session, shell }));
+      const started = await startAgent({ launch, role, seat, seatKey: invited.seatKey });
       if (started.code !== 0) {
         await giveUp(seat);
         return { detail: started.stderr.trim(), ok: false, reason: 'tmux' } as const;
       }
-      const ready = await waitSeated(seat, { trust: by === HUMAN_NAME });
+      const ready = await waitSeated(seat, { taken: presence => presence !== 'invited', trust: by === HUMAN_NAME });
       if (ready !== 'seated') {
         await giveUp(seat);
         return { ok: false, reason: ready } as const;
       }
-      if (agent === 'claude') {
-        const typed = await typePrompt(exactTarget(seat), seatedPrompt({ ...seat, role }), {
-          run: tmux,
-          settleMs,
-          titleWaitMs: readyWithinMs,
-        });
+      if (launch.agent === 'claude') {
+        const typed = await typeFirst(seat, seatedPrompt({ ...seat, role }));
         if (typed !== 'sent') {
           await giveUp(seat);
           return { ok: false, reason: typed } as const;
@@ -247,37 +330,46 @@ export function createSpawner({
     /** Kills the seat's tmux session, if it has one, and removes its mcp config. */
     stop,
 
+    /** Restarts each watched spawned seat whose tmux session is gone, after `held` says no mcp session holds it.
+     * Backs off between tries and rings the human once they run out. Called on the sweep, so it skips a restart in flight. */
+    async heal({ held }: { held: (seat: Seat) => boolean }) {
+      const listed = await tmux(['list-sessions', '-F', '#{session_name}']);
+      if (listed.code !== 0 && !NO_SERVER.test(listed.stderr)) return [];
+      const running = new Set(listed.stdout.split('\n'));
+      const closed = new Set(store.listRooms().flatMap(room => (room.closed_at === null ? [] : [room.name])));
+      const seats = spawnedSeats().map(({ launch, member, room, session }): HealSeat => ({
+        agent: launch.agent,
+        alive: running.has(session) || healing.has(session),
+        closed: closed.has(room),
+        done: member.done,
+        held: held({ name: member.name, room }),
+        name: member.name,
+        presence: member.presence,
+        room,
+        session,
+      }));
+      const plan = healPlan({ now: now().getTime(), seats, watches });
+      watches = plan.watches;
+      return Promise.all(plan.steps.map(healOne));
+    },
+
     /** Every seat started from an invite, in `room` or in every room, with its session and whether it runs. */
     async list({ room }: { room?: string }) {
-      const listing = (await tmux(['list-panes', '-a', '-F', PANE_FORMAT])).stdout;
-      const pids = new Map(
-        listing.split('\n').map(line => {
-          const [session = '', pid = ''] = line.split('\t');
-          return [session, Number(pid)] as const;
-        }),
-      );
-      const rooms = room ? [room] : store.listRooms().map(found => found.name);
-      return rooms.flatMap(roomName =>
-        store.listMembers(roomName).flatMap((member): FlockSeat[] => {
-          const launch = store.launchOf({ name: member.name, room: roomName });
-          if (!launch) return [];
-          const session = sessionName({ name: member.name, room: roomName });
-          const pid = pids.get(session) ?? null;
-          return [
-            {
-              agent: launch.agent,
-              cwd: launch.cwd,
-              name: member.name,
-              pid,
-              presence: member.presence,
-              process: pid === null ? 'gone' : 'running',
-              role: member.role,
-              room: roomName,
-              session,
-            },
-          ];
-        }),
-      );
+      const pids = panePids((await tmux(['list-panes', '-a', '-F', PANE_FORMAT])).stdout);
+      return spawnedSeats(room).map(({ launch, member, room: roomName, session }): FlockSeat => {
+        const pid = pids.get(session) ?? null;
+        return {
+          agent: launch.agent,
+          cwd: launch.cwd,
+          name: member.name,
+          pid,
+          presence: member.presence,
+          process: pid === null ? 'gone' : 'running',
+          role: member.role,
+          room: roomName,
+          session,
+        };
+      });
     },
   };
 }

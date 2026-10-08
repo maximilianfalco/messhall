@@ -121,6 +121,11 @@ export const SPAWN_RATE_MAX = 3;
 export const SPAWN_RATE_WINDOW_MS = 60_000;
 // A capped orchestrator that keeps asking rings the human at most this often.
 export const SPAWN_CAP_RING_EVERY_MS = 10 * 60_000;
+// A spawned seat whose session dies gets this many restarts, with a wait that doubles from the backoff.
+// One that stays up for the reset window starts over with a clean count.
+export const HEAL_TRIES = 3;
+export const HEAL_BACKOFF_MS = 30_000;
+export const HEAL_RESET_MS = 10 * 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.
 export const SESSION_DEAD_MS = 60_000;
 // A channel session that has not answered its test ring this long reads as no doorbell.

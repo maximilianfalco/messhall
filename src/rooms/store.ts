@@ -761,6 +761,23 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return typeof launch === 'string' ? launchSchema.parse(parseStoredJson(launch)) : undefined;
     },
 
+    /** The key a member's seat goes back to, so a restarted agent sits in the same seat. */
+    seatKeyOf({ name, room: roomName }: { name: string; room: string }) {
+      const room = findRoom(roomName);
+      const key = room && sql.seatKey.get(room.id, name)?.seat_key;
+      return typeof key === 'string' ? key : undefined;
+    },
+
+    /** Posts a daemon line from outside the store, like a seat restart. `ringHuman` mentions the human in it. */
+    systemNote({ ringHuman = false, room: roomName, text }: { ringHuman?: boolean; room: string; text: string }) {
+      return transaction(emit => {
+        const room = findRoom(roomName);
+        if (!room) return { ok: false, reason: 'no_room' } as const;
+        post(room, SYSTEM_NAME, 'system', text, ringHuman ? [HUMAN_NAME] : [], emit);
+        return { ok: true } as const;
+      });
+    },
+
     /** Drops invites whose agent made no call in 10 minutes, with a line each. */
     expireInvites() {
       return transaction(emit => {

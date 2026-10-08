@@ -479,3 +479,185 @@ describe('a seat that goes', () => {
     expect(calls(tmux).flat()).not.toContain('=messhall_demo_api:');
   });
 });
+
+describe('healing a spawned seat', () => {
+  const NO_SERVER = 'no server running on /private/tmp/tmux-501/default';
+
+  function flock({ pane = '', rejoins = true }: { pane?: string; rejoins?: boolean } = {}) {
+    const sessions = new Set<string>();
+    let listFails = '';
+    const tmux = vi.fn<Tmux>(args => {
+      const [command] = args;
+      if (command === 'list-sessions') {
+        if (listFails) return Promise.resolve({ code: 1, stderr: listFails, stdout: '' });
+        return Promise.resolve(result([...sessions].join('\n')));
+      }
+      if (command === 'new-session') {
+        sessions.add(String(args[args.indexOf('-s') + 1]));
+        if (rejoins) {
+          const seatKey = seatKeyInConfig().headers['x-messhall-seat'];
+          store().joinRoom({ as: 'api', kind: 'claude', reattach: true, room: 'demo', seatKey });
+        }
+        return Promise.resolve(result());
+      }
+      if (command === 'kill-session') sessions.delete(String(args[2]).slice(1, -1));
+      if (command === 'capture-pane' && !args.includes('-e')) return Promise.resolve(result(pane));
+      if (command === 'display-message') return Promise.resolve(result('✳ Claude Code\n'));
+      return Promise.resolve(result());
+    });
+    const healer = createSpawner({
+      dataDir: scratch.dataDir,
+      now: scratch.clock.now,
+      pollMs: 1,
+      profilesDir: profiles,
+      readyWithinMs: 50,
+      settleMs: 0,
+      shell: '/bin/zsh',
+      store: store(),
+      tmux,
+      url: 'http://127.0.0.1:7791',
+    });
+    return {
+      die: () => sessions.clear(),
+      failListing: (stderr: string) => {
+        listFails = stderr;
+      },
+      heal: (held = false) => healer.heal({ held: () => held }),
+      sessions,
+      tmux,
+    };
+  }
+
+  function seatApi() {
+    const invited = store().invite({
+      by: 'human',
+      launch: { agent: 'claude', cwd },
+      name: 'api',
+      role: 'worker',
+      room: 'demo',
+    });
+    if (!invited.ok) throw new Error(invited.reason);
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: invited.seatKey });
+    return invited.seatKey;
+  }
+
+  const starts = (tmux: ReturnType<typeof vi.fn<Tmux>>) => calls(tmux).filter(args => args[0] === 'new-session');
+  const systemLines = () =>
+    store()
+      .listMessages({ limit: 50, room: 'demo' })
+      .messages?.filter(message => message.kind === 'system')
+      .map(message => message.text) ?? [];
+
+  async function watchedThenDead(seats = flock()) {
+    const key = seatApi();
+    seats.sessions.add('messhall_demo_api');
+    await seats.heal();
+    seats.die();
+    return { key, seats };
+  }
+
+  it('restarts a seat whose session died on the same seat key, keeping its role', async () => {
+    const { key, seats } = await watchedThenDead();
+
+    const outcomes = await seats.heal();
+
+    expect(outcomes).toStrictEqual([{ name: 'api', outcome: 'healed', room: 'demo' }]);
+    expect(seatKeyInConfig().headers['x-messhall-seat']).toBe(key);
+    expect(memberOf('api')).toMatchObject({ presence: 'active', role: 'worker' });
+    expect(systemLines()).toContain('api stopped, messhall is starting it again (try 1 of 3)');
+    expect(
+      calls(seats.tmux)
+        .find(args => args[0] === 'set-buffer')
+        ?.at(-1),
+    ).toContain('started it again');
+  });
+
+  it('starts the agent with its role profile', async () => {
+    const { seats } = await watchedThenDead();
+
+    await seats.heal();
+
+    expect(starts(seats.tmux)[0]?.at(-1)).toContain(`--settings ${path.join(profiles, 'worker.settings.json')}`);
+  });
+
+  it('never answers a trust prompt on a restart', async () => {
+    const { seats } = await watchedThenDead(flock({ pane: TRUST_PANE, rejoins: false }));
+
+    const outcomes = await seats.heal();
+
+    expect(outcomes).toStrictEqual([{ name: 'api', outcome: 'untrusted', room: 'demo' }]);
+    expect(calls(seats.tmux).some(args => args[0] === 'send-keys')).toBe(false);
+  });
+
+  it('waits while an mcp session still holds the seat', async () => {
+    const { seats } = await watchedThenDead();
+
+    await seats.heal(true);
+
+    expect(starts(seats.tmux)).toStrictEqual([]);
+  });
+
+  it('kills the new session and keeps the seat when the agent never sits back down', async () => {
+    const { seats } = await watchedThenDead(flock({ rejoins: false }));
+
+    const outcomes = await seats.heal();
+
+    expect(outcomes).toStrictEqual([{ name: 'api', outcome: 'timeout', room: 'demo' }]);
+    expect(seats.sessions).toStrictEqual(new Set());
+    expect(memberOf('api')).toBeDefined();
+  });
+
+  it('rings the human once when restarts run out, then stops', async () => {
+    const { seats } = await watchedThenDead(flock({ rejoins: false }));
+
+    const healEvery10Minutes = async (times: number): Promise<void> => {
+      if (!times) return;
+      await seats.heal();
+      scratch.clock.advance(10 * 60_000);
+      return healEvery10Minutes(times - 1);
+    };
+
+    await healEvery10Minutes(5);
+
+    expect(starts(seats.tmux)).toHaveLength(3);
+    const keepsDying = store()
+      .listMessages({ limit: 50, room: 'demo' })
+      .messages?.filter(message => message.text.includes('keeps dying'));
+    expect(keepsDying).toMatchObject([
+      {
+        mentions: ['human'],
+        text: '@human api keeps dying in #demo, messhall stopped restarting it. start it again or kick it',
+      },
+    ]);
+  });
+
+  it('never restarts a seat that left', async () => {
+    const { seats } = await watchedThenDead();
+    store().leaveRoom({ as: 'api', room: 'demo' });
+
+    await seats.heal();
+
+    expect(starts(seats.tmux)).toStrictEqual([]);
+  });
+
+  it('never restarts a seat in a room the human closed', async () => {
+    const { seats } = await watchedThenDead();
+    store().closeRoom('demo');
+
+    await seats.heal();
+
+    expect(starts(seats.tmux)).toStrictEqual([]);
+  });
+
+  it('reads a failed listing as no news, unless no tmux server runs at all', async () => {
+    const { seats } = await watchedThenDead();
+    seats.failListing('lost server');
+
+    await seats.heal();
+    expect(starts(seats.tmux)).toStrictEqual([]);
+
+    seats.failListing(NO_SERVER);
+    await seats.heal();
+    expect(starts(seats.tmux)).toHaveLength(1);
+  });
+});
