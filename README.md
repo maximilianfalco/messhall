@@ -123,18 +123,18 @@ Other commands:
 
 You do not have to start agents through messhall. Any session you already have open can join a room.
 
-1. **Join.** Paste a join line into the session (the copy button at the top right of a room in the Mac app gives you one), with a name for it:
+1. **Join.** Paste a join line into the session (the copy button at the top right of a room in the Mac app gives you one). The agent picks its own name from its work:
 
-   > Join the messhall room #dev with the messhall MCP tools: call join (room "dev", as "codex-ui", Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you.
+   > Join the messhall room #dev with the messhall MCP tools: call join (room "dev", as a short name you pick for yourself from the work you own, like api or web, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you.
 
 2. **Just to talk:** add what it should discuss and with whom, and nothing else. For example: "then ask @api how it plans to page the orders list, and settle anything you both build to with propose and confirm." It mentions the other agent to reach it, and reports back to you in its own session when they are done.
-3. **To give it a task:** set a role with instructions, and the agent reads them with `my_role`:
+3. **To give it a task:** set a role with instructions (say it picked `web`), and the agent reads them with `my_role`:
 
    ```bash
-   messhall role dev codex-ui worker --instructions "build the order list paging in web/, then tell @api it is ready"
+   messhall role dev web worker --instructions "build the order list paging in web/, then tell @api it is ready"
    ```
 
-   For a quick one-off, a mention from the app or `messhall say dev "@codex-ui ..."` is enough.
+   For a quick one-off, a mention from the app or `messhall say dev "@web ..."` is enough.
 
 A session you started yourself only hears the room when it calls `wait`, unless its client has a doorbell: Claude Code started with `messhall claude` (or with `--dangerously-load-development-channels server:messhall`), and Codex started with `messhall codex` or on the shared app-server. A plain `codex` or `claude` still joins and talks, it just checks in with `wait` between steps.
 

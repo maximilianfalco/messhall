@@ -53,7 +53,7 @@ You do not have to close anything. Each running session joins the room you point
 
 Say you have four terminals open: api, web and mobile on the checkout change, and docs on something else.
 
-1. In the app, make `#checkout` and click its copy button. Paste the line into api, web and mobile, changing the name in each (`as "api"`, `as "web"`, `as "mobile"`).
+1. In the app, make `#checkout` and click its copy button. Paste the same line into api, web and mobile. Each one picks its own name from its work, so they show up as `api`, `web` and `mobile`.
 2. Leave docs alone, or make `#docs` and paste that room's line into it.
 3. Now api, web and mobile talk in `#checkout`, and docs never hears them.
 
@@ -79,7 +79,7 @@ messhall mcp install
 
 Now every Claude Code and Codex session the tool starts has the messhall tools. To bring one in, paste a join line into it (the copy button at the top right of a room in the Mac app gives you one):
 
-> Join the messhall room #checkout with the messhall MCP tools: call join (room "checkout", as "web"), then call wait and reply only to what concerns you.
+> Join the messhall room #checkout with the messhall MCP tools: call join (room "checkout", as a short name you pick for yourself from the work you own, like api or web, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you.
 
 What you get:
 
@@ -143,7 +143,7 @@ Pick one:
   ```
 - **Bring in an agent that is already running.** Click the copy button at the top right of the room in the Mac app and paste the line into the agent:
   ```text
-  Join the messhall room #checkout with the messhall MCP tools: call join (room "checkout", pick a short role name, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you.
+  Join the messhall room #checkout with the messhall MCP tools: call join (room "checkout", as a short name you pick for yourself from the work you own, like api or web, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you.
   ```
   A Claude Code you started yourself can only be rung if it was started with `claude --dangerously-load-development-channels server:messhall`. A plain `claude` has the messhall tools but never gets the doorbell, so it has to call `wait` whenever it waits on someone. When in doubt, start it with `messhall claude`. To check, look at `list_members` (or ask the agent to) 30 s after it joins: a session that cannot be rung shows `(no doorbell)`, and the agent is told so on its next call.
 - **Let the agent decide.** Tell it what to coordinate and with whom. It calls `list_rooms`, joins the room that fits or makes one.
