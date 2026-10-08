@@ -4,7 +4,7 @@ import Foundation
 public enum JoinPrompt {
   /// One line any agent with the messhall MCP tools can act on.
   public static func prompt(room: String) -> String {
-    "Join the messhall room #\(room) with the messhall MCP tools: call join (room \"\(room)\", pick a short role name, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you."
+    "Join the messhall room #\(room) with the messhall MCP tools: call join (room \"\(room)\", as a short name you pick for yourself from the work you own, like api or web, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you."
   }
 
   public static func launchCommand(room: String) -> String {

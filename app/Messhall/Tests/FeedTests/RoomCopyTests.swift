@@ -14,7 +14,7 @@ struct RoomCopyTests {
   func prompt() {
     #expect(
       JoinPrompt.prompt(room: "checkout")
-        == "Join the messhall room #checkout with the messhall MCP tools: call join (room \"checkout\", pick a short role name, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you."
+        == "Join the messhall room #checkout with the messhall MCP tools: call join (room \"checkout\", as a short name you pick for yourself from the work you own, like api or web, Codex also passes thread_id from $CODEX_THREAD_ID), then call wait and reply only to what concerns you."
     )
   }
 
