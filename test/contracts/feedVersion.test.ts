@@ -97,7 +97,7 @@ describe('FEED_CONTRACT_VERSION', () => {
           "question",
           "agreement",
         ],
-        "version": 7,
+        "version": 8,
       }
     `);
   });

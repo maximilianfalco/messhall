@@ -1,6 +1,6 @@
 import type { BusEvent } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Agreement, Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
+import type { Agreement, Approval, Member, Message, Question, QuestionItem, Room } from '../../contracts/room.ts';
 
 import { stripVTControlCharacters } from 'node:util';
 
@@ -71,15 +71,32 @@ const approval = (overrides: Partial<Approval> = {}): Approval => ({
 
 const QUESTION_ID = '9d2f1c3e-5a4b-4c6d-8e7f-0a1b2c3d4e5f';
 
+const item = (overrides: Partial<QuestionItem> = {}): QuestionItem => ({
+  header: null,
+  multi_select: false,
+  options: ['ship it', 'wait'].map(label => ({ description: null, label, recommended: false })),
+  question: 'merge now?',
+  ...overrides,
+});
+
+const twoItems = [
+  item({ header: 'Merge' }),
+  item({
+    header: 'Suites',
+    multi_select: true,
+    options: ['unit', 'e2e', 'smoke'].map(label => ({ description: null, label, recommended: false })),
+    question: 'which run?',
+  }),
+];
+
 const question = (overrides: Partial<Question> = {}): Question => ({
-  answer: null,
   answered_at: null,
+  answers: null,
   created_at: AT,
   id: QUESTION_ID,
   member: 'api',
   message_id: 12,
-  options: ['ship it', 'wait'],
-  question: 'merge now?',
+  questions: [item()],
   room: 'checkout',
   state: 'open',
   ...overrides,
@@ -202,11 +219,28 @@ describe('renderEvent questions', () => {
     ]);
   });
 
+  it('names one pick slot per question when an ask has several', () => {
+    expect(render({ question: question({ questions: twoItems }), room: 'checkout', type: 'question' })).toStrictEqual([
+      `       #checkout  ? api asks you #12, pick with: messhall answer ${QUESTION_ID} <1-2> <1-3>`,
+    ]);
+  });
+
   it.each([
-    [{ answer: 1, state: 'answered' }, 'answered: wait'],
+    [{ answers: [{ other: null, picks: [1] }], state: 'answered' }, 'answered: wait'],
+    [
+      {
+        answers: [
+          { other: null, picks: [0] },
+          { other: 'lint', picks: [0, 2] },
+        ],
+        questions: twoItems,
+        state: 'answered',
+      },
+      'answered: Merge: ship it | Suites: unit, smoke, "lint"',
+    ],
     [{ state: 'expired' }, 'expired with no answer'],
     [{ state: 'replaced' }, 'replaced by a newer one'],
-  ] as const)('shows a closed question %j', (overrides, words) => {
+  ] satisfies [Partial<Question>, string][])('shows a closed question %j', (overrides, words) => {
     expect(render({ question: question(overrides), room: 'checkout', type: 'question' }, 'checkout')).toStrictEqual([
       `       · api question #12 ${words}`,
     ]);
@@ -244,7 +278,8 @@ const snapshot: Snapshot = {
       first_message_id: 1,
       message_count: 2,
       messages: [message(), message({ from: 'human', id: 2, text: 'nice' })],
-      questions: [question()],
+      questions: [question(), question({ member: 'web', message_id: 13, questions: twoItems })],
+      settled_questions: [],
     },
     {
       ...room({ closed_at: AT, created_by: 'human', id: 'room-2', name: 'search', standing: true }),
@@ -255,6 +290,7 @@ const snapshot: Snapshot = {
       message_count: 0,
       messages: [],
       questions: [],
+      settled_questions: [],
     },
   ],
   seq: 9,
@@ -269,6 +305,7 @@ describe('renderSnapshot', () => {
       '10:04  api  hello',
       '10:04  human  nice',
       `       ? api asks you #12: merge now? 1. ship it  2. wait. messhall answer ${QUESTION_ID} <1-2>`,
+      `       ? web asks you #13: Merge: merge now? 1. ship it  2. wait | Suites: which run? (pick any) 1. unit  2. e2e  3. smoke. messhall answer ${QUESTION_ID} <1-2> <1-3>`,
       '       = agreement #14 settled, api with web and mobile: amount_minor is integer cents',
       '',
       '#search  closed, standing, 0 posts',

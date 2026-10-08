@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 
 import { runPost } from '../../../src/cli/post.js';
 import { openDb } from '../../../src/rooms/db.js';
+import { askItems } from '../../../src/rooms/questions.js';
 import { createRoomStore, type RoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, formatTable, ok } from '../lib/print.js';
@@ -132,6 +133,22 @@ const SHOTS = [
   { appearance: 'dark', name: 'pr-cards-dark', pullRequests: true, room: 'reviews' },
   { appearance: 'light', name: 'edited-light', room: 'edits' },
   { appearance: 'dark', name: 'edited-dark', room: 'edits' },
+  { appearance: 'light', name: 'questions-light', room: 'launch' },
+  { appearance: 'dark', name: 'questions-dark', room: 'launch' },
+  { appearance: 'light', name: 'questions-top-light', room: 'launch', scrollTop: true },
+  { appearance: 'dark', name: 'questions-top-dark', room: 'launch', scrollTop: true },
+  {
+    appearance: 'light',
+    name: 'questions-other-light',
+    other: 'cart and checkout first, receipt next week',
+    room: 'launch',
+  },
+  {
+    appearance: 'dark',
+    name: 'questions-other-dark',
+    other: 'cart and checkout first, receipt next week',
+    room: 'launch',
+  },
   { appearance: 'light', name: 'ask-light', room: 'deploy' },
   { appearance: 'dark', name: 'ask-dark', room: 'deploy' },
   { appearance: 'light', name: 'ask-long-light', room: 'release' },
@@ -443,7 +460,7 @@ const LONG_ASK = [
   'npm publish --access public" }',
 ].join('\n');
 
-/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release, two questions in #launch and agreements in #contract. Runs after the daemon starts, since its start marks
+/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release, an answered question and two open ones (one of three questions) in #launch and agreements in #contract. Runs after the daemon starts, since its start marks
  * every agent reconnecting and expires every pending ask. */
 export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
   const db = openDb({ dataDir });
@@ -473,16 +490,55 @@ export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
     store.setStatus({ as: 'deployer', room: 'deploy', status: 'waiting for the go to migrate staging' });
     store.touch({ as: 'reviewer', room: 'reviews', state: 'active' });
     store.setStatus({ as: 'reviewer', room: 'reviews', status: 'reading the rounding diff' });
+    store.joinRoom({ as: 'mobile', client: CLAUDE, kind: 'claude', room: 'launch' });
+    const asked = store.askQuestion({
+      as: 'mobile',
+      questions: askItems({ options: ['this week', 'next sprint'], question: 'ship the cents banner on mobile too?' }),
+      room: 'launch',
+    });
+    if (asked.ok) store.answerQuestion({ answers: [{ picks: [0] }], id: asked.question.id });
     store.askQuestion({
       as: 'api',
-      options: ['ship it', 'wait for review'],
-      question: 'the cents migration is green on staging. merge it today?',
+      questions: askItems({
+        questions: [
+          {
+            header: 'Merge',
+            options: [
+              { description: 'squash on green CI, staging is already on it', label: 'ship it', recommended: true },
+              { description: 'hold until reviewer-1 signs off', label: 'wait for review' },
+            ],
+            question: 'the cents migration is green on staging. merge it today?',
+          },
+        ],
+      }),
       room: 'launch',
     });
     store.askQuestion({
       as: 'web',
-      options: ['banner', 'modal', 'inline note', 'skip it'],
-      question: 'how should checkout tell people prices moved to cents?',
+      questions: askItems({
+        questions: [
+          {
+            header: 'Notice',
+            options: [
+              { description: 'a strip above the cart', label: 'banner', recommended: true },
+              { description: 'blocks checkout until read', label: 'modal' },
+              { label: 'inline note' },
+            ],
+            question: 'how should checkout tell people prices moved to cents?',
+          },
+          {
+            header: 'Screens',
+            multi_select: true,
+            options: [{ label: 'cart' }, { label: 'checkout' }, { label: 'receipt' }, { label: 'order history' }],
+            question: 'which screens show it?',
+          },
+          {
+            header: 'Copy',
+            options: [{ label: 'prices are now exact' }, { label: 'no change for you' }],
+            question: 'which line leads the notice?',
+          },
+        ],
+      }),
       room: 'launch',
     });
     ['api', 'web', 'mobile'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room: 'contract' }));
@@ -615,6 +671,7 @@ export function shotArgs(shot: Shot) {
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
+    ...('other' in shot ? ['-shotOther', shot.other] : []),
     ...('keys' in shot ? ['-shotKeys', shot.keys, '-shotKeysOut', keysFile(shot)] : []),
     ...('pageTop' in shot ? ['-shotPageTop', anchorFile(shot)] : []),
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
