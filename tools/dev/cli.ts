@@ -14,6 +14,7 @@ import { registerEnv } from './commands/env.js';
 import { registerFeatureMap } from './commands/featuremap.js';
 import { registerFeed } from './commands/feed.js';
 import { registerMcp } from './commands/mcp.js';
+import { registerMerge } from './commands/merge.js';
 import { registerQaUpload } from './commands/qaUpload.js';
 import { registerRoom } from './commands/room.js';
 import { registerSchema } from './commands/schema.js';
@@ -30,6 +31,7 @@ const program = new Command()
   registerFeatureMap,
   registerEnv,
   registerQaUpload,
+  registerMerge,
   registerDb,
   registerStore,
   registerDaemon,
