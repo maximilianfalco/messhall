@@ -7,7 +7,7 @@ A contract that crosses a boundary (a field name, a unit, a file path, who ships
 Review gate. It beats any "merge when CI is green" step in a brief or skill:
 
 1. Once CI is green, post `ready for review: <PR url> @reviewer-1` and wait for the answer.
-2. The reviewer answers with a numbered findings list that mentions you, and files the same as a GitHub review. Fix every blocker and should-fix (nits are your call), push, post `round N: <PR url> @reviewer-1` (N counts from 2), and wait again.
+2. The reviewer answers with a numbered findings list that mentions you, and files the same as a GitHub review. Fix every finding (there are no optional ones, and none go to a follow-up), push, post `round N: <PR url> @reviewer-1` (N counts from 2), and wait again.
 3. Merge only after `approved @<you> <PR url>` from a reviewer, or a `human` line that says go.
 4. If a reviewer posts `@human stuck on <PR url>, round 3`, stop and wait for the human.
 5. A PR that touches a `CRITICAL.md` tree still waits for the human after approval. Never merge it yourself. The human may merge it outside the room, which rings nothing, so call `wait` in a loop and run `gh pr view <n> --json state` each time it returns. Close the row once it says `MERGED`.

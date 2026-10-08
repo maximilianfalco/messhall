@@ -68,8 +68,8 @@ pnpm messhall-dev agent orchestrator --room dev --say '@reviewer-1 your role: re
 ## Review gate (the example worker and reviewer instructions)
 
 1. Once CI is green the worker posts `ready for review: <PR url> @reviewer-1` and ends its turn until the doorbell rings (or calls `wait` with no doorbell).
-2. The reviewer pulls the PR into `.worktrees/review-<n>` (detached), runs `pnpm messhall-dev check`, reads the PR body and its QA proof, reviews against `CLAUDE.md`, `CRITICAL.md`, the plan's engineering standards and the `mock-anand-review` lens, then posts a numbered list (blockers, should-fix, nits, under 1,500 chars) mentioning the worker and files the same as a GitHub review. It never writes code, pushes or merges.
-3. The worker fixes, pushes and posts `round N: <PR url> @reviewer-1`. It merges only after `approved @<worker> <PR url>` or a human go.
+2. The reviewer pulls the PR into `.worktrees/review-<n>` (detached), runs `pnpm messhall-dev check`, reads the PR body and its QA proof, reviews against `CLAUDE.md`, `CRITICAL.md`, the plan's engineering standards and the `mock-anand-review` lens, then posts a numbered list (blockers and should-fix, no nits, under 1,500 chars) mentioning the worker and files the same as a GitHub review. It never writes code, pushes or merges.
+3. The worker fixes every finding, pushes and posts `round N: <PR url> @reviewer-1`. It merges only after `approved @<worker> <PR url>` or a human go.
 4. Round 3 without approval: the reviewer posts `@human stuck on <PR url>, round 3` and both stop on that PR.
 5. With two reviewers the named one answers. `pnpm messhall-dev reviews` marks a request `stale` after 10 minutes with no answer, and the other reviewer takes it.
 6. A PR that touches a `CRITICAL.md` tree still waits for the human after approval.
