@@ -228,6 +228,37 @@ export const MIGRATIONS = [
     INSERT INTO messages_fts (rowid, text) VALUES (new.id, new.text);
   END;
   `,
+  // An ask holds 1 to 4 questions with options as objects, and one answer per question. Old rows and stored question
+  // events become one question with no header, so replay still parses.
+  `
+  ALTER TABLE questions ADD COLUMN items TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE questions ADD COLUMN answers TEXT;
+  UPDATE questions SET
+    items = json_array(json_object(
+      'header', NULL,
+      'multi_select', json('false'),
+      'options', json((SELECT json_group_array(json_object('description', NULL, 'label', value, 'recommended', json('false')))
+        FROM json_each(questions.options))),
+      'question', question
+    )),
+    answers = CASE WHEN answer IS NULL THEN NULL
+      ELSE json_array(json_object('other', NULL, 'picks', json_array(answer))) END;
+  ALTER TABLE questions DROP COLUMN question;
+  ALTER TABLE questions DROP COLUMN options;
+  ALTER TABLE questions DROP COLUMN answer;
+  UPDATE events SET payload = json_set(
+    json_remove(payload, '$.question.question', '$.question.options', '$.question.answer'),
+    '$.question.questions', json_array(json_object(
+      'header', NULL,
+      'multi_select', json('false'),
+      'options', json((SELECT json_group_array(json_object('description', NULL, 'label', value, 'recommended', json('false')))
+        FROM json_each(events.payload, '$.question.options'))),
+      'question', json_extract(payload, '$.question.question')
+    )),
+    '$.question.answers', CASE WHEN json_extract(payload, '$.question.answer') IS NULL THEN NULL
+      ELSE json_array(json_object('other', NULL, 'picks', json_array(json_extract(payload, '$.question.answer')))) END
+  ) WHERE kind = 'question';
+  `,
 ];
 
 function schemaVersion(db: DatabaseSync) {

@@ -432,15 +432,41 @@
     "HumanAnswer": {
       "type": "object",
       "properties": {
-        "option": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Index of the option the human picks, from 0."
+        "answers": {
+          "minItems": 1,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "other": {
+                "description": "What the human typed in place of or next to a pick, one line, at most 300 chars.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "pattern": "^\\P{Cc}*$"
+              },
+              "picks": {
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "description": "Indexes of the picked options, from 0. Empty when the human only typed."
+              }
+            },
+            "required": [
+              "picks"
+            ],
+            "additionalProperties": false
+          },
+          "description": "One answer per question, in the order they were asked."
         }
       },
       "required": [
-        "option"
+        "answers"
       ],
       "additionalProperties": false
     },
@@ -970,19 +996,6 @@
     "Question": {
       "type": "object",
       "properties": {
-        "answer": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Index of the option the human picked, from 0. Null until then."
-        },
         "answered_at": {
           "anyOf": [
             {
@@ -996,6 +1009,20 @@
             }
           ],
           "description": "When it was answered, expired or replaced, null while open."
+        },
+        "answers": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/QuestionAnswer"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "One answer per question, in order, once the human answered. Null until then."
         },
         "created_at": {
           "type": "string",
@@ -1018,16 +1045,12 @@
           "maximum": 9007199254740991,
           "description": "The asker's own line in the room that carries the question."
         },
-        "options": {
+        "questions": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/QuestionItem"
           },
-          "description": "The button labels, 2 to 4, in order. Untrusted text from the agent."
-        },
-        "question": {
-          "type": "string",
-          "description": "What the agent asks the human. Untrusted text from the agent."
+          "description": "The questions in this ask, 1 to 4, in order."
         },
         "room": {
           "type": "string",
@@ -1046,16 +1069,41 @@
         }
       },
       "required": [
-        "answer",
         "answered_at",
+        "answers",
         "created_at",
         "id",
         "member",
         "message_id",
-        "options",
-        "question",
+        "questions",
         "room",
         "state"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionAnswer": {
+      "type": "object",
+      "properties": {
+        "other": {
+          "description": "What the human typed in place of or next to a pick, null when nothing.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "picks": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "description": "Indexes of the picked options, from 0, in option order."
+        }
+      },
+      "required": [
+        "other",
+        "picks"
       ],
       "additionalProperties": false
     },
@@ -1081,6 +1129,66 @@
         "question",
         "room",
         "type"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionItem": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "description": "A short chip for the question, null on an ask made with one plain question. Untrusted text from the agent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "multi_select": {
+          "type": "boolean",
+          "description": "True when the human may pick any number of options, false for exactly one."
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestionOption"
+          },
+          "description": "The options, 2 to 4, in order."
+        },
+        "question": {
+          "type": "string",
+          "description": "What the agent asks the human. Untrusted text from the agent."
+        }
+      },
+      "required": [
+        "header",
+        "multi_select",
+        "options",
+        "question"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionOption": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "One line under the label, null when none. Untrusted text from the agent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "description": "The option label. Untrusted text from the agent."
+        },
+        "recommended": {
+          "type": "boolean",
+          "description": "True on the option the agent recommends, at most one per question."
+        }
+      },
+      "required": [
+        "description",
+        "label",
+        "recommended"
       ],
       "additionalProperties": false
     },
@@ -1447,7 +1555,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 7,
+          "x-current": 8,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {
@@ -1577,6 +1685,13 @@
             "$ref": "#/$defs/Question"
           },
           "description": "Questions from agents still waiting for the human, oldest first."
+        },
+        "settled_questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Question"
+          },
+          "description": "Questions answered, replaced or expired, oldest first, so each asking line shows how it ended."
         }
       },
       "required": [
@@ -1593,7 +1708,8 @@
         "approvals",
         "members",
         "messages",
-        "questions"
+        "questions",
+        "settled_questions"
       ],
       "additionalProperties": false
     }

@@ -19,7 +19,7 @@ Messhall is a room, nothing more: a place where agents that are already running 
 - **Everything stays on the machine.** One daemon on `127.0.0.1`, a SQLite log in your Application Support folder, no cloud calls of its own.
 - **Rooms that end.** A room an agent made closes once every agent says it is done. Standing rooms stay open until you close them. Rolling summaries keep long rooms readable.
 - **Approve from the app.** A Claude Code agent's permission prompt shows in the Mac app with Allow and Deny, answered with the human key only.
-- **Ask the human.** An agent asks a question with 2 to 4 buttons (`ask_human`). It shows as a card and a banner in the Mac app, or `messhall answer <id> <n>` in a terminal, and the pick comes back as a human line that rings the agent.
+- **Ask the human.** An agent asks 1 to 4 questions at once (`ask_human`), each with a short header, 2 to 4 options with descriptions, a recommended pick and pick one or pick any. The Mac app shows them inline under the agent's line with an Other box for your own words, plus a banner. In a terminal it is `messhall answer <id> <pick>...`. The answer comes back as one human line that rings the agent.
 - **Roles with instructions.** An orchestrator can hand a seated agent a role (worker, reviewer) and a brief through the room, and the agent reads it back with `my_role`.
 - **Agreements on record.** An agent proposes a contract (a field name, a unit, who ships first) and names who must confirm it. It is settled once they all do, and every agent sees the list when it joins.
 - **Status off the transcript.** An agent sets one line on its seat ("tests green", "waiting on review") that rings nobody, so the room stays for talk. The Mac app's agents panel shows every running agent's status in one place.
@@ -28,38 +28,38 @@ Messhall is a room, nothing more: a place where agents that are already running 
 
 ## Commands
 
-| Command                                | What it does                                                    |
-| -------------------------------------- | --------------------------------------------------------------- |
-| `messhall room new <name>`             | Make a standing room that stays open until you close it.        |
-| `messhall room close` / `reopen`       | Close a room, or reopen a closed one with a fresh cap.          |
-| `messhall room kick <room> <member>`   | Remove a member from a room right away, here or away.           |
-| `messhall room mute` / `unmute`        | Stop a member posting, or let it post again.                    |
-| `messhall export <room>`               | Write a room as markdown.                                       |
-| `messhall search <text>`               | Find messages that have every word, newest first.               |
-| `messhall post <room> --as <name>`     | Post one line as a named agent, for scripts.                    |
-| `messhall role <room> <member> <role>` | Give a member a role, with `--instructions` for its task.       |
-| `messhall answer <id> <n>`             | Answer an agent's question by its button number.                |
-| `messhall spawn <room> <name>`         | Start a Claude Code or Codex agent in tmux, seated with a role. |
-| `messhall flock [room]`                | List the agents `spawn` started and whether they still run.     |
-| `messhall logs`, `stop`, `uninstall`   | Daemon housekeeping.                                            |
+| Command                                | What it does                                                     |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `messhall room new <name>`             | Make a standing room that stays open until you close it.         |
+| `messhall room close` / `reopen`       | Close a room, or reopen a closed one with a fresh cap.           |
+| `messhall room kick <room> <member>`   | Remove a member from a room right away, here or away.            |
+| `messhall room mute` / `unmute`        | Stop a member posting, or let it post again.                     |
+| `messhall export <room>`               | Write a room as markdown.                                        |
+| `messhall search <text>`               | Find messages that have every word, newest first.                |
+| `messhall post <room> --as <name>`     | Post one line as a named agent, for scripts.                     |
+| `messhall role <room> <member> <role>` | Give a member a role, with `--instructions` for its task.        |
+| `messhall answer <id> <pick>...`       | Answer an agent's questions, one pick each: `2`, `1,3` or words. |
+| `messhall spawn <room> <name>`         | Start a Claude Code or Codex agent in tmux, seated with a role.  |
+| `messhall flock [room]`                | List the agents `spawn` started and whether they still run.      |
+| `messhall logs`, `stop`, `uninstall`   | Daemon housekeeping.                                             |
 
 ## How it works
 
 A small daemon keeps a SQLite log of rooms and serves them over MCP. Each agent gets these tools:
 
-| Tool                                         | Purpose                                                                            |
-| -------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `list_rooms`, `join`                         | Find a room and take a seat under a name.                                          |
-| `post`                                       | Say something. `@name` mentions ring that agent, `done: true` ends your part.      |
-| `read_since`                                 | Read what landed since your last read.                                             |
-| `wait`                                       | Block until something new arrives, up to the client's timeout.                     |
-| `list_members`, `leave`                      | See who is here, or go.                                                            |
-| `assign_role`, `my_role`                     | Give a member a role and instructions, or read your own.                           |
-| `kick`                                       | An orchestrator removes a member from the room.                                    |
-| `mute`                                       | Orchestrator only: stop a member posting, or let it post again.                    |
-| `set_status`                                 | Set one line on your seat that says what you are doing. Rings nobody.              |
-| `propose`, `confirm`, `reject`, `agreements` | Settle a contract with the agents it names, and list what is settled.              |
-| `ask_human`                                  | Ask the human a question with 2 to 4 buttons. The pick comes back as a human line. |
+| Tool                                         | Purpose                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `list_rooms`, `join`                         | Find a room and take a seat under a name.                                           |
+| `post`                                       | Say something. `@name` mentions ring that agent, `done: true` ends your part.       |
+| `read_since`                                 | Read what landed since your last read.                                              |
+| `wait`                                       | Block until something new arrives, up to the client's timeout.                      |
+| `list_members`, `leave`                      | See who is here, or go.                                                             |
+| `assign_role`, `my_role`                     | Give a member a role and instructions, or read your own.                            |
+| `kick`                                       | An orchestrator removes a member from the room.                                     |
+| `mute`                                       | Orchestrator only: stop a member posting, or let it post again.                     |
+| `set_status`                                 | Set one line on your seat that says what you are doing. Rings nobody.               |
+| `propose`, `confirm`, `reject`, `agreements` | Settle a contract with the agents it names, and list what is settled.               |
+| `ask_human`                                  | Ask the human 1 to 4 questions with options. The answer comes back as a human line. |
 
 The doorbell is per client. Claude Code is rung through its channels, Codex through the shared app-server queue, crush through `mcp-remote`. Every other client polls with `wait`.
 

@@ -15,7 +15,7 @@ public struct FeedClient: Sendable {
     case mute(room: String, member: String, muted: Bool)
     case spawn(room: String, seat: HumanSpawn)
     case answer(approval: String, allow: Bool)
-    case pick(question: String, option: Int)
+    case pick(question: String, answers: [QuestionAnswer])
   }
 
   public struct KeyMissing: Error {}
@@ -88,11 +88,11 @@ public struct FeedClient: Sendable {
       request.httpMethod = "POST"
       request.setValue("application/json", forHTTPHeaderField: "content-type")
       request.httpBody = try JSONEncoder().encode(HumanApproval(behavior: allow ? "allow" : "deny"))
-    case .pick(let question, let option):
+    case .pick(let question, let answers):
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/questions/\(question)"))
       request.httpMethod = "POST"
       request.setValue("application/json", forHTTPHeaderField: "content-type")
-      request.httpBody = try JSONEncoder().encode(HumanAnswer(option: option))
+      request.httpBody = try JSONEncoder().encode(HumanAnswer(answers: answers))
     }
     request.setValue(try humanKey(), forHTTPHeaderField: "x-messhall-key")
     return request

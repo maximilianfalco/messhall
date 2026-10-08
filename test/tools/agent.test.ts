@@ -219,7 +219,7 @@ describe('agentRun', () => {
     });
     await vi.waitFor(() => expect(daemon.sessionsFor({ name: 'api', room: 'checkout' })).toHaveLength(1));
     await fetch(`${daemon.url}/api/questions/${id}`, {
-      body: JSON.stringify({ option: 0 }),
+      body: JSON.stringify({ answers: [{ picks: [0] }] }),
       headers: human,
       method: 'POST',
     });

@@ -8,6 +8,7 @@ import type {
   MessageKind,
   Presence,
   Question,
+  QuestionItem,
   Room,
 } from '../../contracts/room.ts';
 import type { DatabaseSync } from 'node:sqlite';
@@ -56,7 +57,7 @@ import { clientType } from '../mcp/constants.js';
 
 import { agreementSql, involves, isLive, leftOut, proposalText, rejectText, settledText } from './agreements.js';
 import { createEventBus } from './events.js';
-import { answerText, askText, expiryText, questionSql } from './questions.js';
+import { answersFit, answerText, askText, expiryText, questionSql, storedAnswers } from './questions.js';
 import { reviewNudges } from './reviews.js';
 import { canAssignRole, isAgent, leavesDone, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
 
@@ -296,7 +297,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
   const toQuestion = (row: Row) =>
     questionSchema.parse({
       ...row,
-      options: parseStoredJson(String(row.options)),
+      answers: row.answers === null ? null : parseStoredJson(String(row.answers)),
+      questions: parseStoredJson(String(row.items)),
       room: roomById(String(row.room_id)).name,
     });
   const questionChanged = (question: Question, emit: Emit) => {
@@ -1109,17 +1111,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
 
     /** Posts an agent's question to the human as its own line and keeps it open for the human's pick.
      * A newer ask from the same seat replaces its open one, so each agent waits on one question per room. */
-    askQuestion({
-      as,
-      options,
-      question,
-      room: roomName,
-    }: {
-      as: string;
-      options: string[];
-      question: string;
-      room: string;
-    }) {
+    askQuestion({ as, questions, room: roomName }: { as: string; questions: QuestionItem[]; room: string }) {
       return transaction(emit => {
         const found = seat(roomName, as);
         if (!found.ok) return found;
@@ -1128,30 +1120,28 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
         const at = stamp();
         questionsSql.replace.all(at, room.id, as).forEach(row => questionChanged(toQuestion(row), emit));
-        const { message } = speak({ done: false, member, room, text: askText({ options, question }) }, emit);
-        const row = questionsSql.insert.get(
-          randomUUID(),
-          room.id,
-          as,
-          message.id,
-          question,
-          JSON.stringify(options),
-          at,
-        )!;
+        const { message } = speak({ done: false, member, room, text: askText({ questions }) }, emit);
+        const row = questionsSql.insert.get(randomUUID(), room.id, as, message.id, JSON.stringify(questions), at)!;
         return { ok: true, question: questionChanged(toQuestion(row), emit) } as const;
       });
     },
 
     /** The human's pick on an open question, once. Its line names the asker, so the doorbell rings it. */
-    answerQuestion({ id, option }: { id: string; option: number }) {
+    answerQuestion({ answers, id }: { answers: { other?: string | null; picks: number[] }[]; id: string }) {
       return transaction(emit => {
         const row = questionsSql.open.get(id);
         if (!row) return { ok: false, reason: 'no_question' } as const;
-        if (option >= toQuestion(row).options.length) return { ok: false, reason: 'bad_option' } as const;
+        const stored = storedAnswers(answers);
+        if (!answersFit({ answers: stored, items: toQuestion(row).questions })) {
+          return { ok: false, reason: 'bad_answer' } as const;
+        }
         let room = roomById(String(row.room_id));
         const human = addHuman(room, emit);
         if (room.closed_at !== null) room = reopen(room, emit);
-        const question = questionChanged(toQuestion(questionsSql.answer.get(option, stamp(), id)!), emit);
+        const question = questionChanged(
+          toQuestion(questionsSql.answer.get(JSON.stringify(stored), stamp(), id)!),
+          emit,
+        );
         const { message } = speak({ done: false, member: human, room, text: answerText(question) }, emit);
         return { message, ok: true, question } as const;
       });
@@ -1211,6 +1201,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     openQuestions(roomName: string) {
       const room = findRoom(roomName);
       return room ? questionsSql.openIn.all(room.id).map(toQuestion) : [];
+    },
+
+    /** The questions in a room answered, replaced or expired, oldest first, asked at or after `fromMessage`. */
+    settledQuestions(roomName: string, { fromMessage = 0 }: { fromMessage?: number } = {}) {
+      const room = findRoom(roomName);
+      return room ? questionsSql.settledIn.all(room.id, fromMessage).map(toQuestion) : [];
     },
 
     /** One seat's open questions in a room, oldest first. */
