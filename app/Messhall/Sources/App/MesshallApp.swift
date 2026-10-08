@@ -9,6 +9,8 @@ final class Navigation {
   var room: String?
   /// The name the New Room sheet starts with. Nil while the sheet is shut.
   var newRoomDraft: String?
+  /// The template the New Room sheet starts on, for shots. Nil means Blank.
+  var newRoomTemplate: String?
   var showsWelcome = false
   /// Bumped to ask the menu bar label, which always lives, to open the window.
   var windowRequests = 0
@@ -112,7 +114,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       }
       ShotHooks.navigate(
         room: UserDefaults.standard.string(forKey: "shotRoom"),
-        newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"), navigation: navigation)
+        newRoom: UserDefaults.standard.string(forKey: "shotNewRoom"),
+        newRoomTemplate: UserDefaults.standard.string(forKey: "shotNewRoomTemplate"), navigation: navigation)
       if UserDefaults.standard.bool(forKey: "shotWelcome") { navigation.showsWelcome = true }
       let pause = UserDefaults.standard.double(forKey: "shotToggleSidebar")
       if pause > 0 { Task { await ShotHooks.toggleSidebar(pause: pause) } }

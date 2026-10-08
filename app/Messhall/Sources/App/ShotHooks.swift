@@ -152,10 +152,11 @@
       }
     }
 
-    /// `-shotRoom <name>` opens that room. `-shotNewRoom <draft>` opens the New Room sheet with that name typed.
-    static func navigate(room: String?, newRoom: String?, navigation: Navigation) {
+    /// `-shotRoom <name>` opens that room. `-shotNewRoom <draft>` opens the New Room sheet with that name typed, `-shotNewRoomTemplate <id>` on that template.
+    static func navigate(room: String?, newRoom: String?, newRoomTemplate: String?, navigation: Navigation) {
       if let room { navigation.room = room }
       if let newRoom { navigation.newRoomDraft = newRoom }
+      navigation.newRoomTemplate = newRoomTemplate
     }
 
     /// `-shotStart <template id>=<folder>`: starts that template through the same call as the Start button, opens
