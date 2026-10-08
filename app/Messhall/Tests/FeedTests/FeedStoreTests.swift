@@ -38,6 +38,29 @@ struct FeedStoreTests {
     #expect(store.seq == 9)
   }
 
+  @Test("an edit replaces the message in place, keeps the count and moves the sequence")
+  func messageEdit() throws {
+    let store = try loaded()
+
+    store.apply(.event(seq: 8, try event("MessageEditEvent")))
+
+    #expect(store.rooms[0].messages.map(\.id) == [1, 2])
+    #expect(store.rooms[0].messages[1].text == "@web the order schema has a currency field now, fixed")
+    #expect(store.rooms[0].messages[1].editedAt == "2026-01-01T09:03:00.000Z")
+    #expect(store.rooms[0].messageCount == 1)
+    #expect(store.seq == 8)
+  }
+
+  @Test("an edit of a message the app does not hold changes nothing")
+  func messageEditUnknown() throws {
+    let store = try loaded()
+    let before = store.rooms
+
+    store.apply(.event(seq: 8, .messageEdit(MessageEvent(room: "checkout", message: Message(id: 99, roomId: "r1", from: "web", kind: .chat, text: "x", mentions: [], createdAt: "2026-01-01T09:02:00.000Z")))))
+
+    #expect(store.rooms == before)
+  }
+
   @Test("a system message or a summary does not count as a post", arguments: [MessageKind.system, .summary])
   func daemonMessage(kind: MessageKind) throws {
     let store = try loaded()

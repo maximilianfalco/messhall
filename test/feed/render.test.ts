@@ -43,12 +43,14 @@ const member = (overrides: Partial<Member> = {}): Member => ({
 
 const message = (overrides: Partial<Message> = {}): Message => ({
   created_at: AT,
+  edited_at: null,
   from: 'api',
   from_client_label: null,
   from_kind: null,
   id: 1,
   kind: 'chat',
   mentions: [],
+  removed_at: null,
   room_id: 'room-1',
   text: 'hello',
   ...overrides,
@@ -120,8 +122,17 @@ describe('renderEvent', () => {
     ['a human line', message({ from: 'human', text: 'api, bump the version' }), '10:04  human  api, bump the version'],
     ['a system line', message({ from: 'messhall', kind: 'system', text: 'web joined' }), '10:04  web joined'],
     ['a done line with a check', message({ kind: 'done', text: 'shipped' }), '10:04  api  ✓ shipped'],
+    ['an edited line', message({ edited_at: AT, text: 'hold off' }), '10:04  api  hold off (edited)'],
+    ['a line taken back', message({ edited_at: AT, removed_at: AT, text: '' }), '10:04  api  (taken back)'],
   ])('renders %s', (_, posted, line) => {
     expect(render({ message: posted, room: 'checkout', type: 'message' }, 'checkout')).toStrictEqual([line]);
+  });
+
+  it.each([
+    ['an edit', message({ edited_at: AT, id: 7, text: 'hold off' }), '       · #7 edited: hold off'],
+    ['a take back', message({ edited_at: AT, id: 7, removed_at: AT, text: '' }), '       · #7 taken back'],
+  ])('renders %s as a dim note', (_, edited, line) => {
+    expect(render({ message: edited, room: 'checkout', type: 'message_edit' }, 'checkout')).toStrictEqual([line]);
   });
 
   it.each([
