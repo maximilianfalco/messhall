@@ -1,5 +1,5 @@
 import type { FlockSeat } from '../../contracts/feed.ts';
-import type { Launch } from '../../contracts/room.ts';
+import type { Launch, Presence } from '../../contracts/room.ts';
 import type { RoomStore } from '../rooms/store.js';
 import type { Tmux } from './tmux.js';
 
@@ -24,6 +24,14 @@ export const SPAWN_DIR = 'spawn';
 export const PROFILES_DIR = path.join(packageRoot(), 'docs', 'briefs');
 const SETTLE_MS = 1000;
 const PANE_FORMAT = '#{session_name}\t#{pane_pid}';
+
+const panePids = (listing: string) =>
+  new Map(
+    listing.split('\n').map(line => {
+      const [session = '', pid = ''] = line.split('\t');
+      return [session, Number(pid)] as const;
+    }),
+  );
 
 interface Seat {
   name: string;
@@ -148,18 +156,31 @@ export function createSpawner({
     return existsSync(file) ? file : undefined;
   };
 
+  // Every seat started from an invite and not left, with how it was launched.
+  const spawnedSeats = (room?: string) =>
+    (room ? [room] : store.listRooms().map(found => found.name)).flatMap(roomName =>
+      store.listMembers(roomName).flatMap(member => {
+        const seat = { name: member.name, room: roomName };
+        const launch = store.launchOf(seat);
+        return launch ? [{ launch, member, room: roomName, session: sessionName(seat) }] : [];
+      }),
+    );
+
   const presenceOf = ({ name, room }: Seat) => store.listMembers(room).find(member => member.name === name)?.presence;
 
   // Answers dialogs until the agent's first call takes the seat, or a login screen or the deadline stops it.
   // Only a seat the human asked for may trust its folder, since an agent picks the cwd of its own spawns.
-  const waitSeated = async (seat: Seat, { trust }: { trust: boolean }) => {
+  const waitSeated = async (
+    seat: Seat,
+    { taken, trust }: { taken: (presence: Presence) => boolean; trust: boolean },
+  ) => {
     const target = exactTarget(seat);
     const ready = await until<Ready>(
       Date.now() + readyWithinMs,
       async () => {
         const presence = presenceOf(seat);
         if (!presence) return 'dropped';
-        if (presence !== 'invited') return 'seated';
+        if (taken(presence)) return 'seated';
         const dialog = dialogKeys((await tmux(['capture-pane', '-p', '-t', target])).stdout);
         if (dialog.kind === 'login') return 'login';
         if (dialog.kind === 'none') return;
@@ -186,6 +207,28 @@ export function createSpawner({
     );
   });
 
+  // Codex has no seat header, so its seat key rides in its first prompt as the invite.
+  const startAgent = ({
+    launch,
+    role,
+    seat,
+    seatKey,
+  }: {
+    launch: Launch;
+    role: string;
+    seat: Seat;
+    seatKey: string;
+  }) => {
+    const { agent, cwd, model } = launch;
+    const mcpConfig = configFile(seat);
+    const argv = agentArgv({ ...seat, agent, invite: seatKey, mcpConfig, model, settings: profileOf(role) });
+    if (agent === 'claude') writeConfig(seat, seatKey);
+    return tmux(tmuxStartArgs({ argv, cwd, session: sessionName(seat), shell }));
+  };
+
+  const typeFirst = (seat: Seat, text: string) =>
+    typePrompt(exactTarget(seat), text, { run: tmux, settleMs, titleWaitMs: readyWithinMs });
+
   const giveUp = async (seat: Seat) => {
     await stop(seat);
     store.removeMember({ member: seat.name, room: seat.room });
@@ -207,33 +250,19 @@ export function createSpawner({
       if (!invited.ok) return invited;
       const seat = { name, room };
       const session = sessionName(seat);
-      const { agent, cwd, model } = launch;
-      const argv = agentArgv({
-        ...seat,
-        agent,
-        invite: invited.seatKey,
-        mcpConfig: configFile(seat),
-        model,
-        settings: profileOf(role),
-      });
       await stop(seat);
-      if (agent === 'claude') writeConfig(seat, invited.seatKey);
-      const started = await tmux(tmuxStartArgs({ argv, cwd, session, shell }));
+      const started = await startAgent({ launch, role, seat, seatKey: invited.seatKey });
       if (started.code !== 0) {
         await giveUp(seat);
         return { detail: started.stderr.trim(), ok: false, reason: 'tmux' } as const;
       }
-      const ready = await waitSeated(seat, { trust: by === HUMAN_NAME });
+      const ready = await waitSeated(seat, { taken: presence => presence !== 'invited', trust: by === HUMAN_NAME });
       if (ready !== 'seated') {
         await giveUp(seat);
         return { ok: false, reason: ready } as const;
       }
-      if (agent === 'claude') {
-        const typed = await typePrompt(exactTarget(seat), seatedPrompt({ ...seat, role }), {
-          run: tmux,
-          settleMs,
-          titleWaitMs: readyWithinMs,
-        });
+      if (launch.agent === 'claude') {
+        const typed = await typeFirst(seat, seatedPrompt({ ...seat, role }));
         if (typed !== 'sent') {
           await giveUp(seat);
           return { ok: false, reason: typed } as const;
@@ -249,35 +278,21 @@ export function createSpawner({
 
     /** Every seat started from an invite, in `room` or in every room, with its session and whether it runs. */
     async list({ room }: { room?: string }) {
-      const listing = (await tmux(['list-panes', '-a', '-F', PANE_FORMAT])).stdout;
-      const pids = new Map(
-        listing.split('\n').map(line => {
-          const [session = '', pid = ''] = line.split('\t');
-          return [session, Number(pid)] as const;
-        }),
-      );
-      const rooms = room ? [room] : store.listRooms().map(found => found.name);
-      return rooms.flatMap(roomName =>
-        store.listMembers(roomName).flatMap((member): FlockSeat[] => {
-          const launch = store.launchOf({ name: member.name, room: roomName });
-          if (!launch) return [];
-          const session = sessionName({ name: member.name, room: roomName });
-          const pid = pids.get(session) ?? null;
-          return [
-            {
-              agent: launch.agent,
-              cwd: launch.cwd,
-              name: member.name,
-              pid,
-              presence: member.presence,
-              process: pid === null ? 'gone' : 'running',
-              role: member.role,
-              room: roomName,
-              session,
-            },
-          ];
-        }),
-      );
+      const pids = panePids((await tmux(['list-panes', '-a', '-F', PANE_FORMAT])).stdout);
+      return spawnedSeats(room).map(({ launch, member, room: roomName, session }): FlockSeat => {
+        const pid = pids.get(session) ?? null;
+        return {
+          agent: launch.agent,
+          cwd: launch.cwd,
+          name: member.name,
+          pid,
+          presence: member.presence,
+          process: pid === null ? 'gone' : 'running',
+          role: member.role,
+          room: roomName,
+          session,
+        };
+      });
     },
   };
 }
