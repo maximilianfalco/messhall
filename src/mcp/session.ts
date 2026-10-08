@@ -36,7 +36,7 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     },
     /** Starts a doorbell check: the test ring `ring` went out now and waits for doorbell_ok. Ids of earlier rings still count. */
     checkDoorbell(ring: string) {
-      check = { acked: false, ids: new Set(check?.ids).add(ring), sentAt: now().getTime(), told: false };
+      check = { acked: false, ids: new Set(check?.ids).add(ring), sentAt: now().getTime(), told: check?.told ?? false };
     },
     /** Takes the answer to a test ring. A late answer still counts. False when `ring` is not a ring sent. */
     ackDoorbell(ring: string) {

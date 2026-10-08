@@ -194,6 +194,17 @@ describe('a normal ring to a seat that reads off', () => {
     await harness.cleanup();
   });
 
+  it('tells a seat that never acks only once across new check ids', async () => {
+    const { api, harness } = await offSeat();
+    expect(api.session.tellDoorbellOff()).toBe(true);
+
+    api.session.checkDoorbell('ring-2');
+    harness.clock.advance(DOORBELL_CHECK_MS);
+
+    expect(api.session.tellDoorbellOff()).toBe(false);
+    await harness.cleanup();
+  });
+
   it('still takes the ack of an earlier id after a newer check started', async () => {
     const { api, harness } = await offSeat();
     api.session.checkDoorbell('ring-2');
