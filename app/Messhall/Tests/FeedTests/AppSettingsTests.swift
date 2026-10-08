@@ -24,6 +24,7 @@ struct AppSettingsTests {
     #expect(settings.snapshot.accent == .system)
     #expect(settings.snapshot.notificationsEnabled)
     #expect(settings.snapshot.mutedRooms.isEmpty)
+    #expect(settings.snapshot.collapsedAgreements.isEmpty)
     #expect(settings.snapshot.avatars.colors.isEmpty)
     #expect(settings.snapshot.pullRequestCards)
   }
@@ -37,6 +38,7 @@ struct AppSettingsTests {
     settings.snapshot.accent = .green
     settings.snapshot.notificationsEnabled = false
     settings.snapshot.mutedRooms = ["checkout"]
+    settings.snapshot.collapsedAgreements = ["contract"]
     settings.snapshot.avatars.set(Self.teal, for: "web")
     settings.snapshot.pane = .avatars
     settings.snapshot.pullRequestCards = false
@@ -84,6 +86,17 @@ struct AppSettingsTests {
     #expect(snapshot.mutedRooms == ["checkout"])
     snapshot.toggleMute("checkout")
     #expect(snapshot.mutedRooms.isEmpty)
+  }
+
+  @Test("the agreements panel folds per room and unfolds again")
+  func toggleAgreementsFold() {
+    var snapshot = SettingsSnapshot()
+
+    snapshot.toggleAgreementsFold("contract")
+    #expect(snapshot.collapsedAgreements == ["contract"])
+    #expect(!snapshot.collapsedAgreements.contains("checkout"))
+    snapshot.toggleAgreementsFold("contract")
+    #expect(snapshot.collapsedAgreements.isEmpty)
   }
 }
 
