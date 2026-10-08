@@ -13,6 +13,7 @@ public struct FeedClient: Sendable {
     case role(room: String, member: String, role: String)
     case remove(room: String, member: String)
     case mute(room: String, member: String, muted: Bool)
+    case spawn(room: String, seat: HumanSpawn)
     case answer(approval: String, allow: Bool)
     case pick(question: String, option: Int)
   }
@@ -77,6 +78,11 @@ public struct FeedClient: Sendable {
       let action = muted ? "mute" : "unmute"
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/members/\(member)/\(action)"))
       request.httpMethod = "POST"
+    case .spawn(let room, let seat):
+      request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/spawn"))
+      request.httpMethod = "POST"
+      request.setValue("application/json", forHTTPHeaderField: "content-type")
+      request.httpBody = try JSONEncoder().encode(seat)
     case .answer(let approval, let allow):
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/approvals/\(approval)"))
       request.httpMethod = "POST"

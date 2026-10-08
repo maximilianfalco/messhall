@@ -55,6 +55,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'post-dark' },
   { appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' },
   { appearance: 'dark', name: 'new-room-dark', newRoom: 'launch-week' },
+  { appearance: 'light', name: 'welcome-light', welcome: true },
+  { appearance: 'dark', name: 'welcome-dark', welcome: true },
   { appearance: 'light', name: 'standing-light', room: 'release-notes' },
   { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
   { appearance: 'light', name: 'closed-light', room: 'billing' },
@@ -568,6 +570,7 @@ export function shotArgs(shot: Shot) {
     ...('remove' in shot ? ['-shotRemove', shot.remove] : []),
     ...('mute' in shot ? ['-shotMute', shot.mute] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
+    ...('welcome' in shot ? ['-shotWelcome', 'YES', '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
@@ -673,7 +676,7 @@ async function shoot({
     }
     const file = shotFile(shot);
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
-    if ('newRoom' in shot) return (await waitFile(file)) ?? file;
+    if ('newRoom' in shot || 'welcome' in shot) return (await waitFile(file)) ?? file;
     await sleep(SETTLE_MS);
     if ('pageTop' in shot) {
       const missing = await waitFile(anchorFile(shot));

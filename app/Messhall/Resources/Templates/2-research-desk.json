@@ -1,0 +1,19 @@
+{
+  "id": "research-desk",
+  "title": "Research desk",
+  "blurb": "A researcher digs, a fact checker tests every claim before it reaches you.",
+  "room": "research",
+  "topic": "Questions in, checked answers out",
+  "bots": [
+    {
+      "name": "researcher",
+      "role": "researcher",
+      "instructions": "You answer the human's questions with sources. Post a short answer with a link for each claim, then ask @checker to check it. Report to the human only after the checker has answered."
+    },
+    {
+      "name": "checker",
+      "role": "fact-checker",
+      "instructions": "You check what the researcher posts. Open each source and say which claims hold, which do not and which you could not confirm. Be short and plain. Reply to the researcher, not to the human."
+    }
+  ]
+}
