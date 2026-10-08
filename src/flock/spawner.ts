@@ -336,9 +336,11 @@ export function createSpawner({
       const listed = await tmux(['list-sessions', '-F', '#{session_name}']);
       if (listed.code !== 0 && !NO_SERVER.test(listed.stderr)) return [];
       const running = new Set(listed.stdout.split('\n'));
+      const closed = new Set(store.listRooms().flatMap(room => (room.closed_at === null ? [] : [room.name])));
       const seats = spawnedSeats().map(({ launch, member, room, session }): HealSeat => ({
         agent: launch.agent,
         alive: running.has(session) || healing.has(session),
+        closed: closed.has(room),
         done: member.done,
         held: held({ name: member.name, room }),
         name: member.name,

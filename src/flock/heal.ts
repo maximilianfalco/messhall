@@ -6,6 +6,7 @@ import { HEAL_BACKOFF_MS, HEAL_RESET_MS, HEAL_TRIES } from '../config.js';
 export interface HealSeat {
   agent: Launch['agent'];
   alive: boolean;
+  closed: boolean;
   done: boolean;
   held: boolean;
   name: string;
@@ -32,7 +33,9 @@ const FRESH: Watch = { gaveUp: false, lastAt: null, tries: 0 };
 const backoffMs = (tries: number) => (tries ? HEAL_BACKOFF_MS * 2 ** (tries - 1) : 0);
 
 // Only claude restarts on its own seat key. Codex keys its seat by a thread that dies with it.
-const healable = (seat: HealSeat) => seat.agent === 'claude' && !seat.done && seat.presence !== 'invited' && !seat.held;
+// A room the human closed is over, so its agents stay down.
+const healable = (seat: HealSeat) =>
+  seat.agent === 'claude' && !seat.closed && !seat.done && seat.presence !== 'invited' && !seat.held;
 
 function stepFor({ now, seat, watch }: { now: number; seat: HealSeat; watch?: Watch }): [Watch | undefined, HealStep?] {
   if (seat.alive) {

@@ -640,6 +640,15 @@ describe('healing a spawned seat', () => {
     expect(starts(seats.tmux)).toStrictEqual([]);
   });
 
+  it('never restarts a seat in a room the human closed', async () => {
+    const { seats } = await watchedThenDead();
+    store().closeRoom('demo');
+
+    await seats.heal();
+
+    expect(starts(seats.tmux)).toStrictEqual([]);
+  });
+
   it('reads a failed listing as no news, unless no tmux server runs at all', async () => {
     const { seats } = await watchedThenDead();
     seats.failListing('lost server');

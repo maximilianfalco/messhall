@@ -11,6 +11,7 @@ const FRESH: Watch = { gaveUp: false, lastAt: null, tries: 0 };
 const seat = (overrides: Partial<HealSeat> = {}): HealSeat => ({
   agent: 'claude',
   alive: false,
+  closed: false,
   done: false,
   held: false,
   name: 'api',
@@ -52,6 +53,7 @@ describe('healPlan', () => {
     ['done', { done: true }],
     ['still invited', { presence: 'invited' as const }],
     ['a codex', { agent: 'codex' as const }],
+    ['in a closed room', { closed: true }],
   ])('leaves a seat that is %s alone', (_label, overrides) => {
     expect(actionOf({ seats: [seat(overrides)], watch: FRESH })).toBeUndefined();
   });
