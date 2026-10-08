@@ -243,8 +243,8 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     sweepable: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence NOT IN ('away', 'invited') ORDER BY rooms.name, members.name",
     ),
-    reconnecting: db.prepare(
-      "SELECT rooms.name AS room, members.name, members.kind, members.seat_key FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND presence = 'reconnecting' ORDER BY rooms.name, members.name",
+    wakeable: db.prepare(
+      "SELECT rooms.name AS room, members.name, members.kind, members.seat_key FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND presence IN ('reconnecting', 'away') ORDER BY rooms.name, members.name",
     ),
     unseen: db.prepare('SELECT * FROM messages WHERE room_id = ? AND id > ? AND from_name != ? ORDER BY id LIMIT ?'),
   };
@@ -1263,9 +1263,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       });
     },
 
-    /** The seats still reconnecting, with the kind and seat key the wake needs to reach each agent. */
-    reconnectingSeats() {
-      return sql.reconnecting.all().map(row => ({
+    /** The reconnecting and away seats, with the kind and seat key the wake needs to reach each agent.
+     * An away seat may still hold a live pane that an earlier restart missed. */
+    wakeableSeats() {
+      return sql.wakeable.all().map(row => ({
         kind: AGENT_KIND.parse(row.kind),
         name: String(row.name),
         room: String(row.room),

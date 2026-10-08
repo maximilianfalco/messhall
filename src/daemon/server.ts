@@ -163,7 +163,7 @@ export async function startDaemon({
   }, sweepEveryMs);
 
   // A spawned agent idle at the restart lost its event stream, so nothing rings it until it is woken.
-  wakeSeats({ codex, dataDir, seats: store.reconnectingSeats(), tmux })
+  wakeSeats({ codex, dataDir, seats: store.wakeableSeats(), tmux })
     .then(woken => woken.forEach(target => logger.info('woke a seat after the restart', target)))
     .catch((error: unknown) => logger.error(asError(error), { message: 'wake after restart failed' }));
 

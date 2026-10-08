@@ -87,7 +87,7 @@ export const wakeText = (rooms: string[]) =>
   `messhall restarted. call read_since on ${LIST.format(rooms.map(room => `#${room}`))}, then carry on with your work.`;
 
 /** Wakes every seat it can reach after a restart: types the wake line into a spawned claude's tmux pane, or
- * queues it on a codex thread. A pane showing a menu or a draft is left alone. Never rejects. */
+ * queues it on a codex thread. A codex thread that is not loaded is a closed TUI, so it is skipped quietly. A pane showing a menu or a draft is left alone. Never rejects. */
 export async function wakeSeats({
   codex,
   dataDir,
@@ -108,6 +108,8 @@ export async function wakeSeats({
   const wake = async ({ channel, rooms, target }: WakeTarget) => {
     const text = wakeText(rooms);
     if (channel === 'codex') {
+      const read = await codex.request('thread/read', { threadId: target });
+      if (!read.ok || read.result.thread.status.type === 'notLoaded') return 'unloaded';
       const input = [{ text, text_elements: [], type: 'text' as const }];
       const added = await codex.request('thread/queue/add', {
         clientUserMessageId: randomUUID(),
@@ -119,7 +121,7 @@ export async function wakeSeats({
     // A bare name falls back to a prefix match, which would hit another seat's session.
     return typeIfClear(`=${target}:`, text, { run: tmux, settleMs });
   };
-  return Promise.all(
+  const woken = await Promise.all(
     wakeList({ seats, tmux: sessions }).map(async target => ({
       channel: target.channel,
       names: target.names,
@@ -127,4 +129,5 @@ export async function wakeSeats({
       target: target.target,
     })),
   );
+  return woken.filter(target => target.outcome !== 'unloaded');
 }

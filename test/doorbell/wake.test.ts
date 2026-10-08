@@ -86,7 +86,7 @@ describe('wakeSeats', () => {
     rmSync(dataDir, { force: true, recursive: true });
   });
 
-  const run = ({ pane }: { pane: string }) => {
+  const run = ({ pane, threadStatus = { type: 'idle' } }: { pane: string; threadStatus?: { type: string } }) => {
     const calls: string[][] = [];
     const tmux = (args: string[]) => {
       calls.push(args);
@@ -98,9 +98,11 @@ describe('wakeSeats', () => {
     };
     const queued: unknown[] = [];
     const codex = {
-      request: (_method: string, params: unknown) => {
-        queued.push(params);
-        return Promise.resolve({ ok: true, result: {} } as never);
+      request: (method: string, params: unknown) => {
+        const reads = method === 'thread/read';
+        if (!reads) queued.push(params);
+        const reply = reads ? { thread: { status: threadStatus } } : {};
+        return Promise.resolve({ ok: true, result: reply } as never);
       },
     };
     const seats = [seat('f10-wake', 'claude', 'seat-b106'), seat('web', 'codex', 'thread-1')];
@@ -124,6 +126,15 @@ describe('wakeSeats', () => {
         threadId: 'thread-1',
       },
     ]);
+  });
+
+  it('queues nothing on a codex thread that is not loaded and leaves it out of the result', async () => {
+    const { codex, queued, seats, tmux } = run({ pane: IDLE_PANE, threadStatus: { type: 'notLoaded' } });
+
+    const woken = await wakeSeats({ codex, dataDir, seats: seats.slice(1), settleMs: 0, tmux });
+
+    expect(woken).toStrictEqual([]);
+    expect(queued).toStrictEqual([]);
   });
 
   it('finds the pane when tmux runs with no utf-8 locale, as under launchd, where a tab prints as _', async () => {
