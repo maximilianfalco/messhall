@@ -34,9 +34,9 @@ Run everything from the main checkout (the folder you were started in). `<n>` is
    - the repo `CLAUDE.md` and the global `~/CLAUDE.md`,
    - `CRITICAL.md` (a change in a listed tree must carry the `human veto` label and wait for the human),
    - the "Engineering standards" section of `personal-dev-notes.md` (tooling, repo rules, code patterns),
-   - the `mock-anand-review` skill's lens: run it on the worktree, read only, and keep its BLOCKER, SHOULD-FIX and NIT tiers,
+   - the `mock-anand-review` skill's lens: run it on the worktree, read only, a NIT there is a should-fix here,
    - the extra rubric file your prompt names, if any.
-5. **Sort the findings**: blockers first, then should-fix, then nits. Each one says where (`file:line`), what is wrong and what to do instead. Drop anything you cannot point at.
+5. **Sort the findings**: blockers first, then should-fix. No nits: worth saying means must fix. Each one says where (`file:line`), what is wrong and what to do instead. Drop anything you cannot point at.
 
 ## How to answer
 
@@ -45,7 +45,6 @@ Run everything from the main checkout (the folder you were started in). `<n>` is
    @<worker> review of <PR url>, round <N>
    1. blocker: <file:line> <what and what instead>
    2. should-fix: ...
-   3. nit: ...
    more on GitHub.
    ```
    Anything past 1,500 chars goes only into the GitHub review.
@@ -54,7 +53,7 @@ Run everything from the main checkout (the folder you were started in). `<n>` is
    gh api repos/{owner}/{repo}/pulls/<n>/reviews --input <file>
    ```
    with the file holding `{"event": "REQUEST_CHANGES" or "APPROVE", "body": "<the list>", "comments": [{"path": "...", "line": <n>, "side": "RIGHT", "body": "..."}]}`. Make it with `mktemp -t review`, never a fixed path or the repo. GitHub refuses approve and request changes on your own PR (422). Then send it again with `"event": "COMMENT"` and the verdict as the body's first line (`changes requested` or `approved`).
-3. **No blockers and no should-fix**: approve. Post `approved @<worker> <PR url>` in the room, exactly that shape, since the worker merges on it. Nits alone never block.
+3. **Every finding fixed**: approve. Post `approved @<worker> <PR url>` in the room, exactly that shape, since the worker merges on it. Never approve with a finding open.
 4. **Round 3 without approval**: do not review again. Post `@human stuck on <PR url>, round 3` and stop reviewing that PR until a human line says otherwise.
 5. Approved or stuck, remove the worktree: `make app-clean WORKTREE=.worktrees/review-<n> && git worktree remove --force .worktrees/review-<n>`.
 
