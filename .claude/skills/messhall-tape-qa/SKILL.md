@@ -11,7 +11,7 @@ Turn each case a PR adds into a vhs recording, upload the gif to the `qa-assets`
 
 - `vhs` on PATH (`brew install vhs`, pulls ttyd and ffmpeg).
 - Run tapes from the worktree you are proving, with `pnpm dev <command>` or `pnpm messhall-dev <command>`, so the recording shows the branch and not a global `messhall`.
-- A scratch messhall home, never the real data dir (`~/Library/Application Support/messhall`). Every tape carries `Env MESSHALL_HOME "/tmp/messhall-tape-home-<name>"`, and any tape that touches a daemon also `Env MESSHALL_PORT "7797"`. No accounts, no login step.
+- A scratch messhall home, never the real data dir (`~/Library/Application Support/messhall`). Every tape carries `Env MESSHALL_HOME "/tmp/messhall-tape-home-<name>"`, and any tape that touches a daemon also its own `Env MESSHALL_PORT`, a free one from 7770 to 7799 (see `demo/tapes/README.md`). No accounts, no login step.
 
 ## 1. Plan the shots
 
@@ -33,7 +33,7 @@ Render from the directory the tape expects (the repo root or worktree unless it 
 bash .claude/skills/messhall-tape-qa/scripts/render.sh demo/tapes/<name>.tape
 ```
 
-It refuses to run unless vhs is on PATH and the tape's `MESSHALL_HOME` is set and is not the real data dir. Then it prints each output with its size. Pull the last frame (`ffmpeg -sseof -0.3 -i demo/out/<name>.mp4 -frames:v 1 "$(mktemp -t last).png"`) and look at it before you upload.
+It refuses to run unless vhs is on PATH and the tape's `MESSHALL_HOME` is set and is not the real data dir. Then it prints each output with its size. Pull the last frame (`ffmpeg -sseof -0.3 -i demo/out/<name>.mp4 -frames:v 1 "$(mktemp -d)/last.png"`) and look at it before you upload.
 
 Never record a key file, a real room transcript or anything from the real data dir.
 
