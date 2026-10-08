@@ -40,8 +40,9 @@ const CONTROL = /[\x00-\x1f\x7f]/;
 export type Tmux = (args: string[]) => Promise<RunResult>;
 type Dialog = { keys: string[]; kind: 'answer' } | { kind: 'login' } | { kind: 'none' };
 
-/** Runs tmux from where it is installed, since launchd gives the daemon a bare PATH. */
-export const tmux: Tmux = args => runCommand(findBin('tmux'), args);
+/** Runs tmux from where it is installed, since launchd gives the daemon a bare PATH.
+ * `-u` keeps output utf-8: launchd sets no locale, and tmux would print the ✳ of a claude title as `_`. */
+export const tmux: Tmux = args => runCommand(findBin('tmux'), ['-u', ...args]);
 
 /** What to press on the pane: arrows from the `❯` line to the safe option of a known dialog, or stop on a login screen. */
 export function dialogKeys(pane: string): Dialog {
