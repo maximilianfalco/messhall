@@ -30,24 +30,43 @@ describe('held notes', () => {
     expect(joined.ok && joined.notes).toStrictEqual({ count: 2, from: ['api', 'web'] });
   });
 
-  it('shows the notes on the first read even when a summary covers them', () => {
-    const note = say('api', '@worker-1 read this first');
-    say('web', 'later chatter');
+  it('reads the notes first and keeps the bookmark at the latest summary', () => {
+    say('api', '@worker-1 read this first');
+    say('web', 'old chatter');
+    const last = say('web', 'more chatter');
+    scratch.store.addSummary({ coversId: last.ok ? last.message.id : 0, room: 'demo', text: 'summary' });
+    say('web', 'after the summary');
     join('worker-1');
 
     const read = scratch.store.readUnseen({ as: 'worker-1', room: 'demo' });
 
-    expect(read.ok && read.messages.map(message => message.id)).toContain(note.ok ? note.message.id : -1);
+    const texts = read.ok ? read.messages.map(message => message.text) : [];
+    expect(texts[0]).toBe('@worker-1 read this first');
+    expect(texts).not.toContain('old chatter');
+    expect(texts).toContain('after the summary');
   });
 
   it('hands a note over once', () => {
     say('api', '@worker-1 once');
     join('worker-1');
+    scratch.store.readUnseen({ as: 'worker-1', room: 'demo' });
     scratch.store.leaveRoom({ as: 'worker-1', room: 'demo' });
 
     const again = join('worker-1');
+    const read = scratch.store.readUnseen({ as: 'worker-1', room: 'demo' });
 
     expect(again.ok && again.notes).toStrictEqual({ count: 0, from: [] });
+    expect(read.ok && read.messages.map(message => message.text)).not.toContain('@worker-1 once');
+  });
+
+  it('sweeps a note older than a day that nobody joined for', () => {
+    say('api', '@worker-1 stale');
+    scratch.clock.advance(25 * HOUR);
+    scratch.store.clearStale();
+
+    const row = scratch.db.prepare('SELECT count(*) AS n FROM held_notes').get();
+
+    expect(row?.n).toBe(0);
   });
 
   it('drops a note older than a day', () => {
