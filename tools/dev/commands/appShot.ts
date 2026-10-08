@@ -28,6 +28,8 @@ const TOGGLE_PAUSE_S = 2.5;
 const RECORD_S = 7;
 const GIF_LIMIT_BYTES = 10_000_000;
 const WINDOW_WITHIN_MS = 30_000;
+// Start waits for every bot's first call, which the spawner allows two minutes for.
+const START_WITHIN_MS = 150_000;
 // Time for the snapshot to load and the transcript to scroll before the shot.
 const SETTLE_MS = 2500;
 const POST_TEXT = 'thanks both. ship it once the e2e run is green';
@@ -55,6 +57,9 @@ const SHOTS = [
   { appearance: 'dark', name: 'post-dark' },
   { appearance: 'light', name: 'new-room-light', newRoom: 'Release Notes' },
   { appearance: 'dark', name: 'new-room-dark', newRoom: 'launch-week' },
+  { appearance: 'light', name: 'welcome-light', welcome: true },
+  { appearance: 'dark', name: 'welcome-dark', welcome: true },
+  { appearance: 'light', name: 'start-light', start: 'daily-helper' },
   { appearance: 'light', name: 'standing-light', room: 'release-notes' },
   { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
   { appearance: 'light', name: 'closed-light', room: 'billing' },
@@ -516,12 +521,15 @@ const windowFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.window`);
 const anchorFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.anchor`);
 const hotkeyFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.hotkey`);
 const keysFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.keys`);
+const startFile = (shot: Shot) => path.join(OUT_DIR, `${shot.name}.start`);
+const startFolder = (shot: Shot) => path.join(OUT_DIR, `${shot.name}-folder`);
 
 /** The file a shot's app writes a note into, printed under the table. */
 function noteFile(shot: Shot) {
   if ('pageTop' in shot) return anchorFile(shot);
   if ('hotkey' in shot) return hotkeyFile(shot);
   if ('keys' in shot) return keysFile(shot);
+  if ('start' in shot) return startFile(shot);
 }
 
 /** Waits for the app to write a sheet shot. Gives an error text when none lands in time. */
@@ -575,6 +583,8 @@ export function shotArgs(shot: Shot) {
     ...('remove' in shot ? ['-shotRemove', shot.remove] : []),
     ...('mute' in shot ? ['-shotMute', shot.mute] : []),
     ...('newRoom' in shot ? ['-shotNewRoom', shot.newRoom, '-shotSheet', shotFile(shot)] : []),
+    ...('start' in shot ? ['-shotStart', `${shot.start}=${startFolder(shot)}`, '-shotStartOut', startFile(shot)] : []),
+    ...('welcome' in shot ? ['-shotWelcome', 'YES', '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
@@ -653,6 +663,8 @@ async function shoot({
   rmSync(anchorFile(shot), { force: true });
   rmSync(hotkeyFile(shot), { force: true });
   rmSync(keysFile(shot), { force: true });
+  rmSync(startFile(shot), { force: true });
+  if ('start' in shot) mkdirSync(startFolder(shot), { recursive: true });
   forgetLayout(app);
   const child = spawn(path.join(app, 'Contents', 'MacOS', 'Messhall'), shotArgs(shot), { env, stdio: 'ignore' });
   if (child.pid) launched.push(child.pid);
@@ -680,7 +692,12 @@ async function shoot({
     }
     const file = shotFile(shot);
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
-    if ('newRoom' in shot) return (await waitFile(file)) ?? file;
+    if ('newRoom' in shot || 'welcome' in shot) return (await waitFile(file)) ?? file;
+    if ('start' in shot) {
+      const missing = await waitFile(startFile(shot), Date.now() + START_WITHIN_MS);
+      if (missing) return `start did not finish: ${missing}`;
+      if (!readFileSync(startFile(shot), 'utf8').trim().endsWith(' ok')) return readFileSync(startFile(shot), 'utf8');
+    }
     await sleep(SETTLE_MS);
     if ('pageTop' in shot) {
       const missing = await waitFile(anchorFile(shot));

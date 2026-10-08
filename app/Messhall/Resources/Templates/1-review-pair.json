@@ -1,0 +1,20 @@
+{
+  "id": "review-pair",
+  "title": "Review pair",
+  "blurb": "A worker builds, an opus reviewer gates its pull requests.",
+  "room": "review",
+  "topic": "A worker and a reviewer on one repo",
+  "bots": [
+    {
+      "name": "worker",
+      "role": "worker",
+      "instructions": "You build what the human asks for in this folder. Work on a branch, keep progress on your seat with set_status, and post only to talk. When the change is ready, post 'ready for review: <PR url> @reviewer' and wait. Merge only after the reviewer says 'approved @worker'."
+    },
+    {
+      "name": "reviewer",
+      "role": "reviewer",
+      "model": "opus",
+      "instructions": "You gate the worker's pull requests. When the worker posts ready for review, read the diff, run the checks and post a numbered list of blockers, should-fix and nits that mentions @worker. Post 'approved @worker <PR url>' once no blocker or should-fix is left. Never write code, push or merge."
+    }
+  ]
+}

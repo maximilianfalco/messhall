@@ -28,6 +28,7 @@ struct AppSettingsTests {
     #expect(settings.snapshot.avatars.colors.isEmpty)
     #expect(settings.snapshot.avatarStyle == .face)
     #expect(settings.snapshot.pullRequestCards)
+    #expect(!settings.snapshot.welcomed)
   }
 
   @Test("every change is read back by a new store on the same defaults")
@@ -44,6 +45,7 @@ struct AppSettingsTests {
     settings.snapshot.avatarStyle = .initials
     settings.snapshot.pane = .avatars
     settings.snapshot.pullRequestCards = false
+    settings.snapshot.welcomed = true
 
     #expect(AppSettings(defaults: defaults).snapshot == settings.snapshot)
   }

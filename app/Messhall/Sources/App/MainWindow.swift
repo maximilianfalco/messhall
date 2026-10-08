@@ -64,6 +64,12 @@ struct MainWindow: View {
         }
       }
       .onChange(of: columns) { columnsChangedAt = .now }
+      .task(id: store.loaded) {
+        if !AppSettings.shared.snapshot.welcomed && store.rooms.isEmpty { navigation.showsWelcome = true }
+      }
+      .sheet(isPresented: $navigation.showsWelcome) {
+        WelcomeSheet(store: store, client: client, navigation: navigation)
+      }
       .sheet(isPresented: showingNewRoom) {
         NewRoomSheet(store: store, client: client, navigation: navigation)
       }

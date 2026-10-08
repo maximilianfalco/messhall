@@ -42,6 +42,11 @@ public struct HumanSeat: Sendable {
     await send(.mute(room: room, member: member, muted: muted), as: MuteResult.self) { $0.member }
   }
 
+  /// Starts an agent in a detached tmux session, seated in the room. Waits up to two minutes for its first call.
+  public func spawn(_ seat: HumanSpawn, room: String) async -> Outcome<SpawnResult> {
+    await send(.spawn(room: room, seat: seat), as: SpawnResult.self) { $0 }
+  }
+
   public func answer(_ approval: Approval, allow: Bool) async -> Outcome<[Approval]> {
     await send(.answer(approval: approval.id, allow: allow), as: ApprovalResult.self) { $0.approvals }
   }

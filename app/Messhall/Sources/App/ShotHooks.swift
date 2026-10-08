@@ -158,6 +158,20 @@
       if let newRoom { navigation.newRoomDraft = newRoom }
     }
 
+    /// `-shotStart <template id>=<folder>`: starts that template through the same call as the Start button, opens
+    /// its room and writes the room name and any refusal to `-shotStartOut` once every bot has taken its seat.
+    static func start(_ spec: String, logTo file: String, store: FeedStore, client: FeedClient, navigation: Navigation) async {
+      let parts = spec.split(separator: "=", maxSplits: 1).map(String.init)
+      while !store.loaded { try? await Task.sleep(for: .milliseconds(100)) }
+      guard parts.count == 2, let template = RoomTemplate.templates.first(where: { $0.id == parts[0] }) else {
+        try? "bad -shotStart".write(toFile: file, atomically: true, encoding: .utf8)
+        return
+      }
+      let started = await store.start(template, in: parts[1], room: nil, via: client)
+      navigation.room = started.room
+      try? "\(started.room) \(started.refusal ?? "ok")".write(toFile: file, atomically: true, encoding: .utf8)
+    }
+
     /// `-shotSheet <file>`: draws the open sheet into a png from inside the app.
     /// screencapture cannot grab a window with a sheet on an accessory app, so app-shot reads this file instead.
     static func saveSheet(to file: String) async {

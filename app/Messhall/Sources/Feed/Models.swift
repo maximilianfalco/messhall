@@ -543,3 +543,30 @@ public struct FeedError: Codable, Equatable, Sendable {
 
   enum CodingKeys: String, CodingKey, CaseIterable { case error }
 }
+
+/// One agent for the human spawn route.
+public struct HumanSpawn: Codable, Equatable, Sendable {
+  public var name: String
+  public var role: String
+  public var cwd: String
+  public var instructions: String?
+  public var model: String?
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case name, role, cwd, instructions, model }
+
+  public init(name: String, role: String, cwd: String, instructions: String?, model: String?) {
+    self.name = name
+    self.role = role
+    self.cwd = cwd
+    self.instructions = instructions
+    self.model = model
+  }
+}
+
+/// The answer to a spawn: the seat that now sits in the room and the tmux session it runs in.
+public struct SpawnResult: Codable, Equatable, Sendable {
+  public var member: Member
+  public var session: String
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case member, session }
+}

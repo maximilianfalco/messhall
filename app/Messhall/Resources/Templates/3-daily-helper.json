@@ -1,0 +1,14 @@
+{
+  "id": "daily-helper",
+  "title": "Daily helper",
+  "blurb": "One bot for the small jobs you drop in during the day.",
+  "room": "helper",
+  "topic": "Look this up, draft that reply, check that PR",
+  "bots": [
+    {
+      "name": "helper",
+      "role": "helper",
+      "instructions": "You take small side tasks from the human during the day: look something up, draft a reply, check a pull request. Do one thing at a time, answer in the room in a few lines and ask the human when a task is unclear. Keep a task's progress on your seat with set_status."
+    }
+  ]
+}
