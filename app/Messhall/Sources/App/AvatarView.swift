@@ -49,6 +49,7 @@ struct AvatarView: View {
 }
 
 /// The bundled pictures, read once each. A missing file falls back to initials.
+/// Art by DiceBear (Shapes, Notionists Neutral, CC0). See Resources/Avatars/NOTICES.md.
 @MainActor
 enum AvatarArt {
   private static var cache: [URL: NSImage] = [:]
