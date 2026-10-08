@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { readAgentKey } from '../../../src/cli/agentKey.js';
 import { callTool, withAgentSession } from '../../../src/mcp/oneshot.js';
 import { openDb } from '../../../src/rooms/db.js';
+import { askItems } from '../../../src/rooms/questions.js';
 import { createRoomStore, type RoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
@@ -173,8 +174,10 @@ export function seedPerfThinking({
     if (thinking > 0) {
       store.askQuestion({
         as: perfMember(1),
-        options: ['ship it', 'wait for review'],
-        question: 'the cents migration is green on staging. merge it today?',
+        questions: askItems({
+          options: ['ship it', 'wait for review'],
+          question: 'the cents migration is green on staging. merge it today?',
+        }),
         room: PERF_ROOM,
       });
     }

@@ -10,7 +10,10 @@ import {
   memberSchema,
   messageSchema,
   nameSchema,
+  OPTIONS_MAX,
+  OTHER_MAX_CHARS,
   questionSchema,
+  QUESTIONS_MAX,
   roleSchema,
   roomSchema,
   roomSummarySchema,
@@ -21,7 +24,7 @@ export const TOPIC_MAX_CHARS = 200;
 
 export const SNAPSHOT_EVENT = 'snapshot';
 // Bump when a feed enum or event type grows, so an older app can tell it is behind.
-export const FEED_CONTRACT_VERSION = 7;
+export const FEED_CONTRACT_VERSION = 8;
 
 export const snapshotRoomSchema = roomSummarySchema.extend({
   agreements: z.array(agreementSchema).describe('Agreements still open and settled ones, oldest first.'),
@@ -29,6 +32,9 @@ export const snapshotRoomSchema = roomSummarySchema.extend({
   members: z.array(memberSchema).describe('Members still in the room, by name, the human seat too.'),
   messages: z.array(messageSchema).describe('The last 50 messages, oldest first, system lines too.'),
   questions: z.array(questionSchema).describe('Questions from agents still waiting for the human, oldest first.'),
+  settled_questions: z
+    .array(questionSchema)
+    .describe('Questions answered, replaced or expired, oldest first, so each asking line shows how it ended.'),
 });
 
 export const snapshotSchema = z.object({
@@ -150,8 +156,28 @@ export const approvalResultSchema = z.object({
   approvals: z.array(approvalSchema).describe('The approval as answered, one per room its seat is in.'),
 });
 
+// Typed text lands in the human line, so it stays on one line like every other field in it.
+const humanAnswerItemSchema = z.object({
+  other: z
+    .string()
+    .trim()
+    .min(1)
+    .max(OTHER_MAX_CHARS)
+    .regex(/^\P{Cc}*$/u, 'one line, no control characters')
+    .optional()
+    .describe('What the human typed in place of or next to a pick, one line, at most 300 chars.'),
+  picks: z
+    .array(z.number().int().nonnegative())
+    .max(OPTIONS_MAX)
+    .describe('Indexes of the picked options, from 0. Empty when the human only typed.'),
+});
+
 export const humanAnswerSchema = z.object({
-  option: z.number().int().nonnegative().describe('Index of the option the human picks, from 0.'),
+  answers: z
+    .array(humanAnswerItemSchema)
+    .min(1)
+    .max(QUESTIONS_MAX)
+    .describe('One answer per question, in the order they were asked.'),
 });
 
 export const answerResultSchema = z.object({

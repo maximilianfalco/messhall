@@ -1,10 +1,11 @@
 import type { BusEvent, MemberChange, RoomChange } from '../../contracts/events.ts';
 import type { Snapshot } from '../../contracts/feed.ts';
-import type { Agreement, Approval, Member, Message, Question, Room } from '../../contracts/room.ts';
+import type { Agreement, Approval, Member, Message, Question, QuestionItem, Room } from '../../contracts/room.ts';
 
 import pc from 'picocolors';
 
 import { HUMAN_NAME } from '../../contracts/room.ts';
+import { pickedLines } from '../rooms/questions.js';
 
 // Lines with no time line up under the text of lines that have one ("HH:MM  ").
 const GUTTER = ' '.repeat(7);
@@ -62,10 +63,11 @@ function approvalLine({ description, input_preview, member, state, tool }: Appro
   return pc.dim(`${GUTTER}${tag}· ${member} ${tool} ${APPROVAL_WORDS[state]}`);
 }
 
-const answerHint = ({ id, options }: Question) => `messhall answer ${id} <1-${options.length}>`;
+const answerHint = ({ id, questions }: Question) =>
+  `messhall answer ${id} ${questions.map(({ options }) => `<1-${options.length}>`).join(' ')}`;
 
 const CLOSED_QUESTION_WORDS: Record<Exclude<Question['state'], 'open'>, (question: Question) => string> = {
-  answered: ({ answer, options }) => `answered: ${options[answer ?? 0]}`,
+  answered: question => `answered: ${pickedLines(question).join(' | ')}`,
   expired: () => 'expired with no answer',
   replaced: () => 'replaced by a newer one',
 };
@@ -78,13 +80,16 @@ function questionLine(question: Question, tag: string) {
   return pc.dim(`${GUTTER}${tag}· ${member} question #${message_id} ${CLOSED_QUESTION_WORDS[state](question)}`);
 }
 
-// The asker's own line holds the question, but a watch that starts later only has the snapshot.
-const openQuestionLine = (question: Question) => {
-  const options = question.options.map((option, index) => `${index + 1}. ${option}`).join('  ');
-  return pc.yellow(
-    `${GUTTER}? ${question.member} asks you #${question.message_id}: ${question.question} ${options}. ${answerHint(question)}`,
-  );
+const itemText = ({ header, multi_select, options, question }: QuestionItem) => {
+  const labels = options.map(({ label }, index) => `${index + 1}. ${label}`).join('  ');
+  return `${header ? `${header}: ` : ''}${question}${multi_select ? ' (pick any)' : ''} ${labels}`;
 };
+
+// The asker's own line holds the question, but a watch that starts later only has the snapshot.
+const openQuestionLine = (question: Question) =>
+  pc.yellow(
+    `${GUTTER}? ${question.member} asks you #${question.message_id}: ${question.questions.map(itemText).join(' | ')}. ${answerHint(question)}`,
+  );
 
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
 const waitingOn = ({ confirmed, with: names }: Agreement) =>

@@ -5,7 +5,7 @@ import type { RoomStore } from '../rooms/store.js';
 import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
 import { CLI_VERSION, FEED_SNAPSHOT_MESSAGES } from '../config.js';
 
-/** Every room with its pending tool asks, open questions and live agreements, its members (those who left too, so old posts keep a sender) and last 50 messages, plus the event sequence it is current to and the daemon's build and contract versions. */
+/** Every room with its pending tool asks, open and settled questions and live agreements, its members (those who left too, so old posts keep a sender) and last 50 messages, plus the event sequence it is current to and the daemon's build and contract versions. */
 export function buildSnapshot({ build, store }: { build: Build | null; store: RoomStore }) {
   const snapshot: Snapshot = {
     build,
@@ -19,6 +19,7 @@ export function buildSnapshot({ build, store }: { build: Build | null; store: Ro
         members: store.listMembers(room.name, { left: true }),
         messages: page.ok ? page.messages : [],
         questions: store.openQuestions(room.name),
+        settled_questions: store.settledQuestions(room.name),
       };
     }),
     seq: store.events.bounds().last,

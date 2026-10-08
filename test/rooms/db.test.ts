@@ -305,4 +305,58 @@ describe('openDb', () => {
     });
     db.close();
   });
+
+  it('turns old one question rows and stored question events into a list of questions with answers', () => {
+    const old = new DatabaseSync(path.join(dataDir, 'messhall.db'));
+    old.function('client_label', { varargs: true }, () => null);
+    const before = MIGRATIONS.length - 1;
+    MIGRATIONS.slice(0, before).forEach(sql => old.exec(sql));
+    old.exec(`
+      PRAGMA user_version = ${before};
+      INSERT INTO rooms (id, name, created_at) VALUES ('r1', 'demo', 't0');
+      INSERT INTO questions (id, room_id, member, message_id, question, options, state, answer, created_at) VALUES
+        ('q1', 'r1', 'api', 1, 'merge now?', '["ship it","wait"]', 'answered', 1, 't0'),
+        ('q2', 'r1', 'api', 2, 'which db?', '["sqlite","pg","none"]', 'open', NULL, 't0');
+      INSERT INTO events (kind, payload, created_at) VALUES
+        ('question', '{"type":"question","room":"demo","question":{"id":"q1","question":"merge now?","options":["ship it","wait"],"answer":1,"state":"answered"}}', 't0'),
+        ('question', '{"type":"question","room":"demo","question":{"id":"q2","question":"which db?","options":["sqlite","pg","none"],"answer":null,"state":"open"}}', 't0');
+    `);
+    old.close();
+
+    const db = openDb({ dataDir });
+
+    const option = (label: string) => ({ description: null, label, recommended: false });
+    const merge = {
+      header: null,
+      multi_select: false,
+      options: [option('ship it'), option('wait')],
+      question: 'merge now?',
+    };
+    const store = {
+      header: null,
+      multi_select: false,
+      options: [option('sqlite'), option('pg'), option('none')],
+      question: 'which db?',
+    };
+    expect(
+      db
+        .prepare('select id, items, answers from questions order by id')
+        .all()
+        .map(row => ({ answers: JSON.parse(String(row.answers)), id: row.id, items: JSON.parse(String(row.items)) })),
+    ).toStrictEqual([
+      { answers: [{ other: null, picks: [1] }], id: 'q1', items: [merge] },
+      { answers: null, id: 'q2', items: [store] },
+    ]);
+    expect(db.prepare('select * from questions').get()).not.toHaveProperty('options');
+    expect(
+      db
+        .prepare('select payload from events order by seq')
+        .all()
+        .map(row => JSON.parse(String(row.payload)).question),
+    ).toStrictEqual([
+      { answers: [{ other: null, picks: [1] }], id: 'q1', questions: [merge], state: 'answered' },
+      { answers: null, id: 'q2', questions: [store], state: 'open' },
+    ]);
+    db.close();
+  });
 });

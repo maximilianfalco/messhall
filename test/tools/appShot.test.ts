@@ -221,7 +221,7 @@ describe('seedShotAsk', () => {
     expect(presence).toBe('active');
   });
 
-  it('leaves two open questions from two agents in #launch', () => {
+  it('leaves an answered question and two open ones, one of three questions, in #launch', () => {
     const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
     const now = new Date('2026-01-01T12:00:00.000Z');
     seedShotRooms({ dataDir, now });
@@ -231,11 +231,13 @@ describe('seedShotAsk', () => {
     const db = openDb({ dataDir });
     const store = createRoomStore({ db, now: () => now });
     const questions = store.openQuestions('launch');
+    const settled = store.settledQuestions('launch');
     db.close();
-    expect(questions.map(question => [question.member, question.options.length])).toStrictEqual([
-      ['api', 2],
-      ['web', 4],
+    expect(questions.map(question => [question.member, question.questions.length])).toStrictEqual([
+      ['api', 1],
+      ['web', 3],
     ]);
+    expect(settled.map(question => [question.member, question.state])).toStrictEqual([['mobile', 'answered']]);
   });
 
   it('leaves a long ask in #release whose real tail sits past the first lines', () => {
