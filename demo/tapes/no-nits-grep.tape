@@ -18,12 +18,12 @@ Type "clear"
 Enter
 Show
 
-Type "echo main; git --no-pager grep -ciE 'nits? alone|then nits|nits are your call|3. nit:' origin/main -- docs/briefs .claude/skills; echo exit $?"
+Type "echo main; git --no-pager grep -ciE 'nits? alone|then nits|nits are your call|3. nit:|should-fix and nits' origin/main -- docs/briefs .claude/skills app/Messhall/Resources/Templates; echo exit $?"
 Sleep 500ms
 Enter
 Sleep 3s
 
-Type "echo branch; git --no-pager grep -ciE 'nits? alone|then nits|nits are your call|3. nit:' -- docs/briefs .claude/skills; echo exit $?"
+Type "echo branch; git --no-pager grep -ciE 'nits? alone|then nits|nits are your call|3. nit:|should-fix and nits' -- docs/briefs .claude/skills app/Messhall/Resources/Templates; echo exit $?"
 Sleep 500ms
 Enter
 Sleep 3s
