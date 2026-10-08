@@ -1203,10 +1203,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return room ? questionsSql.openIn.all(room.id).map(toQuestion) : [];
     },
 
-    /** The questions in a room answered, replaced or expired, oldest first. */
-    settledQuestions(roomName: string) {
+    /** The questions in a room answered, replaced or expired, oldest first, asked at or after `fromMessage`. */
+    settledQuestions(roomName: string, { fromMessage = 0 }: { fromMessage?: number } = {}) {
       const room = findRoom(roomName);
-      return room ? questionsSql.settledIn.all(room.id).map(toQuestion) : [];
+      return room ? questionsSql.settledIn.all(room.id, fromMessage).map(toQuestion) : [];
     },
 
     /** One seat's open questions in a room, oldest first. */

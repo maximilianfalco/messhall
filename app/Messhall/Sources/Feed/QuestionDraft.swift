@@ -8,6 +8,9 @@ public struct QuestionDraft: Equatable, Sendable {
     var otherOn = false
   }
 
+  /// The daemon refuses longer typed text, so the box stops here.
+  public static let otherMax = 300
+
   private let items: [QuestionItem]
   private var entries: [Entry]
 
@@ -35,6 +38,7 @@ public struct QuestionDraft: Equatable, Sendable {
 
   /// Typing on a pick one question makes the typed text its one choice.
   public mutating func setOther(_ text: String, in item: Int) {
+    let text = String(text.prefix(Self.otherMax))
     entries[item].other = text
     entries[item].otherOn = !Self.trim(text).isEmpty
     if !items[item].multiSelect, entries[item].otherOn { entries[item].picks = [] }

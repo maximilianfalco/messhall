@@ -23,7 +23,9 @@ export function questionSql(db: DatabaseSync) {
     replace: db.prepare(
       "UPDATE questions SET state = 'replaced', answered_at = ? WHERE room_id = ? AND member = ? AND state = 'open' RETURNING *",
     ),
-    settledIn: db.prepare("SELECT * FROM questions WHERE room_id = ? AND state != 'open' ORDER BY created_at, rowid"),
+    settledIn: db.prepare(
+      "SELECT * FROM questions WHERE room_id = ? AND state != 'open' AND message_id >= ? ORDER BY created_at, rowid",
+    ),
   };
 }
 

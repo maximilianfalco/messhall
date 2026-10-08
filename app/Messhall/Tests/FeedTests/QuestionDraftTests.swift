@@ -70,6 +70,15 @@ struct QuestionDraftTests {
     #expect(draft.answers == [QuestionAnswer(picks: [1], other: "lint")])
   }
 
+  @Test("typed text stops at the daemon's 300 char cap")
+  func otherCap() {
+    var draft = QuestionDraft(items: [merge])
+
+    draft.setOther(String(repeating: "a", count: 310), in: 0)
+
+    #expect(draft.other(in: 0) == String(repeating: "a", count: 300))
+  }
+
   @Test("blank typed text counts as nothing")
   func blank() {
     var draft = QuestionDraft(items: [merge])
