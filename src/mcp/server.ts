@@ -12,6 +12,7 @@ import { registerAgreements, registerConfirm, registerPropose, registerReject } 
 import { registerAskHuman } from './tools/askHuman.js';
 import { registerAssignRole } from './tools/assignRole.js';
 import { registerDoorbellOk } from './tools/doorbellOk.js';
+import { registerEditPost, registerRemovePost } from './tools/editPost.js';
 import { registerJoin } from './tools/join.js';
 import { registerKick } from './tools/kick.js';
 import { registerLeave } from './tools/leave.js';
@@ -30,6 +31,7 @@ const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: s
   ask_human: registerAskHuman,
   confirm: registerConfirm,
   doorbell_ok: registerDoorbellOk,
+  edit_post: registerEditPost,
   assign_role: registerAssignRole,
   join: registerJoin,
   kick: registerKick,
@@ -42,6 +44,7 @@ const TOOLS: Record<ToolName, (server: McpServer, deps: ToolDeps, description: s
   propose: registerPropose,
   read_since: registerReadSince,
   reject: registerReject,
+  remove_post: registerRemovePost,
   set_status: registerSetStatus,
   set_topic: registerSetTopic,
   wait: registerWait,

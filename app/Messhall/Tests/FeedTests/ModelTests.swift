@@ -22,6 +22,7 @@ struct ModelTests {
     arguments: [
       ("MessageEvent", "message"), ("MemberEvent", "member"), ("PresenceEvent", "presence"), ("RoomEvent", "room"),
       ("ApprovalEvent", "approval"), ("QuestionEvent", "question"), ("AgreementEvent", "agreement"),
+      ("MessageEditEvent", "message_edit"),
     ])
   func busEvent(name: String, type: String) throws {
     let event = try Fixture.decode(BusEvent.self, name)

@@ -23,7 +23,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
 	<key>MesshallFeedContract</key>
-	<integer>6</integer>
+	<integer>7</integer>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

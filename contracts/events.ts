@@ -34,6 +34,12 @@ export const messageEventSchema = z.object({
   type: z.literal('message').describe('A message was posted.'),
 });
 
+export const messageEditEventSchema = z.object({
+  message: messageSchema.describe('The message after the sender edited or took it back.'),
+  room: nameSchema.describe('Room name.'),
+  type: z.literal('message_edit').describe('The sender changed or took back a post. Nobody is rung for it.'),
+});
+
 export const memberEventSchema = z.object({
   change: z
     .enum(MEMBER_CHANGES)
@@ -84,6 +90,7 @@ export const agreementEventSchema = z.object({
 export const busEventSchema = z
   .discriminatedUnion('type', [
     messageEventSchema,
+    messageEditEventSchema,
     memberEventSchema,
     presenceEventSchema,
     roomEventSchema,

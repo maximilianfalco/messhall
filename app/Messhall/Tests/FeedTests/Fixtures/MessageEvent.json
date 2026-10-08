@@ -10,6 +10,8 @@
     "kind": "done",
     "text": "form updated",
     "mentions": [],
+    "edited_at": null,
+    "removed_at": null,
     "created_at": "2026-01-01T09:02:00.000Z"
   }
 }

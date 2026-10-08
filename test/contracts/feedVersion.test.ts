@@ -89,6 +89,7 @@ describe('FEED_CONTRACT_VERSION', () => {
         },
         "event_types": [
           "message",
+          "message_edit",
           "member",
           "presence",
           "room",
@@ -96,7 +97,7 @@ describe('FEED_CONTRACT_VERSION', () => {
           "question",
           "agreement",
         ],
-        "version": 6,
+        "version": 7,
       }
     `);
   });
