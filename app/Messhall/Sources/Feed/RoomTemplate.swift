@@ -90,7 +90,7 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
           Ask the human which projects they work on. Post a plan: one room per project, with its topic. For \
           each room give two lines the human pastes themselves, the launch line `messhall claude --room <room>` \
           for a new session, and the join prompt for one already running: Join the messhall room #<room> with \
-          the messhall MCP tools: call join (room "<room>", pick a short role name), then call wait.
+          the messhall MCP tools: call join (room "<room>", as a short name you pick for yourself from the work you own), then call wait.
           Use ask_human to get the okay on the plan, then create nothing else. Warn that a session that already \
           reports to another tool may get confused about where to post.
           """
