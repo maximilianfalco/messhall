@@ -147,6 +147,13 @@ struct AvatarColorOverrideTests {
     #expect(avatarRGB(for: "web", in: settings) == avatarFill(hue: avatarHue(for: "web")))
   }
 
+  @Test("only the human sits on the accent color")
+  func onlyHumanUsesAccent() {
+    #expect(avatarUsesAccent(humanName))
+    #expect(!avatarUsesAccent("web"))
+    #expect(!avatarUsesAccent("human-rooms"))
+  }
+
   @Test("the label ink is white on a dark fill and black on a light one")
   func ink() {
     #expect(avatarInk(on: avatarFill(hue: 200)) == .white)

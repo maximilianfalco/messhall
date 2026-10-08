@@ -16,6 +16,7 @@ Repo rules for Messhall. The global `~/CLAUDE.md` still applies; these add to it
 - `main` is the only long-lived branch. Never build on it.
 - One branch per job, named after the slice: `f1/store`, `f2/mcp-tools`. Commit on the branch as often as useful (this overrides the global "no automatic commits" rule for this repo).
 - Work runs in git worktrees under `.worktrees/<name>` (gitignored): `git worktree add .worktrees/f1-store -b f1/store --no-track origin/main`, then `pnpm install` and link `personal-dev-notes.md` in. Remove the worktree after the merge.
+- Pushing your own job branch and opening its PR, once `pnpm messhall-dev check` is green, needs no ask: the owner okays it up front for every job in this repo (this overrides the global "never push unless told" rule here). Never push `main`, another agent's branch or a force push.
 - Push a branch once, when the gate is green. Open the PR, let CI run once, then squash-merge with `gh pr merge <n> --squash --admin` (never a merge commit or a rebase onto `main`). `main` has a ruleset: PRs only, squash only, one code owner review, signed commits, no force push. The owner merges through the admin bypass, which is why `--admin` is needed. When `main` moves under an open branch, `git merge origin/main` into it. Never rebase or force-push a pushed branch.
 - Merge without asking when CI is green, except PRs that touch a `CRITICAL.md` tree (they get the **human veto** label): those wait for the owner.
 - Commit and PR titles are title-only conventional commits. No bodies, no AI credit.
