@@ -198,7 +198,12 @@ public final class FeedStore {
     case .question(let e):
       update(e.room) { room in
         room.questions.removeAll { $0.id == e.question.id }
-        if e.question.state == .open { room.questions.append(e.question) }
+        room.settledQuestions.removeAll { $0.id == e.question.id }
+        if e.question.state == .open {
+          room.questions.append(e.question)
+        } else {
+          room.settledQuestions.append(e.question)
+        }
       }
     case .agreement(let e):
       update(e.room) { room in

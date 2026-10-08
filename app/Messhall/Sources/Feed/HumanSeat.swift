@@ -51,8 +51,8 @@ public struct HumanSeat: Sendable {
     await send(.answer(approval: approval.id, allow: allow), as: ApprovalResult.self) { $0.approvals }
   }
 
-  public func answer(_ question: Question, option: Int) async -> Outcome<AnswerResult> {
-    await send(.pick(question: question.id, option: option), as: AnswerResult.self) { $0 }
+  public func answer(_ question: Question, with answers: [QuestionAnswer]) async -> Outcome<AnswerResult> {
+    await send(.pick(question: question.id, answers: answers), as: AnswerResult.self) { $0 }
   }
 
   private func send<Body: Decodable, Value>(

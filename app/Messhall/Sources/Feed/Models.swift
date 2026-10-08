@@ -4,7 +4,7 @@ import Foundation
 
 /// The feed contract this app was built against. A newer daemon sends a higher one.
 public enum FeedContract {
-  public static let version = 7
+  public static let version = 8
 }
 
 /// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
@@ -55,22 +55,70 @@ public enum QuestionState: String, OpenEnum, CaseIterable, Sendable {
   case open, answered, expired, replaced, unknown
 }
 
-/// An agent's question to the human with 2 to 4 options. `question` and `options` are the agent's own text.
+/// One option of a question. `label` and `description` are the agent's own text.
+public struct QuestionOption: Codable, Equatable, Sendable {
+  public var label: String
+  public var description: String?
+  public var recommended: Bool
+
+  public init(label: String, description: String? = nil, recommended: Bool = false) {
+    self.label = label
+    self.description = description
+    self.recommended = recommended
+  }
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case label, description, recommended }
+}
+
+/// One question in an ask, with 2 to 4 options. `header` is nil on an ask made with one plain question.
+public struct QuestionItem: Codable, Equatable, Sendable {
+  public var header: String?
+  public var question: String
+  public var multiSelect: Bool
+  public var options: [QuestionOption]
+
+  public init(header: String?, question: String, multiSelect: Bool = false, options: [QuestionOption]) {
+    self.header = header
+    self.question = question
+    self.multiSelect = multiSelect
+    self.options = options
+  }
+
+  enum CodingKeys: String, CodingKey, CaseIterable {
+    case header, question, options
+    case multiSelect = "multi_select"
+  }
+}
+
+/// The human's answer to one question: the picked option indexes from 0, and what they typed, if anything.
+public struct QuestionAnswer: Codable, Equatable, Sendable {
+  public var picks: [Int]
+  public var other: String?
+
+  public init(picks: [Int], other: String? = nil) {
+    self.picks = picks
+    self.other = other
+  }
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case picks, other }
+}
+
+/// An agent's ask to the human: 1 to 4 questions, each with its own options. All text in it is the agent's own.
 public struct Question: Codable, Equatable, Identifiable, Sendable {
   public var id: String
   public var room: String
   public var member: String
   public var messageId: Int
-  public var question: String
-  public var options: [String]
+  public var items: [QuestionItem]
   public var state: QuestionState
-  /// The picked option's index, from 0. Nil until answered.
-  public var answer: Int?
+  /// One answer per question, nil until answered.
+  public var answers: [QuestionAnswer]?
   public var createdAt: String
   public var answeredAt: String?
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case id, room, member, question, options, state, answer
+    case id, room, member, state, answers
+    case items = "questions"
     case messageId = "message_id"
     case createdAt = "created_at"
     case answeredAt = "answered_at"
@@ -196,9 +244,15 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
   public var messages: [Message]
   public var approvals: [Approval] = []
   public var questions: [Question] = []
+  /// Questions answered, replaced or expired, so their asking lines show how they ended.
+  public var settledQuestions: [Question] = []
   public var agreements: [Agreement] = []
 
   public var isOpen: Bool { closedAt == nil }
+  /// The question each asking line carries, by its message id.
+  public var asks: [Int: Question] {
+    Dictionary((settledQuestions + questions).map { ($0.messageId, $0) }, uniquingKeysWith: { _, open in open })
+  }
   /// The asks a seat's agent is waiting on, oldest first.
   public func approvals(for member: String) -> [Approval] { approvals.filter { $0.member == member } }
   public var oldestLoadedId: Int? { messages.first?.id }
@@ -223,6 +277,7 @@ public struct SnapshotRoom: Codable, Equatable, Identifiable, Sendable {
     case closedAt = "closed_at"
     case messageCount = "message_count"
     case firstMessageId = "first_message_id"
+    case settledQuestions = "settled_questions"
   }
 
   init(room: Room) {
@@ -534,9 +589,9 @@ public struct ApprovalResult: Codable, Equatable, Sendable {
 }
 
 public struct HumanAnswer: Codable, Equatable, Sendable {
-  public var option: Int
+  public var answers: [QuestionAnswer]
 
-  enum CodingKeys: String, CodingKey, CaseIterable { case option }
+  enum CodingKeys: String, CodingKey, CaseIterable { case answers }
 }
 
 /// The question as answered, and the human line that carries the answer.

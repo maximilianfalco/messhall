@@ -106,15 +106,19 @@ struct FeedClientTests {
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
   }
 
-  @Test("a pick posts the option's index to the question's own path")
+  @Test("a pick posts one answer per question to the question's own path, typed text only when there is some")
   func pick() throws {
-    let request = try client(key: "k1").request(.pick(question: "7e2a9c41-3b5d-4f60-a8e1-5c4d2b1f0a93", option: 2))
+    let answers = [QuestionAnswer(picks: [2]), QuestionAnswer(picks: [], other: "after lunch")]
+    let request = try client(key: "k1").request(
+      .pick(question: "7e2a9c41-3b5d-4f60-a8e1-5c4d2b1f0a93", answers: answers))
 
     #expect(request.httpMethod == "POST")
     #expect(
       request.url?.absoluteString == "http://127.0.0.1:7796/api/questions/7e2a9c41-3b5d-4f60-a8e1-5c4d2b1f0a93")
     #expect(request.value(forHTTPHeaderField: "content-type") == "application/json")
-    #expect(request.httpBody == Data(#"{"option":2}"#.utf8))
+    let body = try JSONDecoder().decode(HumanAnswer.self, from: try #require(request.httpBody))
+    #expect(body.answers == answers)
+    #expect(!String(decoding: try #require(request.httpBody), as: UTF8.self).contains("null"))
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
   }
 

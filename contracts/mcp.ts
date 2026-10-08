@@ -4,6 +4,8 @@ import { TOPIC_MAX_CHARS } from './feed.ts';
 import {
   AGREEMENT_MAX_CHARS,
   AGREEMENT_WITH_MAX,
+  DESCRIPTION_MAX_CHARS,
+  HEADER_MAX_CHARS,
   INSTRUCTIONS_MAX_CHARS,
   launchSchema,
   nameSchema,
@@ -11,6 +13,7 @@ import {
   OPTIONS_MAX,
   OPTIONS_MIN,
   QUESTION_MAX_CHARS,
+  QUESTIONS_MAX,
   roleSchema,
   STATUS_MAX_CHARS,
 } from './room.ts';
@@ -168,21 +171,66 @@ export const myRoleInputSchema = z.object({
   room: roomField.describe('Room you joined.'),
 });
 
-// A label lands in a human line, so it holds no @ that could ring or name anyone.
-const optionField = oneLine(OPTION_MAX_CHARS)
-  .trim()
-  .min(1)
-  .regex(/^[^@]*$/, 'no @');
+// A label or a header lands in a human line, so it holds no @ that could ring or name anyone.
+const humanLineField = (max: number) =>
+  oneLine(max)
+    .trim()
+    .min(1)
+    .regex(/^[^@]*$/, 'no @');
+const optionField = humanLineField(OPTION_MAX_CHARS);
+const questionText = z.string().trim().min(1).max(QUESTION_MAX_CHARS);
 
-export const askHumanInputSchema = z.object({
-  options: z
-    .array(optionField)
-    .min(OPTIONS_MIN)
-    .max(OPTIONS_MAX)
-    .describe('2 to 4 button labels, at most 40 chars each, one line, no @. Like ["ship it", "wait for review"].'),
-  question: z.string().trim().min(1).max(QUESTION_MAX_CHARS).describe('What you ask the human, at most 500 chars.'),
-  room: roomField.describe('Room you joined.'),
+const askOptionSchema = z.object({
+  description: oneLine(DESCRIPTION_MAX_CHARS)
+    .trim()
+    .min(1)
+    .optional()
+    .describe('One line under the label that says what picking it means, at most 120 chars.'),
+  label: optionField.describe('The option, at most 40 chars, one line, no @. Like "ship it".'),
+  recommended: z.boolean().optional().describe('True on the one option you recommend. At most one per question.'),
 });
+
+const askItemSchema = z
+  .object({
+    header: humanLineField(HEADER_MAX_CHARS).describe('A short chip for the question, at most 12 chars. Like "Merge".'),
+    multi_select: z
+      .boolean()
+      .optional()
+      .describe('True when the human may pick any number of options. Left out, they pick exactly one.'),
+    options: z
+      .array(askOptionSchema)
+      .min(OPTIONS_MIN)
+      .max(OPTIONS_MAX)
+      .describe('2 to 4 options. The human can always type their own answer instead.'),
+    question: questionText.describe('What you ask, at most 500 chars.'),
+  })
+  .refine(item => item.options.filter(option => option.recommended).length <= 1, 'at most one recommended option');
+
+// The one question shape from before the list stays, so an older agent's call still works.
+export const askHumanInputSchema = z
+  .object({
+    options: z
+      .array(optionField)
+      .min(OPTIONS_MIN)
+      .max(OPTIONS_MAX)
+      .optional()
+      .describe('Short form with question: 2 to 4 labels, at most 40 chars each, no @. Leave out with questions.'),
+    question: questionText
+      .optional()
+      .describe('Short form: one question, at most 500 chars, with options. Leave out with questions.'),
+    questions: z
+      .array(askItemSchema)
+      .min(1)
+      .max(QUESTIONS_MAX)
+      .optional()
+      .describe('1 to 4 questions, each with a header, the question and 2 to 4 options.'),
+    room: roomField.describe('Room you joined.'),
+  })
+  .refine(
+    ({ options, question, questions }) =>
+      questions ? question === undefined && options === undefined : question !== undefined && options !== undefined,
+    'send questions, or question with options, not both',
+  );
 
 const agreementText = oneLine(AGREEMENT_MAX_CHARS).trim().min(1);
 const agreementId = z.number().int().positive();

@@ -16,19 +16,33 @@ afterEach(async () => {
   await feed.close();
 });
 
-const asked = () => {
-  const result = feed.scratch.store.askQuestion({
-    as: 'api',
-    options: ['ship it', 'wait'],
-    question: 'merge now?',
-    room: 'demo',
-  });
+const item = (header: string | null, labels: string[], multi_select = false) => ({
+  header,
+  multi_select,
+  options: labels.map(label => ({ description: null, label, recommended: false })),
+  question: 'merge now?',
+});
+
+const asked = (questions = [item(null, ['ship it', 'wait'])]) => {
+  const result = feed.scratch.store.askQuestion({ as: 'api', questions, room: 'demo' });
   if (!result.ok) throw new Error(result.reason);
   return result.question;
 };
 
 const answer = (overrides: Partial<Parameters<typeof runAnswer>[0]> = {}) =>
-  runAnswer({ dataDir: feed.scratch.dataDir, fetch, id: asked().id, option: '2', url: feed.url, ...overrides });
+  runAnswer({
+    dataDir: feed.scratch.dataDir,
+    fetch,
+    id: overrides.id ?? asked().id,
+    picks: ['2'],
+    url: feed.url,
+    ...overrides,
+  });
+
+const lastText = () => {
+  const last = feed.scratch.store.listMessages({ limit: 1, room: 'demo' });
+  return last.ok ? last.messages[0]?.text : undefined;
+};
 
 describe('runAnswer', () => {
   it('picks the numbered option as the human and prints the answer line', async () => {
@@ -42,20 +56,31 @@ describe('runAnswer', () => {
     });
   });
 
-  it.each(['0', '1.5', 'two'])('refuses option %s before calling the daemon', async option => {
-    const result = await answer({ option, url: 'http://127.0.0.1:1' });
+  it('takes one answer per question: a number, numbers with commas, or words of your own', async () => {
+    const question = asked([item('Merge', ['ship it', 'wait']), item('Suites', ['unit', 'e2e', 'smoke'], true)]);
+
+    const result = await answer({ id: question.id, picks: ['after lunch', '1,3'] });
+
+    expect(result.code).toBe(0);
+    expect(lastText()).toBe(
+      [`@api answer to your question #${question.message_id}:`, 'Merge: "after lunch"', 'Suites: unit, smoke'].join(
+        '\n',
+      ),
+    );
+  });
+
+  it.each(['0', '1,0'])('refuses pick %s before calling the daemon', async pick => {
+    const result = await answer({ picks: [pick], url: 'http://127.0.0.1:1' });
 
     expect(result.code).toBe(1);
-    expect(stripVTControlCharacters(result.output)).toBe(`option is a button number from 1, not ${option}`);
+    expect(stripVTControlCharacters(result.output)).toBe(`a pick is a number from 1, not ${pick}`);
   });
 
   it('passes on the daemon refusal in one line', async () => {
-    const result = await answer({ option: '3' });
+    const result = await answer({ picks: ['3'] });
 
     expect(result.code).toBe(1);
-    expect(stripVTControlCharacters(result.output)).toMatch(
-      /^messhall refused the answer: question .* has no option 2$/,
-    );
+    expect(stripVTControlCharacters(result.output)).toMatch(/^messhall refused the answer: those answers do not fit/);
   });
 
   it('says the daemon is down in one line', async () => {

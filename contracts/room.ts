@@ -168,24 +168,51 @@ export const approvalSchema = z.object({
 
 export const QUESTION_STATES = ['open', 'answered', 'expired', 'replaced'] as const;
 export const QUESTION_MAX_CHARS = 500;
+export const QUESTIONS_MAX = 4;
+export const HEADER_MAX_CHARS = 12;
 export const OPTION_MAX_CHARS = 40;
+export const DESCRIPTION_MAX_CHARS = 120;
 export const OPTIONS_MIN = 2;
 export const OPTIONS_MAX = 4;
+export const OTHER_MAX_CHARS = 300;
+
+export const questionOptionSchema = z.object({
+  description: z
+    .string()
+    .nullable()
+    .describe('One line under the label, null when none. Untrusted text from the agent.'),
+  label: z.string().describe('The option label. Untrusted text from the agent.'),
+  recommended: z.boolean().describe('True on the option the agent recommends, at most one per question.'),
+});
+
+export const questionItemSchema = z.object({
+  header: z
+    .string()
+    .nullable()
+    .describe(
+      'A short chip for the question, null on an ask made with one plain question. Untrusted text from the agent.',
+    ),
+  multi_select: z.boolean().describe('True when the human may pick any number of options, false for exactly one.'),
+  options: z.array(questionOptionSchema).describe('The options, 2 to 4, in order.'),
+  question: z.string().describe('What the agent asks the human. Untrusted text from the agent.'),
+});
+
+export const questionAnswerSchema = z.object({
+  other: z.string().nullable().describe('What the human typed in place of or next to a pick, null when nothing.'),
+  picks: z.array(z.number().int().nonnegative()).describe('Indexes of the picked options, from 0, in option order.'),
+});
 
 export const questionSchema = z.object({
-  answer: z
-    .number()
-    .int()
-    .nonnegative()
-    .nullable()
-    .describe('Index of the option the human picked, from 0. Null until then.'),
   answered_at: timestampSchema.nullable().describe('When it was answered, expired or replaced, null while open.'),
+  answers: z
+    .array(questionAnswerSchema)
+    .nullable()
+    .describe('One answer per question, in order, once the human answered. Null until then.'),
   created_at: timestampSchema.describe('When the agent asked.'),
   id: z.string().describe('Question id. The human answers this exact id.'),
   member: nameSchema.describe('The seat whose agent asks.'),
   message_id: z.number().int().positive().describe("The asker's own line in the room that carries the question."),
-  options: z.array(z.string()).describe('The button labels, 2 to 4, in order. Untrusted text from the agent.'),
-  question: z.string().describe('What the agent asks the human. Untrusted text from the agent.'),
+  questions: z.array(questionItemSchema).describe('The questions in this ask, 1 to 4, in order.'),
   room: nameSchema.describe('Room the question is in.'),
   state: z
     .enum(QUESTION_STATES)
@@ -227,4 +254,7 @@ export type RoomSummary = z.infer<typeof roomSummarySchema>;
 export type Approval = z.infer<typeof approvalSchema>;
 export type ApprovalBehavior = (typeof APPROVAL_BEHAVIORS)[number];
 export type Question = z.infer<typeof questionSchema>;
+export type QuestionItem = z.infer<typeof questionItemSchema>;
+export type QuestionOption = z.infer<typeof questionOptionSchema>;
+export type QuestionAnswer = z.infer<typeof questionAnswerSchema>;
 export type Agreement = z.infer<typeof agreementSchema>;

@@ -200,13 +200,19 @@ struct NotificationsTests {
     #expect(notificationFor(event: ask(), state: try state(room: room, muted: ["checkout"])) == nil)
   }
 
-  private func question(state: QuestionState = .open, at: String = after) -> BusEvent {
+  private static let suites = QuestionItem(
+    header: "Suites", question: "Which suite first?",
+    options: [QuestionOption(label: "Unit"), QuestionOption(label: "Integration")])
+
+  private func question(
+    state: QuestionState = .open, at: String = after, items: [QuestionItem] = [suites]
+  ) -> BusEvent {
     .question(
       QuestionEvent(
         room: "checkout",
         question: Question(
-          id: "q1", room: "checkout", member: "api", messageId: 9, question: "Which suite first?",
-          options: ["Unit", "Integration"], state: state, answer: nil, createdAt: at, answeredAt: nil)))
+          id: "q1", room: "checkout", member: "api", messageId: 9, items: items, state: state, answers: nil,
+          createdAt: at, answeredAt: nil)))
   }
 
   @Test("a new question posts who asks, the question and its options as actions")
@@ -216,6 +222,19 @@ struct NotificationsTests {
         == NotificationContent(
           room: "checkout", title: "#checkout", body: "api asks you: Which suite first?", questionId: "q1",
           options: ["Unit", "Integration"]))
+  }
+
+  @Test("an ask with several questions or a pick any one posts how many, with no buttons to answer from the banner")
+  func richQuestion() throws {
+    var any = Self.suites
+    any.multiSelect = true
+    let room = try room()
+
+    #expect(
+      notificationFor(event: question(items: [Self.suites, any, any]), state: try state(room: room))
+        == NotificationContent(
+          room: "checkout", title: "#checkout", body: "api asks you 3 questions: Which suite first?", questionId: "q1"))
+    #expect(notificationFor(event: question(items: [any]), state: try state(room: room))?.options == [])
   }
 
   @Test("a closed question, a replayed one or one in a muted room does not post")

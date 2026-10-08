@@ -247,13 +247,15 @@ export function humanRoutes({
     const body = await readJson(req);
     const parsed = humanAnswerSchema.safeParse(body.ok ? body.value : undefined);
     if (!parsed.success) {
-      sendJson(res, 400, { error: 'send json { option }: the index of the picked button, from 0' });
+      sendJson(res, 400, {
+        error: 'send json { answers }: per question, { picks } from 0 and an optional one line other',
+      });
       return;
     }
-    const result = store.answerQuestion({ id, option: parsed.data.option });
+    const result = store.answerQuestion({ answers: parsed.data.answers, id });
     if (result.ok) sendJson(res, 200, { message: result.message, question: result.question } satisfies AnswerResult);
-    else if (result.reason === 'bad_option') {
-      sendJson(res, 400, { error: `question ${id} has no option ${parsed.data.option}` });
+    else if (result.reason === 'bad_answer') {
+      sendJson(res, 400, { error: `those answers do not fit question ${id}: one per question, picks in range` });
     } else sendJson(res, 404, { error: `no open question ${id}: wrong id, or it was answered, replaced or expired` });
   };
 
