@@ -14,6 +14,8 @@ const IDLE_PANE = ' ────────\n ❯ \n ────────\n
 const MENU_PANE = ' Do you want to proceed?\n ❯ 1. Yes\n   2. No\n\n Esc to cancel · Tab to amend';
 
 const result = (stdout = ''): RunResult => ({ code: 0, stderr: '', stdout });
+const cLocalePane = (format: string, command: string) =>
+  format.replace('#{session_name}', 'messhall-B106').replace('#{pane_start_command}', command).replaceAll('\t', '_');
 const seat = (name: string, kind: 'claude' | 'codex' | 'other', seatKey: string | null, room = 'dev') => ({
   kind,
   name,
@@ -24,10 +26,10 @@ const seat = (name: string, kind: 'claude' | 'codex' | 'other', seatKey: string 
 describe('tmuxSeats', () => {
   it('maps each pane started with an mcp config in the spawn dir to the seat key in that config', () => {
     const listing = [
-      `messhall-B106\tclaude --mcp-config '${SPAWN_DIR}/B106-mcp.json' --strict-mcp-config`,
-      `messhall_dev_api\t/bin/zsh -lic "claude --mcp-config '\\''${SPAWN_DIR}/dev_api-mcp.json'\\'' --allowedTools"`,
-      `scratch\tclaude --mcp-config '/tmp/other/spawn/x-mcp.json'`,
-      `shell\t/bin/zsh`,
+      `messhall-B106:claude --mcp-config '${SPAWN_DIR}/B106-mcp.json' --strict-mcp-config`,
+      `messhall_dev_api:/bin/zsh -lic "claude --mcp-config '\\''${SPAWN_DIR}/dev_api-mcp.json'\\'' --allowedTools"`,
+      `scratch:claude --mcp-config '/tmp/other/spawn/x-mcp.json'`,
+      `shell:/bin/zsh`,
     ].join('\n');
     const keys: Record<string, string> = { 'B106-mcp.json': 'seat-b106', 'dev_api-mcp.json': 'seat-api' };
 
@@ -89,7 +91,8 @@ describe('wakeSeats', () => {
     const tmux = (args: string[]) => {
       calls.push(args);
       const config = path.join(dataDir, 'spawn', 'B106-mcp.json');
-      if (args[0] === 'list-panes') return Promise.resolve(result(`messhall-B106\tclaude --mcp-config '${config}'`));
+      const command = `claude --mcp-config '${config}'`;
+      if (args[0] === 'list-panes') return Promise.resolve(result(cLocalePane(args.at(-1)!, command)));
       if (args[0] === 'display-message') return Promise.resolve(result('✳ Claude Code\n'));
       return Promise.resolve(result(args[0] === 'capture-pane' ? pane : ''));
     };
@@ -121,6 +124,15 @@ describe('wakeSeats', () => {
         threadId: 'thread-1',
       },
     ]);
+  });
+
+  it('finds the pane when tmux runs with no utf-8 locale, as under launchd, where a tab prints as _', async () => {
+    const { calls, codex, seats, tmux } = run({ pane: IDLE_PANE });
+
+    const woken = await wakeSeats({ codex, dataDir, seats: seats.slice(0, 1), settleMs: 0, tmux });
+
+    expect(woken.map(target => target.outcome)).toStrictEqual(['sent']);
+    expect(calls).toContainEqual(['send-keys', '-t', '=messhall-B106:', '-l', wakeText(['dev'])]);
   });
 
   it('never types into a pane that shows a menu, since a key there would pick an option', async () => {
