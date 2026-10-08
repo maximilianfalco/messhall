@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { PERMISSION_METHOD, PERMISSION_REQUEST_METHOD, sendVerdict } from '../../src/mcp/permission.js';
 import { createMesshallServer } from '../../src/mcp/server.js';
 import { createSession, createSessionRegistry } from '../../src/mcp/session.js';
-import { connectInMemory } from '../../src/mcp/testing.js';
+import { connectInMemory, scratchSpawner } from '../../src/mcp/testing.js';
 import { fakeCodexRpc } from '../codex/fakeCodex.js';
 import { scratchStore } from '../rooms/scratch.js';
 
@@ -41,6 +41,7 @@ async function claude() {
         now: scratch.clock.now,
         session,
         sessions,
+        spawner: scratchSpawner,
         store: scratch.store,
       });
       return server;

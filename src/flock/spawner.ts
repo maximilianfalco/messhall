@@ -8,6 +8,7 @@ import { userInfo } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { HUMAN_NAME } from '../../contracts/room.ts';
 import { SPAWN_READY_MS } from '../config.js';
 import { KEY_FILES, KEY_HEADER } from '../daemon/keys.js';
 import { logger } from '../lib/logger.js';
@@ -29,7 +30,7 @@ interface Seat {
   room: string;
 }
 
-type Ready = 'dropped' | 'login' | 'seated' | 'timeout';
+type Ready = 'dropped' | 'login' | 'seated' | 'timeout' | 'untrusted';
 
 /** The tmux session a spawned seat runs in. Names never hold `_`, so room and name can never run together. */
 export const sessionName = ({ name, room }: Seat) => `${SESSION_PREFIX}${room}_${name}`;
@@ -150,7 +151,8 @@ export function createSpawner({
   const presenceOf = ({ name, room }: Seat) => store.listMembers(room).find(member => member.name === name)?.presence;
 
   // Answers dialogs until the agent's first call takes the seat, or a login screen or the deadline stops it.
-  const waitSeated = async (seat: Seat) => {
+  // Only a seat the human asked for may trust its folder, since an agent picks the cwd of its own spawns.
+  const waitSeated = async (seat: Seat, { trust }: { trust: boolean }) => {
     const target = exactTarget(seat);
     const ready = await until<Ready>(
       Date.now() + readyWithinMs,
@@ -161,6 +163,7 @@ export function createSpawner({
         const dialog = dialogKeys((await tmux(['capture-pane', '-p', '-t', target])).stdout);
         if (dialog.kind === 'login') return 'login';
         if (dialog.kind === 'none') return;
+        if (dialog.kind === 'trust' && !trust) return 'untrusted';
         await tmux(['send-keys', '-t', target, ...dialog.keys]);
         await sleep(settleMs);
       },
@@ -220,7 +223,7 @@ export function createSpawner({
         await giveUp(seat);
         return { detail: started.stderr.trim(), ok: false, reason: 'tmux' } as const;
       }
-      const ready = await waitSeated(seat);
+      const ready = await waitSeated(seat, { trust: by === HUMAN_NAME });
       if (ready !== 'seated') {
         await giveUp(seat);
         return { ok: false, reason: ready } as const;

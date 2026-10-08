@@ -10,7 +10,7 @@ import { codexControlSocket } from '../../../src/config.js';
 import { TEXT_BUDGET, TOOL_NAMES } from '../../../src/mcp/constants.js';
 import { createMesshallServer } from '../../../src/mcp/server.js';
 import { createSession, createSessionRegistry } from '../../../src/mcp/session.js';
-import { connectInMemory } from '../../../src/mcp/testing.js';
+import { connectInMemory, scratchSpawner } from '../../../src/mcp/testing.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
 import { bad, dim, formatTable, ok } from '../lib/print.js';
@@ -65,7 +65,9 @@ export async function mcpReport({ as, input, room, tool }: McpOptions) {
   const sessions = createSessionRegistry<{ session: McpSession }>();
   sessions.add({ session });
   const codex = createCodexClient({ socketPath: codexControlSocket() });
-  const client = await connectInMemory(() => createMesshallServer({ codex, now, session, sessions, store }));
+  const client = await connectInMemory(() =>
+    createMesshallServer({ codex, now, session, sessions, spawner: scratchSpawner, store }),
+  );
   try {
     if (!tool) {
       const { tools } = await client.listTools();

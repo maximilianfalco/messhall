@@ -1,4 +1,5 @@
 import type { CodexClient } from '../../codex/client.js';
+import type { Spawner } from '../../flock/spawner.js';
 import type { RoomStore } from '../../rooms/store.js';
 import type { ToolName } from '../constants.js';
 import type { McpSession, SessionRegistry } from '../session.js';
@@ -14,6 +15,7 @@ export interface ToolDeps {
   now: () => Date;
   session: McpSession;
   sessions: Pick<SessionRegistry<{ session: McpSession }>, 'sessionsFor'>;
+  spawner: Pick<Spawner, 'spawn'>;
   store: RoomStore;
 }
 

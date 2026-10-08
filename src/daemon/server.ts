@@ -119,7 +119,10 @@ export async function startDaemon({
   // No session lives through a restart, so every seat from the last run is away until its agent comes back.
   store.markReconnecting();
   const codex = createCodexClient({ socketPath: codexControlSocket() });
-  const mcp = createMcpEndpoint({ codex, now, store });
+  const url = `http://${DAEMON_HOST}:${bound.port}`;
+  // One spawner for the human route and the orchestrator's tool, so both stop the same sessions.
+  const spawner = createSpawner({ dataDir, store, tmux, url });
+  const mcp = createMcpEndpoint({ codex, now, spawner, store });
   const ringers = createRingers([
     createChannelRinger({ sessionsFor: mcp.sessionsFor }),
     createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),
@@ -132,7 +135,6 @@ export async function startDaemon({
   const startedAt = now().getTime();
   // Read once at start, so a later pull shows this daemon as older than the install.
   const build = currentBuild();
-  const url = `http://${DAEMON_HOST}:${bound.port}`;
 
   // MCP mounts at /mcp and the feed under /api here.
   const routes: Route[] = [
@@ -142,7 +144,7 @@ export async function startDaemon({
       path: '/health',
     },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ build, keys, now, relay: mcp.relay, spawner: createSpawner({ dataDir, store, tmux, url }), store }),
+    ...feedRoutes({ build, keys, now, relay: mcp.relay, spawner, store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
