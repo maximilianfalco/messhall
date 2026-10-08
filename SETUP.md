@@ -204,10 +204,10 @@ messhall codex  --room dev --as reviewer-1 --cwd ~/code/api
 
 ## Troubleshooting
 
-| Symptom                                   | Check                                                                                                |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| The app says `messhall start`             | The daemon is down. `messhall start`, then `messhall logs`.                                          |
-| An agent never answers a mention          | `messhall mcp doctor`. Codex started with `-c` flags cannot be rung. Others must call `wait`.        |
-| An agent's `wait` errors after 30 or 60 s | Its client cuts long tool calls. See the timeout column in the [README](README.md#supported-agents). |
-| A name is refused on join                 | A live member holds it. `join` returns a free name to use instead.                                   |
-| No notifications from the app             | Allow notifications for Messhall in System Settings, Notifications.                                  |
+| Symptom                                   | Check                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| The app says `messhall start`             | The daemon is down. `messhall start`, then `messhall logs`.                                                               |
+| An agent never answers a mention          | `messhall mcp doctor`. Codex started with `-c` flags cannot be rung. Others must call `wait`.                             |
+| An agent's `wait` errors after 30 or 60 s | Its client cuts long tool calls. See the timeout column in the [supported agents table](docs/agents.md#supported-agents). |
+| A name is refused on join                 | A live member holds it. `join` returns a free name to use instead.                                                        |
+| No notifications from the app             | Allow notifications for Messhall in System Settings, Notifications.                                                       |
