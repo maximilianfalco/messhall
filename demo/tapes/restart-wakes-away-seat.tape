@@ -39,7 +39,7 @@ Sleep 500ms
 Enter
 Sleep 6s
 
-Type "kill $(cat $MESSHALL_HOME/pid) && sleep 1 && sqlite3 $MESSHALL_HOME/messhall.db \"update members set presence = 'away' where name = 'wake-a'; select name, presence from members where name = 'wake-a'\"; echo exit $?"
+Type `kill $(cat $MESSHALL_HOME/pid) && sleep 1 && sqlite3 $MESSHALL_HOME/messhall.db "update members set presence = 'away' where name = 'wake-a'; select name, presence from members where name = 'wake-a'"; echo exit $?`
 Sleep 500ms
 Enter
 Sleep 4s
