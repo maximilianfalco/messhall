@@ -1,4 +1,4 @@
-.PHONY: install lint lint-js lint-types format format-check test check app app-run app-test app-clean
+.PHONY: install lint lint-js lint-types format format-check test check app app-run app-test app-clean dmg
 
 lint: ## Run all code standard checks
 	pnpm exec concurrently --names "js,types,format-check" -c "auto" "make lint-js" "make lint-types" "make format-check"
@@ -34,3 +34,5 @@ app-clean: ## Quit a worktree's Mac app, unregister it and delete its app/build:
 	bash app/scripts/clean.sh $(WORKTREE)
 app-test: ## Run the Mac app's Swift tests, in one of 2 shared build slots
 	$(APP_ENV) bash app/scripts/slot.sh swift test --package-path app/Messhall
+dmg: ## Build app/build/Messhall.dmg, a Release app that carries node and the messhall CLI
+	bash app/scripts/slot.sh bash app/scripts/dmg.sh
