@@ -92,6 +92,8 @@ export const RECONNECT_MS = 2 * 60_000;
 export const SEAT_TOKEN_FREE_AFTER_MS = 30 * 60_000;
 // A member who left this long drops out of the room, so standing rooms do not pile up old agents.
 export const STALE_AFTER_MS = 5 * 60_000;
+// A seat that said done and has been away this long leaves on its own, so finished agents do not pile up.
+export const DONE_AWAY_LEAVE_MS = 60 * 60_000;
 // An invite whose agent never made a call this long drops, so a failed launch does not hold the name.
 export const INVITE_TTL_MS = 10 * 60_000;
 // A tool ask nobody answers this long is denied, so a forgotten card cannot hold an agent forever.
