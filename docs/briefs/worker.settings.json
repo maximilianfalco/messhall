@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git push -u origin f*)",
+      "Bash(git push -u origin HEAD)",
+      "Bash(git push)",
       "Bash(gh pr create:*)",
       "Bash(gh pr edit:*)",
       "Bash(pnpm -s messhall-dev qa-upload:*)",

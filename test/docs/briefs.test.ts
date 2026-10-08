@@ -97,13 +97,22 @@ describe('role settings profiles', () => {
 
   it('lets a worker ship its job branch but merge only through the veto check', () => {
     expect(allowed('worker')).toStrictEqual([
-      'Bash(git push -u origin f*)',
+      'Bash(git push -u origin HEAD)',
+      'Bash(git push)',
       'Bash(gh pr create:*)',
       'Bash(gh pr edit:*)',
       'Bash(pnpm -s messhall-dev qa-upload:*)',
       'Bash(pnpm -s messhall-dev merge:*)',
       'Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)',
     ]);
+  });
+
+  it('lets a worker push only its own branch, with no room for a force flag or another refspec', () => {
+    expect(
+      allowed('worker')
+        .filter(rule => rule.startsWith('Bash(git push'))
+        .filter(rule => rule.includes('*')),
+    ).toStrictEqual([]);
   });
 
   it('never lets a worker run gh pr merge itself, which skips the veto label', () => {

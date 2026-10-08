@@ -184,7 +184,7 @@ Copy the briefs and edit them for your own projects. Each brief stays under 4,00
 
 When the app spawns a Claude for a role, it passes `docs/briefs/<role>.settings.json` with `--settings`, if that file exists. It is a plain Claude Code settings file, so its allow list skips the prompt for those commands. The shipped ones:
 
-- [worker.settings.json](docs/briefs/worker.settings.json): push a job branch, `gh pr create` and `gh pr edit`, `qa-upload`, `queue.py done`, and `pnpm -s messhall-dev merge <n>`. That merge refuses a PR with the human veto label or a `CRITICAL.md` file, so the worker never gets plain `gh pr merge`, whose `--admin` skips the label. The brief still says when to merge.
+- [worker.settings.json](docs/briefs/worker.settings.json): `git push -u origin HEAD` and `git push` (exact, so no force flag or other branch fits), `gh pr create` and `gh pr edit`, `qa-upload`, `queue.py done`, and `pnpm -s messhall-dev merge <n>`. That merge refuses a PR with the human veto label or a `CRITICAL.md` file, so the worker never gets plain `gh pr merge`, whose `--admin` skips the label. The brief still says when to merge.
 - [reviewer.settings.json](docs/briefs/reviewer.settings.json): `gh api repos/*/pulls/*/reviews`, so a reviewer can post its GitHub review.
 
 Edit them to give a role more or less. A role with no file gets only the messhall tools. Auto mode decides on its own and can still refuse a listed command.

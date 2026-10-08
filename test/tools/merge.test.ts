@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { criticalGlobs, mergePr } from '../../tools/dev/lib/merge.js';
+import { REPO_ROOT } from '../../tools/dev/lib/paths.js';
 
 const CRITICAL = ['# Critical', '', '```paths', 'CRITICAL.md', 'src/daemon/keys.ts', 'src/flock/**', '```', ''].join(
   '\n',
@@ -103,4 +107,15 @@ describe('mergePr', () => {
 
     expect(mergePr({ critical: CRITICAL, gh, pr: 7 })).toStrictEqual({ deleted: true, ok: true });
   });
+
+  it.each(['docs/briefs/worker.settings.json', 'tools/dev/lib/merge.ts', 'tools/dev/commands/merge.ts'])(
+    'refuses a PR that changes %s, so a worker cannot widen what it may merge',
+    file => {
+      const { calls, gh } = fakeGh({ files: [file] });
+      const critical = readFileSync(path.join(REPO_ROOT, 'CRITICAL.md'), 'utf8');
+
+      expect(mergePr({ critical, gh, pr: 7 })).toStrictEqual({ files: [file], ok: false, reason: 'human_veto' });
+      expect(merges(calls)).toStrictEqual([]);
+    },
+  );
 });
