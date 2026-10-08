@@ -146,6 +146,9 @@ private struct AvatarsPane: View {
             Text(style.title).tag(style)
           }
         }
+        Text("Pictures by DiceBear")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
       Section {
         if names.isEmpty {
