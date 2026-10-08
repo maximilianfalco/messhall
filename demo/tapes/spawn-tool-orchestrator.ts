@@ -7,7 +7,16 @@ import { daemonUrl, dataDir } from '../../src/config.js';
 import { KEY_FILES } from '../../src/daemon/keys.js';
 import { connectHttp } from '../../src/mcp/testing.js';
 
-const input = JSON.parse(process.argv[2] ?? '{}') as { room: string };
+function readInput() {
+  try {
+    return JSON.parse(process.argv[2] ?? '') as { room: string };
+  } catch {
+    process.stderr.write('pass the spawn input as one JSON object\n');
+    return process.exit(2);
+  }
+}
+
+const input = readInput();
 const key = readFileSync(path.join(dataDir(), KEY_FILES.agent), 'utf8').trim();
 const { client } = await connectHttp({ key, seat: 'tape-orchestrator', url: daemonUrl() });
 await client.callTool({ arguments: { as: 'orchestrator', room: input.room }, name: 'join' });
