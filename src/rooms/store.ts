@@ -399,6 +399,12 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     );
   }
 
+  function leave(room: Room, name: string, line: string, emit: Emit) {
+    sql.leave.run(stamp(), room.id, name);
+    emit({ change: 'left', member: findMember(room, name)!, room: room.name, type: 'member' });
+    systemLine(room, line, emit);
+  }
+
   function drop(room: Room, member: Member, emit: Emit) {
     sql.removeMember.run(room.id, member.name);
     emit({ change: 'removed', member, room: room.name, type: 'member' });
@@ -795,9 +801,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       return transaction(emit => {
         const found = seat(roomName, as);
         if (!found.ok) return found;
-        sql.leave.run(stamp(), found.room.id, as);
-        emit({ change: 'left', member: findMember(found.room, as)!, room: found.room.name, type: 'member' });
-        systemLine(found.room, note ? `${as} left: ${note}` : `${as} left`, emit);
+        leave(found.room, as, note ? `${as} left: ${note}` : `${as} left`, emit);
         return { ok: true } as const;
       });
     },
