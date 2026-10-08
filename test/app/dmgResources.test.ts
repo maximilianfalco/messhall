@@ -8,7 +8,9 @@ const copied = (script: string) =>
 
 describe('dmg.sh', () => {
   it('copies every resource folder that bundle.sh copies', () => {
+    const bundle = copied(read('app/scripts/bundle.sh'));
     const dmg = copied(read('app/scripts/dmg.sh'));
-    for (const folder of copied(read('app/scripts/bundle.sh'))) expect(dmg).toContain(folder);
+    expect(bundle).toEqual(['Templates', 'Avatars']);
+    for (const folder of bundle) expect(dmg).toContain(folder);
   });
 });

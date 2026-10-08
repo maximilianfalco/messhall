@@ -1,4 +1,4 @@
-# QA tape for the dmg shipping the room templates: dmg.sh copies the Templates folder, pinned by a test.
+# QA tape for the dmg shipping the room templates: dmg.sh copies the Templates folder, pinned by a test and checked in a real build.
 
 Output demo/out/dmg-templates.mp4
 Output demo/out/dmg-templates.gif
@@ -23,6 +23,7 @@ Sleep 2s
 Type "pnpm -s vitest run test/app/dmgResources.test.ts 2>&1 | tail -6; echo exit $?"
 Enter
 Sleep 6s
-Type "ls app/Messhall/Resources/Templates; echo exit $?"
+Type "make dmg >/dev/null 2>&1; ls app/build/Messhall.app/Contents/Resources/Templates; echo exit $?"
 Enter
-Sleep 4s
+Sleep 240s
+Sleep 5s
