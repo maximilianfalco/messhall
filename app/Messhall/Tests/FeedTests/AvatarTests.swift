@@ -147,6 +147,16 @@ struct AvatarColorOverrideTests {
     #expect(avatarRGB(for: "web", in: settings) == avatarFill(hue: avatarHue(for: "web")))
   }
 
+  @Test("the human gets a hashed fill, face, art and label like every member")
+  func humanIsHashedLikeAnyone() {
+    let settings = settings()
+
+    #expect(avatarRGB(for: humanName, in: settings) == avatarFill(hue: avatarHue(for: humanName)))
+    #expect(avatarFace(for: humanName) == avatarFace(for: "human"))
+    #expect(avatarArt(for: humanName) < avatarArtCount)
+    #expect(avatarLabel(for: humanName) == "H")
+  }
+
   @Test("the label ink is white on a dark fill and black on a light one")
   func ink() {
     #expect(avatarInk(on: avatarFill(hue: 200)) == .white)
