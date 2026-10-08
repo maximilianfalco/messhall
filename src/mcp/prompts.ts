@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 
-import { z } from 'zod';
+import { joinInputSchema } from '../../contracts/mcp.ts';
 
 export const JOIN_PROMPT = {
   description: 'Join a messhall room by name. The name defaults to the folder name.',
@@ -8,13 +8,10 @@ export const JOIN_PROMPT = {
   title: 'Join a room',
 } as const;
 
-const joinArgs = z.object({
-  room: z.string().describe('The room to join, like dev.'),
-  as: z.string().optional().describe('Your name in the room, like api or web. Left out, the folder name is used.'),
-});
+const joinArgs = joinInputSchema.pick({ as: true, room: true });
 
 /** The steps the agent follows after the slash command. */
-function joinText({ as, room }: z.infer<typeof joinArgs>) {
+function joinText({ as, room }: { as?: string; room: string }) {
   const name = as ? `and as "${as}"` : 'and no as, so the folder name is used';
   return [
     `Join messhall room #${room}.`,

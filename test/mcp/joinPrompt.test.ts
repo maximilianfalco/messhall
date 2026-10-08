@@ -28,10 +28,10 @@ describe('join prompt', () => {
 
     expect(prompts).toStrictEqual([
       expect.objectContaining({
-        arguments: [
+        arguments: expect.arrayContaining([
           expect.objectContaining({ name: 'room', required: true }),
           expect.objectContaining({ name: 'as', required: false }),
-        ],
+        ]),
         name: 'join',
       }),
     ]);
@@ -47,6 +47,12 @@ describe('join prompt', () => {
     const text = await promptText({ as: 'api', room: 'dev' });
 
     expect(text).toContain('join with room "dev" and as "api"');
+  });
+
+  it('refuses a room name the join tool would refuse', async () => {
+    const { client } = await harness.agent();
+
+    await expect(client.getPrompt({ arguments: { room: 'Dev Room' }, name: JOIN_PROMPT.name })).rejects.toThrow();
   });
 
   it('says a chat with an off doorbell cannot be rung and to start it with messhall claude', async () => {
