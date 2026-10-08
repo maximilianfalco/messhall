@@ -124,6 +124,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'question-dark', room: 'launch' },
   { appearance: 'light', name: 'agreements-light', room: 'contract' },
   { appearance: 'dark', name: 'agreements-dark', room: 'contract' },
+  { appearance: 'light', foldAgreements: true, name: 'agreements-collapsed-light', room: 'contract' },
+  { appearance: 'dark', foldAgreements: true, name: 'agreements-collapsed-dark', room: 'contract' },
   { agents: true, appearance: 'light', name: 'agents-light', pullRequests: true, room: 'launch' },
   { agents: true, appearance: 'dark', name: 'agents-dark', openFolds: true, pullRequests: true, room: 'launch' },
   {
@@ -558,6 +560,7 @@ export function shotArgs(shot: Shot) {
     JSON.stringify(
       JSON.stringify({
         ...('muted' in shot ? MUTED : {}),
+        ...('foldAgreements' in shot ? { collapsedAgreements: [shot.room] } : {}),
         ...('settings' in shot ? { pane: shot.settings, ...PANE_SETTINGS[shot.settings] } : {}),
         ...('hotkey' in shot ? SHOT_HOTKEY : {}),
       }),

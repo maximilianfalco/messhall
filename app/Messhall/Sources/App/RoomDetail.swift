@@ -42,7 +42,7 @@ struct RoomDetail: View {
       )
       .id(room.name)
       if !room.agreements.isEmpty {
-        AgreementsPanel(agreements: room.agreements)
+        AgreementsPanel(room: room.name, agreements: room.agreements)
           .id(room.name)
       }
       if !room.approvals.isEmpty {
