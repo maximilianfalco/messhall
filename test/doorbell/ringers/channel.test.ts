@@ -30,8 +30,9 @@ function fakeEntry({
   const notification = vi.fn<() => Promise<void>>(() =>
     fails ? Promise.reject(new Error('not connected')) : Promise.resolve(),
   );
-  const entry: ChannelEntry = { server: { server: { notification } }, session: { channel, doorbell, id } };
-  return { entry, notification };
+  const rang = vi.fn();
+  const entry: ChannelEntry = { server: { server: { notification } }, session: { channel, doorbell, id, rang } };
+  return { entry, notification, rang };
 }
 
 describe('createChannelRinger', () => {
@@ -50,6 +51,15 @@ describe('createChannelRinger', () => {
     };
     expect(one.notification).toHaveBeenCalledWith(sent);
     expect(two.notification).toHaveBeenCalledWith(sent);
+  });
+
+  it('tells a session it was rung only when the notification went out', async () => {
+    const sent = fakeEntry({ id: 's1' });
+    const failed = fakeEntry({ fails: true, id: 's2' });
+    const ringer = createChannelRinger({ sessionsFor: () => [sent.entry, failed.entry] });
+    await ringer.ring(RING);
+    expect(sent.rang).toHaveBeenCalledTimes(1);
+    expect(failed.rang).not.toHaveBeenCalled();
   });
 
   it('rings a session once when it holds the member in two rooms', async () => {

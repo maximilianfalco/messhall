@@ -10,7 +10,7 @@ export const CHANNEL_METHOD = 'notifications/claude/channel';
 
 export interface ChannelEntry {
   server: { server: Pick<McpServer['server'], 'notification'> };
-  session: Pick<McpSession, 'channel' | 'doorbell' | 'id'>;
+  session: Pick<McpSession, 'channel' | 'doorbell' | 'id' | 'rang'>;
 }
 
 /** Channel clients already show the server name, so the ring drops its own `messhall: ` lead. */
@@ -40,7 +40,10 @@ export function createChannelRinger({
         [...byId.values()].map(entry =>
           entry.server.server
             .notification({ method: CHANNEL_METHOD, params: { content, meta } })
-            .then(() => entry.session.doorbell)
+            .then(() => {
+              entry.session.rang();
+              return entry.session.doorbell;
+            })
             .catch((error: unknown) => {
               logger.info('doorbell session gone', { error: String(error), session: entry.session.id });
               return undefined;

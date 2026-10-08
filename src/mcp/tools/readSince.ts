@@ -12,6 +12,7 @@ export function registerReadSince(server: McpServer, deps: ToolDeps, description
   registerRoomTool(server, 'read_since', { deps, description, inputSchema: readSinceInputSchema }, async input => {
     const as = session.rooms.get(input.room);
     if (!as) return notJoined(input.room);
+    session.readAfterRing();
     const read = store.readUnseen({ afterId: input.after_id, as, room: input.room });
     if (!read.ok) return removedFrom(session, input.room);
     return reply(renderRead({ as, messages: read.messages, more: read.more, room: input.room }));

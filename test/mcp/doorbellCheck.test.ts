@@ -163,3 +163,57 @@ describe('the doorbell check over mcp', () => {
     expect(result.text).not.toContain('doorbell:');
   });
 });
+
+describe('a ring that reaches the session', () => {
+  it('turns a doorbell that read off back on once the seat reads after the ring', async () => {
+    const harness = mcpHarness();
+    const api = await harness.agent({ name: 'claude-code', version: '2.1.293' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+    harness.clock.advance(DOORBELL_CHECK_MS);
+    expect(api.session.doorbell).toBe('off');
+
+    api.session.rang();
+    const read = await api.call('read_since', { room: 'checkout' });
+
+    expect(api.session.doorbell).toBe('on');
+    expect(read.text).not.toContain(NO_DOORBELL);
+    await harness.cleanup();
+  });
+
+  it('keeps a seat that was never rung off, even when it reads', async () => {
+    const harness = mcpHarness();
+    const api = await harness.agent({ name: 'claude-code', version: '2.1.293' });
+    await api.call('join', { as: 'api', room: 'checkout' });
+    harness.clock.advance(DOORBELL_CHECK_MS);
+
+    await api.call('read_since', { room: 'checkout' });
+
+    expect(api.session.doorbell).toBe('off');
+    await harness.cleanup();
+  });
+
+  it('sends a fresh test ring when the seat joins its room again after the first one timed out', async () => {
+    const harness = mcpHarness();
+    const api = await harness.agent({ name: 'claude-code', version: '2.1.293' });
+    const rings: string[] = [];
+    api.client.setNotificationHandler(
+      CHANNEL_METHOD,
+      { params: z.object({ content: z.string(), meta: z.record(z.string(), z.string()) }) },
+      params => {
+        rings.push(params.meta.doorbell_check!);
+      },
+    );
+    await api.call('join', { as: 'api', room: 'checkout' });
+    await vi.waitFor(() => expect(rings).toHaveLength(1));
+    harness.clock.advance(DOORBELL_CHECK_MS);
+
+    const result = await api.call('join', { as: 'api', room: 'checkout' });
+
+    expect(result.text).toContain('doorbell: checking');
+    await vi.waitFor(() => expect(rings).toHaveLength(2));
+    expect(rings[1]).not.toBe(rings[0]);
+    await api.call('doorbell_ok', { id: rings[1]! });
+    expect(api.session.doorbell).toBe('on');
+    await harness.cleanup();
+  });
+});

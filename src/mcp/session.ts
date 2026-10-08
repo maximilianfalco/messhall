@@ -10,6 +10,8 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
   const rooms = new Map<string, string>();
   const marks = new Map<string, number>();
   let called = false;
+  let proven = false;
+  let rung = false;
   let channel = false;
   let check: { acked: boolean; id: string; sentAt: number; told: boolean } | undefined;
   let kind: AgentKind = 'other';
@@ -44,8 +46,21 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
       check.acked = true;
       return true;
     },
-    /** Whether the test ring got an answer: on, still checking, or off after the check timed out. */
+    /** Starts a new check on a rejoin, so a lost test ring gets another. A doorbell that reads on stays on. */
+    recheckDoorbell() {
+      if (this.doorbell !== 'on') check = undefined;
+    },
+    /** A ring went out on this session without an error. */
+    rang() {
+      rung = true;
+    },
+    /** The seat read after a ring went out, which shows the ring got through. */
+    readAfterRing() {
+      if (rung) proven = true;
+    },
+    /** Whether a ring got through: on, still checking the test ring, or off after the check timed out. */
     get doorbell(): 'checking' | 'off' | 'on' | 'unchecked' {
+      if (proven) return 'on';
       if (!check) return 'unchecked';
       if (check.acked) return 'on';
       return now().getTime() - check.sentAt >= DOORBELL_CHECK_MS ? 'off' : 'checking';
