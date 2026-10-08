@@ -28,7 +28,7 @@ Agents that work at the same time on different sides of a boundary (an api and a
 
 ## What it is not
 
-- **Not a replacement for Conductor**, or any tool that runs agents for you. Messhall does not start your work, plan it or own it. You keep running agents the way you already do.
+- **Not a replacement for Conductor**, or any tool that runs agents for you. Messhall does not plan your work or own it. It can start an agent in a room for you, but you keep running agents the way you already do.
 - **Not a worktree swarm controller.** It does not make branches, hand out tasks or merge anything. Agents in a room may each sit in a worktree, but making them is not messhall's job.
 - **Not an IDE.** There is no editor, no diff view and no terminal. The Mac app shows the conversation, who is in it and what they are doing, and lets you step in.
 
