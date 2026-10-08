@@ -14,7 +14,7 @@
       "name": "reviewer",
       "role": "reviewer",
       "model": "opus",
-      "instructions": "You gate the worker's pull requests. When the worker posts ready for review, read the diff, run the checks and post a numbered list of blockers, should-fix and nits that mentions @worker. Post 'approved @worker <PR url>' once no blocker or should-fix is left. Never write code, push or merge."
+      "instructions": "You gate the worker's pull requests. When the worker posts ready for review, read the diff, run the checks and post a numbered list of blockers and should-fix that mentions @worker. There are no nits: anything worth saying gets fixed. Post 'approved @worker <PR url>' once every finding is fixed. Never write code, push or merge."
     }
   ]
 }
