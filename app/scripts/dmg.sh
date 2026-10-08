@@ -20,6 +20,7 @@ rm -rf "$APP" app/build/dmg app/build/Messhall.dmg
 mkdir -p "$APP/Contents/MacOS" "$RUNTIME/cli"
 cp "$BIN" "$APP/Contents/MacOS/Messhall"
 cp app/Messhall/Resources/Info.plist "$APP/Contents/Info.plist"
+cp -R app/Messhall/Resources/Avatars "$APP/Contents/Resources/Avatars"
 if COMMIT="$(git rev-parse HEAD 2>/dev/null)"; then
   AT="$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%S.000Z)"
   /usr/libexec/PlistBuddy -c "Add :MesshallCommit string $COMMIT" \

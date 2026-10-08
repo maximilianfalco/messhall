@@ -143,7 +143,7 @@ private struct AvatarsPane: View {
       Section {
         Picker("Style", selection: $settings.snapshot.avatarStyle) {
           ForEach(AvatarStyle.allCases, id: \.self) { style in
-            Text(style.rawValue.capitalized).tag(style)
+            Text(style.title).tag(style)
           }
         }
       }
