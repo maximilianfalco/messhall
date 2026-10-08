@@ -5,18 +5,19 @@ import SwiftUI
 private let eyeSpreads = [0.14, 0.2, 0.26]
 
 /// A colored circle with a face or a bundled picture, or the member's initials.
-/// The human is drawn in the picked style like everyone else.
+/// The human is drawn in the picked style like everyone else, but on the accent color.
 /// With a presence, a dot sits on the circle's corner.
 struct AvatarView: View {
   let name: String
   var size = 28.0
   var presence: Presence?
 
+  private var usesAccent: Bool { avatarUsesAccent(name) }
   private var style: AvatarStyle { AppSettings.shared.snapshot.avatarStyle }
 
   var body: some View {
     Circle()
-      .fill(avatarColor(for: name))
+      .fill(usesAccent ? AnyShapeStyle(.tint) : AnyShapeStyle(avatarColor(for: name)))
       .overlay {
         if style == .face {
           FaceView(name: name)
@@ -31,7 +32,7 @@ struct AvatarView: View {
             .font(.system(size: size * (avatarLabel(for: name).count > 1 ? 0.4 : 0.5), weight: .semibold))
         }
       }
-      .foregroundStyle(Color(avatarInk(on: avatarRGB(for: name))))
+      .foregroundStyle(usesAccent ? .white : Color(avatarInk(on: avatarRGB(for: name))))
       .frame(width: size, height: size)
       .overlay(alignment: .bottomTrailing) {
         if let presence {
