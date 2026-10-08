@@ -164,31 +164,43 @@ describe('the doorbell check over mcp', () => {
   });
 });
 
-describe('a ring that reaches the session', () => {
-  it('turns a doorbell that read off back on once the seat reads after the ring', async () => {
+describe('a normal ring to a seat that reads off', () => {
+  async function offSeat() {
     const harness = mcpHarness();
     const api = await harness.agent({ name: 'claude-code', version: '2.1.293' });
     await api.call('join', { as: 'api', room: 'checkout' });
     harness.clock.advance(DOORBELL_CHECK_MS);
     expect(api.session.doorbell).toBe('off');
+    return { api, harness };
+  }
 
-    api.session.rang();
-    const read = await api.call('read_since', { room: 'checkout' });
-
-    expect(api.session.doorbell).toBe('on');
-    expect(read.text).not.toContain(NO_DOORBELL);
-    await harness.cleanup();
-  });
-
-  it('keeps a seat that was never rung off, even when it reads', async () => {
-    const harness = mcpHarness();
-    const api = await harness.agent({ name: 'claude-code', version: '2.1.293' });
-    await api.call('join', { as: 'api', room: 'checkout' });
-    harness.clock.advance(DOORBELL_CHECK_MS);
+  it('stays off after read_since when nothing acked', async () => {
+    const { api, harness } = await offSeat();
 
     await api.call('read_since', { room: 'checkout' });
 
     expect(api.session.doorbell).toBe('off');
+    await harness.cleanup();
+  });
+
+  it('turns on when doorbell_ok carries an id that came on a later ring', async () => {
+    const { api, harness } = await offSeat();
+    api.session.checkDoorbell('ring-2');
+
+    const result = await api.call('doorbell_ok', { id: 'ring-2' });
+
+    expect(result.isError).toBe(false);
+    expect(api.session.doorbell).toBe('on');
+    await harness.cleanup();
+  });
+
+  it('still takes the ack of an earlier id after a newer check started', async () => {
+    const { api, harness } = await offSeat();
+    api.session.checkDoorbell('ring-2');
+    api.session.checkDoorbell('ring-3');
+
+    expect(api.session.ackDoorbell('ring-2')).toBe(true);
+    expect(api.session.doorbell).toBe('on');
     await harness.cleanup();
   });
 

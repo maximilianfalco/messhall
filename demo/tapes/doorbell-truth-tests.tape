@@ -19,7 +19,7 @@ Type "clear"
 Enter
 Show
 
-Type "pnpm -s vitest run test/mcp/doorbellCheck.test.ts test/doorbell/ringers/channel.test.ts --reporter verbose 2>&1 | grep -E 'reaches the session|×|Tests'; echo exit $?"
+Type "pnpm -s vitest run test/mcp/doorbellCheck.test.ts test/doorbell/ringers/channel.test.ts --reporter verbose 2>&1 | grep -E 'normal ring to a seat|×|Tests'; echo exit $?"
 Sleep 500ms
 Enter
 Wait+Screen@90s /exit [0-9]/

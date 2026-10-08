@@ -10,10 +10,8 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
   const rooms = new Map<string, string>();
   const marks = new Map<string, number>();
   let called = false;
-  let proven = false;
-  let rung = false;
   let channel = false;
-  let check: { acked: boolean; id: string; sentAt: number; told: boolean } | undefined;
+  let check: { acked: boolean; ids: Set<string>; sentAt: number; told: boolean } | undefined;
   let kind: AgentKind = 'other';
   let lastSeen = now().getTime();
   let open = 0;
@@ -36,13 +34,13 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
       // A codex thread id is only passed once thread/read has checked it.
       if (binding.threadId) ({ threadId } = binding);
     },
-    /** Starts the doorbell check: the test ring `ring` went out now and waits for doorbell_ok. */
+    /** Starts a doorbell check: the test ring `ring` went out now and waits for doorbell_ok. Ids of earlier rings still count. */
     checkDoorbell(ring: string) {
-      check = { acked: false, id: ring, sentAt: now().getTime(), told: false };
+      check = { acked: false, ids: new Set(check?.ids).add(ring), sentAt: now().getTime(), told: false };
     },
-    /** Takes the answer to the test ring. A late answer still counts. False when `ring` is not the ring sent. */
+    /** Takes the answer to a test ring. A late answer still counts. False when `ring` is not a ring sent. */
     ackDoorbell(ring: string) {
-      if (check?.id !== ring) return false;
+      if (!check?.ids.has(ring)) return false;
       check.acked = true;
       return true;
     },
@@ -50,17 +48,8 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     recheckDoorbell() {
       if (this.doorbell !== 'on') check = undefined;
     },
-    /** A ring went out on this session without an error. */
-    rang() {
-      rung = true;
-    },
-    /** The seat read after a ring went out, which shows the ring got through. */
-    readAfterRing() {
-      if (rung) proven = true;
-    },
-    /** Whether a ring got through: on, still checking the test ring, or off after the check timed out. */
+    /** Whether the test ring got an answer: on, still checking, or off after the check timed out. */
     get doorbell(): 'checking' | 'off' | 'on' | 'unchecked' {
-      if (proven) return 'on';
       if (!check) return 'unchecked';
       if (check.acked) return 'on';
       return now().getTime() - check.sentAt >= DOORBELL_CHECK_MS ? 'off' : 'checking';

@@ -30,9 +30,12 @@ function fakeEntry({
   const notification = vi.fn<() => Promise<void>>(() =>
     fails ? Promise.reject(new Error('not connected')) : Promise.resolve(),
   );
-  const rang = vi.fn();
-  const entry: ChannelEntry = { server: { server: { notification } }, session: { channel, doorbell, id, rang } };
-  return { entry, notification, rang };
+  const checkDoorbell = vi.fn<(ring: string) => void>();
+  const entry: ChannelEntry = {
+    server: { server: { notification } },
+    session: { channel, checkDoorbell, doorbell, id },
+  };
+  return { checkDoorbell, entry, notification };
 }
 
 describe('createChannelRinger', () => {
@@ -53,14 +56,32 @@ describe('createChannelRinger', () => {
     expect(two.notification).toHaveBeenCalledWith(sent);
   });
 
-  it('tells a session it was rung only when the notification went out', async () => {
-    const sent = fakeEntry({ id: 's1' });
-    const failed = fakeEntry({ fails: true, id: 's2' });
-    const ringer = createChannelRinger({ sessionsFor: () => [sent.entry, failed.entry] });
+  it('puts a fresh doorbell check id on a ring to a session that reads off', async () => {
+    const off = fakeEntry({ doorbell: 'off', id: 's1' });
+    const ringer = createChannelRinger({ sessionsFor: () => [off.entry] });
     await ringer.ring(RING);
-    expect(sent.rang).toHaveBeenCalledTimes(1);
-    expect(failed.rang).not.toHaveBeenCalled();
+    const [ring] = off.checkDoorbell.mock.calls[0]!;
+    const [sent] = off.notification.mock.calls[0]! as unknown as [
+      { params: { content: string; meta: Record<string, string> } },
+    ];
+    const { params } = sent;
+    expect(params.meta).toStrictEqual({ ...RING.meta, doorbell_check: ring });
+    expect(params.content).toContain(`call doorbell_ok with id ${ring}`);
   });
+
+  it.each(['on', 'checking', 'unchecked'] as const)(
+    'adds no check id to a ring to a session that reads %s',
+    async doorbell => {
+      const one = fakeEntry({ doorbell, id: 's1' });
+      const ringer = createChannelRinger({ sessionsFor: () => [one.entry] });
+      await ringer.ring(RING);
+      expect(one.checkDoorbell).not.toHaveBeenCalled();
+      expect(one.notification).toHaveBeenCalledWith({
+        method: 'notifications/claude/channel',
+        params: { content: '2 new in #checkout. Call read_since.', meta: RING.meta },
+      });
+    },
+  );
 
   it('rings a session once when it holds the member in two rooms', async () => {
     const one = fakeEntry({ id: 's1' });
