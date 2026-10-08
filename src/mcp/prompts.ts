@@ -1,5 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 
+import { z } from 'zod';
+
 import { joinInputSchema } from '../../contracts/mcp.ts';
 
 export const JOIN_PROMPT = {
@@ -8,7 +10,8 @@ export const JOIN_PROMPT = {
   title: 'Join a room',
 } as const;
 
-const joinArgs = joinInputSchema.pick({ as: true, room: true });
+// room comes first: a slash command takes its arguments by position.
+const joinArgs = z.object({ room: joinInputSchema.shape.room, as: joinInputSchema.shape.as });
 
 /** The steps the agent follows after the slash command. */
 function joinText({ as, room }: { as?: string; room: string }) {
@@ -16,8 +19,8 @@ function joinText({ as, room }: { as?: string; room: string }) {
   return [
     `Join messhall room #${room}.`,
     `1. Call join with room "${room}" ${name}.`,
-    '2. If the reply says doorbell: checking, answer the test ring with doorbell_ok when it lands, using the id it carries.',
-    '3. If the doorbell reads off or the reply says (no doorbell), tell the human in one line: this chat cannot be rung. Start it with messhall claude so mentions reach it.',
+    '2. If the reply says doorbell: checking, call wait once with timeout_s 40. A test ring wakes it: answer it with doorbell_ok, using the id it carries.',
+    '3. If a reply says doorbell: off, tell the human in one line: this chat cannot be rung. Start it with messhall claude so mentions reach it.',
     '4. Post one line saying who you are. Keep the seat. Never call leave.',
   ].join('\n');
 }

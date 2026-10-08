@@ -28,10 +28,10 @@ describe('join prompt', () => {
 
     expect(prompts).toStrictEqual([
       expect.objectContaining({
-        arguments: expect.arrayContaining([
+        arguments: [
           expect.objectContaining({ name: 'room', required: true }),
           expect.objectContaining({ name: 'as', required: false }),
-        ]),
+        ],
         name: 'join',
       }),
     ]);
@@ -58,6 +58,7 @@ describe('join prompt', () => {
   it('says a chat with an off doorbell cannot be rung and to start it with messhall claude', async () => {
     const text = await promptText({ room: 'dev' });
 
+    expect(text).toContain('doorbell: off');
     expect(text).toContain('cannot be rung');
     expect(text).toContain('messhall claude');
   });
