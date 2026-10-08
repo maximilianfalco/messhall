@@ -75,6 +75,9 @@ public func avatarColor(for name: String, in settings: AppSettings = .shared) ->
   Color(avatarRGB(for: name, in: settings))
 }
 
+/// The human sits on the accent color, so no agent's hashed color can pass for it.
+public func avatarUsesAccent(_ name: String) -> Bool { name == humanName }
+
 /// White while it keeps AA on the fill, else black. A picked color can be too light for white.
 public func avatarInk(on fill: RGB) -> RGB {
   contrastRatio(fill, .white) >= 4.5 ? .white : .black
