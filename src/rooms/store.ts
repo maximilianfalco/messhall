@@ -36,6 +36,7 @@ import {
 import {
   APPROVAL_TEXT_MAX,
   APPROVAL_TTL_MS,
+  DONE_AWAY_LEAVE_MS,
   INVITE_TTL_MS,
   LOOP_GUARD_BACKSTOP,
   LOOP_GUARD_LINES,
@@ -56,7 +57,7 @@ import { agreementSql, involves, isLive, leftOut, proposalText, rejectText, sett
 import { createEventBus } from './events.js';
 import { answerText, askText, expiryText, questionSql } from './questions.js';
 import { reviewNudges } from './reviews.js';
-import { canAssignRole, isAgent, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
+import { canAssignRole, isAgent, leavesDone, loopPair, missingMentions, nextPresence, parseMentions } from './rules.js';
 
 export type TouchState = Exclude<Presence, 'idle'>;
 
@@ -239,6 +240,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     setPresence: db.prepare('UPDATE members SET presence = ? WHERE room_id = ? AND name = ?'),
     stale: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE kind != 'human' AND left_at <= ? ORDER BY rooms.name, members.name",
+    ),
+    doneAway: db.prepare(
+      "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND done = 1 AND presence = 'away' ORDER BY rooms.name, members.name",
     ),
     sweepable: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE left_at IS NULL AND kind != 'human' AND presence NOT IN ('away', 'invited') ORDER BY rooms.name, members.name",
@@ -803,6 +807,25 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (!found.ok) return found;
         leave(found.room, as, note ? `${as} left: ${note}` : `${as} left`, emit);
         return { ok: true } as const;
+      });
+    },
+
+    /** Makes every seat that said done and has been away an hour leave, with a line each. */
+    leaveDoneAway() {
+      return transaction(emit => {
+        const at = now();
+        return sql.doneAway.all().flatMap(row => {
+          const member = toMember(row);
+          if (!leavesDone({ member, now: at })) return [];
+          const room = roomById(member.room_id);
+          leave(
+            room,
+            member.name,
+            `${member.name} left, done and away for ${DONE_AWAY_LEAVE_MS / 60_000} minutes`,
+            emit,
+          );
+          return [{ name: member.name, room: room.name }];
+        });
       });
     },
 

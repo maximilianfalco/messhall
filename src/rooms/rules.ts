@@ -1,7 +1,7 @@
 import type { Member, Message } from '../../contracts/room.ts';
 
 import { ALL_MENTION, HUMAN_NAME, OBSERVER_ROLE, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
-import { AWAY_AFTER_MS, IDLE_AFTER_MS, RECONNECT_MS } from '../config.js';
+import { AWAY_AFTER_MS, DONE_AWAY_LEAVE_MS, IDLE_AFTER_MS, RECONNECT_MS } from '../config.js';
 
 // The lookbehind keeps emails like a@b.com from reading as a mention.
 const MENTION = /(?<![\w.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])/g;
@@ -111,6 +111,20 @@ export function nextPresence({
   if (silent >= AWAY_AFTER_MS) return ringable ? 'idle' : 'away';
   if (member.presence === 'active' && silent >= IDLE_AFTER_MS) return 'idle';
   return member.presence;
+}
+
+/** Whether a seat that said done and went away has been gone an hour, so it leaves on its own.
+ * The human and the orchestrator always stay, since the room needs them after any one job ends. */
+export function leavesDone({
+  member,
+  now,
+}: {
+  member: Pick<Member, 'done' | 'kind' | 'last_seen_at' | 'presence' | 'role'>;
+  now: Date;
+}) {
+  if (!member.done || member.presence !== 'away') return false;
+  if (member.kind === 'human' || member.role === ORCHESTRATOR_ROLE) return false;
+  return now.getTime() - Date.parse(member.last_seen_at) >= DONE_AWAY_LEAVE_MS;
 }
 
 /** Only the human seat and an orchestrator hand out roles, mutes or kick, so an agent cannot promote itself. */
