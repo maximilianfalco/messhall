@@ -60,3 +60,22 @@ describe('worktree removal', () => {
     removals.forEach(line => expect(line).toMatch(/make app-clean WORKTREE=\S+.*(&&|;) git worktree remove/));
   });
 });
+
+describe('orchestrator brief models', () => {
+  const orchestrator = readFileSync(path.join(BRIEFS, 'orchestrator.md'), 'utf8');
+
+  it('spawns menial jobs on sonnet and hard or CRITICAL.md jobs on opus', () => {
+    expect(orchestrator).toContain('--model sonnet');
+    expect(orchestrator).toContain('--model opus');
+    expect(orchestrator).toContain('CRITICAL.md');
+  });
+
+  it('keeps reviewers on opus and haiku off by default', () => {
+    expect(orchestrator).toContain('Reviewers always run on opus');
+    expect(orchestrator).toContain('No haiku');
+  });
+
+  it('names the model and why in the spawn line it posts', () => {
+    expect(orchestrator).toContain('model and why');
+  });
+});
