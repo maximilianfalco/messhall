@@ -142,13 +142,14 @@ export async function startDaemon({
       path: '/health',
     },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ build, keys, now, relay: mcp.relay, spawner: createSpawner({ dataDir, store, url }), store }),
+    ...feedRoutes({ build, keys, now, relay: mcp.relay, spawner: createSpawner({ dataDir, store, tmux, url }), store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
   const sweep = setInterval(() => {
     try {
       store.sweepPresence({ ringable: mcp.ringable });
+      store.leaveDoneAway();
       store.clearStale();
       store.expireInvites();
       doorbell.endPauses();

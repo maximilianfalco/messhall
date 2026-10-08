@@ -208,6 +208,25 @@ describe('startDaemon', () => {
     side.db.close();
   });
 
+  it('makes a done seat away for an hour leave on the same sweep and stops its session', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const tmux = vi.fn<NonNullable<Parameters<typeof startDaemon>[0]['tmux']>>(() =>
+      Promise.resolve({ code: 0, stderr: '', stdout: '' }),
+    );
+    await start(tmux);
+    const side = sideStore();
+    side.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    side.store.joinRoom({ as: 'web', kind: 'claude', room: 'demo' });
+    side.store.postMessage({ done: true, from: 'api', room: 'demo', text: 'merged' });
+    at += 61 * 60_000;
+
+    vi.advanceTimersByTime(SWEEP_EVERY_MS);
+
+    expect(side.store.listMembers('demo', { left: true }).find(member => member.name === 'api')?.presence).toBe('left');
+    expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', '=messhall_demo_api:']);
+    side.db.close();
+  });
+
   it('drops an invite unused for 10 minutes on the same sweep', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     await start();

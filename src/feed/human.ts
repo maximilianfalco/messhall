@@ -264,9 +264,8 @@ export function humanRoutes({
       return;
     }
     const { member, room } = target;
+    // The spawner stops a removed seat's agent on the member event.
     const result = store.removeMember({ member, room });
-    // A kicked seat must not keep running its agent, which would only find itself removed.
-    if (result.ok) await spawner.stop({ name: member, room });
     if (result.ok) sendJson(res, 200, { member: result.member } satisfies RemoveMemberResult);
     else if (result.reason === 'no_room') sendJson(res, 404, NO_ROOM);
     else if (result.reason === 'no_member') sendJson(res, 404, { error: `no member ${member} in #${room}` });

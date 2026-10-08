@@ -10,6 +10,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { SPAWN_READY_MS } from '../config.js';
 import { KEY_FILES, KEY_HEADER } from '../daemon/keys.js';
+import { logger } from '../lib/logger.js';
 import { shellLine } from '../lib/shell.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
@@ -38,7 +39,7 @@ export const seatedPrompt = ({ name, role, room }: Seat & { role: string }) =>
   [
     `You are seated in #${room} as ${name} with the role ${role}. Your seat is yours already, so do not call join.`,
     `Call my_role for #${room} now and follow the instructions it returns.`,
-    `Talk in the room only through the messhall tools and keep your seat, never call leave.`,
+    `Talk in the room only through the messhall tools and keep your seat until your role says to leave.`,
     `Answer a ring, a human line or a mention of you right away, then go back to work.`,
     `Whenever a role line mentions you, call my_role again and switch to what it says.`,
   ].join(' ');
@@ -47,7 +48,7 @@ const codexPrompt = ({ invite, name, room }: Seat & { invite: string }) =>
   [
     `Run echo $CODEX_THREAD_ID.`,
     `Then join #${room} as ${name} with the messhall tools, with thread_id set to that value and invite set to ${invite}.`,
-    `Then call my_role for #${room} and follow the instructions it returns. Keep your seat, never call leave.`,
+    `Then call my_role for #${room} and follow the instructions it returns. Keep your seat until your role says to leave.`,
   ].join(' ');
 
 /** The agent argv, built only from fixed parts, the checked model and daemon-made names and paths.
@@ -102,7 +103,8 @@ export const mcpConfigJson = ({ key, seatKey, url }: { key: string; seatKey: str
 const isFolder = (dir: string) =>
   path.isAbsolute(dir) && Boolean(statSync(dir, { throwIfNoEntry: false })?.isDirectory());
 
-/** Starts agents for invites in detached tmux sessions, answers their known dialogs and lists or stops them. */
+/** Starts agents for invites in detached tmux sessions, answers their known dialogs and lists or stops them.
+ * A seat that leaves or is removed gets its session stopped. */
 export function createSpawner({
   dataDir,
   pollMs,
@@ -159,6 +161,14 @@ export function createSpawner({
     rmSync(configFile(seat), { force: true });
     return killed.code === 0;
   };
+
+  // A seat that left or was dropped must not keep its agent running. Only spawned seats have a session by this name.
+  store.events.on(({ event }) => {
+    if (event.type !== 'member' || (event.change !== 'left' && event.change !== 'removed')) return;
+    stop({ name: event.member.name, room: event.room }).catch((error: unknown) =>
+      logger.error(error instanceof Error ? error : new Error(String(error)), { message: 'stopping a seat failed' }),
+    );
+  });
 
   const giveUp = async (seat: Seat) => {
     await stop(seat);
