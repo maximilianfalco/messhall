@@ -1,5 +1,5 @@
-# QA tape for the spawn tool: an orchestrator asking for another orchestrator, and a cwd that is not a folder,
-# are refused with the next step and start nothing. Scratch home and port 7873.
+# QA tape for the spawn tool: an orchestrator asking for another orchestrator, a cwd that is not a folder, and a
+# folder claude has never trusted are refused with the next step and leave nothing running. Scratch home and port 7873.
 
 Set Shell zsh
 Set FontSize 18
@@ -34,10 +34,16 @@ Enter
 Wait+Screen@30s /exit [0-9](.|\n)*exit [0-9]/
 Sleep 2s
 
+Type `d=$(mktemp -d /tmp/messhall-tape-untrusted-XXXX); pnpm -s tsx demo/tapes/spawn-tool-orchestrator.ts "{\"room\":\"demo\",\"name\":\"api\",\"role\":\"worker\",\"cwd\":\"$d\"}"; echo exit $?`
+Sleep 500ms
+Enter
+Wait+Screen@90s /exit [0-9](.|\n)*exit [0-9](.|\n)*exit [0-9]/
+Sleep 2s
+
 Type "pnpm -s dev flock; echo exit $?"
 Sleep 500ms
 Enter
-Wait+Screen@30s /exit [0-9](.|\n)*exit [0-9](.|\n)*exit [0-9]/
+Wait+Screen@30s /exit [0-9](.|\n)*exit [0-9](.|\n)*exit [0-9](.|\n)*exit [0-9]/
 Sleep 6s
 
 Hide

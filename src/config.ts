@@ -119,6 +119,8 @@ export const SPAWN_READY_MS = 2 * 60_000;
 export const SPAWN_SEAT_CAP = 6;
 export const SPAWN_RATE_MAX = 3;
 export const SPAWN_RATE_WINDOW_MS = 60_000;
+// A capped orchestrator that keeps asking rings the human at most this often.
+export const SPAWN_CAP_RING_EVERY_MS = 10 * 60_000;
 // A session with no stream and no request this long is dead: its client most likely died.
 export const SESSION_DEAD_MS = 60_000;
 // A channel session that has not answered its test ring this long reads as no doorbell.

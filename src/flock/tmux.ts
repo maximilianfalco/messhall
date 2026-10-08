@@ -15,13 +15,9 @@ const TYPED_MAX = 200;
 // Claude Code starts its pane title with ✳ when idle and a braille spinner while working.
 const CLAUDE_TITLE = /^[✳\u2800-\u28ff]/u;
 // Codex's update dialog runs brew upgrade on Enter, so its safe option is the plain Skip.
-const DIALOG_TARGETS = [
-  /I am using this for local development/i,
-  /Yes, I trust this folder/i,
-  /Yes, proceed/i,
-  /\d\. Trust and continue/,
-  /\d\. Skip\s*$/,
-];
+// Trusting a folder lets its hooks and .mcp.json run, so these answers stay apart from the rest.
+const TRUST_TARGETS = [/Yes, I trust this folder/i, /\d\. Trust and continue/];
+const DIALOG_TARGETS = [/I am using this for local development/i, /Yes, proceed/i, /\d\. Skip\s*$/, ...TRUST_TARGETS];
 const LOGIN = /Select login method|Please run \/login|Invalid API key|OAuth error/i;
 const SELECTED = '❯';
 const CODEX_SELECTED = '›';
@@ -38,13 +34,14 @@ const ESC = /\x1b/g;
 const CONTROL = /[\x00-\x1f\x7f]/;
 
 export type Tmux = (args: string[]) => Promise<RunResult>;
-type Dialog = { keys: string[]; kind: 'answer' } | { kind: 'login' } | { kind: 'none' };
+type Dialog = { keys: string[]; kind: 'answer' | 'trust' } | { kind: 'login' } | { kind: 'none' };
 
 /** Runs tmux from where it is installed, since launchd gives the daemon a bare PATH.
  * `-u` keeps output utf-8: launchd sets no locale, and tmux would print the ✳ of a claude title as `_`. */
 export const tmux: Tmux = args => runCommand(findBin('tmux'), ['-u', ...args]);
 
-/** What to press on the pane: arrows from the `❯` line to the safe option of a known dialog, or stop on a login screen. */
+/** What to press on the pane: arrows from the `❯` line to the safe option of a known dialog, or stop on a login screen.
+ * A folder trust prompt is kind `trust`, so a caller can refuse to trust. */
 export function dialogKeys(pane: string): Dialog {
   if (LOGIN.test(pane)) return { kind: 'login' };
   const lines = pane.split('\n');
@@ -54,7 +51,7 @@ export function dialogKeys(pane: string): Dialog {
   const moves = target - current;
   return {
     keys: [...Array.from({ length: Math.abs(moves) }, () => (moves > 0 ? 'Down' : 'Up')), 'Enter'],
-    kind: 'answer',
+    kind: TRUST_TARGETS.some(pattern => pattern.test(lines[target]!)) ? 'trust' : 'answer',
   };
 }
 

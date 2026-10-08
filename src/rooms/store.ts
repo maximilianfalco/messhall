@@ -49,6 +49,8 @@ import {
   REVIEW_NUDGE_WINDOW_MS,
   SEARCH_LIMIT,
   SEAT_TOKEN_FREE_AFTER_MS,
+  SPAWN_CAP_RING_EVERY_MS,
+  SPAWN_RATE_WINDOW_MS,
   SPAWN_SEAT_CAP,
   STALE_AFTER_MS,
 } from '../config.js';
@@ -174,7 +176,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     insertRoom: db.prepare(
       'INSERT INTO rooms (id, name, topic, created_at, created_by, standing) VALUES (?, ?, ?, ?, ?, ?)',
     ),
-    spawnedAt: db.prepare('SELECT joined_at FROM members WHERE room_id = ? AND left_at IS NULL AND launch IS NOT NULL'),
+    spawnedSeats: db.prepare(
+      'SELECT count(*) AS n FROM members WHERE room_id = ? AND left_at IS NULL AND launch IS NOT NULL',
+    ),
     expiredInvites: db.prepare(
       "SELECT members.* FROM members JOIN rooms ON rooms.id = members.room_id WHERE presence = 'invited' AND joined_at <= ? ORDER BY rooms.name, members.name",
     ),
@@ -293,6 +297,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
     return row ? toRoom(row) : undefined;
   };
   const roomById = (id: string) => toRoom(sql.roomById.get(id)!);
+  // In memory, per room id: kicked and failed spawns leave no row, but still count toward the rate.
+  const spawnLog = new Map<string, number[]>();
+  const capRungAt = new Map<string, number>();
   const toApproval = (row: Row) => approvalSchema.parse({ ...row, room: roomById(String(row.room_id)).name });
   // Puts each changed row on the feed and lists each ask once, however many rooms it sits in.
   const settled = (rows: Row[], emit: Emit) => {
@@ -677,6 +684,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
      * Makes a seat ahead of its agent: presence invited, with its role, instructions and how to launch it.
      * Only the human or an unmuted orchestrator may, and only the human makes an orchestrator.
      * An orchestrator is held to the spawn cap and rate here, in one transaction, so two calls at once cannot pass it.
+     * The rate log lives in memory, so a daemon restart forgets it.
      * Returns the fresh seat key, the one thing that later sits in the seat.
      */
     invite({
@@ -704,11 +712,16 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         if (!canAssignRole({ by: inviter }) || madeOrchestrator) return { ok: false, reason: 'not_allowed' } as const;
         if (inviter.muted) return { ok: false, reason: 'muted' } as const;
         if (room.closed_at !== null) return { ok: false, reason: 'room_closed' } as const;
-        const invitedAt = sql.spawnedAt.all(room.id).map(row => String(row.joined_at));
-        const allowed = inviter.kind === 'human' ? 'ok' : spawnAllowed({ invitedAt, now: now() });
+        const at = now().getTime();
+        const spawnedAt = (spawnLog.get(room.id) ?? []).filter(time => time > at - SPAWN_RATE_WINDOW_MS);
+        const seats = Number(sql.spawnedSeats.get(room.id)?.n);
+        const allowed = inviter.kind === 'human' ? 'ok' : spawnAllowed({ now: now(), seats, spawnedAt });
         if (allowed === 'seat_cap') {
-          const text = `@${HUMAN_NAME} ${by} asked for ${name} (${role}) but #${room.name} is at its cap of ${SPAWN_SEAT_CAP} spawned seats. start it yourself, or kick a seat first`;
-          post(room, SYSTEM_NAME, 'system', text, [HUMAN_NAME], emit);
+          if (at - (capRungAt.get(room.id) ?? -Infinity) >= SPAWN_CAP_RING_EVERY_MS) {
+            capRungAt.set(room.id, at);
+            const text = `@${HUMAN_NAME} ${by} asked for ${name} (${role}) but #${room.name} is at its cap of ${SPAWN_SEAT_CAP} spawned seats. start it yourself, or kick a seat first`;
+            post(room, SYSTEM_NAME, 'system', text, [HUMAN_NAME], emit);
+          }
           return { cap: SPAWN_SEAT_CAP, ok: false, reason: allowed } as const;
         }
         if (allowed === 'spawn_rate') return { ok: false, reason: allowed } as const;
@@ -716,14 +729,15 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
           return { ok: false, reason: 'name_taken', suggestion: suggestName(room, name) } as const;
         }
         const seatKey = randomUUID();
-        const at = stamp();
+        const joinedAt = stamp();
         const spec = JSON.stringify(launch);
+        spawnLog.set(room.id, [...spawnedAt, at]);
         sql.insertInvite.run(
           room.id,
           name,
           launch.agent,
-          at,
-          at,
+          joinedAt,
+          joinedAt,
           startCursor(room),
           role,
           instructions ?? null,

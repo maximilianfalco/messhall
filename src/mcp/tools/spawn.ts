@@ -54,6 +54,10 @@ export function registerSpawn(server: McpServer, deps: ToolDeps, description: st
           return refuse(`#${room} is closed.`);
         case 'tmux':
           return refuse(`tmux could not start: ${result.detail}. tell the human.`);
+        case 'untrusted':
+          return refuse(
+            `${agent} asks to trust ${cwd}, and only the human can trust a folder. ask the human to start an agent there once, then spawn again.`,
+          );
         case 'no_room':
         case 'not_member':
           return removedFrom(session, room);

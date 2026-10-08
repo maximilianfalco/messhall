@@ -2,7 +2,13 @@ import type { SequencedEvent } from '../../contracts/events.ts';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { INVITE_TTL_MS, SPAWN_RATE_MAX, SPAWN_RATE_WINDOW_MS, SPAWN_SEAT_CAP } from '../../src/config.js';
+import {
+  INVITE_TTL_MS,
+  SPAWN_CAP_RING_EVERY_MS,
+  SPAWN_RATE_MAX,
+  SPAWN_RATE_WINDOW_MS,
+  SPAWN_SEAT_CAP,
+} from '../../src/config.js';
 
 import { scratchStore } from './scratch.js';
 
@@ -179,6 +185,33 @@ describe('the spawn cap', () => {
     expect(invite({ by: 'boss' })).toStrictEqual({ ok: false, reason: 'spawn_rate' });
     scratch.clock.advance(SPAWN_RATE_WINDOW_MS);
     expect(invite({ by: 'boss' }).ok).toBe(true);
+  });
+
+  it('counts spawns that were kicked or dropped toward the rate', () => {
+    Array.from({ length: SPAWN_RATE_MAX }, (_, index) => invite({ by: 'boss', name: `w${index}` }));
+    Array.from({ length: SPAWN_RATE_MAX }, (_, index) => store().removeMember({ member: `w${index}`, room: 'demo' }));
+
+    expect(invite({ by: 'boss' })).toStrictEqual({ ok: false, reason: 'spawn_rate' });
+  });
+
+  it('rings the human once for a run of capped retries', () => {
+    fill(SPAWN_SEAT_CAP);
+    scratch.clock.advance(SPAWN_RATE_WINDOW_MS);
+
+    invite({ by: 'boss' });
+    invite({ by: 'boss', name: 'web' });
+
+    expect(texts().filter(text => text.includes('@human'))).toHaveLength(1);
+  });
+
+  it('rings the human again once the ring is old', () => {
+    fill(SPAWN_SEAT_CAP);
+    invite({ by: 'boss' });
+    scratch.clock.advance(SPAWN_CAP_RING_EVERY_MS);
+
+    invite({ by: 'boss' });
+
+    expect(texts().filter(text => text.includes('@human'))).toHaveLength(2);
   });
 
   it('checks the caller before the cap, so a plain agent never rings the human', () => {

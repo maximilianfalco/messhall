@@ -162,6 +162,23 @@ describe('spawn', () => {
     });
   });
 
+  it('refuses a folder the agent asks to trust, since only the human can trust one', async () => {
+    tmux.mockImplementation(args => {
+      const stdout = args[0] === 'capture-pane' ? ' ❯ 1. Yes, I trust this folder\n   2. No, exit' : '';
+      return Promise.resolve({ code: 0, stderr: '', stdout });
+    });
+    const orchestrator = await harness.joined('dev', 'orchestrator');
+
+    const result = await orchestrator.call('spawn', spawnInput());
+
+    expect(result).toStrictEqual({
+      isError: true,
+      text: `claude asks to trust ${cwd}, and only the human can trust a folder. ask the human to start an agent there once, then spawn again.`,
+    });
+    expect(tmux.mock.calls.some(([args]) => args[0] === 'send-keys')).toBe(false);
+    expect(memberOf('api')).toBeUndefined();
+  });
+
   it('refuses a cwd that is not a folder', async () => {
     const orchestrator = await harness.joined('dev', 'orchestrator');
     const missing = path.join(cwd, 'missing');

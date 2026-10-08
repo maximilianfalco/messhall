@@ -140,9 +140,10 @@ export function canAssignRole({ by }: { by: Pick<Member, 'kind' | 'role'> }) {
   return by.kind === 'human' || by.role === ORCHESTRATOR_ROLE;
 }
 
-/** Whether an orchestrator may spawn one more seat, from when each spawned seat still in the room was invited. */
-export function spawnAllowed({ invitedAt, now }: { invitedAt: string[]; now: Date }) {
-  if (invitedAt.length >= SPAWN_SEAT_CAP) return 'seat_cap';
+/** Whether an orchestrator may spawn one more seat: `seats` spawned seats are still in the room,
+ * and `spawnedAt` holds the time of every spawn, even one that was kicked or failed since. */
+export function spawnAllowed({ now, seats, spawnedAt }: { now: Date; seats: number; spawnedAt: number[] }) {
+  if (seats >= SPAWN_SEAT_CAP) return 'seat_cap';
   const since = now.getTime() - SPAWN_RATE_WINDOW_MS;
-  return invitedAt.filter(at => Date.parse(at) > since).length >= SPAWN_RATE_MAX ? 'spawn_rate' : 'ok';
+  return spawnedAt.filter(at => at > since).length >= SPAWN_RATE_MAX ? 'spawn_rate' : 'ok';
 }
