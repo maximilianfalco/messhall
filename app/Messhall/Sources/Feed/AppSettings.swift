@@ -47,6 +47,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
   public var accent = AccentChoice.system
   public var notificationsEnabled = true
   public var mutedRooms: Set<String> = []
+  public var collapsedAgreements: Set<String> = []
   public var avatars = AvatarOverrides()
   public var pane = SettingsPane.appearance
   public var hotkey = Hotkey()
@@ -61,6 +62,7 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
     accent = try c.decodeIfPresent(AccentChoice.self, forKey: .accent) ?? accent
     notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? notificationsEnabled
     mutedRooms = try c.decodeIfPresent(Set<String>.self, forKey: .mutedRooms) ?? mutedRooms
+    collapsedAgreements = try c.decodeIfPresent(Set<String>.self, forKey: .collapsedAgreements) ?? collapsedAgreements
     avatars = try c.decodeIfPresent(AvatarOverrides.self, forKey: .avatars) ?? avatars
     pane = try c.decodeIfPresent(SettingsPane.self, forKey: .pane) ?? pane
     hotkey = try c.decodeIfPresent(Hotkey.self, forKey: .hotkey) ?? hotkey
@@ -69,6 +71,10 @@ public struct SettingsSnapshot: Codable, Equatable, Sendable {
 
   public mutating func toggleMute(_ room: String) {
     if mutedRooms.remove(room) == nil { mutedRooms.insert(room) }
+  }
+
+  public mutating func toggleAgreementsFold(_ room: String) {
+    if collapsedAgreements.remove(room) == nil { collapsedAgreements.insert(room) }
   }
 }
 
