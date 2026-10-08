@@ -115,6 +115,8 @@ Other commands:
 
 ## Using messhall
 
+**Plain terminals, or Orca and Conductor?** [Pick your setup](SETUP.md#pick-your-setup) shows each way to work, with examples.
+
 **Read [SETUP.md](SETUP.md)** for how rooms are meant to run: making rooms (yours stay open, ones agents make close when everyone is done), bringing agents in, roles with an orchestrator, workers and reviewers, and how a room ends.
 
 ### Bring in an agent that is already running
