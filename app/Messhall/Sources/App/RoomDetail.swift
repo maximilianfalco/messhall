@@ -417,6 +417,9 @@ struct MemberChip: View {
           if member.muted {
             MutedPill()
           }
+          if member.done {
+            SignedOffTag()
+          }
           if asks {
             AskPill()
           }
@@ -524,6 +527,19 @@ struct MutedPill: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
       .background(.orange.opacity(0.12), in: Capsule())
+  }
+}
+
+/// Says the member left the task for good. A small tag on the seat, never a mark on a message.
+struct SignedOffTag: View {
+  var body: some View {
+    Text("signed off")
+      .font(.subheadline)
+      .fixedSize()
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .background(.secondary.opacity(0.12), in: Capsule())
   }
 }
 
@@ -965,16 +981,6 @@ struct MessageRow: View {
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 2)
-    case .done:
-      HStack(spacing: 10) {
-        Image(systemName: "checkmark.circle.fill")
-          .foregroundStyle(.green)
-          .frame(width: 28)
-        Text("**\(message.from)** is done: \(message.text)")
-      }
-      .foregroundStyle(.secondary)
-      .padding(.horizontal, 10)
-      .padding(.vertical, 2)
     case .summary:
       Label {
         VStack(alignment: .leading, spacing: 3) {
@@ -990,7 +996,7 @@ struct MessageRow: View {
       .padding(.vertical, 8)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-    case .chat:
+    case .chat, .done:
       ChatRow(message: message, sender: sender)
     }
   }

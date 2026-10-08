@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { KEY_FILES } from '../../../src/daemon/keys.js';
-import { stuckLine, typePrompt, until } from '../../../src/flock/tmux.js';
+import { typePrompt, untypedLine, until } from '../../../src/flock/tmux.js';
 import { shellLine } from '../../../src/lib/shell.js';
 import { claudeArgv, launchClaude, pane, tmux, writeMcpConfig } from '../lib/claudeTmux.js';
 import {
@@ -115,8 +115,9 @@ async function liveRun({ argv, debugFile, home, launch, note, repo, session, tim
   const typed = await Promise.all(
     DEMO_ROLES.map(role =>
       timed(`${role} prompt sent`, async () => {
-        const sent = (await typePrompt(session(role), demoPrompt(role))) === 'sent';
-        return { detail: sent ? 'input box empty' : stuckLine(session(role)), pass: sent };
+        const outcome = await typePrompt(session(role), demoPrompt(role));
+        if (outcome === 'sent') return { detail: 'input box empty', pass: true };
+        return { detail: untypedLine(session(role), outcome), pass: false };
       }),
     ),
   );
