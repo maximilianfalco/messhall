@@ -78,15 +78,19 @@ public func notificationFor(event: BusEvent, state: NotifyState) -> Notification
   case .question(let e):
     let ask = e.question
     guard ask.state == .open, isLive(ask.createdAt, since: state.liveSince),
-      var note = content(room: e.room, body: "\(ask.member) asks you: \(ask.question)", muted: state.mutedRooms)
+      let first = ask.items.first,
+      var note = content(room: e.room, body: "\(ask.member) \(asks(ask.items.count)): \(first.question)", muted: state.mutedRooms)
     else { return nil }
     note.questionId = ask.id
-    note.options = ask.options
+    // A banner button can only answer one pick one question, the rest is answered in the room.
+    if ask.items.count == 1, !first.multiSelect { note.options = first.options.map(\.label) }
     return note
   case .messageEdit, .member, .presence, .agreement, .unknown:
     return nil
   }
 }
+
+private func asks(_ count: Int) -> String { count == 1 ? "asks you" : "asks you \(count) questions" }
 
 private func isLive(_ stamp: String, since: Date) -> Bool {
   guard let date = parseStamp(stamp) else { return false }

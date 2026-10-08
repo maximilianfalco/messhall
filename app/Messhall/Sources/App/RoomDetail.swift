@@ -48,14 +48,12 @@ struct RoomDetail: View {
       if !room.approvals.isEmpty {
         ApprovalCards(approvals: room.approvals, answer: answer)
       }
-      if !room.questions.isEmpty {
-        QuestionCards(questions: room.questions, answer: answer)
-      }
       Divider()
       Transcript(
         room: room.name, messages: room.messages.matching(query), members: room.members, query: query,
-        columnsChangedAt: columnsChangedAt, older: older, reveal: reveal)
+        columnsChangedAt: columnsChangedAt, older: older, reveal: reveal, asks: room.asks)
         .id(room.name)
+        .environment(\.answerQuestion, AnswerQuestion { [store, client] in await store.answer($0, with: $1, via: client) })
       if room.isOpen {
         PostBox(room: room, store: store, client: client, text: $draft, focused: $composing)
       } else {
@@ -134,9 +132,6 @@ struct RoomDetail: View {
     Task { refusal = await store.answer(approval, allow: allow, via: client) }
   }
 
-  private func answer(_ question: Question, option: Int) {
-    Task { refusal = await store.answer(question, option: option, via: client) }
-  }
 }
 
 /// What the shown room has loaded. A change means the human saw it, so the sidebar's unread badge clears.
@@ -597,6 +592,8 @@ struct Transcript: View {
   let columnsChangedAt: Date?
   let older: OlderPages
   let reveal: Reveal?
+  /// The question each asking line carries, by its message id.
+  let asks: [Int: Question]
   @State private var nearBottom = true
   @State private var showPill = false
   @State private var opened: [Int: Bool] = [:]
@@ -643,7 +640,7 @@ struct Transcript: View {
                 Group {
                   switch item {
                   case .message(let message):
-                    MessageRow(message: message, sender: senders[message.from])
+                    MessageRow(message: message, sender: senders[message.from], ask: asks[message.id])
                   case .fold(let fold):
                     let open = isOpen(fold)
                     FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }
@@ -969,6 +966,7 @@ struct FoldRow: View {
 struct MessageRow: View {
   let message: Message
   let sender: Member?
+  var ask: Question?
 
   var body: some View {
     #if DEBUG
@@ -997,7 +995,7 @@ struct MessageRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     case .chat, .done:
-      ChatRow(message: message, sender: sender)
+      ChatRow(message: message, sender: sender, ask: ask)
     }
   }
 }
@@ -1005,6 +1003,7 @@ struct MessageRow: View {
 struct ChatRow: View {
   let message: Message
   let sender: Member?
+  var ask: Question?
 
   // Off in Settings, a line has no links to read, so nothing goes to GitHub.
   private var pullRequests: PullRequestRow {
@@ -1040,6 +1039,9 @@ struct ChatRow: View {
           Text("Taken back")
             .italic()
             .foregroundStyle(.secondary)
+        } else if let ask {
+          QuestionPanel(question: ask)
+            .padding(.top, 2)
         } else {
           Text(mentionText(message))
             .multilineTextAlignment(line.mine ? .trailing : .leading)
