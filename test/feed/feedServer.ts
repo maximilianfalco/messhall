@@ -76,7 +76,8 @@ export async function feedServer() {
         const seatKey = config.mcpServers.messhall.headers['x-messhall-seat'];
         scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey });
       }
-      return Promise.resolve({ code: 0, stderr: '', stdout: '' });
+      const stdout = args[0] === 'display-message' ? '✳ Claude Code\n' : '';
+      return Promise.resolve({ code: 0, stderr: '', stdout });
     });
   const server: Server = createServer(
     createRouter(

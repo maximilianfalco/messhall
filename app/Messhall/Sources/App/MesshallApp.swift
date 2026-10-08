@@ -82,8 +82,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       }
     #endif
     Task { await store.run(client) }
-    trackThinking()
-    trackVisibility()
     #if DEBUG
       // A shot app must not take the real app's keys.
       if !ShotHooks.isShot { trackHotkey() }
@@ -139,32 +137,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   func applicationWillTerminate(_ notification: Notification) {
     hotkey.unregister()
-  }
-
-  /// Runs the spinner clock only while some agent in the feed is thinking.
-  private func trackThinking() {
-    withObservationTracking {
-      ThinkingClock.shared.thinking = store.rooms.contains { $0.members.contains(where: \.isThinking) }
-    } onChange: {
-      Task { @MainActor [weak self] in self?.trackThinking() }
-    }
-  }
-
-  /// Pauses the spinner clock while no window of the app shows, so a hidden app draws nothing.
-  private func trackVisibility() {
-    let names = [
-      NSWindow.didChangeOcclusionStateNotification, NSApplication.didHideNotification,
-      NSApplication.didUnhideNotification,
-    ]
-    for name in names {
-      NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
-        MainActor.assumeIsolated {
-          ThinkingClock.shared.visible = NSApp.windows.contains {
-            $0.styleMask.contains(.titled) && $0.isVisible && $0.occlusionState.contains(.visible)
-          }
-        }
-      }
-    }
   }
 
   /// Holds the keys from Settings, and swaps them each time they change there.

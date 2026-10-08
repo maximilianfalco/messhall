@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { dialogKeys, inputText, menuOpen, typeIfClear } from '../../src/flock/tmux.js';
+import { dialogKeys, inputText, menuOpen, typeIfClear, typePrompt } from '../../src/flock/tmux.js';
 
 const paneFixture = (name: string) => readFileSync(new URL(`fixtures/panes/${name}.txt`, import.meta.url), 'utf8');
 
@@ -103,17 +103,82 @@ describe('menuOpen', () => {
   });
 });
 
-describe('typeIfClear', () => {
-  const pane = (screen: string) => {
-    const sent: string[][] = [];
-    const run = (args: string[]) => {
-      if (args[0] === 'send-keys') sent.push(args);
-      const stdout = args[0] === 'capture-pane' && !sent.length ? screen : paneFixture('empty');
-      return Promise.resolve({ code: 0, stderr: '', stdout });
-    };
-    return { run, sent };
-  };
+const IDLE_TITLE = '✳ Messhall #dev seat\n';
 
+const pane = (screen: string, title = IDLE_TITLE) => {
+  const sent: string[][] = [];
+  const run = (args: string[]) => {
+    if (['send-keys', 'set-buffer', 'paste-buffer'].includes(args[0]!)) sent.push(args);
+    if (args[0] === 'display-message') return Promise.resolve({ code: 0, stderr: '', stdout: title });
+    const stdout = args[0] === 'capture-pane' && !sent.length ? screen : paneFixture('empty');
+    return Promise.resolve({ code: 0, stderr: '', stdout });
+  };
+  return { run, sent };
+};
+
+describe('typePrompt', () => {
+  it('types a short line and sends Enter on its own about 500 ms later', async () => {
+    const at: number[] = [];
+    const { run, sent } = pane(paneFixture('empty'));
+    const timed = (args: string[]) => {
+      if (args[0] === 'send-keys') at.push(Date.now());
+      return run(args);
+    };
+
+    await expect(typePrompt('=s:', 'you have 2 new in #dev, call read_since', { run: timed })).resolves.toBe('sent');
+    expect(sent).toStrictEqual([
+      ['send-keys', '-t', '=s:', '-l', 'you have 2 new in #dev, call read_since'],
+      ['send-keys', '-t', '=s:', 'Enter'],
+    ]);
+    expect(at[1]! - at[0]!).toBeGreaterThanOrEqual(450);
+  });
+
+  it('pastes a long prompt as one bracketed paste, so no part of it goes out early', async () => {
+    const text = 'call my_role now. '.repeat(20).trim();
+    const { run, sent } = pane(paneFixture('empty'));
+
+    await expect(typePrompt('=s:', text, { run, settleMs: 0 })).resolves.toBe('sent');
+    const [set, paste, enter] = sent;
+    expect(set?.slice(0, 2)).toStrictEqual(['set-buffer', '-b']);
+    expect(set?.slice(3)).toStrictEqual(['--', text]);
+    expect(paste).toStrictEqual(['paste-buffer', '-p', '-d', '-b', set?.[2], '-t', '=s:']);
+    expect(enter).toStrictEqual(['send-keys', '-t', '=s:', 'Enter']);
+  });
+
+  it('pastes a prompt with a newline instead of typing it, since a typed newline would submit half', async () => {
+    const { run, sent } = pane(paneFixture('empty'));
+
+    await typePrompt('=s:', 'first line\nsecond line', { run, settleMs: 0 });
+
+    expect(sent[0]?.[0]).toBe('set-buffer');
+    expect(sent[0]?.at(-1)).toBe('first line\nsecond line');
+  });
+
+  it('strips escape bytes, so the text cannot end the paste or send terminal codes', async () => {
+    const { run, sent } = pane(paneFixture('empty'));
+
+    await typePrompt('=s:', 'hi\x1b[201~ there\nnext', { run, settleMs: 0 });
+    await typePrompt('=s:', 'short\x1b[2J line', { run, settleMs: 0 });
+
+    expect(sent[0]?.at(-1)).toBe('hi[201~ there\nnext');
+    expect(sent.find(args => args.includes('-l'))?.at(-1)).toBe('short[2J line');
+  });
+
+  it('types into a pane whose title shows claude working', async () => {
+    const { run } = pane(paneFixture('empty'), '⠐ Messhall #dev seat\n');
+
+    await expect(typePrompt('=s:', 'wake up', { run, settleMs: 0 })).resolves.toBe('sent');
+  });
+
+  it('types nothing into a pane whose title is not claude idle or working', async () => {
+    const { run, sent } = pane(paneFixture('empty'), 'Mac\n');
+
+    await expect(typePrompt('=s:', 'wake up', { run, settleMs: 0, titleWaitMs: 0 })).resolves.toBe('not_ready');
+    expect(sent).toStrictEqual([]);
+  });
+});
+
+describe('typeIfClear', () => {
   it('types and submits the text into an empty input box', async () => {
     const { run, sent } = pane(paneFixture('placeholder'));
 

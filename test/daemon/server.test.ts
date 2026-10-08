@@ -169,7 +169,8 @@ describe('startDaemon', () => {
     const sent: string[][] = [];
     const tmux = (args: string[]) => {
       if (args[0] === 'send-keys') sent.push(args);
-      const stdout = args[0] === 'list-panes' ? `messhall_demo_api\tclaude --mcp-config '${config}'` : '';
+      const stdout = args[0] === 'list-panes' ? `messhall_demo_api:claude --mcp-config '${config}'` : '';
+      if (args[0] === 'display-message') return Promise.resolve({ code: 0, stderr: '', stdout: '✳ Claude Code\n' });
       return Promise.resolve({ code: 0, stderr: '', stdout });
     };
 

@@ -8,9 +8,11 @@ import path from 'node:path';
 
 import { SPAWN_DIR } from '../flock/spawner.js';
 import { tmux as runTmux, typeIfClear } from '../flock/tmux.js';
+import { logger } from '../lib/logger.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
-const PANE_FORMAT = '#{session_name}\t#{pane_start_command}';
+// With no utf-8 locale, as under launchd, tmux prints a tab as `_`. A session name never holds `:`, so it splits safely.
+const PANE_FORMAT = '#{session_name}:#{pane_start_command}';
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
 
 export interface WakeSeat {
@@ -53,7 +55,8 @@ export function tmuxSeats({
   const config = new RegExp(`${escapeRegExp(spawnDir)}/[\\w.-]+-mcp\\.json`);
   return new Map(
     listing.split('\n').flatMap(line => {
-      const [session = '', command = ''] = line.split('\t');
+      const cut = line.indexOf(':');
+      const [session, command] = [line.slice(0, cut), line.slice(cut + 1)];
       const file = config.exec(command)?.[0];
       const key = file && readSeatKey(file);
       return key ? [[key, session] as const] : [];
@@ -98,7 +101,9 @@ export async function wakeSeats({
   settleMs?: number;
   tmux?: Tmux;
 }) {
-  const listing = (await tmux(['list-panes', '-a', '-F', PANE_FORMAT])).stdout;
+  const listed = await tmux(['list-panes', '-a', '-F', PANE_FORMAT]);
+  if (listed.code !== 0) logger.info('wake found no tmux panes', { error: listed.stderr.trim() });
+  const listing = listed.stdout;
   const sessions = tmuxSeats({ listing, spawnDir: path.join(dataDir, SPAWN_DIR) });
   const wake = async ({ channel, rooms, target }: WakeTarget) => {
     const text = wakeText(rooms);

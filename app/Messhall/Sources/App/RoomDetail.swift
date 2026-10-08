@@ -417,6 +417,9 @@ struct MemberChip: View {
           if member.muted {
             MutedPill()
           }
+          if member.done {
+            SignedOffTag()
+          }
           if asks {
             AskPill()
           }
@@ -450,43 +453,34 @@ struct StatusLine: View {
   #endif
 
   #if DEBUG
-    private func glyph(at date: Date, animated: Bool) -> String {
-      guard let shot = ShotHooks.glyphFrame else { return Thinking.glyph(at: date, animated: animated) }
-      return Thinking.glyph(at: Date(timeIntervalSinceReferenceDate: Double(shot) * Thinking.step), animated: true)
-    }
+    private static let frozenFrame = ShotHooks.glyphFrame
   #else
-    private func glyph(at date: Date, animated: Bool) -> String { Thinking.glyph(at: date, animated: animated) }
+    private static let frozenFrame: Int? = nil
   #endif
 
-  // The caption style the line uses, so the box fits the glyphs as drawn.
-  private static let glyphBox = Thinking.box(for: .preferredFont(forTextStyle: .caption1))
+  @Environment(\.colorScheme) private var scheme
 
-  // The frame is read only while spinning, so a still line never redraws on a tick.
+  // A spinning line is a Core Animation view, so its frames never run through SwiftUI or lay the window out.
   var body: some View {
-    let clock = ThinkingClock.shared
+    let text = member.statusLine(now: ThinkingClock.shared.minute) ?? ""
     let animated = member.isThinking && !reduceMotion
-    let frame = animated ? clock.frame : .distantPast
-    HStack(spacing: 4) {
-      Text(glyph(at: frame, animated: animated))
-        .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
-        .frame(width: Self.glyphBox)
-      Text(member.statusLine(now: clock.minute) ?? "")
-        .foregroundStyle(animated ? AnyShapeStyle(shimmer(at: frame)) : AnyShapeStyle(.secondary))
-        .lineLimit(1)
-        .truncationMode(.tail)
+    Group {
+      if animated {
+        StatusSpinner(text: text, color: member.presence.color, frozen: Self.frozenFrame, scheme: scheme)
+      } else {
+        HStack(spacing: SpinnerView.gap) {
+          Text(Thinking.frames[0])
+            .foregroundStyle(member.isThinking ? member.presence.color : .secondary)
+            .frame(width: SpinnerView.glyphBox)
+          Text(text)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
+        .font(.caption)
+      }
     }
-    .font(.caption)
     .frame(maxWidth: maxWidth, alignment: .leading)
-  }
-
-  // A light band slides across the secondary text, a little past each edge so it fades in and out.
-  private func shimmer(at date: Date) -> LinearGradient {
-    let center = -0.3 + 1.6 * Thinking.shimmer(at: date)
-    return LinearGradient(
-      stops: [
-        .init(color: .secondary, location: center - 0.2), .init(color: .primary, location: center),
-        .init(color: .secondary, location: center + 0.2),
-      ], startPoint: .leading, endPoint: .trailing)
   }
 }
 
@@ -533,6 +527,19 @@ struct MutedPill: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
       .background(.orange.opacity(0.12), in: Capsule())
+  }
+}
+
+/// Says the member left the task for good. A small tag on the seat, never a mark on a message.
+struct SignedOffTag: View {
+  var body: some View {
+    Text("signed off")
+      .font(.subheadline)
+      .fixedSize()
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .background(.secondary.opacity(0.12), in: Capsule())
   }
 }
 
@@ -974,16 +981,6 @@ struct MessageRow: View {
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 2)
-    case .done:
-      HStack(spacing: 10) {
-        Image(systemName: "checkmark.circle.fill")
-          .foregroundStyle(.green)
-          .frame(width: 28)
-        Text("**\(message.from)** is done: \(message.text)")
-      }
-      .foregroundStyle(.secondary)
-      .padding(.horizontal, 10)
-      .padding(.vertical, 2)
     case .summary:
       Label {
         VStack(alignment: .leading, spacing: 3) {
@@ -999,7 +996,7 @@ struct MessageRow: View {
       .padding(.vertical, 8)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-    case .chat:
+    case .chat, .done:
       ChatRow(message: message, sender: sender)
     }
   }

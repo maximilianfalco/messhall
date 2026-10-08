@@ -74,7 +74,7 @@ struct AgentRowView: View {
     VStack(alignment: .leading, spacing: 8) {
       Button(action: open) {
         HStack(alignment: .top, spacing: 8) {
-          AvatarView(name: member.name, size: 26, presence: member.presence, done: member.done)
+          AvatarView(name: member.name, size: 26, presence: member.presence)
           VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
               Text(member.name)
@@ -84,6 +84,9 @@ struct AgentRowView: View {
                 .foregroundStyle(.secondary)
               if let role = member.rolePill {
                 RolePill(role: role)
+              }
+              if member.done {
+                SignedOffTag()
               }
             }
             .lineLimit(1)
