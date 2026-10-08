@@ -51,9 +51,9 @@ Run everything from the main checkout (the folder you were started in). `<n>` is
    Anything past 1,500 chars goes only into the GitHub review.
 2. **On GitHub**, the same list as one review, with an inline comment where a line is clear:
    ```bash
-   gh api repos/{owner}/{repo}/pulls/<n>/reviews --input review.json
+   gh api repos/{owner}/{repo}/pulls/<n>/reviews --input <file>
    ```
-   with `review.json` holding `{"event": "REQUEST_CHANGES" or "APPROVE", "body": "<the list>", "comments": [{"path": "...", "line": <n>, "side": "RIGHT", "body": "..."}]}`. Write it under `/tmp`, never in the repo. GitHub refuses approve and request changes on your own PR (422). Then send it again with `"event": "COMMENT"` and the verdict as the body's first line (`changes requested` or `approved`).
+   with the file holding `{"event": "REQUEST_CHANGES" or "APPROVE", "body": "<the list>", "comments": [{"path": "...", "line": <n>, "side": "RIGHT", "body": "..."}]}`. Make it with `mktemp -t review`, never a fixed path or the repo. GitHub refuses approve and request changes on your own PR (422). Then send it again with `"event": "COMMENT"` and the verdict as the body's first line (`changes requested` or `approved`).
 3. **No blockers and no should-fix**: approve. Post `approved @<worker> <PR url>` in the room, exactly that shape, since the worker merges on it. Nits alone never block.
 4. **Round 3 without approval**: do not review again. Post `@human stuck on <PR url>, round 3` and stop reviewing that PR until a human line says otherwise.
 5. Approved or stuck, remove the worktree: `make app-clean WORKTREE=.worktrees/review-<n> && git worktree remove --force .worktrees/review-<n>`.
