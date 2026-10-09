@@ -286,7 +286,9 @@ describe('join', () => {
 
   it('lists the room a codex thread sits in, and no claude', async () => {
     await (await harness.agent({ name: 'claude-code' })).call('join', { as: 'api', room: 'checkout' });
-    await (await harness.agent({ name: 'codex-mcp-client' })).call('join', {
+    await (
+      await harness.agent({ name: 'codex-mcp-client' })
+    ).call('join', {
       as: 'web',
       room: 'checkout',
       thread_id: LIVE_THREAD,

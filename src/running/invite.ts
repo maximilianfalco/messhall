@@ -28,7 +28,7 @@ const slug = (text: string) =>
 
 function nextFree(base: string, taken: Set<string>) {
   let name = base;
-  for (let n = 2; taken.has(name); n++) name = `${base.slice(0, NAME_MAX - String(n).length - 1)}-${n}`;
+  for (let n = 2; taken.has(name); n += 1) name = `${base.slice(0, NAME_MAX - String(n).length - 1)}-${n}`;
   taken.add(name);
   return name;
 }
@@ -47,17 +47,17 @@ export async function inviteRunning({
   room: string;
 }) {
   const taken = new Set<string>();
-  const invites: Invite[] = [];
-  for (const id of ids) {
+  const picked = ids.map(id => {
     const agent = agents.find(found => found.id === id);
-    if (!agent) {
-      invites.push({ id, line: null, name: null, outcome: 'gone' });
-      continue;
-    }
-    const name = nextFree(slug(agent.repo ?? path.basename(agent.cwd)), taken);
-    const line = joinLine({ agent, name, room });
-    const queued = agent.reach === 'codex_thread' && (await queue(agent.id, line));
-    invites.push({ id, line, name, outcome: queued ? 'queued' : 'copy' });
-  }
-  return invites;
+    if (!agent) return { agent, id, name: null };
+    return { agent, id, name: nextFree(slug(agent.repo ?? path.basename(agent.cwd)), taken) };
+  });
+  return Promise.all(
+    picked.map(async ({ agent, id, name }): Promise<Invite> => {
+      if (!agent || !name) return { id, line: null, name: null, outcome: 'gone' };
+      const line = joinLine({ agent, name, room });
+      const queued = agent.reach === 'codex_thread' && (await queue(agent.id, line));
+      return { id, line, name, outcome: queued ? 'queued' : 'copy' };
+    }),
+  );
 }

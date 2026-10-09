@@ -46,9 +46,9 @@ describe('inviteRunning', () => {
     const result = await inviteRunning({
       agents: [agent(), thread, plain],
       ids: ['s-1', 't-1', 'pid-9'],
-      queue: async (threadId, text) => {
+      queue: (threadId, text) => {
         queued.push([threadId, text]);
-        return true;
+        return Promise.resolve(true);
       },
       room: 'rm-7',
     });
@@ -62,13 +62,18 @@ describe('inviteRunning', () => {
   });
 
   it('falls back to a copy line when the thread refuses the queue', async () => {
-    const [result] = await inviteRunning({ agents: [thread], ids: ['t-1'], queue: async () => false, room: 'rm-7' });
+    const [result] = await inviteRunning({
+      agents: [thread],
+      ids: ['t-1'],
+      queue: () => Promise.resolve(false),
+      room: 'rm-7',
+    });
 
     expect(result?.outcome).toBe('copy');
   });
 
   it('reports an id that no longer runs as gone', async () => {
-    const result = await inviteRunning({ agents: [], ids: ['s-9'], queue: async () => true, room: 'rm-7' });
+    const result = await inviteRunning({ agents: [], ids: ['s-9'], queue: () => Promise.resolve(true), room: 'rm-7' });
 
     expect(result).toStrictEqual([{ id: 's-9', line: null, name: null, outcome: 'gone' }]);
   });
@@ -77,7 +82,7 @@ describe('inviteRunning', () => {
     const result = await inviteRunning({
       agents: [agent(), agent({ id: 's-2' })],
       ids: ['s-1', 's-2'],
-      queue: async () => true,
+      queue: () => Promise.resolve(true),
       room: 'rm-7',
     });
 
@@ -88,7 +93,7 @@ describe('inviteRunning', () => {
     const [result] = await inviteRunning({
       agents: [agent({ cwd: '/Users/me/My Notes', repo: null })],
       ids: ['s-1'],
-      queue: async () => true,
+      queue: () => Promise.resolve(true),
       room: 'rm-7',
     });
 

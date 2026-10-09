@@ -1,5 +1,5 @@
-import type { RunResult } from '../../src/lib/run.js';
 import type { ThreadStatus } from '../../src/codex/generated/v2/ThreadStatus.js';
+import type { RunResult } from '../../src/lib/run.js';
 
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,13 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createCodexClient } from '../../src/codex/client.js';
-import { codexProcesses, cwdsFromLsof, gitPlace, readClaudeSessions, readCodexThreads } from '../../src/running/scan.js';
+import {
+  codexProcesses,
+  cwdsFromLsof,
+  gitPlace,
+  readClaudeSessions,
+  readCodexThreads,
+} from '../../src/running/scan.js';
 import { fakeCodex, fakeTimers } from '../codex/fakeCodex.js';
 
 const sessionsDir = (files: Record<string, string>) => {
@@ -60,24 +66,24 @@ describe('gitPlace', () => {
   const ok = (stdout: string): RunResult => ({ code: 0, stderr: '', stdout });
 
   it('names the main repo folder for a worktree, and the branch', async () => {
-    const run = async () => ok('/code/messhall/.git\nf10/invite-running\n');
+    const run = () => Promise.resolve(ok('/code/messhall/.git\nf10/invite-running\n'));
 
-    expect(await gitPlace({ cwd: '/code/messhall/.worktrees/f10', run })).toStrictEqual({
+    await expect(gitPlace({ cwd: '/code/messhall/.worktrees/f10', run })).resolves.toStrictEqual({
       branch: 'f10/invite-running',
       repo: 'messhall',
     });
   });
 
   it('gives no branch on a detached head', async () => {
-    const run = async () => ok('/code/api/.git\nHEAD\n');
+    const run = () => Promise.resolve(ok('/code/api/.git\nHEAD\n'));
 
-    expect(await gitPlace({ cwd: '/code/api', run })).toStrictEqual({ branch: null, repo: 'api' });
+    await expect(gitPlace({ cwd: '/code/api', run })).resolves.toStrictEqual({ branch: null, repo: 'api' });
   });
 
   it('gives nothing outside a repo', async () => {
-    const run = async (): Promise<RunResult> => ({ code: 128, stderr: 'not a git repository', stdout: '' });
+    const run = () => Promise.resolve<RunResult>({ code: 128, stderr: 'not a git repository', stdout: '' });
 
-    expect(await gitPlace({ cwd: '/tmp', run })).toStrictEqual({ branch: null, repo: null });
+    await expect(gitPlace({ cwd: '/tmp', run })).resolves.toStrictEqual({ branch: null, repo: null });
   });
 });
 

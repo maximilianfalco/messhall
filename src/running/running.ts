@@ -1,5 +1,5 @@
-import type { ClaudeSession, CodexThread } from './scan.js';
 import type { RunningAgent } from '../../contracts/feed.ts';
+import type { ClaudeSession, CodexThread } from './scan.js';
 
 interface Place {
   branch: string | null;
@@ -28,8 +28,7 @@ type Found = Omit<RunningAgent, 'branch' | 'repo'>;
  * A plain codex in a folder that a shared server thread also has counts as that thread. */
 export async function runningAgents({ claude, codexPids, codexThreads, place, seats }: RunningSources) {
   const roomOf = ({ cwd, kind, threadId }: { cwd: string; kind: 'claude' | 'codex'; threadId?: string }) =>
-    seats.find(seat => (threadId ? seat.threadId === threadId : seat.kind === kind && seat.cwd === cwd))?.room ??
-    null;
+    seats.find(seat => (threadId ? seat.threadId === threadId : seat.kind === kind && seat.cwd === cwd))?.room ?? null;
   const threadCwds = new Set(codexThreads.map(thread => thread.cwd));
   const found: Found[] = [
     ...claude.map(({ cwd, id, status }): Found => ({

@@ -8,14 +8,14 @@ const sources = (overrides: Partial<RunningSources> = {}): RunningSources => ({
   claude: [{ cwd: '/code/api', id: 's-1', pid: 101, status: 'idle' }],
   codexPids: new Map(),
   codexThreads: [],
-  place: async cwd => ({ branch: 'rm-1/x', repo: cwd.split('/').at(-1) ?? null }),
+  place: cwd => Promise.resolve({ branch: 'rm-1/x', repo: cwd.split('/').at(-1) ?? null }),
   seats: [],
   ...overrides,
 });
 
 describe('runningAgents', () => {
   it('lists claude sessions as reachable by session messaging', async () => {
-    expect(await runningAgents(sources())).toStrictEqual([
+    await expect(runningAgents(sources())).resolves.toStrictEqual([
       {
         branch: 'rm-1/x',
         cwd: '/code/api',
@@ -60,7 +60,9 @@ describe('runningAgents', () => {
   });
 
   it('marks the room of a claude a spawned seat runs in that folder', async () => {
-    const found = await runningAgents(sources({ seats: [{ cwd: '/code/api', kind: 'claude', room: 'dev', threadId: null }] }));
+    const found = await runningAgents(
+      sources({ seats: [{ cwd: '/code/api', kind: 'claude', room: 'dev', threadId: null }] }),
+    );
 
     expect(found[0]?.room).toBe('dev');
   });
@@ -73,9 +75,9 @@ describe('runningAgents', () => {
           { cwd: '/code/api', id: 's-1', pid: 101, status: 'idle' },
           { cwd: '/code/api', id: 's-2', pid: 102, status: 'busy' },
         ],
-        place: async cwd => {
+        place: cwd => {
           asked.push(cwd);
-          return { branch: null, repo: null };
+          return Promise.resolve({ branch: null, repo: null });
         },
       }),
     );

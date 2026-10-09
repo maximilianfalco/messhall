@@ -56,7 +56,15 @@ export function readClaudeSessions({ alive, dir }: { alive: (pid: number) => boo
 /** The repo a folder is in, named by its main checkout so a worktree counts as its repo, and the branch.
  * Both null outside a repo, and the branch null on a detached head. */
 export async function gitPlace({ cwd, run }: { cwd: string; run: Runner }) {
-  const out = await run('git', ['-C', cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir', '--abbrev-ref', 'HEAD']);
+  const out = await run('git', [
+    '-C',
+    cwd,
+    'rev-parse',
+    '--path-format=absolute',
+    '--git-common-dir',
+    '--abbrev-ref',
+    'HEAD',
+  ]);
   const [commonDir, branch] = out.stdout.trim().split('\n');
   if (out.code !== 0 || !commonDir) return { branch: null, repo: null };
   return { branch: branch && branch !== 'HEAD' ? branch : null, repo: path.basename(path.dirname(commonDir)) };
@@ -93,19 +101,30 @@ export interface CodexThread {
 
 const threadStatus = ({ type }: ThreadStatus) => (type === 'active' ? 'busy' : type === 'idle' ? 'idle' : 'unknown');
 
+// Pages one at a time, since each page names the next.
+async function loadedThreads({
+  codex,
+  cursor,
+}: {
+  codex: Pick<CodexClient, 'request'>;
+  cursor: string | null;
+}): Promise<string[] | null> {
+  const page: CodexResult<'thread/loaded/list'> = await codex.request('thread/loaded/list', { cursor });
+  if (!page.ok) return null;
+  if (!page.result.nextCursor) return page.result.data;
+  const rest = await loadedThreads({ codex, cursor: page.result.nextCursor });
+  return rest && [...page.result.data, ...rest];
+}
+
 /** Lists the threads loaded on Codex's shared server with folder and idle or busy. Reads no turns.
  * Empty when the server is down. */
 export async function readCodexThreads({ codex }: { codex: Pick<CodexClient, 'request'> }) {
-  const ids: string[] = [];
-  let cursor: string | null = null;
-  do {
-    const page: CodexResult<'thread/loaded/list'> = await codex.request('thread/loaded/list', { cursor });
-    if (!page.ok) return [];
-    ids.push(...page.result.data);
-    cursor = page.result.nextCursor;
-  } while (cursor);
+  const ids = await loadedThreads({ codex, cursor: null });
+  if (!ids) return [];
   const read = await Promise.all(ids.map(threadId => codex.request('thread/read', { includeTurns: false, threadId })));
   return read.flatMap((reply): CodexThread[] =>
-    reply.ok ? [{ cwd: reply.result.thread.cwd, id: reply.result.thread.id, status: threadStatus(reply.result.thread.status) }] : [],
+    reply.ok
+      ? [{ cwd: reply.result.thread.cwd, id: reply.result.thread.id, status: threadStatus(reply.result.thread.status) }]
+      : [],
   );
 }

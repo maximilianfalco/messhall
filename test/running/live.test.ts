@@ -21,20 +21,26 @@ const claudeDir = () => {
   return dir;
 };
 
-const runner = (calls: string[][]) => async (command: string, args: string[]) => {
+const runner = (calls: string[][]) => (command: string, args: string[]) => {
   calls.push([command, ...args]);
-  if (command === 'ps') return ok('  401 /opt/bin/codex codex\n');
-  if (command === 'lsof') return ok('p401\nfcwd\nn/code/docs\n');
+  if (command === 'ps') return Promise.resolve(ok('  401 /opt/bin/codex codex\n'));
+  if (command === 'lsof') return Promise.resolve(ok('p401\nfcwd\nn/code/docs\n'));
   const cwd = args[1] ?? '';
-  return ok(`${cwd}/.git\nrm-7/${path.basename(cwd)}\n`);
+  return Promise.resolve(ok(`${cwd}/.git\nrm-7/${path.basename(cwd)}\n`));
 };
 
-const down = { request: async () => ({ error: 'codex control socket closed', ok: false as const }) };
+const down = { request: () => Promise.resolve({ error: 'codex control socket closed', ok: false as const }) };
 
 describe('createRunningScan', () => {
   it('finds every session and suggests a room for the ones on one ticket', async () => {
     const calls: string[][] = [];
-    const scan = createRunningScan({ alive: () => true, claudeDir: claudeDir(), codex: down, run: runner(calls), seats: async () => [] });
+    const scan = createRunningScan({
+      alive: () => true,
+      claudeDir: claudeDir(),
+      codex: down,
+      run: runner(calls),
+      seats: () => Promise.resolve([]),
+    });
 
     const running = await scan();
 
@@ -49,13 +55,19 @@ describe('createRunningScan', () => {
 
   it('skips lsof when no codex runs', async () => {
     const calls: string[][] = [];
-    const run = async (command: string, args: string[]) => {
+    const run = (command: string, args: string[]) => {
       calls.push([command, ...args]);
-      return command === 'ps' ? ok('  407 /opt/bin/claude claude\n') : ok('');
+      return Promise.resolve(command === 'ps' ? ok('  407 /opt/bin/claude claude\n') : ok(''));
     };
-    const scan = createRunningScan({ alive: () => true, claudeDir: '/nowhere', codex: down, run, seats: async () => [] });
+    const scan = createRunningScan({
+      alive: () => true,
+      claudeDir: '/nowhere',
+      codex: down,
+      run,
+      seats: () => Promise.resolve([]),
+    });
 
-    expect(await scan()).toStrictEqual({ agents: [], suggestions: [] });
+    await expect(scan()).resolves.toStrictEqual({ agents: [], suggestions: [] });
     expect(calls.map(call => call[0])).toStrictEqual(['ps']);
   });
 });
@@ -75,7 +87,10 @@ describe('createRunningInvite', () => {
   it('scans again and queues the line on the codex thread', async () => {
     const codex = await fakeCodex({ 'thread/queue/add': () => ({ result: { queuedSubmission: {} } }) });
     const client = createCodexClient({ setTimer: fakeTimers().setTimer, socketPath: codex.socketPath });
-    const invite = createRunningInvite({ codex: client, scan: async () => ({ agents: [thread], suggestions: [] }) });
+    const invite = createRunningInvite({
+      codex: client,
+      scan: () => Promise.resolve({ agents: [thread], suggestions: [] }),
+    });
 
     const result = await invite({ ids: ['t-1'], room: 'rm-7' });
 

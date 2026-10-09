@@ -169,7 +169,11 @@ export const runningSchema = z.object({
 });
 
 export const runningInviteSchema = z.object({
-  ids: z.array(z.string().min(1)).min(1).max(20).describe('Ids of the running agents to invite, from the running list.'),
+  ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(20)
+    .describe('Ids of the running agents to invite, from the running list.'),
   room: nameSchema.describe('The room to invite them to. It must exist and be open.'),
 });
 
