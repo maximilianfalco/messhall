@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { INSTRUCTIONS_MAX_CHARS } from '../../contracts/room.ts';
+import { SPAWN_RATE_MAX, SPAWN_SEAT_CAP } from '../../src/config.js';
 import { keepsDyingLine } from '../../src/flock/heal.js';
 import { PROFILES_DIR } from '../../src/flock/spawner.js';
 import { REPO_ROOT } from '../../tools/dev/lib/paths.js';
@@ -118,9 +119,21 @@ describe('orchestrator brief run', () => {
     expect(orchestrator).toMatch(/`kick` every seat you spawned.*then post one wrap-up line.*what shipped/s);
   });
 
-  it('leaves once its done wrap-up closes the room, not holding a closed seat', () => {
-    expect(orchestrator).toContain('That closes the room once every agent is done, so `leave` after it.');
+  it('leaves after its wrap-up, since a room the human made stays open', () => {
+    expect(orchestrator).toContain(
+      'A room the human made stays open until the human closes it. `leave` after it either way.',
+    );
     expect(orchestrator).not.toContain('Hold the seat for questions');
+  });
+
+  it('plans within the spawn seat cap and rate', () => {
+    expect(orchestrator).toContain(`At most ${SPAWN_SEAT_CAP} spawned seats, reviewers counted`);
+    expect(orchestrator).toContain(`at most ${SPAWN_RATE_MAX} spawns a minute`);
+  });
+
+  it('gives workers written from scratch the human rules from worker.md', () => {
+    expect(orchestrator).toContain('never ask the human to approve or run a command');
+    expect(orchestrator).toContain('never merge a PR on a `CRITICAL.md` tree');
   });
 });
 
