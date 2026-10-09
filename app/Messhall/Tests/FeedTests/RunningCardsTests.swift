@@ -2,10 +2,10 @@ import Testing
 
 @testable import Feed
 
-private func agent(_ id: String, kind: String = "claude", room: String? = nil) -> RunningAgent {
+private func agent(_ id: String, kind: RunningKind = .claude, room: String? = nil) -> RunningAgent {
   RunningAgent(
-    branch: "rm-7/x", cwd: "/code/\(id)", id: id, kind: kind, reach: kind == "claude" ? "claude_session" : "codex_thread",
-    repo: id, room: room, status: "idle")
+    branch: "rm-7/x", cwd: "/code/\(id)", id: id, kind: kind, reach: kind == .claude ? .claudeSession : .codexThread,
+    repo: id, room: room, status: .idle)
 }
 
 private func running(_ agents: [RunningAgent], ids: [String]? = nil) -> Running {
@@ -17,7 +17,7 @@ struct RunningCardsTests {
   @Test("counts each kind and offers to make the room")
   func makeRoom() {
     let cards = RunningCard.cards(
-      running: running([agent("a"), agent("b"), agent("c", kind: "codex")]), rooms: [:], dismissed: [])
+      running: running([agent("a"), agent("b"), agent("c", kind: .codex)]), rooms: [:], dismissed: [])
 
     #expect(cards.map(\.title) == ["2 claude + 1 codex on rm-7"])
     #expect(cards.map(\.action) == [.make("rm-7")])

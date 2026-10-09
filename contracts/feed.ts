@@ -140,21 +140,28 @@ export const flockSchema = z.object({
   seats: z.array(flockSeatSchema).describe('Every seat the spawner started, by room then name.'),
 });
 
+export const runningKindSchema = z.enum(['claude', 'codex']).describe('Which agent runs a session.');
+export const runningReachSchema = z
+  .enum(['claude_session', 'codex_thread', 'copy_only'])
+  .describe(
+    'How an invite reaches a session: claude session messaging, a line queued on its shared codex thread, or a copied line only.',
+  );
+export const runningStatusSchema = z.enum(['busy', 'idle', 'unknown']).describe('Whether a session is mid turn.');
+export const inviteOutcomeSchema = z
+  .enum(['queued', 'copy', 'gone'])
+  .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.');
+
 export const runningAgentSchema = z.object({
   branch: z.string().nullable().describe('Git branch of its folder, null outside a repo or on a detached head.'),
   cwd: z.string().describe('Folder the session runs in.'),
   id: z
     .string()
     .describe('Claude session id, codex thread id, or pid-<n> for a codex that only a copied join line reaches.'),
-  kind: z.enum(['claude', 'codex']).describe('Which agent runs the session.'),
-  reach: z
-    .enum(['claude_session', 'codex_thread', 'copy_only'])
-    .describe(
-      'How an invite reaches it: claude session messaging, a line queued on its shared codex thread, or a copied line only.',
-    ),
+  kind: runningKindSchema,
+  reach: runningReachSchema,
   repo: z.string().nullable().describe('Name of the main checkout of its repo, null outside a repo.'),
   room: nameSchema.nullable().describe('A room it already sits in, null when none is known.'),
-  status: z.enum(['busy', 'idle', 'unknown']).describe('Whether the session is mid turn.'),
+  status: runningStatusSchema,
 });
 
 export const roomSuggestionSchema = z.object({
@@ -181,9 +188,7 @@ export const runningInviteItemSchema = z.object({
   id: z.string().describe('The running agent id.'),
   line: z.string().nullable().describe('The join line it got, or the one to copy to it. Null when it is gone.'),
   name: nameSchema.nullable().describe('The name the line asks it to join as. Null when it is gone.'),
-  outcome: z
-    .enum(['queued', 'copy', 'gone'])
-    .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.'),
+  outcome: inviteOutcomeSchema,
 });
 
 export const runningInviteResultSchema = z.object({

@@ -101,7 +101,7 @@ struct RunningCardRow: View {
       Text(question)
         .font(.caption)
         .foregroundStyle(.secondary)
-      Text(card.invitees.map { "\($0.kind) in \($0.repo ?? URL(fileURLWithPath: $0.cwd).lastPathComponent)" }.joined(separator: ", "))
+      Text(card.invitees.map { "\($0.kind.rawValue) in \($0.repo ?? URL(fileURLWithPath: $0.cwd).lastPathComponent)" }.joined(separator: ", "))
         .font(.caption)
         .foregroundStyle(.secondary)
         .lineLimit(2)
@@ -154,9 +154,10 @@ struct InviteResultRow: View {
   private var summary: String {
     let name = invite.name ?? invite.id
     switch invite.outcome {
-    case "queued": return "\(name): the invite waits in its codex thread"
-    case "gone": return "\(invite.id) stopped running"
-    default: return "\(name): paste this line into its session"
+    case .queued: return "\(name): the invite waits in its codex thread"
+    case .gone: return "\(invite.id) stopped running"
+    case .copy: return "\(name): paste this line into its session"
+    case .unknown: return "\(name): this app is older than the daemon, update it to see this invite"
     }
   }
 
@@ -164,7 +165,7 @@ struct InviteResultRow: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(summary)
         .font(.callout)
-      if invite.outcome == "copy", let line = invite.line {
+      if invite.outcome == .copy, let line = invite.line {
         HStack(alignment: .top) {
           Text(line)
             .font(.caption.monospaced())

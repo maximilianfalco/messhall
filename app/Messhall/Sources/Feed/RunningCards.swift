@@ -25,9 +25,9 @@ public struct RunningCard: Equatable, Sendable, Identifiable {
 
   /// Like "2 claude + 1 codex on rm-7".
   public var title: String {
-    let counts = ["claude", "codex"].compactMap { kind -> String? in
+    let counts = [RunningKind.claude, .codex].compactMap { kind -> String? in
       let count = invitees.filter { $0.kind == kind }.count
-      return count == 0 ? nil : "\(count) \(kind)"
+      return count == 0 ? nil : "\(count) \(kind.rawValue)"
     }
     return "\(counts.joined(separator: " + ")) on \(key)"
   }

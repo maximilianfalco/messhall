@@ -663,22 +663,38 @@ public struct Flock: Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable { case seats }
 }
 
+public enum RunningKind: String, OpenEnum, CaseIterable, Sendable { case claude, codex, unknown }
+
+/// How an invite reaches a running session.
+public enum RunningReach: String, OpenEnum, CaseIterable, Sendable {
+  case claudeSession = "claude_session"
+  case codexThread = "codex_thread"
+  case copyOnly = "copy_only"
+  case unknown
+}
+
+/// `unknown` is a real value here: the daemon could not tell idle from busy.
+public enum RunningStatus: String, OpenEnum, CaseIterable, Sendable { case busy, idle, unknown }
+
+/// What one invite did: queued on its codex thread, a line to copy, or the agent stopped.
+public enum InviteOutcome: String, OpenEnum, CaseIterable, Sendable { case queued, copy, gone, unknown }
+
 /// A claude or codex session running on this Mac, with the room it already sits in when the daemon knows it.
 public struct RunningAgent: Codable, Equatable, Sendable, Identifiable {
   public var branch: String?
   public var cwd: String
   public var id: String
-  public var kind: String
-  public var reach: String
+  public var kind: RunningKind
+  public var reach: RunningReach
   public var repo: String?
   public var room: String?
-  public var status: String
+  public var status: RunningStatus
 
   enum CodingKeys: String, CodingKey, CaseIterable { case branch, cwd, id, kind, reach, repo, room, status }
 
   public init(
-    branch: String?, cwd: String, id: String, kind: String, reach: String, repo: String?, room: String?,
-    status: String
+    branch: String?, cwd: String, id: String, kind: RunningKind, reach: RunningReach, repo: String?, room: String?,
+    status: RunningStatus
   ) {
     self.branch = branch
     self.cwd = cwd
@@ -730,16 +746,16 @@ public struct RunningInvite: Codable, Equatable, Sendable {
   }
 }
 
-/// What one invite did: queued on a codex thread, a line to copy, or gone.
+/// What one invite did, and the line it got or should be pasted.
 public struct RunningInviteItem: Codable, Equatable, Sendable, Identifiable {
   public var id: String
   public var line: String?
   public var name: String?
-  public var outcome: String
+  public var outcome: InviteOutcome
 
   enum CodingKeys: String, CodingKey, CaseIterable { case id, line, name, outcome }
 
-  public init(id: String, line: String?, name: String?, outcome: String) {
+  public init(id: String, line: String?, name: String?, outcome: InviteOutcome) {
     self.id = id
     self.line = line
     self.name = name

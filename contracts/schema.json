@@ -689,6 +689,15 @@
       ],
       "additionalProperties": false
     },
+    "InviteOutcome": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "copy",
+        "gone"
+      ],
+      "description": "queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped."
+    },
     "Member": {
       "type": "object",
       "properties": {
@@ -1594,21 +1603,10 @@
           "description": "Claude session id, codex thread id, or pid-<n> for a codex that only a copied join line reaches."
         },
         "kind": {
-          "type": "string",
-          "enum": [
-            "claude",
-            "codex"
-          ],
-          "description": "Which agent runs the session."
+          "$ref": "#/$defs/RunningKind"
         },
         "reach": {
-          "type": "string",
-          "enum": [
-            "claude_session",
-            "codex_thread",
-            "copy_only"
-          ],
-          "description": "How an invite reaches it: claude session messaging, a line queued on its shared codex thread, or a copied line only."
+          "$ref": "#/$defs/RunningReach"
         },
         "repo": {
           "description": "Name of the main checkout of its repo, null outside a repo.",
@@ -1631,13 +1629,7 @@
           "description": "A room it already sits in, null when none is known."
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "busy",
-            "idle",
-            "unknown"
-          ],
-          "description": "Whether the session is mid turn."
+          "$ref": "#/$defs/RunningStatus"
         }
       },
       "required": [
@@ -1705,13 +1697,7 @@
           "description": "The name the line asks it to join as. Null when it is gone."
         },
         "outcome": {
-          "type": "string",
-          "enum": [
-            "queued",
-            "copy",
-            "gone"
-          ],
-          "description": "queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped."
+          "$ref": "#/$defs/InviteOutcome"
         }
       },
       "required": [
@@ -1737,6 +1723,32 @@
         "invites"
       ],
       "additionalProperties": false
+    },
+    "RunningKind": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex"
+      ],
+      "description": "Which agent runs a session."
+    },
+    "RunningReach": {
+      "type": "string",
+      "enum": [
+        "claude_session",
+        "codex_thread",
+        "copy_only"
+      ],
+      "description": "How an invite reaches a session: claude session messaging, a line queued on its shared codex thread, or a copied line only."
+    },
+    "RunningStatus": {
+      "type": "string",
+      "enum": [
+        "busy",
+        "idle",
+        "unknown"
+      ],
+      "description": "Whether a session is mid turn."
     },
     "SearchHit": {
       "type": "object",

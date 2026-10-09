@@ -77,6 +77,10 @@ private let enums: [String: [String]] = [
   "MemberKind": MemberKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
   "MessageKind": MessageKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
   "Presence": Presence.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "InviteOutcome": InviteOutcome.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "RunningKind": RunningKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "RunningReach": RunningReach.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "RunningStatus": RunningStatus.allCases.map(\.rawValue),
 ]
 
 private let unused: Set = [
