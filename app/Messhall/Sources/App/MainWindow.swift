@@ -7,6 +7,7 @@ struct MainWindow: View {
   @Bindable var navigation: Navigation
   @State private var columns = Self.startColumns
   @State private var columnsChangedAt: Date?
+  @State private var running = RunningWatch()
   @Environment(\.openURL) private var openURL
   @Environment(\.openSettings) private var openSettings
 
@@ -28,6 +29,11 @@ struct MainWindow: View {
     AgentsPanel(rooms: store.rooms, room: store.room(named: selection.wrappedValue)?.name)
   }
 
+  private var runningCards: [RunningCard] {
+    RunningCard.cards(
+      running: running.running, openRooms: Set(store.rooms.filter(\.isOpen).map(\.name)), dismissed: running.dismissed)
+  }
+
   private var showingNewRoom: Binding<Bool> {
     Binding(get: { navigation.newRoomDraft != nil }, set: { if !$0 { navigation.newRoomDraft = nil } })
   }
@@ -35,7 +41,9 @@ struct MainWindow: View {
   var body: some View {
     if store.loaded {
       NavigationSplitView(columnVisibility: $columns) {
-        RoomList(rooms: store.rooms, store: store, selection: selection)
+        RoomList(rooms: store.rooms, store: store, selection: selection) {
+          RunningCardsSection(cards: runningCards, watch: running, client: client)
+        }
           .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 320)
       } detail: {
         if let room = store.room(named: selection.wrappedValue) {
@@ -80,6 +88,10 @@ struct MainWindow: View {
       .sheet(isPresented: $navigation.showsWelcome) {
         WelcomeSheet(store: store, client: client, navigation: navigation)
       }
+      .task { await running.follow(client) }
+      .sheet(item: $running.results) { results in
+        InviteResultsSheet(results: results)
+      }
       .sheet(isPresented: showingNewRoom) {
         NewRoomSheet(store: store, client: client, navigation: navigation)
       }
@@ -112,13 +124,15 @@ struct DaemonDown: View {
   }
 }
 
-struct RoomList: View {
+struct RoomList<Top: View>: View {
   let rooms: [SnapshotRoom]
   let store: FeedStore
   @Binding var selection: String?
+  @ViewBuilder let top: () -> Top
 
   var body: some View {
     List(selection: $selection) {
+      top()
       section("Open", rooms.filter(\.isOpen))
       section("Closed", rooms.filter { !$0.isOpen })
     }
