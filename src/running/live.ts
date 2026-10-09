@@ -25,7 +25,7 @@ export function pidAlive(pid: number) {
 async function plainCodex(run: Runner) {
   const pids = codexTuis((await run('ps', ['-axo', 'pid,args'])).stdout).map(tui => tui.pid);
   if (pids.length === 0) return new Map<number, string>();
-  return cwdsFromLsof((await run('lsof', ['-a', '-d', 'cwd', '-Fn', '-p', pids.join(',')])).stdout);
+  return cwdsFromLsof((await run('lsof', ['-a', '-b', '-w', '-d', 'cwd', '-Fn', '-p', pids.join(',')])).stdout);
 }
 
 /** Builds the scan behind the human's running list: every claude and codex session on this Mac, with the

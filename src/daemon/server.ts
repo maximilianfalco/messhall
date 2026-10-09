@@ -12,6 +12,7 @@ import {
   CLI_VERSION,
   codexControlSocket,
   DAEMON_HOST,
+  RUNNING_SCAN_TIMEOUT_MS,
   runningSources,
   summariesOff,
   SWEEP_EVERY_MS,
@@ -26,7 +27,7 @@ import { createSpawner } from '../flock/spawner.js';
 import { tmux as runTmux, type Tmux } from '../flock/tmux.js';
 import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';
-import { runCommand } from '../lib/run.js';
+import { runCommand, runCommandWithin } from '../lib/run.js';
 import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
@@ -136,7 +137,7 @@ export async function startDaemon({
     ...runningSources(),
     alive: pidAlive,
     codex,
-    run: runCommand,
+    run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS),
     seats: async () => [
       ...mcp.threadSeats().map(seat => ({ ...seat, cwd: null, kind: 'codex' as const })),
       ...(await spawner.list({}))

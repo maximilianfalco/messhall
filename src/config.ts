@@ -95,6 +95,8 @@ export function findBin(name: string, { exists = existsSync }: { exists?: (file:
 /** The claude binary, found as `findBin` does. */
 export const claudeBin = (options: { exists?: (file: string) => boolean } = {}) => findBin('claude', options);
 
+// A folder on a stale mount can hang lsof or git, so the running scan gives each call this long.
+export const RUNNING_SCAN_TIMEOUT_MS = 5000;
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const AWAY_AFTER_MS = 30 * 60_000;

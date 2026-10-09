@@ -51,7 +51,17 @@ describe('createRunningScan', () => {
       { id: 'pid-401', reach: 'copy_only', repo: 'docs' },
     ]);
     expect(running.suggestions).toStrictEqual([{ ids: ['s-101', 's-102', 'pid-401'], key: 'rm-7', room: 'rm-7' }]);
-    expect(calls.find(call => call[0] === 'lsof')).toStrictEqual(['lsof', '-a', '-d', 'cwd', '-Fn', '-p', '401']);
+    expect(calls.find(call => call[0] === 'lsof')).toStrictEqual([
+      'lsof',
+      '-a',
+      '-b',
+      '-w',
+      '-d',
+      'cwd',
+      '-Fn',
+      '-p',
+      '401',
+    ]);
   });
 
   it('skips lsof when no codex runs', async () => {
