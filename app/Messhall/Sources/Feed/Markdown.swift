@@ -1,6 +1,8 @@
 import Foundation
 
-private let fenceOpen = try! NSRegularExpression(pattern: "^( {0,3})(`{3,}|~{3,})[ \\t]*([^\\s`]*)")
+// A backtick fence's info has no backtick, so ```ls``` at a line start stays inline code.
+private let fenceOpen = try! NSRegularExpression(pattern: "^( {0,3})(`{3,}|~{3,})[ \\t]*([^`]*)$")
+private let safeSchemes: Set<String> = ["http", "https", "mailto"]
 private let headingLine = try! NSRegularExpression(pattern: "^ {0,3}(#{1,6})[ \\t]+(.*?)[ \\t]*$")
 private let listLine = try! NSRegularExpression(pattern: "^([ \\t]*)([-*+]|\\d{1,9}[.)])[ \\t]+(.*)$")
 private let inlineOptions = AttributedString.MarkdownParsingOptions(
@@ -33,6 +35,27 @@ extension Message {
     var builder = MarkdownBuilder(mentions: Set(mentions))
     for line in text.components(separatedBy: "\n") { builder.add(line) }
     return builder.finish()
+  }
+}
+
+/// Each message parsed once, kept by id until its text or mentions change, so a row body never parses.
+/// It empties past `limit` entries, so a long session across many rooms cannot grow it without end.
+@MainActor
+public final class MarkdownCache {
+  public static let shared = MarkdownCache()
+  private let limit: Int
+  private var parsed: [Int: (text: String, mentions: [String], blocks: [MarkdownBlock])] = [:]
+
+  public init(limit: Int = 2_000) { self.limit = limit }
+
+  var count: Int { parsed.count }
+
+  public func blocks(for message: Message) -> [MarkdownBlock] {
+    if let hit = parsed[message.id], hit.text == message.text, hit.mentions == message.mentions { return hit.blocks }
+    let blocks = message.markdownBlocks
+    if parsed[message.id] == nil, parsed.count >= limit { parsed.removeAll() }
+    parsed[message.id] = (message.text, message.mentions, blocks)
+    return blocks
   }
 }
 
@@ -70,7 +93,8 @@ private struct MarkdownBuilder {
     }
     if let groups = match(fenceOpen, line) {
       flush()
-      fence = OpenFence(marker: groups[1], indent: groups[0].count, language: groups[2].isEmpty ? nil : groups[2])
+      let language = groups[2].split(whereSeparator: \.isWhitespace).first.map(String.init)
+      fence = OpenFence(marker: groups[1], indent: groups[0].count, language: language)
       return
     }
     if line.allSatisfy(\.isWhitespace) { return flush() }
@@ -124,6 +148,11 @@ private struct MarkdownBuilder {
 
   private func inline(_ source: String) -> AttributedString {
     var text = (try? AttributedString(markdown: source, options: inlineOptions)) ?? AttributedString(source)
+    // The app has no openURL handler, so a file: or custom scheme link would open an app or a file on click.
+    for run in text.runs {
+      guard let link = run.link, !safeSchemes.contains(link.scheme?.lowercased() ?? "") else { continue }
+      text[run.range].link = nil
+    }
     let plain = String(text.characters)
     let ns = plain as NSString
     for found in mentionRegex.matches(in: plain, range: NSRange(location: 0, length: ns.length)) {

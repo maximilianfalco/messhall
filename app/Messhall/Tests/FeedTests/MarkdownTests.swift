@@ -140,4 +140,53 @@ struct MarkdownTests {
     #expect(mentions(in: heading) == ["web"])
     #expect(mentions(in: items[0].text) == ["api"])
   }
+
+  @Test("a line that starts with inline code in triple backticks is not a fence")
+  func inlineTripleBackticks() {
+    #expect(shapes("```ls``` lists files\nnext") == ["text:ls lists files\nnext"])
+  }
+
+  @Test("the language is the first word after the fence")
+  func fenceLanguageWord() {
+    #expect(shapes("```swift title=a\nx\n```") == ["code(swift):x"])
+  }
+
+  @Test("only http, https and mailto links stay links", arguments: [
+    "[app](file:///Applications/Calculator.app)", "[run](javascript:alert(1))", "[x](messhall-custom://open)",
+  ])
+  func unsafeLinks(source: String) {
+    #expect(onlyText(source).runs.compactMap(\.link).isEmpty)
+  }
+
+  @Test("safe links keep their url")
+  func safeLinks() {
+    let line = onlyText("[a](https://a.dev) [b](http://b.dev) [c](mailto:c@d.dev)")
+
+    #expect(line.runs.compactMap(\.link).map(\.scheme) == ["https", "http", "mailto"])
+  }
+
+  @Test("the cache parses a message once and again after an edit")
+  @MainActor
+  func cacheHit() {
+    let cache = MarkdownCache(limit: 10)
+    var message = Message(
+      id: 7, roomId: "r1", from: "api", kind: .chat, text: "**a**", mentions: [], createdAt: "t0")
+
+    #expect(cache.blocks(for: message) == message.markdownBlocks)
+    message.text = "**b**"
+    #expect(cache.blocks(for: message) == message.markdownBlocks)
+    #expect(cache.count == 1)
+  }
+
+  @Test("the cache empties once it passes its limit")
+  @MainActor
+  func cacheCap() {
+    let cache = MarkdownCache(limit: 3)
+    for id in 1...4 {
+      _ = cache.blocks(
+        for: Message(id: id, roomId: "r1", from: "api", kind: .chat, text: "line \(id)", mentions: [], createdAt: "t0"))
+    }
+
+    #expect(cache.count == 1)
+  }
 }

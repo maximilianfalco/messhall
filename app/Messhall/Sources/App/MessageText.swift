@@ -1,26 +1,13 @@
 import Feed
 import SwiftUI
 
-/// Each message parsed once, kept by id until its text or mentions change, so a row body never parses.
-@MainActor
-enum MarkdownCache {
-  private static var parsed: [Int: (text: String, mentions: [String], blocks: [MarkdownBlock])] = [:]
-
-  static func blocks(for message: Message) -> [MarkdownBlock] {
-    if let hit = parsed[message.id], hit.text == message.text, hit.mentions == message.mentions { return hit.blocks }
-    let blocks = message.markdownBlocks
-    parsed[message.id] = (message.text, message.mentions, blocks)
-    return blocks
-  }
-}
-
 /// A chat line's text as markdown. Mentions are tinted here, not in the cache, since a member's color can change.
 struct MessageText: View {
   let message: Message
   let trailing: Bool
 
   var body: some View {
-    let blocks = MarkdownCache.blocks(for: message)
+    let blocks = MarkdownCache.shared.blocks(for: message)
     VStack(alignment: trailing ? .trailing : .leading, spacing: 6) {
       ForEach(blocks.indices, id: \.self) { block(blocks[$0]) }
     }
