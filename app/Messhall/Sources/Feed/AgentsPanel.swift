@@ -35,7 +35,7 @@ public struct AgentRow: Equatable, Identifiable, Sendable {
   }
 }
 
-/// Every agent in every room: the ones worth a row, and the done or away ones folded under them.
+/// One room's agents, or every room's with no room open: the ones worth a row, and the done or away ones folded under them.
 public struct AgentsPanel: Equatable, Sendable {
   public let shown: [AgentRow]
   public let folded: [AgentRow]
