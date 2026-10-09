@@ -9,7 +9,7 @@ import { codexTuis } from '../codex/tuis.js';
 
 import { inviteRunning } from './invite.js';
 import { runningAgents } from './running.js';
-import { cwdsFromLsof, gitPlace, peerPids, readClaudeSessions, readCodexThreads } from './scan.js';
+import { cwdsFromLsof, defaultBranch, gitPlace, peerPids, readClaudeSessions, readCodexThreads } from './scan.js';
 import { suggestRooms } from './suggest.js';
 
 /** True when `pid` still runs. A process of another user still counts. */
@@ -38,11 +38,11 @@ function parentPids(ps: string) {
 }
 
 // The socket may belong to a helper under the session, so the session is one of its parents.
-function lineage(pid: number, parents: Map<number, number>) {
-  const chain = [pid];
+function ancestors(pid: number, parents: Map<number, number>) {
+  const chain: number[] = [];
   for (
     let next = parents.get(pid);
-    next && next > 1 && chain.length < 8 && !chain.includes(next);
+    next && next > 1 && chain.length < 8 && next !== pid && !chain.includes(next);
     next = parents.get(next)
   ) {
     chain.push(next);
@@ -50,8 +50,9 @@ function lineage(pid: number, parents: Map<number, number>) {
   return chain;
 }
 
-/** The seats each seated MCP session holds, with the pid on the other end of its open socket to the daemon.
- * A session whose socket lsof cannot place is left out. */
+/** The seats each seated MCP session holds, with the pid on the other end of its open socket to the daemon and
+ * that pid's parents, since the socket may sit in a helper under the session. A session whose socket lsof cannot
+ * place is left out. */
 export async function peerSeats({
   peers,
   port,
@@ -63,17 +64,25 @@ export async function peerSeats({
 }) {
   const seated = peers();
   if (seated.length === 0) return [];
-  const pids = peerPids({
-    lsof: (await run('lsof', ['-b', '-w', '-nP', `-iTCP:${port}`, '-sTCP:ESTABLISHED', '-Fpn'])).stdout,
-    port,
-  });
-  const parents = parentPids((await run('ps', ['-axo', 'pid,ppid'])).stdout);
+  const [lsof, ps] = await Promise.all([
+    run('lsof', ['-b', '-w', '-nP', `-iTCP:${port}`, '-sTCP:ESTABLISHED', '-Fpn']),
+    run('ps', ['-axo', 'pid,ppid']),
+  ]);
+  const pids = peerPids({ lsof: lsof.stdout, port });
+  const parents = parentPids(ps.stdout);
   return seated.flatMap(({ kind, ports, seats }): KnownSeat[] => {
     const pid = ports.map(found => pids.get(found)).find(found => found !== undefined);
     if (pid === undefined) return [];
-    return lineage(pid, parents).flatMap(held =>
-      seats.map(({ name, room }) => ({ cwd: null, kind, name, pid: held, room, threadId: null, tmux: null })),
-    );
+    return seats.map(({ name, room }) => ({
+      cwd: null,
+      kind,
+      name,
+      parents: ancestors(pid, parents),
+      pid,
+      room,
+      threadId: null,
+      tmux: null,
+    }));
   });
 }
 
@@ -100,14 +109,19 @@ export function createRunningScan({
       readCodexThreads({ codex }),
       seats(),
     ]);
+    const onDefault = new Set<string>();
     const agents = await runningAgents({
       claude: readClaudeSessions({ alive, dir: claudeDir }),
       codexPids,
       codexThreads,
-      place: cwd => gitPlace({ cwd, run }),
+      place: async cwd => {
+        const place = await gitPlace({ cwd, run });
+        if (place.branch && place.branch === (await defaultBranch({ cwd, run }))) onDefault.add(cwd);
+        return place;
+      },
       seats: known,
     });
-    return { agents, suggestions: suggestRooms({ agents }) };
+    return { agents, suggestions: suggestRooms({ agents, isDefault: agent => onDefault.has(agent.cwd) }) };
   };
 }
 

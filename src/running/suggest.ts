@@ -11,21 +11,30 @@ export function ticketKey(branch: string) {
 
 const DEFAULT_BRANCHES = new Set(['main', 'master']);
 
-function groupKey({ branch, repo }: RunningAgent) {
-  if (!repo || !branch) return null;
-  return ticketKey(branch) ?? (DEFAULT_BRANCHES.has(branch) ? null : `${repo}/${branch}`);
-}
-
-/** Groups running agents with no room that likely work on one thing: same ticket key in the branch, else same
- * repo and branch. Every checkout sits on the default branch, so that alone never groups. A group needs two agents. */
-export function suggestRooms({ agents }: { agents: RunningAgent[] }) {
+/** Groups running agents that likely work on one thing: same ticket key in the branch, else same repo and
+ * branch. Every checkout sits on the default branch (main, master or `isDefault`), so that alone never groups.
+ * A group needs two agents and one with no room. It invites only the roomless ones, into the room the rest share. */
+export function suggestRooms({
+  agents,
+  isDefault = () => false,
+}: {
+  agents: RunningAgent[];
+  isDefault?: (agent: RunningAgent) => boolean;
+}) {
+  const keyOf = (agent: RunningAgent) => {
+    const { branch, repo } = agent;
+    if (!repo || !branch) return null;
+    return ticketKey(branch) ?? (DEFAULT_BRANCHES.has(branch) || isDefault(agent) ? null : `${repo}/${branch}`);
+  };
   const groups = Map.groupBy(
-    agents.filter(agent => agent.room === null && groupKey(agent)),
-    agent => groupKey(agent)!,
+    agents.filter(agent => keyOf(agent)),
+    agent => keyOf(agent)!,
   );
   return [...groups].flatMap(([key, members]): RoomSuggestion[] => {
-    const room = roleFromFolder(key);
-    if (members.length < 2 || !room) return [];
-    return [{ ids: members.map(member => member.id), key, room }];
+    const ids = members.filter(member => member.room === null).map(member => member.id);
+    const rooms = new Set(members.flatMap(member => (member.room === null ? [] : [member.room])));
+    const room = rooms.size === 1 ? [...rooms][0]! : roleFromFolder(key);
+    if (members.length < 2 || ids.length === 0 || !room) return [];
+    return [{ ids, key, room }];
   });
 }

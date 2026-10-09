@@ -79,12 +79,34 @@ describe('suggestRooms', () => {
     expect(suggestRooms({ agents })).toStrictEqual([{ ids: ['a', 'b'], key: 'rm-1234', room: 'rm-1234' }]);
   });
 
-  it('leaves out agents that already sit in a room', () => {
+  it('never groups on the branch the caller calls the default', () => {
+    const agents = [agent({ branch: 'next', id: 'a' }), agent({ branch: 'next', id: 'b' })];
+
+    expect(suggestRooms({ agents, isDefault: ({ branch }) => branch === 'next' })).toStrictEqual([]);
+  });
+
+  it('invites only the roomless agents, into the room the rest already share', () => {
     const agents = [
       agent({ branch: 'next', id: 'a', room: 'dev' }),
-      agent({ branch: 'next', id: 'b' }),
-      agent({ branch: 'next', id: 'c', room: 'dev' }),
+      agent({ branch: 'next', id: 'b', room: 'dev' }),
+      agent({ branch: 'next', id: 'c' }),
     ];
+
+    expect(suggestRooms({ agents })).toStrictEqual([{ ids: ['c'], key: 'api/next', room: 'dev' }]);
+  });
+
+  it('names a new room when the seated ones sit in different rooms', () => {
+    const agents = [
+      agent({ branch: 'next', id: 'a', room: 'dev' }),
+      agent({ branch: 'next', id: 'b', room: 'qa' }),
+      agent({ branch: 'next', id: 'c' }),
+    ];
+
+    expect(suggestRooms({ agents })).toStrictEqual([{ ids: ['c'], key: 'api/next', room: 'api-next' }]);
+  });
+
+  it('suggests nothing when every agent in the group has a room', () => {
+    const agents = [agent({ branch: 'next', id: 'a', room: 'dev' }), agent({ branch: 'next', id: 'b', room: 'dev' })];
 
     expect(suggestRooms({ agents })).toStrictEqual([]);
   });
