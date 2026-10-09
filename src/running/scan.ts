@@ -82,6 +82,18 @@ export function cwdsFromLsof(lsof: string) {
   return cwds;
 }
 
+/** The pid behind each client port in `lsof -iTCP:<port> -Fpn` output that talks to the daemon on `port`. */
+export function peerPids({ lsof, port }: { lsof: string; port: number }) {
+  const pids = new Map<number, number>();
+  let pid: number | null = null;
+  for (const line of lsof.split('\n')) {
+    if (line.startsWith('p')) pid = Number(line.slice(1));
+    const ends = /^n[^:]+:(\d+)->[^:]+:(\d+)$/.exec(line);
+    if (ends && pid !== null && Number(ends[2]) === port) pids.set(Number(ends[1]), pid);
+  }
+  return pids;
+}
+
 export interface CodexThread {
   cwd: string;
   id: string;

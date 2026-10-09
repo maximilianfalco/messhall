@@ -294,7 +294,7 @@ describe('join', () => {
       thread_id: LIVE_THREAD,
     });
 
-    expect(harness.sessions.threadSeats()).toStrictEqual([{ room: 'checkout', threadId: LIVE_THREAD }]);
+    expect(harness.sessions.threadSeats()).toStrictEqual([{ name: 'web', room: 'checkout', threadId: LIVE_THREAD }]);
   });
 
   it('never frees a seat keyed by a seat header or a codex thread, however long it is away', async () => {

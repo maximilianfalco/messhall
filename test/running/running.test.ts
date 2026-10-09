@@ -1,4 +1,4 @@
-import type { RunningSources } from '../../src/running/running.js';
+import type { KnownSeat, RunningSources } from '../../src/running/running.js';
 
 import { describe, expect, it } from 'vitest';
 
@@ -13,6 +13,17 @@ const sources = (overrides: Partial<RunningSources> = {}): RunningSources => ({
   ...overrides,
 });
 
+const seat = (overrides: Partial<KnownSeat> = {}): KnownSeat => ({
+  cwd: null,
+  kind: 'claude',
+  name: 'api',
+  pid: null,
+  room: 'dev',
+  threadId: null,
+  tmux: null,
+  ...overrides,
+});
+
 describe('runningAgents', () => {
   it('lists claude sessions as reachable by session messaging', async () => {
     await expect(runningAgents(sources())).resolves.toStrictEqual([
@@ -21,10 +32,13 @@ describe('runningAgents', () => {
         cwd: '/code/api',
         id: 's-1',
         kind: 'claude',
+        pid: 101,
         reach: 'claude_session',
         repo: 'api',
         room: null,
+        seats: [],
         status: 'idle',
+        tmux: null,
       },
     ]);
   });
@@ -52,7 +66,7 @@ describe('runningAgents', () => {
       sources({
         claude: [],
         codexThreads: [{ cwd: '/code/web', id: 't-1', status: 'idle' }],
-        seats: [{ cwd: null, kind: 'codex', room: 'dev', threadId: 't-1' }],
+        seats: [seat({ kind: 'codex', threadId: 't-1' })],
       }),
     );
 
@@ -61,7 +75,7 @@ describe('runningAgents', () => {
 
   it('marks the room of a claude a spawned seat runs in that folder', async () => {
     const found = await runningAgents(
-      sources({ seats: [{ cwd: '/code/api', kind: 'claude', room: 'dev', threadId: null }] }),
+      sources({ seats: [seat({ cwd: '/code/api' })] }),
     );
 
     expect(found[0]?.room).toBe('dev');
@@ -83,5 +97,59 @@ describe('runningAgents', () => {
     );
 
     expect(asked).toStrictEqual(['/code/api']);
+  });
+
+  it('names every seat a session holds by its pid, with the tmux session of a spawned one', async () => {
+    const found = await runningAgents(
+      sources({
+        claude: [
+          { cwd: '/code/api', id: 's-1', pid: 101, status: 'idle' },
+          { cwd: '/code/api', id: 's-2', pid: 102, status: 'busy' },
+        ],
+        seats: [
+          seat({ name: 'reviewer', pid: 102, room: 'qa', tmux: 'messhall_qa_reviewer' }),
+          seat({ name: 'api', pid: 101, room: 'dev' }),
+          seat({ name: 'api', pid: 101, room: 'checkout' }),
+          seat({ name: 'api', pid: 101, room: 'dev' }),
+        ],
+      }),
+    );
+
+    expect(found.map(({ id, room, seats, tmux }) => ({ id, room, seats, tmux }))).toStrictEqual([
+      {
+        id: 's-1',
+        room: 'checkout',
+        seats: [
+          { name: 'api', room: 'checkout' },
+          { name: 'api', room: 'dev' },
+        ],
+        tmux: null,
+      },
+      { id: 's-2', room: 'qa', seats: [{ name: 'reviewer', room: 'qa' }], tmux: 'messhall_qa_reviewer' },
+    ]);
+  });
+
+  it('never gives a seat with a pid to another session in the same folder', async () => {
+    const found = await runningAgents(sources({ seats: [seat({ cwd: '/code/api', pid: 999 })] }));
+
+    expect(found[0]?.seats).toStrictEqual([]);
+  });
+
+  it('gives a codex thread the pid of one codex tui in its folder, and each tui only once', async () => {
+    const found = await runningAgents(
+      sources({
+        claude: [],
+        codexPids: new Map([[401, '/code/web']]),
+        codexThreads: [
+          { cwd: '/code/web', id: 't-1', status: 'busy' },
+          { cwd: '/code/web', id: 't-2', status: 'idle' },
+        ],
+      }),
+    );
+
+    expect(found.map(({ id, pid }) => ({ id, pid }))).toStrictEqual([
+      { id: 't-1', pid: 401 },
+      { id: 't-2', pid: null },
+    ]);
   });
 });

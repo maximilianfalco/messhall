@@ -8,7 +8,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createCodexClient } from '../../src/codex/client.js';
-import { cwdsFromLsof, gitPlace, readClaudeSessions, readCodexThreads } from '../../src/running/scan.js';
+import { cwdsFromLsof, gitPlace, peerPids, readClaudeSessions, readCodexThreads } from '../../src/running/scan.js';
 import { fakeCodex, fakeTimers } from '../codex/fakeCodex.js';
 
 const sessionsDir = (files: Record<string, string>) => {
@@ -96,6 +96,28 @@ describe('cwdsFromLsof', () => {
         [402, '/code/web'],
       ]),
     );
+  });
+});
+
+describe('peerPids', () => {
+  it('maps each client port talking to the daemon to its pid, and skips the daemon side', () => {
+    const lsof = [
+      'p101',
+      'cclaude',
+      'f12',
+      'n127.0.0.1:51001->127.0.0.1:7707',
+      'p102',
+      'ccodex',
+      'f9',
+      'n127.0.0.1:51002->127.0.0.1:9999',
+      'p900',
+      'cnode',
+      'f16',
+      'n127.0.0.1:7707->127.0.0.1:51001',
+      '',
+    ].join('\n');
+
+    expect(peerPids({ lsof, port: 7707 })).toStrictEqual(new Map([[51001, 101]]));
   });
 });
 

@@ -151,6 +151,11 @@ export const inviteOutcomeSchema = z
   .enum(['queued', 'copy', 'gone'])
   .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.');
 
+export const runningSeatSchema = z.object({
+  name: nameSchema.describe('The seat name.'),
+  room: nameSchema.describe('The room the seat is in.'),
+});
+
 export const runningAgentSchema = z.object({
   branch: z.string().nullable().describe('Git branch of its folder, null outside a repo or on a detached head.'),
   cwd: z.string().describe('Folder the session runs in.'),
@@ -158,10 +163,18 @@ export const runningAgentSchema = z.object({
     .string()
     .describe('Claude session id, codex thread id, or pid-<n> for a codex that only a copied join line reaches.'),
   kind: runningKindSchema,
+  pid: z
+    .number()
+    .int()
+    .positive()
+    .nullable()
+    .describe('Pid of its own process, null for a codex thread that only runs inside the shared codex server.'),
   reach: runningReachSchema,
   repo: z.string().nullable().describe('Name of the main checkout of its repo, null outside a repo.'),
   room: nameSchema.nullable().describe('A room it already sits in, null when none is known.'),
+  seats: z.array(runningSeatSchema).describe('Every seat it holds, by room then name. Empty when it is not in a room.'),
   status: runningStatusSchema,
+  tmux: z.string().nullable().describe('The tmux session of a spawned seat, null for one the human started.'),
 });
 
 export const roomSuggestionSchema = z.object({
@@ -258,6 +271,7 @@ export type HumanSpawn = z.infer<typeof humanSpawnSchema>;
 export type SpawnResult = z.infer<typeof spawnResultSchema>;
 export type FlockSeat = z.infer<typeof flockSeatSchema>;
 export type Flock = z.infer<typeof flockSchema>;
+export type RunningSeat = z.infer<typeof runningSeatSchema>;
 export type RunningAgent = z.infer<typeof runningAgentSchema>;
 export type RoomSuggestion = z.infer<typeof roomSuggestionSchema>;
 export type Running = z.infer<typeof runningSchema>;

@@ -32,7 +32,7 @@ import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 import { startSummaries } from '../rooms/summaries.js';
-import { createRunningInvite, createRunningScan, pidAlive } from '../running/live.js';
+import { createRunningInvite, createRunningScan, peerSeats, pidAlive } from '../running/live.js';
 
 import { currentBuild } from './build.js';
 import { guarded } from './guard.js';
@@ -139,10 +139,19 @@ export async function startDaemon({
     codex,
     run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS),
     seats: async () => [
-      ...mcp.threadSeats().map(seat => ({ ...seat, cwd: null, kind: 'codex' as const })),
+      ...mcp.threadSeats().map(seat => ({ ...seat, cwd: null, kind: 'codex' as const, pid: null, tmux: null })),
       ...(await spawner.list({}))
         .filter(seat => seat.process === 'running')
-        .map(seat => ({ cwd: seat.cwd, kind: seat.agent, room: seat.room, threadId: null })),
+        .map(seat => ({
+          cwd: seat.cwd,
+          kind: seat.agent,
+          name: seat.name,
+          pid: seat.pid,
+          room: seat.room,
+          threadId: null,
+          tmux: seat.session,
+        })),
+      ...(await peerSeats({ peers: mcp.peers, port: bound.port, run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS) })),
     ],
   });
   const running = { invite: createRunningInvite({ codex, scan }), list: scan };

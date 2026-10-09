@@ -103,7 +103,7 @@ export function createMcpEndpoint({
     transport.onclose = () => end(entry);
     await server.connect(transport);
     sessions.add(entry);
-    res.once('close', session.hold());
+    res.once('close', session.hold(req.socket.remotePort));
     await transport.handleRequest(req, res, body);
     if (!transport.sessionId) {
       sessions.remove(session.id);
@@ -126,7 +126,7 @@ export function createMcpEndpoint({
       rpcError(res, 404, 'session not found: initialize again');
       return;
     }
-    res.once('close', entry.session.hold());
+    res.once('close', entry.session.hold(req.socket.remotePort));
     await entry.transport.handleRequest(req, res);
   };
 
@@ -150,6 +150,8 @@ export function createMcpEndpoint({
     /** True when a live session holding `name` in `room` can be rung, so a quiet seat reads idle, not away. */
     ringable: (seat: { name: string; room: string }) =>
       sessions.sessionsFor(seat).some(entry => entry.session.ringable),
+    /** Each seated session's open client ports, so a scan can find the process behind its seats. */
+    peers: sessions.peers,
     /** The codex thread each live session sits in a room with, so a scan knows which threads are seated. */
     threadSeats: sessions.threadSeats,
     /** The live sessions holding `name` in `room`, so the doorbell can ring through each one's server. */
