@@ -1,3 +1,4 @@
+import type { Running, RunningInviteResult } from '../../contracts/feed.ts';
 import type { KeyKind } from '../../src/daemon/keys.js';
 import type { Tmux } from '../../src/flock/tmux.js';
 import type { Server } from 'node:http';
@@ -47,6 +48,26 @@ export function fakeEvery() {
   };
 }
 
+export const FEED_RUNNING: Running = {
+  agents: [
+    {
+      branch: 'rm-7/api',
+      cwd: '/code/api',
+      id: 's-1',
+      kind: 'claude',
+      reach: 'claude_session',
+      repo: 'api',
+      room: null,
+      status: 'idle',
+    },
+  ],
+  suggestions: [],
+};
+
+export const FEED_INVITED: RunningInviteResult = {
+  invites: [{ id: 's-1', line: 'The human invites you to #rm-7 in messhall.', name: 'api', outcome: 'copy' }],
+};
+
 export const FEED_BUILD = { commit: 'a'.repeat(40), committed_at: '2026-01-01T00:00:00.000Z' };
 
 /** The feed routes on a real port over a scratch store, with a hand moved timer and a fake tmux for the spawner. */
@@ -79,6 +100,10 @@ export async function feedServer() {
       const stdout = args[0] === 'display-message' ? '✳ Claude Code\n' : '';
       return Promise.resolve({ code: 0, stderr: '', stdout });
     });
+  const running = {
+    invite: vi.fn(() => Promise.resolve(FEED_INVITED)),
+    list: vi.fn(() => Promise.resolve(FEED_RUNNING)),
+  };
   const server: Server = createServer(
     createRouter(
       feedRoutes({
@@ -87,6 +112,7 @@ export async function feedServer() {
         keys,
         now: scratch.clock.now,
         relay: () => Promise.resolve(true),
+        running,
         spawner,
         store: scratch.store,
       }),
@@ -107,6 +133,7 @@ export async function feedServer() {
       scratch.cleanup();
     },
     headers: (kind: KeyKind) => ({ [KEY_HEADER]: keyOf(kind) }),
+    running,
     scratch,
     seatOnStart,
     timer,

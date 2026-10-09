@@ -12,6 +12,8 @@ import type { ThreadReadParams } from './generated/v2/ThreadReadParams.js';
 import type { ThreadStartParams } from './generated/v2/ThreadStartParams.js';
 import type { ThreadStatus } from './generated/v2/ThreadStatus.js';
 
+import { randomUUID } from 'node:crypto';
+
 import { type RawData, WebSocket } from 'ws';
 
 import { CLI_VERSION, CODEX_RECONNECT_MAX_MS, CODEX_RECONNECT_MIN_MS, CODEX_REQUEST_TIMEOUT_MS } from '../config.js';
@@ -19,7 +21,7 @@ import { realTimer } from '../doorbell/batch.js';
 
 // The full Thread type pulls in 70 generated files, so replies name only the fields we read.
 interface ThreadReply {
-  thread: { id: string; status: ThreadStatus };
+  thread: { cwd: string; id: string; status: ThreadStatus };
 }
 
 interface Methods {
@@ -155,3 +157,14 @@ export function createCodexClient({ setTimer = realTimer, socketPath }: { setTim
 }
 
 export type CodexClient = ReturnType<typeof createCodexClient>;
+
+/** Queues `text` as a user turn on a codex thread. The queue waits out a busy turn or an approval, so it never cuts in. */
+export const queueText = (
+  codex: Pick<CodexClient, 'request'>,
+  { text, threadId }: { text: string; threadId: string },
+) =>
+  codex.request('thread/queue/add', {
+    clientUserMessageId: randomUUID(),
+    input: [{ text, text_elements: [], type: 'text' }],
+    threadId,
+  });

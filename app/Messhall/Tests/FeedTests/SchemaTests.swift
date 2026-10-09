@@ -61,6 +61,12 @@ private let models: [String: [String]] = [
   "RemoveMemberResult": RemoveMemberResult.CodingKeys.allCases.map(\.rawValue),
   "ReopenResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
   "Room": Room.CodingKeys.allCases.map(\.rawValue),
+  "RoomSuggestion": RoomSuggestion.CodingKeys.allCases.map(\.rawValue),
+  "Running": Running.CodingKeys.allCases.map(\.rawValue),
+  "RunningAgent": RunningAgent.CodingKeys.allCases.map(\.rawValue),
+  "RunningInvite": RunningInvite.CodingKeys.allCases.map(\.rawValue),
+  "RunningInviteItem": RunningInviteItem.CodingKeys.allCases.map(\.rawValue),
+  "RunningInviteResult": RunningInviteResult.CodingKeys.allCases.map(\.rawValue),
   "RoomEvent": RoomEvent.CodingKeys.allCases.map(\.rawValue),
   "Snapshot": Snapshot.CodingKeys.allCases.map(\.rawValue),
   "SnapshotRoom": SnapshotRoom.CodingKeys.allCases.map(\.rawValue),
@@ -71,6 +77,10 @@ private let enums: [String: [String]] = [
   "MemberKind": MemberKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
   "MessageKind": MessageKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
   "Presence": Presence.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "InviteOutcome": InviteOutcome.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "RunningKind": RunningKind.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "RunningReach": RunningReach.allCases.filter { $0 != .unknown }.map(\.rawValue),
+  "RunningStatus": RunningStatus.allCases.map(\.rawValue),
 ]
 
 private let unused: Set = [

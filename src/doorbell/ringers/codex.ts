@@ -2,8 +2,7 @@ import type { CodexClient } from '../../codex/client.js';
 import type { McpSession } from '../../mcp/session.js';
 import type { Ringer, RingInput } from '../ringer.js';
 
-import { randomUUID } from 'node:crypto';
-
+import { queueText } from '../../codex/client.js';
 import { logger } from '../../lib/logger.js';
 
 export interface CodexEntry {
@@ -31,11 +30,7 @@ export function createCodexRinger({
       );
       const sent = await Promise.all(
         [...byThread].map(async ([threadId, entry]) => {
-          const added = await codex.request('thread/queue/add', {
-            clientUserMessageId: randomUUID(),
-            input: [{ text, text_elements: [], type: 'text' }],
-            threadId,
-          });
+          const added = await queueText(codex, { text, threadId });
           if (added.ok) return true;
           logger.info('codex doorbell lost, falling back to wait', { error: added.error, session: entry.session.id });
           entry.session.dropThread();

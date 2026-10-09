@@ -15,11 +15,11 @@ import {
   pickShots,
   pickWindow,
   PULL_REQUEST_ANSWERS,
-  seedShotAsk,
   seedShotRooms,
   shotArgs,
   strayApps,
 } from '../../tools/dev/commands/appShot.js';
+import { seedShotAsk } from '../../tools/dev/lib/shotSeeds.js';
 
 describe('pickWindow', () => {
   it('picks the largest layer 0 window', () => {

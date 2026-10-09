@@ -76,6 +76,12 @@
     /// `-shotStarting <name>`: that seat shows as the app's own spawn, so the starting pill shows without a real agent.
     static let starting = Set(UserDefaults.standard.string(forKey: "shotStarting").map { [$0] } ?? [])
 
+    /// `-shotRunning YES`: the app scans for running agents. Other shots skip it, so their sidebars stay as they were.
+    static let running = UserDefaults.standard.bool(forKey: "shotRunning")
+
+    /// `-shotInvite YES`: the first running agents card is clicked once it shows, so the invite results come up.
+    static let invite = UserDefaults.standard.bool(forKey: "shotInvite")
+
     /// `-shotOther <text>`: each open question's last question opens with this typed in its Other box.
     static let other = UserDefaults.standard.string(forKey: "shotOther")
 

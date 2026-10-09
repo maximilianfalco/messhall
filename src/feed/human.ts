@@ -10,6 +10,9 @@ import type {
   RemoveMemberResult,
   ReopenResult,
   ReviewNudgesResult,
+  Running,
+  RunningInvite,
+  RunningInviteResult,
   SpawnResult,
 } from '../../contracts/feed.ts';
 import type { ApprovalBehavior } from '../../contracts/room.ts';
@@ -26,6 +29,7 @@ import {
   humanRoleSchema,
   humanSpawnSchema,
   newRoomSchema,
+  runningInviteSchema,
 } from '../../contracts/feed.ts';
 import { HUMAN_NAME, nameSchema } from '../../contracts/room.ts';
 import { sendJson } from '../daemon/router.js';
@@ -45,16 +49,24 @@ const NO_ROOM = { error: 'no such room' };
 /** Sends the human's verdict to the agent session that asked. False when that session is gone. */
 export type Relay = (verdict: { behavior: ApprovalBehavior; requestId: string; session: string }) => Promise<boolean>;
 
+/** Lists the agents running on this Mac and invites some of them to a room. */
+export interface HumanRunning {
+  invite: (input: RunningInvite) => Promise<RunningInviteResult>;
+  list: () => Promise<Running>;
+}
+
 /** The human-seat routes, every one behind the human key. The agent key gets 403 before any of
  * this runs, so no agent can speak as the human, start an agent, answer a tool ask or pick a question's answer. */
 export function humanRoutes({
   keys,
   relay,
+  running,
   spawner,
   store,
 }: {
   keys: Keys;
   relay: Relay;
+  running: HumanRunning;
   spawner: Spawner;
   store: RoomStore;
 }) {
@@ -274,11 +286,35 @@ export function humanRoutes({
     else sendJson(res, 409, { error: 'the human seat cannot be removed' });
   };
 
+  // It lists what runs on this Mac, which no agent needs to see.
+  const listRunning: Handler = async (_req, res) => {
+    sendJson(res, 200, (await running.list()) satisfies Running);
+  };
+
+  // It queues a line into codex threads on this Mac, so only the human's click reaches it. A missing room is made first.
+  const inviteRunning: Handler = async (req, res) => {
+    const body = await readJson(req);
+    const parsed = runningInviteSchema.safeParse(body.ok ? body.value : undefined);
+    if (!parsed.success) {
+      sendJson(res, 400, { error: 'send json { ids, room }: 1 to 20 ids from the running list, room is a room name' });
+      return;
+    }
+    const target = store.listRooms().find(room => room.name === parsed.data.room);
+    if (target?.closed_at) {
+      sendJson(res, 409, { error: `#${target.name} is closed, reopen it first` });
+      return;
+    }
+    if (!target) store.createRoom({ created_by: HUMAN_NAME, name: parsed.data.room });
+    sendJson(res, 200, (await running.invite(parsed.data)) satisfies RunningInviteResult);
+  };
+
   const routes: Route[] = [
     { handle: keys.requireKey('human', create), method: 'POST', path: '/api/rooms' },
     { handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', remove), method: 'DELETE', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', flock), method: 'GET', path: '/api/flock' },
+    { handle: keys.requireKey('human', listRunning), method: 'GET', path: '/api/running' },
+    { handle: keys.requireKey('human', inviteRunning), method: 'POST', path: '/api/running/invite' },
     { handle: keys.requireKey('human', approve), method: 'POST', path: '/api/approvals/*' },
     { handle: keys.requireKey('human', pick), method: 'POST', path: '/api/questions/*' },
   ];

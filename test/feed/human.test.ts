@@ -16,10 +16,12 @@ import {
   removeMemberResultSchema,
   reopenResultSchema,
   reviewNudgesResultSchema,
+  runningInviteResultSchema,
+  runningSchema,
   spawnResultSchema,
 } from '../../contracts/feed.ts';
 
-import { feedServer } from './feedServer.js';
+import { FEED_INVITED, FEED_RUNNING, feedServer } from './feedServer.js';
 
 let feed: Awaited<ReturnType<typeof feedServer>>;
 
@@ -577,6 +579,69 @@ describe('GET /api/flock', () => {
   it('refuses the agent key with 403', async () => {
     expect((await fetch(`${feed.url}/api/flock`, { headers: feed.headers('agent') })).status).toBe(403);
     expect(feed.tmux).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/running', () => {
+  it('lists the running sessions and suggested rooms for the human', async () => {
+    const res = await fetch(`${feed.url}/api/running`, { headers: feed.headers('human') });
+
+    expect(res.status).toBe(200);
+    expect(runningSchema.parse(await res.json())).toStrictEqual(FEED_RUNNING);
+  });
+
+  it('refuses the agent key with 403 before it scans', async () => {
+    expect((await fetch(`${feed.url}/api/running`, { headers: feed.headers('agent') })).status).toBe(403);
+    expect(feed.running.list).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/running/invite', () => {
+  it('invites the picked agents to an open room for the human', async () => {
+    store().createRoom({ created_by: 'human', name: 'rm-7' });
+
+    const res = await human('/api/running/invite', { ids: ['s-1'], room: 'rm-7' });
+
+    expect(res.status).toBe(200);
+    expect(runningInviteResultSchema.parse(await res.json())).toStrictEqual(FEED_INVITED);
+    expect(feed.running.invite).toHaveBeenCalledWith({ ids: ['s-1'], room: 'rm-7' });
+  });
+
+  it('refuses the agent key with 403 before it invites', async () => {
+    store().createRoom({ created_by: 'human', name: 'rm-7' });
+
+    const res = await postAs('/api/running/invite', feed.headers('agent'), { ids: ['s-1'], room: 'rm-7' });
+
+    expect(res.status).toBe(403);
+    expect(feed.running.invite).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['no ids', { ids: [], room: 'rm-7' }],
+    ['a bad room name', { ids: ['s-1'], room: 'RM 7' }],
+  ])('refuses %s with 400', async (_label, body) => {
+    expect((await human('/api/running/invite', body)).status).toBe(400);
+    expect(feed.running.invite).not.toHaveBeenCalled();
+  });
+
+  it('makes a missing room as the human, then invites to it', async () => {
+    const res = await human('/api/running/invite', { ids: ['s-1'], room: 'rm-8' });
+
+    expect(res.status).toBe(200);
+    expect(
+      store()
+        .listRooms()
+        .find(room => room.name === 'rm-8'),
+    ).toMatchObject({ created_by: 'human', standing: true });
+    expect(feed.running.invite).toHaveBeenCalledWith({ ids: ['s-1'], room: 'rm-8' });
+  });
+
+  it('refuses a closed room with 409', async () => {
+    store().createRoom({ created_by: 'human', name: 'rm-7' });
+    store().closeRoom('rm-7');
+
+    expect((await human('/api/running/invite', { ids: ['s-1'], room: 'rm-7' })).status).toBe(409);
+    expect(feed.running.invite).not.toHaveBeenCalled();
   });
 });
 

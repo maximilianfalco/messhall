@@ -4,7 +4,7 @@ import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
 import type { Spawner } from '../flock/spawner.js';
 import type { RoomStore } from '../rooms/store.js';
-import type { Relay } from './human.js';
+import type { HumanRunning, Relay } from './human.js';
 import type { Every } from './sse.js';
 
 import { z } from 'zod';
@@ -39,6 +39,7 @@ export function feedRoutes({
   keys,
   now,
   relay,
+  running,
   spawner,
   store,
 }: {
@@ -47,6 +48,7 @@ export function feedRoutes({
   keys: Keys;
   now: () => Date;
   relay: Relay;
+  running: HumanRunning;
   spawner: Spawner;
   store: RoomStore;
 }) {
@@ -93,7 +95,7 @@ export function feedRoutes({
     { handle: read(eventStream({ build, every, now, store })), method: 'GET', path: '/api/events' },
     { handle: read(history), method: 'GET', path: '/api/rooms/*' },
     { handle: read(search), method: 'GET', path: '/api/search' },
-    ...humanRoutes({ keys, relay, spawner, store }),
+    ...humanRoutes({ keys, relay, running, spawner, store }),
   ];
   return routes;
 }

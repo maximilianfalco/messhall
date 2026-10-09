@@ -48,6 +48,17 @@ export function codexControlSocket() {
   return process.env.MESSHALL_CODEX_SOCKET || path.join(codexHome, 'app-server-control', 'app-server-control.sock');
 }
 
+/** Where the running scan looks: Claude Code's session list (`CLAUDE_CONFIG_DIR` wins, as for claude) and
+ * plain codex in ps. `MESSHALL_CLAUDE_SESSIONS` points a scratch daemon at fake sessions and skips ps. */
+export function runningSources() {
+  const scratch = process.env.MESSHALL_CLAUDE_SESSIONS;
+  if (scratch) return { claudeDir: scratch, plainCodex: false };
+  return {
+    claudeDir: path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), '.claude'), 'sessions'),
+    plainCodex: true,
+  };
+}
+
 /** Where rooms and keys live. `MESSHALL_HOME` wins so tests and tapes never touch the real data. */
 export function dataDir() {
   return process.env.MESSHALL_HOME || path.join(homedir(), 'Library', 'Application Support', 'messhall');
@@ -84,6 +95,8 @@ export function findBin(name: string, { exists = existsSync }: { exists?: (file:
 /** The claude binary, found as `findBin` does. */
 export const claudeBin = (options: { exists?: (file: string) => boolean } = {}) => findBin('claude', options);
 
+// A folder on a stale mount can hang lsof or git, so the running scan gives each call this long.
+export const RUNNING_SCAN_TIMEOUT_MS = 5000;
 export const READ_LIMIT = 50;
 export const IDLE_AFTER_MS = 2 * 60_000;
 export const AWAY_AFTER_MS = 30 * 60_000;

@@ -140,6 +140,61 @@ export const flockSchema = z.object({
   seats: z.array(flockSeatSchema).describe('Every seat the spawner started, by room then name.'),
 });
 
+export const runningKindSchema = z.enum(['claude', 'codex']).describe('Which agent runs a session.');
+export const runningReachSchema = z
+  .enum(['claude_session', 'codex_thread', 'copy_only'])
+  .describe(
+    'How an invite reaches a session: claude session messaging, a line queued on its shared codex thread, or a copied line only.',
+  );
+export const runningStatusSchema = z.enum(['busy', 'idle', 'unknown']).describe('Whether a session is mid turn.');
+export const inviteOutcomeSchema = z
+  .enum(['queued', 'copy', 'gone'])
+  .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.');
+
+export const runningAgentSchema = z.object({
+  branch: z.string().nullable().describe('Git branch of its folder, null outside a repo or on a detached head.'),
+  cwd: z.string().describe('Folder the session runs in.'),
+  id: z
+    .string()
+    .describe('Claude session id, codex thread id, or pid-<n> for a codex that only a copied join line reaches.'),
+  kind: runningKindSchema,
+  reach: runningReachSchema,
+  repo: z.string().nullable().describe('Name of the main checkout of its repo, null outside a repo.'),
+  room: nameSchema.nullable().describe('A room it already sits in, null when none is known.'),
+  status: runningStatusSchema,
+});
+
+export const roomSuggestionSchema = z.object({
+  ids: z.array(z.string()).min(2).describe('Ids of the running agents that likely work on one thing.'),
+  key: z.string().describe('What they share: a ticket key from the branch, or repo/branch.'),
+  room: nameSchema.describe('The room name to suggest.'),
+});
+
+export const runningSchema = z.object({
+  agents: z.array(runningAgentSchema).describe('Every claude and codex session running on this Mac.'),
+  suggestions: z.array(roomSuggestionSchema).describe('Groups of them that may want a room together.'),
+});
+
+export const runningInviteSchema = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(20)
+    .describe('Ids of the running agents to invite, from the running list.'),
+  room: nameSchema.describe('The room to invite them to. Made as the human when missing, refused when closed.'),
+});
+
+export const runningInviteItemSchema = z.object({
+  id: z.string().describe('The running agent id.'),
+  line: z.string().nullable().describe('The join line it got, or the one to copy to it. Null when it is gone.'),
+  name: nameSchema.nullable().describe('The name the line asks it to join as. Null when it is gone.'),
+  outcome: inviteOutcomeSchema,
+});
+
+export const runningInviteResultSchema = z.object({
+  invites: z.array(runningInviteItemSchema).describe('One result per id, in the order sent.'),
+});
+
 export const removeMemberResultSchema = z.object({
   member: memberSchema.describe('The member as it was when it was removed.'),
 });
@@ -203,6 +258,12 @@ export type HumanSpawn = z.infer<typeof humanSpawnSchema>;
 export type SpawnResult = z.infer<typeof spawnResultSchema>;
 export type FlockSeat = z.infer<typeof flockSeatSchema>;
 export type Flock = z.infer<typeof flockSchema>;
+export type RunningAgent = z.infer<typeof runningAgentSchema>;
+export type RoomSuggestion = z.infer<typeof roomSuggestionSchema>;
+export type Running = z.infer<typeof runningSchema>;
+export type RunningInvite = z.infer<typeof runningInviteSchema>;
+export type RunningInviteItem = z.infer<typeof runningInviteItemSchema>;
+export type RunningInviteResult = z.infer<typeof runningInviteResultSchema>;
 export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
 export type MuteResult = z.infer<typeof muteResultSchema>;
 export type HumanApproval = z.infer<typeof humanApprovalSchema>;

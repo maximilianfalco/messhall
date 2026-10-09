@@ -150,6 +150,8 @@ export function createMcpEndpoint({
     /** True when a live session holding `name` in `room` can be rung, so a quiet seat reads idle, not away. */
     ringable: (seat: { name: string; room: string }) =>
       sessions.sessionsFor(seat).some(entry => entry.session.ringable),
+    /** The codex thread each live session sits in a room with, so a scan knows which threads are seated. */
+    threadSeats: sessions.threadSeats,
     /** The live sessions holding `name` in `room`, so the doorbell can ring through each one's server. */
     sessionsFor: sessions.sessionsFor,
   };

@@ -7,7 +7,16 @@ import { createServer } from 'node:http';
 
 import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
 import { createCodexClient } from '../codex/client.js';
-import { claudeBin, CLI_VERSION, codexControlSocket, DAEMON_HOST, summariesOff, SWEEP_EVERY_MS } from '../config.js';
+import {
+  claudeBin,
+  CLI_VERSION,
+  codexControlSocket,
+  DAEMON_HOST,
+  RUNNING_SCAN_TIMEOUT_MS,
+  runningSources,
+  summariesOff,
+  SWEEP_EVERY_MS,
+} from '../config.js';
 import { startDoorbell } from '../doorbell/doorbell.js';
 import { createRingers } from '../doorbell/ringer.js';
 import { createChannelRinger } from '../doorbell/ringers/channel.js';
@@ -18,11 +27,12 @@ import { createSpawner } from '../flock/spawner.js';
 import { tmux as runTmux, type Tmux } from '../flock/tmux.js';
 import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';
-import { runCommand } from '../lib/run.js';
+import { runCommand, runCommandWithin } from '../lib/run.js';
 import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 import { startSummaries } from '../rooms/summaries.js';
+import { createRunningInvite, createRunningScan, pidAlive } from '../running/live.js';
 
 import { currentBuild } from './build.js';
 import { guarded } from './guard.js';
@@ -123,6 +133,19 @@ export async function startDaemon({
   // One spawner for the human route and the orchestrator's tool, so both stop the same sessions.
   const spawner = createSpawner({ dataDir, now, store, tmux, url });
   const mcp = createMcpEndpoint({ codex, now, spawner, store });
+  const scan = createRunningScan({
+    ...runningSources(),
+    alive: pidAlive,
+    codex,
+    run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS),
+    seats: async () => [
+      ...mcp.threadSeats().map(seat => ({ ...seat, cwd: null, kind: 'codex' as const })),
+      ...(await spawner.list({}))
+        .filter(seat => seat.process === 'running')
+        .map(seat => ({ cwd: seat.cwd, kind: seat.agent, room: seat.room, threadId: null })),
+    ],
+  });
+  const running = { invite: createRunningInvite({ codex, scan }), list: scan };
   const ringers = createRingers([
     createChannelRinger({ sessionsFor: mcp.sessionsFor }),
     createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),
@@ -144,7 +167,7 @@ export async function startDaemon({
       path: '/health',
     },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ build, keys, now, relay: mcp.relay, spawner, store }),
+    ...feedRoutes({ build, keys, now, relay: mcp.relay, running, spawner, store }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 

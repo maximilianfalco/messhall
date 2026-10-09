@@ -15,6 +15,8 @@ public struct FeedClient: Sendable {
     case mute(room: String, member: String, muted: Bool)
     case spawn(room: String, seat: HumanSpawn)
     case flock(room: String)
+    case running
+    case inviteRunning(RunningInvite)
     case answer(approval: String, allow: Bool)
     case pick(question: String, answers: [QuestionAnswer])
   }
@@ -90,6 +92,13 @@ public struct FeedClient: Sendable {
     case .flock(let room):
       request = URLRequest(
         url: config.baseURL.appendingPathComponent("api/flock").appending(queryItems: [URLQueryItem(name: "room", value: room)]))
+    case .running:
+      request = URLRequest(url: config.baseURL.appendingPathComponent("api/running"))
+    case .inviteRunning(let invite):
+      request = URLRequest(url: config.baseURL.appendingPathComponent("api/running/invite"))
+      request.httpMethod = "POST"
+      request.setValue("application/json", forHTTPHeaderField: "content-type")
+      request.httpBody = try JSONEncoder().encode(invite)
     case .answer(let approval, let allow):
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/approvals/\(approval)"))
       request.httpMethod = "POST"

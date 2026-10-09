@@ -9,10 +9,10 @@ import { promisify } from 'node:util';
 
 import { runPost } from '../../../src/cli/post.js';
 import { openDb } from '../../../src/rooms/db.js';
-import { askItems } from '../../../src/rooms/questions.js';
 import { createRoomStore, type RoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, formatTable, ok } from '../lib/print.js';
+import { CLAUDE, seedShotAsk, seedShotRunning } from '../lib/shotSeeds.js';
 
 import { APP_IDS } from './appBuilds.js';
 import { spawnDaemon } from './daemon.js';
@@ -188,6 +188,11 @@ const SHOTS = [
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
   { appearance: 'light', contract: 99, name: 'daemon-older-light', room: 'checkout' },
   { appearance: 'dark', contract: 99, name: 'daemon-older-dark', room: 'checkout' },
+  // Last, since the invite makes a room every later shot would show.
+  { appearance: 'light', name: 'running-light', room: 'checkout', running: true },
+  { appearance: 'dark', name: 'running-dark', room: 'checkout', running: true },
+  { appearance: 'light', invite: true, name: 'invite-light', room: 'checkout', running: true },
+  { appearance: 'dark', invite: true, name: 'invite-dark', room: 'checkout', running: true },
 ] as const;
 // Posts as the human first, so the take also shows the right side row and the scroll landing flush.
 const RECORDING = { appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true } as const;
@@ -261,7 +266,6 @@ const WINDOW_LAYERS = [0, 3];
 export const MENU_LAYERS = [101];
 
 const run = promisify(execFile);
-const CLAUDE = { name: 'claude-code', version: '2.1.289' };
 // Enough lines in docs-sync that its transcript scrolls, for the jump pill shot.
 const CHANGELOG_PAGES = Array.from({ length: 24 }, (_, i) => `api reference part ${i + 1}`);
 // More posts than the snapshot's last 50, so scrolling to the top pages older ones in.
@@ -498,121 +502,6 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
   }
 }
 
-// Harmless first lines and the real step at the end, so the shot proves the card shows the whole call.
-const LONG_ASK = [
-  '{ "command": "set -e',
-  'pnpm install --frozen-lockfile',
-  'pnpm build',
-  'pnpm test',
-  'git tag v2.0.0',
-  'git push origin v2.0.0',
-  'git push --force origin main',
-  'npm publish --access public" }',
-].join('\n');
-
-/** Brings the deploy agent back and adds its pending tool ask, plus a long one in #release, an answered question and two open ones (one of three questions) in #launch and agreements in #contract. Runs after the daemon starts, since its start marks
- * every agent reconnecting and expires every pending ask. */
-export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
-  const db = openDb({ dataDir });
-  try {
-    const store = createRoomStore({ db, now: () => now });
-    store.touch({ as: 'deployer', room: 'deploy', state: 'active' });
-    store.openApproval({
-      description: 'Run the staging migration',
-      inputPreview: '{"command": "pnpm db:migrate --env staging"}',
-      requestId: 'abcde',
-      seats: [{ name: 'deployer', room: 'deploy' }],
-      session: 'shot',
-      tool: 'Bash',
-    });
-    store.joinRoom({ as: 'shipper', client: CLAUDE, kind: 'claude', room: 'release' });
-    store.openApproval({
-      description: 'Tag and publish the release',
-      inputPreview: LONG_ASK,
-      requestId: 'fghij',
-      seats: [{ name: 'shipper', room: 'release' }],
-      session: 'shot-long',
-      tool: 'Bash',
-    });
-    store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room: 'launch' });
-    store.joinRoom({ as: 'web', client: CLAUDE, kind: 'claude', room: 'launch' });
-    store.setStatus({ as: 'api', room: 'launch', status: 'staging green on https://github.com/acme/shop/pull/41' });
-    store.setStatus({ as: 'deployer', room: 'deploy', status: 'waiting for the go to migrate staging' });
-    store.touch({ as: 'reviewer', room: 'reviews', state: 'active' });
-    store.setStatus({ as: 'reviewer', room: 'reviews', status: 'reading the rounding diff' });
-    store.joinRoom({ as: 'mobile', client: CLAUDE, kind: 'claude', room: 'launch' });
-    const asked = store.askQuestion({
-      as: 'mobile',
-      questions: askItems({ options: ['this week', 'next sprint'], question: 'ship the cents banner on mobile too?' }),
-      room: 'launch',
-    });
-    if (asked.ok) store.answerQuestion({ answers: [{ picks: [0] }], id: asked.question.id });
-    store.askQuestion({
-      as: 'api',
-      questions: askItems({
-        questions: [
-          {
-            header: 'Merge',
-            options: [
-              { description: 'squash on green CI, staging is already on it', label: 'ship it', recommended: true },
-              { description: 'hold until reviewer-1 signs off', label: 'wait for review' },
-            ],
-            question: 'the cents migration is green on staging. merge it today?',
-          },
-        ],
-      }),
-      room: 'launch',
-    });
-    store.askQuestion({
-      as: 'web',
-      questions: askItems({
-        questions: [
-          {
-            header: 'Notice',
-            options: [
-              { description: 'a strip above the cart', label: 'banner', recommended: true },
-              { description: 'blocks checkout until read', label: 'modal' },
-              { label: 'inline note' },
-            ],
-            question: 'how should checkout tell people prices moved to cents?',
-          },
-          {
-            header: 'Screens',
-            multi_select: true,
-            options: [{ label: 'cart' }, { label: 'checkout' }, { label: 'receipt' }, { label: 'order history' }],
-            question: 'which screens show it?',
-          },
-          {
-            header: 'Copy',
-            options: [{ label: 'prices are now exact' }, { label: 'no change for you' }],
-            question: 'which line leads the notice?',
-          },
-        ],
-      }),
-      room: 'launch',
-    });
-    ['api', 'web', 'mobile'].forEach(as => store.joinRoom({ as, client: CLAUDE, kind: 'claude', room: 'contract' }));
-    const cents = store.proposeAgreement({
-      as: 'api',
-      room: 'contract',
-      text: 'order totals move to amount_minor, integer cents, with a 3 letter currency beside it',
-      with: ['web', 'mobile'],
-    });
-    if (cents.ok) {
-      ['web', 'mobile'].forEach(as => store.confirmAgreement({ as, id: cents.agreement.id, room: 'contract' }));
-    }
-    const refunds = store.proposeAgreement({
-      as: 'web',
-      room: 'contract',
-      text: 'refunds carry amount_minor too, api ships first and web adapts the formatter after',
-      with: ['api', 'mobile'],
-    });
-    if (refunds.ok) store.confirmAgreement({ as: 'api', id: refunds.agreement.id, room: 'contract' });
-  } finally {
-    db.close();
-  }
-}
-
 /** The shots named in a comma list, in table order, or every shot when no list is given. */
 export function pickShots(only?: string) {
   if (only === undefined) return { ok: true, shots: SHOTS } as const;
@@ -721,6 +610,8 @@ export function shotArgs(shot: Shot) {
     ...('welcome' in shot ? ['-shotWelcome', 'YES', '-shotSheet', shotFile(shot)] : []),
     ...('addAgent' in shot ? ['-shotAddAgent', shot.addAgent, '-shotSheet', shotFile(shot)] : []),
     ...('starting' in shot ? ['-shotStarting', shot.starting] : []),
+    ...('running' in shot ? ['-shotRunning', 'YES'] : []),
+    ...('invite' in shot ? ['-shotInvite', 'YES', '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
@@ -829,7 +720,9 @@ async function shoot({
     }
     const file = shotFile(shot);
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
-    if ('newRoom' in shot || 'welcome' in shot || 'addAgent' in shot) return (await waitFile(file)) ?? file;
+    if ('newRoom' in shot || 'welcome' in shot || 'addAgent' in shot || 'invite' in shot) {
+      return (await waitFile(file)) ?? file;
+    }
     if ('start' in shot) {
       const missing = await waitFile(startFile(shot), Date.now() + START_WITHIN_MS);
       if (missing) return `start did not finish: ${missing}`;
@@ -914,7 +807,7 @@ async function appShot({ home, only, port, sidebar }: { home: string; only?: str
   const app = buildApp();
   if (!app) return { code: 1, report: bad('make app failed') };
   if (sidebar && !buildRecorder()) return { code: 1, report: bad('building the window recorder failed') };
-  const daemon = await spawnDaemon({ detached: false, home, port });
+  const daemon = await spawnDaemon({ detached: false, env: seedShotRunning(home), home, port });
   if (!daemon.ok) return { code: 1, report: daemon.report };
   seedShotAsk({ dataDir: home, now: new Date() });
 
