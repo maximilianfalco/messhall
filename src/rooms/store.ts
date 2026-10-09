@@ -670,6 +670,9 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const seatKeyOrNull = seatKey ?? invite ?? null;
         if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), reattach ? 1 : 0, room.id, as);
         if (existing && observe) sql.setRole.run(OBSERVER_ROLE, null, as, room.id, as);
+        // A role outlives a leave, but the orchestrator one must not go to whoever takes the free name next.
+        const lapsed = existing && existing.left_at !== null && existing.role === ORCHESTRATOR_ROLE && !observe;
+        if (lapsed) sql.setRole.run(UNASSIGNED_ROLE, null, null, room.id, as);
         if (!existing) {
           const at = stamp();
           sql.insertMember.run(room.id, as, kind, at, at, 'active', cursor, name, version, role, seatKeyOrNull);

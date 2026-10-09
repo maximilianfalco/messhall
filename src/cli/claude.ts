@@ -9,7 +9,7 @@ import { ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { SEAT_ENV, SERVER_NAME } from '../mcp/constants.js';
 
 import { BRIEF_HELP, briefLine, DEFAULT_ROOM, launch, launchDeps, launchTarget } from './launch.js';
-import { asHuman, ORCHESTRATOR_BRIEF, readBrief, seatedLines, spawnOrchestrator } from './spawn.js';
+import { asHuman, checkOrchestrator, seatedLines, spawnOrchestrator } from './spawn.js';
 
 interface Seat {
   brief?: string | null;
@@ -46,7 +46,7 @@ async function runOrchestrator(
     return 1;
   };
   if (extra.length) return refuse('the orchestrator is spawned by messhall, so it takes no claude args');
-  const read = readBrief(brief ?? ORCHESTRATOR_BRIEF);
+  const read = checkOrchestrator({ brief: brief ?? undefined, cwd });
   if (!read.ok) return refuse(read.error);
   if (print) {
     deps.log(`messhall spawns claude as orchestrator in #${room}, in ${cwd}, then attaches to its tmux session`);

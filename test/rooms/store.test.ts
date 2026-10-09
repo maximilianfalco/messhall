@@ -956,6 +956,33 @@ describe('roles', () => {
     expect(roleOf('api')).toBe('unassigned');
   });
 
+  it.each([
+    ['leaves', () => store().leaveRoom({ as: 'orchestrator', room: 'demo' })],
+    ['is kicked', () => store().removeMember({ member: 'orchestrator', room: 'demo' })],
+  ])('gives no role to a keyless join after the orchestrator %s', (_case, gone) => {
+    joinBoth();
+    seatOrchestrator(store());
+    gone();
+
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(roleOf('orchestrator')).toBe('unassigned');
+    expect(store().assignRole({ by: 'orchestrator', member: 'api', role: 'reviewer', room: 'demo' })).toStrictEqual({
+      ok: false,
+      reason: 'not_allowed',
+    });
+  });
+
+  it('keeps the orchestrator role when its seat comes back from away', () => {
+    joinBoth();
+    seatOrchestrator(store());
+    store().markReconnecting();
+
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(roleOf('orchestrator')).toBe('orchestrator');
+  });
+
   it('lets the orchestrator assign a role and emits a member role event', () => {
     joinBoth();
     seatOrchestrator(store());

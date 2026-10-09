@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 
 import { readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
 import pc from 'picocolors';
@@ -99,8 +100,7 @@ export async function runSpawn({ instructions, ...spawn }: Daemon & Spawn) {
   return { code: 0, output: seatedLines({ ...spawn, session: sent.session }).join('\n') } as const;
 }
 
-/** The brief's text, held to the role instructions limit, so a bad brief fails before anything is made. */
-export function readBrief(file: string) {
+function readBrief(file: string) {
   if (!statSync(file, { throwIfNoEntry: false })?.isFile()) {
     return { error: `no brief file at ${file}`, ok: false } as const;
   }
@@ -109,6 +109,18 @@ export function readBrief(file: string) {
     return { error: `the brief at ${file} is empty or over ${INSTRUCTIONS_MAX_CHARS} chars`, ok: false } as const;
   }
   return { ok: true, text: parsed.data } as const;
+}
+
+/** Checks an orchestrator spawn before anything is made: not the home folder, since the human spawn answers
+ * claude's trust dialog for it, and a brief held to the role instructions limit. Returns the brief text. */
+export function checkOrchestrator({ brief = ORCHESTRATOR_BRIEF, cwd }: { brief?: string; cwd: string }) {
+  if (path.resolve(cwd) === homedir()) {
+    return {
+      error: 'start the orchestrator in a project folder, not your home folder, since its spawn trusts it',
+      ok: false,
+    } as const;
+  }
+  return readBrief(brief);
 }
 
 /** Starts claude as the room's orchestrator through the human spawn route, its brief text as the role instructions. */

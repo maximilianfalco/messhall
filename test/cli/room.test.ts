@@ -1,5 +1,5 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
@@ -88,6 +88,14 @@ describe('runRoom', () => {
 
     expect(result.code).toBe(1);
     expect(result.output.join('\n')).toContain(error);
+    expect(rooms()).toStrictEqual([]);
+  });
+
+  it('refuses the home folder for the orchestrator before it makes the room, since its spawn trusts the folder', async () => {
+    const result = await room({ action: 'new', name: 'planning', orchestrator: { cwd: homedir() } });
+
+    expect(result.code).toBe(1);
+    expect(result.output.join('\n')).toContain('not your home folder');
     expect(rooms()).toStrictEqual([]);
   });
 

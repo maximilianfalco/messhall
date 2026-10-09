@@ -2,7 +2,7 @@ import type { LaunchDeps } from '../../src/cli/launch.js';
 import type { RunResult } from '../../src/lib/run.js';
 
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
@@ -231,6 +231,13 @@ describe('runClaude', () => {
     expect(launched).toStrictEqual({ agent: 'claude', cwd: repo });
     expect(role?.instructions).toBe('lead the lobby');
     expect(spawned[0]?.cwd).toBe(repo);
+  });
+
+  it('refuses to spawn the orchestrator in the home folder, even with --print', async () => {
+    const code = await runClaude({ as: 'orchestrator', cwd: homedir(), extra: [], print: true }, deps());
+
+    expect(code).toBe(1);
+    expect(output()).toContain('not your home folder');
   });
 
   it('refuses claude args for the orchestrator, since its spawn takes none', async () => {

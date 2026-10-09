@@ -9,7 +9,7 @@ import { KEY_HEADER } from '../daemon/keys.js';
 import { renderRooms } from '../feed/render.js';
 
 import { readHumanKey } from './say.js';
-import { ORCHESTRATOR_BRIEF, readBrief, seatedLines, spawnOrchestrator } from './spawn.js';
+import { checkOrchestrator, seatedLines, spawnOrchestrator } from './spawn.js';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -70,7 +70,7 @@ export async function runRoom({
   const key = readHumanKey(dir);
   if (!key) return fail(`no human key in ${dir}, start the daemon once`);
   const lead = input.action === 'new' ? input.orchestrator : undefined;
-  const brief = lead && readBrief(lead.brief ?? ORCHESTRATOR_BRIEF);
+  const brief = lead && checkOrchestrator(lead);
   if (brief && !brief.ok) return fail(brief.error);
 
   const call = request(input, url);
