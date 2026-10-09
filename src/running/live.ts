@@ -5,9 +5,11 @@ import type { KnownSeat } from './running.js';
 
 import { randomUUID } from 'node:crypto';
 
+import { codexTuis } from '../codex/tuis.js';
+
 import { inviteRunning } from './invite.js';
 import { runningAgents } from './running.js';
-import { codexProcesses, cwdsFromLsof, gitPlace, readClaudeSessions, readCodexThreads } from './scan.js';
+import { cwdsFromLsof, gitPlace, readClaudeSessions, readCodexThreads } from './scan.js';
 import { suggestRooms } from './suggest.js';
 
 /** True when `pid` still runs. A process of another user still counts. */
@@ -21,7 +23,7 @@ export function pidAlive(pid: number) {
 }
 
 async function plainCodex(run: Runner) {
-  const pids = codexProcesses((await run('ps', ['-axo', 'pid=,comm=,args='])).stdout);
+  const pids = codexTuis((await run('ps', ['-axo', 'pid,args'])).stdout).map(tui => tui.pid);
   if (pids.length === 0) return new Map<number, string>();
   return cwdsFromLsof((await run('lsof', ['-a', '-d', 'cwd', '-Fn', '-p', pids.join(',')])).stdout);
 }

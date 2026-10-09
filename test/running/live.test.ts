@@ -23,7 +23,7 @@ const claudeDir = () => {
 
 const runner = (calls: string[][]) => (command: string, args: string[]) => {
   calls.push([command, ...args]);
-  if (command === 'ps') return Promise.resolve(ok('  401 /opt/bin/codex codex\n'));
+  if (command === 'ps') return Promise.resolve(ok('  PID ARGS\n  401 /opt/bin/codex\n  402 codex review\n'));
   if (command === 'lsof') return Promise.resolve(ok('p401\nfcwd\nn/code/docs\n'));
   const cwd = args[1] ?? '';
   return Promise.resolve(ok(`${cwd}/.git\nrm-7/${path.basename(cwd)}\n`));
@@ -58,7 +58,7 @@ describe('createRunningScan', () => {
     const calls: string[][] = [];
     const run = (command: string, args: string[]) => {
       calls.push([command, ...args]);
-      return Promise.resolve(command === 'ps' ? ok('  407 /opt/bin/claude claude\n') : ok(''));
+      return Promise.resolve(command === 'ps' ? ok('  PID ARGS\n  407 /opt/bin/claude\n') : ok(''));
     };
     const scan = createRunningScan({
       alive: () => true,
