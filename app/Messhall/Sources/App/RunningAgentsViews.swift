@@ -12,9 +12,19 @@ final class RunningWatch {
   var busy: String?
 
   /// Scans again every minute while the window is open. A refused scan keeps the last list.
-  func follow(_ client: FeedClient) async {
+  func follow(_ client: FeedClient, openRooms: @escaping () -> Set<String>) async {
+    #if DEBUG
+      if ShotHooks.isShot && !ShotHooks.running { return }
+    #endif
     while !Task.isCancelled {
       await refresh(client)
+      #if DEBUG
+        if ShotHooks.invite, results == nil,
+          let card = RunningCard.cards(running: running, openRooms: openRooms(), dismissed: dismissed).first
+        {
+          await act(card, client: client)
+        }
+      #endif
       try? await Task.sleep(for: Self.every)
     }
   }

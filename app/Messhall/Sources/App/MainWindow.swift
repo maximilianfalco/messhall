@@ -88,7 +88,7 @@ struct MainWindow: View {
       .sheet(isPresented: $navigation.showsWelcome) {
         WelcomeSheet(store: store, client: client, navigation: navigation)
       }
-      .task { await running.follow(client) }
+      .task { await running.follow(client) { Set(store.rooms.filter(\.isOpen).map(\.name)) } }
       .sheet(item: $running.results) { results in
         InviteResultsSheet(results: results)
       }

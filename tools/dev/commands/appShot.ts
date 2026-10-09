@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 
 import { execFile, spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -188,6 +188,11 @@ const SHOTS = [
   { appearance: 'dark', contract: 0, name: 'older-dark', room: 'checkout' },
   { appearance: 'light', contract: 99, name: 'daemon-older-light', room: 'checkout' },
   { appearance: 'dark', contract: 99, name: 'daemon-older-dark', room: 'checkout' },
+  // Last, since the invite makes a room every later shot would show.
+  { appearance: 'light', name: 'running-light', room: 'checkout', running: true },
+  { appearance: 'dark', name: 'running-dark', room: 'checkout', running: true },
+  { appearance: 'light', invite: true, name: 'invite-light', room: 'checkout', running: true },
+  { appearance: 'dark', invite: true, name: 'invite-dark', room: 'checkout', running: true },
 ] as const;
 // Posts as the human first, so the take also shows the right side row and the scroll landing flush.
 const RECORDING = { appearance: 'light', name: 'sidebar-toggle', post: true, toggleSidebar: true } as const;
@@ -721,6 +726,8 @@ export function shotArgs(shot: Shot) {
     ...('welcome' in shot ? ['-shotWelcome', 'YES', '-shotSheet', shotFile(shot)] : []),
     ...('addAgent' in shot ? ['-shotAddAgent', shot.addAgent, '-shotSheet', shotFile(shot)] : []),
     ...('starting' in shot ? ['-shotStarting', shot.starting] : []),
+    ...('running' in shot ? ['-shotRunning', 'YES'] : []),
+    ...('invite' in shot ? ['-shotInvite', 'YES', '-shotSheet', shotFile(shot)] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
@@ -829,7 +836,9 @@ async function shoot({
     }
     const file = shotFile(shot);
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
-    if ('newRoom' in shot || 'welcome' in shot || 'addAgent' in shot) return (await waitFile(file)) ?? file;
+    if ('newRoom' in shot || 'welcome' in shot || 'addAgent' in shot || 'invite' in shot) {
+      return (await waitFile(file)) ?? file;
+    }
     if ('start' in shot) {
       const missing = await waitFile(startFile(shot), Date.now() + START_WITHIN_MS);
       if (missing) return `start did not finish: ${missing}`;
@@ -900,6 +909,30 @@ export function buildApp() {
   return result.stdout.trim().split('\n').at(-1);
 }
 
+const SHOT_SESSIONS = [
+  { branch: 'rm-1234/order-totals', repo: 'checkout-api' },
+  { branch: 'rm-1234/cart-page', repo: 'checkout-web' },
+  { branch: 'main', repo: 'docs' },
+];
+
+/** Fake claude sessions in scratch git repos, two on one ticket, so the running cards show without a real agent.
+ * Gives the daemon env that scans only them, never the sessions running on this Mac. */
+function seedShotRunning(home: string) {
+  const sessions = path.join(home, 'claude-sessions');
+  mkdirSync(sessions, { recursive: true });
+  SHOT_SESSIONS.forEach(({ branch, repo }, index) => {
+    const cwd = path.join(home, 'code', repo);
+    mkdirSync(cwd, { recursive: true });
+    const git = (...args: string[]) => spawnSync('git', ['-C', cwd, ...args], { stdio: 'ignore' });
+    git('init', '-q', '-b', branch);
+    git('-c', 'user.name=shot', '-c', 'user.email=shot@example.com', 'commit', '-q', '--allow-empty', '-m', 'init');
+    // This process outlives every shot, so its pid keeps each fake session alive.
+    const session = { cwd, pid: process.pid, sessionId: `shot-${index + 1}`, status: index === 0 ? 'busy' : 'idle' };
+    writeFileSync(path.join(sessions, `${index + 1}.json`), JSON.stringify(session));
+  });
+  return { MESSHALL_CLAUDE_SESSIONS: sessions, MESSHALL_CODEX_SOCKET: path.join(home, 'no-codex.sock') };
+}
+
 /** Seeds a scratch daemon, builds the app, and shoots the menu bar label and its open menu, the window opened again by the hotkey, the window, a post, a muted room, folded and open presence runs, the jump pill, the mention picker, Return in the picker and on a mention-only draft, Shift Return making a new line at the end and mid-draft, the New Room sheet, a standing room, a closed room, PR cards, each Settings pane, a tool ask card, the older-app notice, the blocked-notifications notice and the daemon-down state in light and dark. With `only`, just the named shots. With `sidebar`, records the sidebar toggle instead. */
 async function appShot({ home, only, port, sidebar }: { home: string; only?: string; port: number; sidebar: boolean }) {
   const refused = checkShotHome(home);
@@ -914,7 +947,7 @@ async function appShot({ home, only, port, sidebar }: { home: string; only?: str
   const app = buildApp();
   if (!app) return { code: 1, report: bad('make app failed') };
   if (sidebar && !buildRecorder()) return { code: 1, report: bad('building the window recorder failed') };
-  const daemon = await spawnDaemon({ detached: false, home, port });
+  const daemon = await spawnDaemon({ detached: false, env: seedShotRunning(home), home, port });
   if (!daemon.ok) return { code: 1, report: daemon.report };
   seedShotAsk({ dataDir: home, now: new Date() });
 
