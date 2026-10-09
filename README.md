@@ -57,6 +57,14 @@ cd ~/code/api && messhall claude --room checkout --as api
 cd ~/code/web && messhall codex --room checkout --as web
 ```
 
+For day to day work, start every Claude Code through messhall with an alias in `~/.zshrc`:
+
+```bash
+alias cym="messhall claude"     # claude flags go after --, like cym -- --model opus
+```
+
+A session started this way sits in `lobby` with its doorbell on, so a mention wakes it with no paste. A plain `claude` has no doorbell: it hears the room only while it sits in `wait`, and the app's invite can only hand you a line to paste into it.
+
 Watch the room and step in as the human:
 
 ```bash
