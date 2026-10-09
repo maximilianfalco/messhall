@@ -2,10 +2,10 @@ import type { AgentKind } from '../../contracts/room.ts';
 import type { CodexClient } from '../codex/client.js';
 import type { Tmux } from '../flock/tmux.js';
 
-import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { queueText } from '../codex/client.js';
 import { SPAWN_DIR } from '../flock/spawner.js';
 import { tmux as runTmux, typeIfClear } from '../flock/tmux.js';
 import { logger } from '../lib/logger.js';
@@ -110,12 +110,7 @@ export async function wakeSeats({
     if (channel === 'codex') {
       const read = await codex.request('thread/read', { threadId: target });
       if (!read.ok || read.result.thread.status.type === 'notLoaded') return 'unloaded';
-      const input = [{ text, text_elements: [], type: 'text' as const }];
-      const added = await codex.request('thread/queue/add', {
-        clientUserMessageId: randomUUID(),
-        input,
-        threadId: target,
-      });
+      const added = await queueText(codex, { text, threadId: target });
       return added.ok ? 'sent' : 'failed';
     }
     // A bare name falls back to a prefix match, which would hit another seat's session.

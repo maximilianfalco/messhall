@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createCodexClient, type CodexClient } from '../../src/codex/client.js';
+import { createCodexClient, type CodexClient, queueText } from '../../src/codex/client.js';
 import { CODEX_RECONNECT_MIN_MS, CODEX_REQUEST_TIMEOUT_MS } from '../../src/config.js';
 
 import { fakeCodex, type FakeCodex, fakeTimers } from './fakeCodex.js';
@@ -117,5 +117,22 @@ describe('createCodexClient', () => {
 
     await vi.waitFor(() => expect(codex.connections).toBe(1));
     expect(timers.delays()).toStrictEqual([]);
+  });
+});
+
+describe('queueText', () => {
+  it('queues the text as one user turn on the thread', async () => {
+    const server = await fakeCodex({ 'thread/queue/add': () => ({ result: { queuedSubmission: {} } }) });
+    const queuer = createCodexClient({ setTimer: fakeTimers().setTimer, socketPath: server.socketPath });
+
+    const added = await queueText(queuer, { text: 'join #dev', threadId: 't-1' });
+
+    queuer.close();
+    await server.cleanup();
+    expect(added.ok).toBe(true);
+    expect(server.frames.find(frame => frame.method === 'thread/queue/add')?.params).toMatchObject({
+      input: [{ text: 'join #dev', text_elements: [], type: 'text' }],
+      threadId: 't-1',
+    });
   });
 });

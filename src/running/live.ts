@@ -3,8 +3,7 @@ import type { CodexClient } from '../codex/client.js';
 import type { Runner } from '../lib/run.js';
 import type { KnownSeat } from './running.js';
 
-import { randomUUID } from 'node:crypto';
-
+import { queueText } from '../codex/client.js';
 import { codexTuis } from '../codex/tuis.js';
 
 import { inviteRunning } from './invite.js';
@@ -71,14 +70,7 @@ export function createRunningInvite({
   codex: Pick<CodexClient, 'request'>;
   scan: () => Promise<Running>;
 }) {
-  const queue = async (threadId: string, text: string) =>
-    (
-      await codex.request('thread/queue/add', {
-        clientUserMessageId: randomUUID(),
-        input: [{ text, text_elements: [], type: 'text' }],
-        threadId,
-      })
-    ).ok;
+  const queue = async (threadId: string, text: string) => (await queueText(codex, { text, threadId })).ok;
   return async ({ ids, room }: RunningInvite): Promise<RunningInviteResult> => ({
     invites: await inviteRunning({ agents: (await scan()).agents, ids, queue, room }),
   });
