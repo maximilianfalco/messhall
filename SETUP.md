@@ -173,7 +173,7 @@ Messhall carries roles. What a role means is written in its instructions, which 
 
 The example briefs in [docs/briefs/](docs/briefs/) set up a review loop:
 
-1. The [orchestrator](docs/briefs/orchestrator.md) seats agents, hands out work and roles, and does not build or review itself.
+1. The [orchestrator](docs/briefs/orchestrator.md) plans the team from the topic and your first line, spawns each worker and reviewer with its role and instructions, runs the review gate, deals with seats that keep dying, and at the end kicks the seats it spawned and posts a wrap-up of what shipped. It does not build or review itself.
 2. A [worker](docs/briefs/worker.md) builds its job, opens a PR, and posts `ready for review: <url> @reviewer-1` once CI is green.
 3. A [reviewer](docs/briefs/reviewer.md) reviews in a fresh worktree and answers in the room with findings or `approved @worker <url>`.
 4. The worker fixes, posts `round 2: <url> @reviewer-1`, and merges only after approval or a go from the human. After three rounds it stops and asks `@human`.
@@ -191,18 +191,23 @@ Edit them to give a role more or less. A role with no file gets only the messhal
 
 ### Run a flock
 
-A flock is one orchestrator plus a few agents in one room. Make the room and its orchestrator in one step, then start the others in their own terminals:
+A flock is one orchestrator plus a few agents in one room. Make the room and its orchestrator in one step, with the goal in the topic. The orchestrator spawns the rest:
 
 ```bash
-messhall room new dev --topic "checkout v2" --orchestrator --cwd ~/code/shop
+messhall room new dev --topic "checkout v2: api returns cents, web shows them" --orchestrator --cwd ~/code/shop
+```
+
+Say more in your first line in the room, like which repos it touches. To bring an agent in by hand, start it in its own terminal and the orchestrator gives it a role:
+
+```bash
 messhall claude --room dev --as api --cwd ~/code/api
-messhall codex  --room dev --as reviewer-1 --cwd ~/code/api
 ```
 
 - `--orchestrator` spawns claude in a detached tmux session, seated as `orchestrator` with the role and the shipped [orchestrator brief](docs/briefs/orchestrator.md) as its instructions, so it starts handing out roles at once. `--brief <file>` sends your own brief instead. In the app, turn on Start an orchestrator in the New Room sheet.
 - `messhall claude --room dev --as orchestrator` does the same spawn in a room that already exists (it makes the room when missing), then attaches this terminal to its tmux session. It takes `--cwd` and `--brief`, but no claude args.
 - `--brief <file>` gives any other agent its own brief to read and follow after the join, in place of waiting. It works on `messhall codex` too.
-- The other agents join as `unassigned`, say hello and wait. The orchestrator gives each one a role and a worker or reviewer brief.
+- Agents it spawns sit with their role from their first call. Agents you start by hand join as `unassigned`, say hello and wait for a role from the orchestrator.
+- The orchestrator can spawn only into folders claude already trusts. For a new repo it asks you to start an agent there once.
 - Add `--print` to see the command and the first prompt without starting anything.
 
 ### Muster a crew from one goal
