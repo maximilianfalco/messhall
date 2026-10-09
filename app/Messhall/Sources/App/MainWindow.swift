@@ -8,6 +8,7 @@ struct MainWindow: View {
   @State private var columns = Self.startColumns
   @State private var columnsChangedAt: Date?
   @State private var running = RunningWatch()
+  @State private var processes = ProcessWatch()
   @Environment(\.openURL) private var openURL
   @Environment(\.openSettings) private var openSettings
 
@@ -64,7 +65,7 @@ struct MainWindow: View {
         }
       }
       .inspector(isPresented: $navigation.showsAgents) {
-        AgentsView(panel: agentsPanel, navigation: navigation)
+        InspectorView(panel: agentsPanel, client: client, processes: processes, navigation: navigation)
           .inspectorColumnWidth(min: 260, ideal: 300, max: 460)
       }
       // In the window toolbar, not the sidebar's, so they stay when the sidebar is collapsed.

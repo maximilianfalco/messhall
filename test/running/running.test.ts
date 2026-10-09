@@ -74,9 +74,7 @@ describe('runningAgents', () => {
   });
 
   it('marks the room of a claude a spawned seat runs in that folder', async () => {
-    const found = await runningAgents(
-      sources({ seats: [seat({ cwd: '/code/api' })] }),
-    );
+    const found = await runningAgents(sources({ seats: [seat({ cwd: '/code/api' })] }));
 
     expect(found[0]?.room).toBe('dev');
   });

@@ -158,7 +158,9 @@ export function createSessionRegistry<Entry extends { session: McpSession }>() {
     peers() {
       return [...entries.values()].flatMap(({ session }) => {
         const seats = [...session.rooms].map(([room, name]) => ({ name, room }));
-        return seats.length > 0 && session.ports.length > 0 ? [{ kind: session.kind, ports: session.ports, seats }] : [];
+        return seats.length > 0 && session.ports.length > 0
+          ? [{ kind: session.kind, ports: session.ports, seats }]
+          : [];
       });
     },
     /** Each seat a codex session holds, with its thread. */

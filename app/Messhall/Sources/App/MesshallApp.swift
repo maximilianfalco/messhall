@@ -17,13 +17,16 @@ final class Navigation {
   /// Bumped to ask the menu bar label, which always lives, to open the window.
   var windowRequests = 0
   var showsAgents = Navigation.startsWithAgents
+  var inspectorTab = Navigation.startTab
   /// The post the transcript scrolls to, set by a click on an agent in the Agents panel.
   var revealed: Reveal?
 
   #if DEBUG
-    private static let startsWithAgents = ShotHooks.showsAgents
+    private static let startsWithAgents = ShotHooks.showsAgents || ShotHooks.processes
+    private static let startTab: InspectorTab = ShotHooks.processes ? .processes : .agents
   #else
     private static let startsWithAgents = false
+    private static let startTab = InspectorTab.agents
   #endif
 
   /// Opens the agent's room at its last post. An agent with no loaded post opens at the end.

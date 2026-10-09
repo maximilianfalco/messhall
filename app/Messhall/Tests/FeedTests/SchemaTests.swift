@@ -67,6 +67,7 @@ private let models: [String: [String]] = [
   "RunningInvite": RunningInvite.CodingKeys.allCases.map(\.rawValue),
   "RunningInviteItem": RunningInviteItem.CodingKeys.allCases.map(\.rawValue),
   "RunningInviteResult": RunningInviteResult.CodingKeys.allCases.map(\.rawValue),
+  "RunningSeat": RunningSeat.CodingKeys.allCases.map(\.rawValue),
   "RoomEvent": RoomEvent.CodingKeys.allCases.map(\.rawValue),
   "Snapshot": Snapshot.CodingKeys.allCases.map(\.rawValue),
   "SnapshotRoom": SnapshotRoom.CodingKeys.allCases.map(\.rawValue),
