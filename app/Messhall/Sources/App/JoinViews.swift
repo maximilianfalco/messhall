@@ -3,9 +3,9 @@ import Feed
 import SwiftUI
 
 /// How long a copy button says Copied.
-private let copiedFor = Duration.seconds(1.5)
+let copiedFor = Duration.seconds(1.5)
 
-private func copyToPasteboard(_ text: String) {
+func copyToPasteboard(_ text: String) {
   NSPasteboard.general.clearContents()
   NSPasteboard.general.setString(text, forType: .string)
 }

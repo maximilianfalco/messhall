@@ -5,34 +5,8 @@ public let allMention = "all"
 
 // The daemon's rule from src/rooms/rules.ts, with its ASCII `\w` spelled out since ICU's `\w` takes any letter.
 private let mentionPattern = "(?<![A-Za-z0-9_.+-])@([a-z0-9-]{1,40})(?![a-z0-9-])"
-private let mention = try! NSRegularExpression(pattern: mentionPattern)
+let mentionRegex = try! NSRegularExpression(pattern: mentionPattern)
 private let trailing = try! NSRegularExpression(pattern: "(?<![A-Za-z0-9_.+-])@([a-z0-9-]{0,40})$")
-
-/// One piece of a chat line: plain text, or a mention the daemon stored on the message.
-public enum MentionRun: Equatable, Sendable {
-  case text(String)
-  case mention(String)
-}
-
-extension Message {
-  /// The text cut at each stored mention, so a typo like `@ghost` stays plain text.
-  public var mentionRuns: [MentionRun] {
-    let ns = text as NSString
-    var runs: [MentionRun] = []
-    var start = 0
-    for match in mention.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
-      let name = ns.substring(with: match.range(at: 1))
-      guard mentions.contains(name) else { continue }
-      if match.range.location > start {
-        runs.append(.text(ns.substring(with: NSRange(location: start, length: match.range.location - start))))
-      }
-      runs.append(.mention(name))
-      start = match.range.location + match.range.length
-    }
-    if start < ns.length { runs.append(.text(ns.substring(from: start))) }
-    return runs
-  }
-}
 
 /// The partial name after an `@` at the end of the draft, or nil when the draft does not end in one.
 public func mentionQuery(in draft: String) -> String? {
@@ -63,7 +37,7 @@ public func steppedMention(from picked: String, by step: Int, in candidates: [St
 /// True when the draft holds mentions and nothing else, so sending it would ring agents with no message.
 public func onlyMentions(_ draft: String) -> Bool {
   let ns = draft as NSString
-  let rest = mention.stringByReplacingMatches(in: draft, range: NSRange(location: 0, length: ns.length), withTemplate: "")
+  let rest = mentionRegex.stringByReplacingMatches(in: draft, range: NSRange(location: 0, length: ns.length), withTemplate: "")
   return rest.count < draft.count && rest.allSatisfy(\.isWhitespace)
 }
 

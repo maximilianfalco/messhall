@@ -10,12 +10,6 @@ struct MentionTests {
       presence: presence, role: "unassigned", cursor: 0, done: false, joinedAt: "t0", lastSeenAt: "t0", leftAt: nil)
   }
 
-  private func chat(_ text: String, mentions: [String]) -> Message {
-    Message(
-      id: 1, roomId: "r1", from: "api", kind: .chat, text: text, mentions: mentions,
-      createdAt: "2026-01-01T09:00:00.000Z")
-  }
-
   @Test(
     "the query is the partial name after a trailing at sign",
     arguments: [
@@ -95,27 +89,5 @@ struct MentionTests {
     arguments: ["@api hi", "hi @api", "@api ?", "mail dev@web", "@Web", ""])
   func saysSomething(draft: String) {
     #expect(!onlyMentions(draft))
-  }
-
-  @Test("a message splits into text and the mentions it stored")
-  func runs() {
-    let message = chat("@web the schema moved, @all see #12 and @ghost", mentions: ["web", "all"])
-
-    #expect(
-      message.mentionRuns == [
-        .mention("web"), .text(" the schema moved, "), .mention("all"), .text(" see #12 and @ghost"),
-      ])
-  }
-
-  @Test("an email or a longer name is never cut into a mention")
-  func runsSkipLookalikes() {
-    let message = chat("mail dev@web or @web-2 now", mentions: ["web"])
-
-    #expect(message.mentionRuns == [.text("mail dev@web or @web-2 now")])
-  }
-
-  @Test("a message with no mentions is one text run")
-  func runsPlain() {
-    #expect(chat("all good", mentions: []).mentionRuns == [.text("all good")])
   }
 }
