@@ -19,7 +19,7 @@ Set TypingSpeed 40ms
 Hide
 Type "rm -rf $MESSHALL_HOME; setopt no_monitor no_notify; mkdir -p $MESSHALL_CLAUDE_SESSIONS"
 Enter
-Type `n=0; for r in shop-a:main shop-b:main checkout-api:rm-1234/order-totals checkout-web:rm-1234/cart-page; do n=$((n+1)); d=$MESSHALL_HOME/code/${r%%:*}; mkdir -p $d; git -C $d init -q -b ${r#*:}; git -C $d -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init; printf '{"cwd":"%s","pid":%d,"sessionId":"s-%s","status":"idle"}' $d $$ ${r%%:*} > $MESSHALL_CLAUDE_SESSIONS/$n.json; done`
+Type `n=0; for r in shop-a:main shop-a:main checkout-api:rm-1234/order-totals checkout-web:rm-1234/cart-page; do n=$((n+1)); d=$MESSHALL_HOME/code/${r%%:*}; mkdir -p $d; git -C $d init -q -b ${r#*:}; git -C $d -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init; printf '{"cwd":"%s","pid":%d,"sessionId":"s-%s-%d","status":"idle"}' $d $$ ${r%%:*} $n > $MESSHALL_CLAUDE_SESSIONS/$n.json; done`
 Enter
 Type `human() { curl -s -H "x-messhall-key: $(cat $MESSHALL_HOME/human-key)" "$@"; }; clear`
 Enter
