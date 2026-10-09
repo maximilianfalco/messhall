@@ -13,9 +13,12 @@ struct NotificationsTests {
     try #require(try Fixture.decode(Snapshot.self, "Snapshot").rooms.first)
   }
 
-  private func state(room: SnapshotRoom?, muted: Set<String> = [], enabled: Bool = true) throws -> NotifyState {
+  private func state(
+    room: SnapshotRoom?, muted: Set<String> = [], enabled: Bool = true, starting: Set<String> = []
+  ) throws -> NotifyState {
     NotifyState(
-      room: room, mutedRooms: muted, enabled: enabled, liveSince: try #require(parseStamp(Self.liveSince)))
+      room: room, mutedRooms: muted, enabled: enabled, liveSince: try #require(parseStamp(Self.liveSince)),
+      starting: starting)
   }
 
   private func message(
@@ -184,11 +187,16 @@ struct NotificationsTests {
     return .member(MemberEvent(room: "checkout", change: .invited, member: seat))
   }
 
-  @Test("a spawn posts who starts and as what, whoever started it")
+  @Test("a spawn someone else started posts who starts and as what")
   func spawn() throws {
     #expect(
       notificationFor(event: try invited(), state: try state(room: room()))
         == NotificationContent(room: "checkout", title: "#checkout", body: "web is starting as reviewer"))
+  }
+
+  @Test("the human's own spawn from the app does not post")
+  func ownSpawn() throws {
+    #expect(notificationFor(event: try invited(), state: try state(room: room(), starting: ["web"])) == nil)
   }
 
   @Test("a replayed spawn, one in a muted room or with notifications off does not post")

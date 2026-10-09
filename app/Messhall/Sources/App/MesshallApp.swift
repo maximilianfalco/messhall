@@ -79,7 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   func applicationDidFinishLaunching(_ notification: Notification) {
     Task { await notifier.requestPermission() }
     store.onEvent = { [notifier, unowned store] event, room in
-      notifier.notify(event, room: room, liveSince: store.liveSince)
+      notifier.notify(
+        event, room: room, liveSince: store.liveSince, starting: room.flatMap { store.starting[$0.name] } ?? [])
     }
     #if DEBUG
       if let contract = UserDefaults.standard.string(forKey: "shotContract").flatMap(Int.init) {

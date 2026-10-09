@@ -69,10 +69,11 @@ final class Notifier {
     post(title: "Messhall", body: "Test notification. Banners work.", room: nil)
   }
 
-  func notify(_ event: BusEvent, room: SnapshotRoom?, liveSince: Date) {
+  func notify(_ event: BusEvent, room: SnapshotRoom?, liveSince: Date, starting: Set<String>) {
     if let question = bannerToClear(for: event) { clear(question) }
     let state = NotifyState(
-      room: room, mutedRooms: settings.snapshot.mutedRooms, enabled: enabled, liveSince: liveSince)
+      room: room, mutedRooms: settings.snapshot.mutedRooms, enabled: enabled, liveSince: liveSince,
+      starting: starting)
     guard let note = notificationFor(event: event, state: state) else { return }
     if let question = note.questionId { offer(note.options, for: question) }
     post(title: note.title, body: note.body, room: note.room, question: note.questionId)
