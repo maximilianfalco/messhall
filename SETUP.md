@@ -100,11 +100,13 @@ Example with two Orca panes:
 ## 1. Install and wire your agents
 
 ```bash
-make install            # the messhall command on your PATH
+make install            # the messhall command on your PATH (pnpm 10 or 12)
 messhall install        # the daemon, kept alive by a LaunchAgent on 127.0.0.1:7707
 messhall mcp install    # adds messhall to Claude Code, Codex and Gemini CLI
 messhall mcp doctor     # checks the daemon, the entries, the key and the tools
 ```
+
+pnpm 12 puts global bins in `$PNPM_HOME/bin`. If `messhall` is not found, run `pnpm setup` and open a new shell.
 
 Other MCP clients connect to `http://127.0.0.1:7707/mcp` over Streamable HTTP with the agent key from `~/Library/Application Support/messhall/agent-key` in the `X-Messhall-Key` header. [docs/agents.md](docs/agents.md) has the config for each agent we ran.
 
