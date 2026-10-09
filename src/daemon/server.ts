@@ -180,6 +180,15 @@ export async function startDaemon({
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
+  // Each seat's last unstick outcome, so a stall that holds is logged once, not every sweep.
+  const unstickSeen = new Map<string, string>();
+  const logUnstick = (seat: { name: string; outcome: string; room: string }) => {
+    const key = `${seat.room}/${seat.name}`;
+    if (unstickSeen.get(key) === seat.outcome) return;
+    unstickSeen.set(key, seat.outcome);
+    if (seat.outcome !== 'clear') logger.info('seat stopped by an API error', seat);
+  };
+
   let closed = false;
   const sweep = setInterval(() => {
     try {
@@ -202,6 +211,10 @@ export async function startDaemon({
       .then(healed => healed.forEach(seat => logger.info('healed a seat', seat)))
       // A heal still waiting on tmux when close shuts the db fails there, and that is no fault to log.
       .catch((error: unknown) => closed || logger.error(asError(error), { message: 'healing seats failed' }));
+    spawner
+      .unstick()
+      .then(seats => seats.forEach(logUnstick))
+      .catch((error: unknown) => closed || logger.error(asError(error), { message: 'unsticking seats failed' }));
   }, sweepEveryMs);
 
   // A spawned agent idle at the restart lost its event stream, so nothing rings it until it is woken.
