@@ -28,6 +28,9 @@ struct RoomDetail: View {
   }
 
   var body: some View {
+    #if DEBUG
+      let _ = PerfHooks.detailBodies += 1
+    #endif
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       if let side = store.stale { StaleBanner(side: side) }
@@ -616,6 +619,9 @@ struct Transcript: View {
   }
 
   var body: some View {
+    #if DEBUG
+      let _ = PerfHooks.transcriptBodies += 1
+    #endif
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
       ContentUnavailableView.search(text: query)
         .frame(maxHeight: .infinity)
@@ -630,89 +636,93 @@ struct Transcript: View {
       let rowHeights = heights.heights(of: rows)
       let spacers = RowWindow.spacers(heights: rowHeights, spacing: Self.spacing, window: real)
       let senders = Dictionary(members.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
-      ScrollViewReader { proxy in
-        ScrollView {
-          VStack(spacing: 0) {
-            if older.hasMore { OlderPagesRow(loading: older.loading) }
-            VStack(alignment: .leading, spacing: Self.spacing) {
-              if spacers.above > 0 { Color.clear.frame(height: spacers.above) }
-              ForEach(rows[real]) { item in
-                Group {
-                  switch item {
-                  case .message(let message):
-                    MessageRow(message: message, sender: senders[message.from], ask: asks[message.id])
-                  case .fold(let fold):
-                    let open = isOpen(fold)
-                    FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }
+      // A GeometryReader takes the size it is offered, so the window's min size check never sizes every row.
+      // Without it each key in a question form measured the whole transcript twice.
+      GeometryReader { _ in
+        ScrollViewReader { proxy in
+          ScrollView {
+            VStack(spacing: 0) {
+              if older.hasMore { OlderPagesRow(loading: older.loading) }
+              VStack(alignment: .leading, spacing: Self.spacing) {
+                if spacers.above > 0 { Color.clear.frame(height: spacers.above) }
+                ForEach(rows[real]) { item in
+                  Group {
+                    switch item {
+                    case .message(let message):
+                      MessageRow(message: message, sender: senders[message.from], ask: asks[message.id])
+                    case .fold(let fold):
+                      let open = isOpen(fold)
+                      FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }
+                    }
                   }
+                  .id(item.id)
+                  .background(
+                    Color.accentColor.opacity(flashing == item.id ? 0.15 : 0), in: RoundedRectangle(cornerRadius: 8)
+                  )
+                  .modifier(RowMark(id: item.id, marks: watched.contains(item.id) ? marks : nil))
+                  .onGeometryChange(for: Double.self) { $0.size.height } action: { heights.set($0, for: item.id) }
                 }
-                .id(item.id)
-                .background(
-                  Color.accentColor.opacity(flashing == item.id ? 0.15 : 0), in: RoundedRectangle(cornerRadius: 8)
-                )
-                .modifier(RowMark(id: item.id, marks: watched.contains(item.id) ? marks : nil))
-                .onGeometryChange(for: Double.self) { $0.size.height } action: { heights.set($0, for: item.id) }
+                if spacers.below > 0 { Color.clear.frame(height: spacers.below) }
               }
-              if spacers.below > 0 { Color.clear.frame(height: spacers.below) }
+              .onGeometryChange(for: Band.self) { geometry in
+                let visible = geometry.bounds(of: .scrollView) ?? .zero
+                return Band(top: visible.minY, bottom: visible.maxY)
+              } action: { band in
+                #if DEBUG
+                  PerfHooks.note("band \(Int(band.top))...\(Int(band.bottom)) rows \(rows.count) real \(real) at \(Int(CACurrentMediaTime() * 1000) % 100000) ms, hasMore \(hasMore), loading \(loading)")
+                #endif
+                place(band, rows: rows, heights: rowHeights, real: real)
+              }
+              .padding(16)
+              Color.clear.frame(height: 1).id(Self.end)
             }
-            .onGeometryChange(for: Band.self) { geometry in
+            .onGeometryChange(for: TopEdge.self) { geometry in
               let visible = geometry.bounds(of: .scrollView) ?? .zero
-              return Band(top: visible.minY, bottom: visible.maxY)
-            } action: { band in
-              #if DEBUG
-                PerfHooks.note("band \(Int(band.top))...\(Int(band.bottom)) rows \(rows.count) real \(real) at \(Int(CACurrentMediaTime() * 1000) % 100000) ms, hasMore \(hasMore), loading \(loading)")
-              #endif
-              place(band, rows: rows, heights: rowHeights, real: real)
+              let load = Paging.shouldLoad(
+                visibleTop: visible.minY, viewportHeight: visible.height, hasMore: hasMore, loading: loading)
+              return TopEdge(load: load, viewport: visible.height)
+            } action: { edge in
+              marks.viewport = edge.viewport
+              marks.wantsPage = edge.load
+              if edge.load { loadOlder(rows) }
             }
-            .padding(16)
-            Color.clear.frame(height: 1).id(Self.end)
+            // A Bool, so a column slide that keeps the view at the bottom writes no state each frame.
+            .onGeometryChange(for: Bool.self) { geometry in
+              let visible = geometry.bounds(of: .scrollView) ?? .zero
+              return Follow.isNearBottom(
+                contentBottom: geometry.size.height - visible.minY, viewportHeight: visible.height)
+            } action: { atBottom in
+              // The first layout after a room opens can throw the view to the top. Until the view has settled,
+              // leaving the bottom is that throw, not a scroll, so the end is put back.
+              if nearBottom, !atBottom, !ready { scroll(proxy, animated: false) }
+              nearBottom = atBottom
+              if atBottom { showPill = false }
+            }
           }
-          .onGeometryChange(for: TopEdge.self) { geometry in
-            let visible = geometry.bounds(of: .scrollView) ?? .zero
-            let load = Paging.shouldLoad(
-              visibleTop: visible.minY, viewportHeight: visible.height, hasMore: hasMore, loading: loading)
-            return TopEdge(load: load, viewport: visible.height)
-          } action: { edge in
-            marks.viewport = edge.viewport
-            marks.wantsPage = edge.load
-            if edge.load { loadOlder(rows) }
+          .defaultScrollAnchor(.bottom)
+          .overlay(alignment: .bottom) {
+            if showPill {
+              JumpToLatest { scroll(proxy, animated: true) }
+                .padding(.bottom, 12)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
           }
-          // A Bool, so a column slide that keeps the view at the bottom writes no state each frame.
-          .onGeometryChange(for: Bool.self) { geometry in
-            let visible = geometry.bounds(of: .scrollView) ?? .zero
-            return Follow.isNearBottom(
-              contentBottom: geometry.size.height - visible.minY, viewportHeight: visible.height)
-          } action: { atBottom in
-            // The first layout after a room opens can throw the view to the top. Until the view has settled,
-            // leaving the bottom is that throw, not a scroll, so the end is put back.
-            if nearBottom, !atBottom, !ready { scroll(proxy, animated: false) }
-            nearBottom = atBottom
-            if atBottom { showPill = false }
+          .onAppear { start(proxy) }
+          .onChange(of: reveal) { show(reveal, proxy) }
+          // The oldest id, not the loading flag: the flag flips before the page lands, with the old rows still in hand.
+          .onChange(of: messages.first?.id) { before, after in
+            if let before, let after, after < before { keepPlace(proxy) }
           }
-        }
-        .defaultScrollAnchor(.bottom)
-        .overlay(alignment: .bottom) {
-          if showPill {
-            JumpToLatest { scroll(proxy, animated: true) }
-              .padding(.bottom, 12)
-              .transition(.move(edge: .bottom).combined(with: .opacity))
-          }
-        }
-        .onAppear { start(proxy) }
-        .onChange(of: reveal) { show(reveal, proxy) }
-        // The oldest id, not the loading flag: the flag flips before the page lands, with the old rows still in hand.
-        .onChange(of: messages.first?.id) { before, after in
-          if let before, let after, after < before { keepPlace(proxy) }
-        }
-        .onChange(of: messages.last?.id) { before, after in
-          let fromHuman = messages.last?.from == humanName
-          let wait = Follow.wait(columnsChangedAt: columnsChangedAt, now: .now)
-          // The next turn, so the new row has its size before the scroll aims at the end.
-          DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-            switch Follow.action(lastBefore: before, lastAfter: after, fromHuman: fromHuman, nearBottom: nearBottom) {
-            case .scroll(let animated): scroll(proxy, animated: animated)
-            case .showPill: withAnimation(.easeOut) { showPill = true }
-            case .none: break
+          .onChange(of: messages.last?.id) { before, after in
+            let fromHuman = messages.last?.from == humanName
+            let wait = Follow.wait(columnsChangedAt: columnsChangedAt, now: .now)
+            // The next turn, so the new row has its size before the scroll aims at the end.
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+              switch Follow.action(lastBefore: before, lastAfter: after, fromHuman: fromHuman, nearBottom: nearBottom) {
+              case .scroll(let animated): scroll(proxy, animated: animated)
+              case .showPill: withAnimation(.easeOut) { showPill = true }
+              case .none: break
+              }
             }
           }
         }

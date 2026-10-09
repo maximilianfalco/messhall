@@ -26,6 +26,16 @@ public struct PerfReport: Codable, Equatable, Sendable {
   public var eventCpuMs: Double
   public var eventRowBodies: Double
   public var eventWallMs: Double
+  /// Keys typed into a multi question form's Other box, and what each one cost.
+  public var questionKeys: Int
+  public var questionKeyCpuMs: Double
+  public var questionKeyRowBodies: Double
+  public var questionKeyWorstFrameMs: Double
+  /// Clicks on a multi question form's option rows, and what each one cost.
+  public var questionPicks: Int
+  public var questionPickCpuMs: Double
+  public var questionPickRowBodies: Double
+  public var questionPickWorstFrameMs: Double
   public var pullRequestReads: Int
   public var residentMb: Double
 
@@ -33,7 +43,9 @@ public struct PerfReport: Codable, Equatable, Sendable {
     openMs: Double, idleCpuPercent: Double, pages: Int, rows: Int, pageAllMs: Double, pageAllCpuMs: Double,
     scrollFps: Double, scrollWorstFrameMs: Double, dashFps: Double, dashWorstFrameMs: Double, sidebarFps: Double,
     sidebarWorstFrameMs: Double, panelFps: Double, panelWorstFrameMs: Double, events: Int,
-    eventCpuMs: Double, eventRowBodies: Double, eventWallMs: Double, pullRequestReads: Int, residentMb: Double
+    eventCpuMs: Double, eventRowBodies: Double, eventWallMs: Double, questionKeys: Int, questionKeyCpuMs: Double,
+    questionKeyRowBodies: Double, questionKeyWorstFrameMs: Double, questionPicks: Int, questionPickCpuMs: Double,
+    questionPickRowBodies: Double, questionPickWorstFrameMs: Double, pullRequestReads: Int, residentMb: Double
   ) {
     self.dashFps = dashFps
     self.dashWorstFrameMs = dashWorstFrameMs
@@ -53,6 +65,14 @@ public struct PerfReport: Codable, Equatable, Sendable {
     self.eventCpuMs = eventCpuMs
     self.eventRowBodies = eventRowBodies
     self.eventWallMs = eventWallMs
+    self.questionKeys = questionKeys
+    self.questionKeyCpuMs = questionKeyCpuMs
+    self.questionKeyRowBodies = questionKeyRowBodies
+    self.questionKeyWorstFrameMs = questionKeyWorstFrameMs
+    self.questionPicks = questionPicks
+    self.questionPickCpuMs = questionPickCpuMs
+    self.questionPickRowBodies = questionPickRowBodies
+    self.questionPickWorstFrameMs = questionPickWorstFrameMs
     self.pullRequestReads = pullRequestReads
     self.residentMb = residentMb
   }
@@ -74,6 +94,14 @@ public struct PerfReport: Codable, Equatable, Sendable {
     case eventCpuMs = "event_cpu_ms"
     case eventRowBodies = "event_row_bodies"
     case eventWallMs = "event_wall_ms"
+    case questionKeys = "question_keys"
+    case questionKeyCpuMs = "question_key_cpu_ms"
+    case questionKeyRowBodies = "question_key_row_bodies"
+    case questionKeyWorstFrameMs = "question_key_worst_frame_ms"
+    case questionPicks = "question_picks"
+    case questionPickCpuMs = "question_pick_cpu_ms"
+    case questionPickRowBodies = "question_pick_row_bodies"
+    case questionPickWorstFrameMs = "question_pick_worst_frame_ms"
     case pullRequestReads = "pull_request_reads"
     case residentMb = "resident_mb"
   }
