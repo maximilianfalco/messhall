@@ -13,9 +13,12 @@ struct NotificationsTests {
     try #require(try Fixture.decode(Snapshot.self, "Snapshot").rooms.first)
   }
 
-  private func state(room: SnapshotRoom?, muted: Set<String> = [], enabled: Bool = true) throws -> NotifyState {
+  private func state(
+    room: SnapshotRoom?, muted: Set<String> = [], enabled: Bool = true, starting: Set<String> = []
+  ) throws -> NotifyState {
     NotifyState(
-      room: room, mutedRooms: muted, enabled: enabled, liveSince: try #require(parseStamp(Self.liveSince)))
+      room: room, mutedRooms: muted, enabled: enabled, liveSince: try #require(parseStamp(Self.liveSince)),
+      starting: starting)
   }
 
   private func message(
@@ -173,6 +176,36 @@ struct NotificationsTests {
 
     #expect(notificationFor(event: presence, state: try state(room: room)) == nil)
     #expect(notificationFor(event: member, state: try state(room: room)) == nil)
+  }
+
+  private func invited(at: String = after) throws -> BusEvent {
+    var seat = try room().members[0]
+    seat.name = "web"
+    seat.role = "reviewer"
+    seat.presence = .invited
+    seat.joinedAt = at
+    return .member(MemberEvent(room: "checkout", change: .invited, member: seat))
+  }
+
+  @Test("a spawn someone else started posts who starts and as what")
+  func spawn() throws {
+    #expect(
+      notificationFor(event: try invited(), state: try state(room: room()))
+        == NotificationContent(room: "checkout", title: "#checkout", body: "web is starting as reviewer"))
+  }
+
+  @Test("the human's own spawn from the app does not post")
+  func ownSpawn() throws {
+    #expect(notificationFor(event: try invited(), state: try state(room: room(), starting: ["web"])) == nil)
+  }
+
+  @Test("a replayed spawn, one in a muted room or with notifications off does not post")
+  func spawnQuiet() throws {
+    let room = try room()
+
+    #expect(notificationFor(event: try invited(at: Self.before), state: try state(room: room)) == nil)
+    #expect(notificationFor(event: try invited(), state: try state(room: room, muted: ["checkout"])) == nil)
+    #expect(notificationFor(event: try invited(), state: try state(room: room, enabled: false)) == nil)
   }
 
   private func ask(state: ApprovalState = .pending, at: String = after) -> BusEvent {

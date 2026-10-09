@@ -40,11 +40,14 @@ private let models: [String: [String]] = [
   "QuestionItem": QuestionItem.CodingKeys.allCases.map(\.rawValue),
   "QuestionOption": QuestionOption.CodingKeys.allCases.map(\.rawValue),
   "FeedError": FeedError.CodingKeys.allCases.map(\.rawValue),
+  "Flock": Flock.CodingKeys.allCases.map(\.rawValue),
+  "FlockSeat": FlockSeat.CodingKeys.allCases.map(\.rawValue),
   "History": History.CodingKeys.allCases.map(\.rawValue),
   "HumanPost": HumanPost.CodingKeys.allCases.map(\.rawValue),
   "HumanPostResult": HumanPostResult.CodingKeys.allCases.map(\.rawValue),
   "HumanRole": HumanRole.CodingKeys.allCases.map(\.rawValue),
   "HumanRoleResult": HumanRoleResult.CodingKeys.allCases.map(\.rawValue),
+  "HumanSpawn": HumanSpawn.CodingKeys.allCases.map(\.rawValue),
   "CloseResult": RoomResult.CodingKeys.allCases.map(\.rawValue),
   "Member": Member.CodingKeys.allCases.map(\.rawValue),
   "MemberEvent": MemberEvent.CodingKeys.allCases.map(\.rawValue),
@@ -61,6 +64,7 @@ private let models: [String: [String]] = [
   "RoomEvent": RoomEvent.CodingKeys.allCases.map(\.rawValue),
   "Snapshot": Snapshot.CodingKeys.allCases.map(\.rawValue),
   "SnapshotRoom": SnapshotRoom.CodingKeys.allCases.map(\.rawValue),
+  "SpawnResult": SpawnResult.CodingKeys.allCases.map(\.rawValue),
 ]
 
 private let enums: [String: [String]] = [

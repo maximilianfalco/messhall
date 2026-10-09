@@ -65,11 +65,13 @@ describe('seedShotRooms', () => {
     const page = store.listMessages({ limit: 50, room: 'checkout' });
     const docs = store.listMessages({ limit: 50, room: 'docs-sync' });
     const edits = store.listMessages({ limit: 50, room: 'edits' });
+    const crew = store.listMembers('crew');
     db.close();
 
     expect(rooms).toStrictEqual([
       ['billing', false, 'ledger', false],
       ['checkout', true, 'qa', false],
+      ['crew', true, 'human', true],
       ['deploy', true, 'deployer', false],
       ['docs-sync', true, 'writer', false],
       ['edits', true, 'api', false],
@@ -86,6 +88,12 @@ describe('seedShotRooms', () => {
       'human human idle null',
       'qa other idle opencode',
       'web codex waiting codex',
+    ]);
+    expect(crew.map(member => `${member.name} ${member.presence} ${member.role}`)).toStrictEqual([
+      'api invited reviewer',
+      'human idle unassigned',
+      'lead active unassigned',
+      'web invited worker',
     ]);
     expect(page.ok && page.messages.map(message => message.kind)).toContain('done');
     expect(

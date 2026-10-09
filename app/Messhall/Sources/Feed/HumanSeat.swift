@@ -47,6 +47,11 @@ public struct HumanSeat: Sendable {
     await send(.spawn(room: room, seat: seat), as: SpawnResult.self) { $0 }
   }
 
+  /// The seats the spawner started in the room, with their tmux sessions.
+  public func flock(room: String) async -> Outcome<Flock> {
+    await send(.flock(room: room), as: Flock.self) { $0 }
+  }
+
   public func answer(_ approval: Approval, allow: Bool) async -> Outcome<[Approval]> {
     await send(.answer(approval: approval.id, allow: allow), as: ApprovalResult.self) { $0.approvals }
   }

@@ -22,6 +22,8 @@ import {
   approvalResultSchema,
   closeResultSchema,
   feedErrorSchema,
+  flockSchema,
+  flockSeatSchema,
   historySchema,
   humanPostResultSchema,
   humanAnswerSchema,
@@ -29,6 +31,7 @@ import {
   humanPostSchema,
   humanRoleResultSchema,
   humanRoleSchema,
+  humanSpawnSchema,
   muteResultSchema,
   newRoomResultSchema,
   newRoomSchema,
@@ -38,6 +41,7 @@ import {
   searchResultSchema,
   snapshotRoomSchema,
   snapshotSchema,
+  spawnResultSchema,
 } from '../../../contracts/feed.ts';
 import { buildSchema, healthSchema } from '../../../contracts/health.ts';
 import {
@@ -71,6 +75,8 @@ export const CONTRACTS = {
   BusEvent: busEventSchema,
   CloseResult: closeResultSchema,
   FeedError: feedErrorSchema,
+  Flock: flockSchema,
+  FlockSeat: flockSeatSchema,
   Health: healthSchema,
   History: historySchema,
   HumanAnswer: humanAnswerSchema,
@@ -79,6 +85,7 @@ export const CONTRACTS = {
   HumanPostResult: humanPostResultSchema,
   HumanRole: humanRoleSchema,
   HumanRoleResult: humanRoleResultSchema,
+  HumanSpawn: humanSpawnSchema,
   Member: memberSchema,
   MemberEvent: memberEventSchema,
   MemberKind: memberKindSchema,
@@ -106,6 +113,7 @@ export const CONTRACTS = {
   SequencedEvent: sequencedEventSchema,
   Snapshot: snapshotSchema,
   SnapshotRoom: snapshotRoomSchema,
+  SpawnResult: spawnResultSchema,
 } satisfies Record<string, z.ZodType>;
 
 /** Every wire contract as one JSON Schema document, one `$defs` entry each, for the Swift models. */

@@ -356,6 +356,95 @@
       ],
       "additionalProperties": false
     },
+    "Flock": {
+      "type": "object",
+      "properties": {
+        "seats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlockSeat"
+          },
+          "description": "Every seat the spawner started, by room then name."
+        }
+      },
+      "required": [
+        "seats"
+      ],
+      "additionalProperties": false
+    },
+    "FlockSeat": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "description": "Which agent to start: claude or codex."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Folder the agent started in."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The seat name."
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Pid of the shell in the tmux pane, null when the session is gone."
+        },
+        "presence": {
+          "description": "What the member is doing now.",
+          "$ref": "#/$defs/Presence"
+        },
+        "process": {
+          "type": "string",
+          "enum": [
+            "running",
+            "gone"
+          ],
+          "description": "Whether the tmux session still runs the agent."
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The seat role."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The room the seat is in."
+        },
+        "session": {
+          "type": "string",
+          "description": "The tmux session name, to attach to."
+        }
+      },
+      "required": [
+        "agent",
+        "cwd",
+        "name",
+        "pid",
+        "presence",
+        "process",
+        "role",
+        "room",
+        "session"
+      ],
+      "additionalProperties": false
+    },
     "Health": {
       "type": "object",
       "properties": {
@@ -550,6 +639,53 @@
       "required": [
         "member",
         "message"
+      ],
+      "additionalProperties": false
+    },
+    "HumanSpawn": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "default": "claude",
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "description": "Which agent to start: claude or codex."
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Full path of the folder the agent starts in. It must exist."
+        },
+        "instructions": {
+          "description": "What the member should do in this role, 1 to 4,000 chars. Left out clears any earlier ones.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "model": {
+          "description": "Model the agent runs on, like opus or claude-opus-5-5, its default when left out.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.[\\]-]{0,63}$"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Name of the new seat in the room."
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The role the agent holds from its first call."
+        }
+      },
+      "required": [
+        "agent",
+        "cwd",
+        "name",
+        "role"
       ],
       "additionalProperties": false
     },
@@ -1710,6 +1846,24 @@
         "messages",
         "questions",
         "settled_questions"
+      ],
+      "additionalProperties": false
+    },
+    "SpawnResult": {
+      "type": "object",
+      "properties": {
+        "member": {
+          "description": "The seat its agent now sits in.",
+          "$ref": "#/$defs/Member"
+        },
+        "session": {
+          "type": "string",
+          "description": "The detached tmux session the agent runs in."
+        }
+      },
+      "required": [
+        "member",
+        "session"
       ],
       "additionalProperties": false
     }

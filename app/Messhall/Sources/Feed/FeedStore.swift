@@ -23,6 +23,8 @@ public final class FeedStore {
   public private(set) var build: Build?
   /// Rooms with an older page on its way.
   public private(set) var loadingOlder: Set<String> = []
+  /// Seats the app asked the spawner for and still waits on, by room.
+  public internal(set) var starting: [String: Set<String>] = [:]
   /// The last message id the human saw in each room. A room starts seen, so only live posts count as unread.
   public private(set) var seen: [String: Int] = [:]
   /// When the current stream opened. Events stamped before it are a replay.

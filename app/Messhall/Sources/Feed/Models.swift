@@ -608,6 +608,9 @@ public struct FeedError: Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable { case error }
 }
 
+/// Which agent the spawner starts.
+public enum SpawnAgent: String, Codable, CaseIterable, Sendable { case claude, codex }
+
 /// One agent for the human spawn route.
 public struct HumanSpawn: Codable, Equatable, Sendable {
   public var name: String
@@ -615,15 +618,19 @@ public struct HumanSpawn: Codable, Equatable, Sendable {
   public var cwd: String
   public var instructions: String?
   public var model: String?
+  public var agent: SpawnAgent
 
-  enum CodingKeys: String, CodingKey, CaseIterable { case name, role, cwd, instructions, model }
+  enum CodingKeys: String, CodingKey, CaseIterable { case name, role, cwd, instructions, model, agent }
 
-  public init(name: String, role: String, cwd: String, instructions: String?, model: String?) {
+  public init(
+    name: String, role: String, cwd: String, instructions: String?, model: String?, agent: SpawnAgent = .claude
+  ) {
     self.name = name
     self.role = role
     self.cwd = cwd
     self.instructions = instructions
     self.model = model
+    self.agent = agent
   }
 }
 
@@ -633,4 +640,25 @@ public struct SpawnResult: Codable, Equatable, Sendable {
   public var session: String
 
   enum CodingKeys: String, CodingKey, CaseIterable { case member, session }
+}
+
+/// One seat the spawner started, and whether its tmux session still runs the agent.
+public struct FlockSeat: Codable, Equatable, Sendable {
+  public var agent: String
+  public var cwd: String
+  public var name: String
+  public var pid: Int?
+  public var presence: Presence
+  public var process: String
+  public var role: String
+  public var room: String
+  public var session: String
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case agent, cwd, name, pid, presence, process, role, room, session }
+}
+
+public struct Flock: Codable, Equatable, Sendable {
+  public var seats: [FlockSeat]
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case seats }
 }

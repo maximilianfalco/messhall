@@ -88,6 +88,21 @@ extension FeedStore {
     }
   }
 
+  /// Starts an agent in the room as the human. The seat says starting until the answer comes, up to two minutes.
+  /// Returns the refusal text, or nil.
+  public func spawn(_ seat: HumanSpawn, room: String, via client: FeedClient) async -> String? {
+    starting[room, default: []].insert(seat.name)
+    defer { starting[room]?.remove(seat.name) }
+    guard case .refused(let reason) = await HumanSeat(client: client).spawn(seat, room: room) else { return nil }
+    return reason
+  }
+
+  /// The tmux attach line for each spawned seat in the room whose agent still runs. Empty when the daemon says no.
+  public func attachLines(room: String, via client: FeedClient) async -> [String: String] {
+    guard case .done(let flock) = await HumanSeat(client: client).flock(room: room) else { return [:] }
+    return flock.attachLines
+  }
+
   /// Allows or denies an agent's tool ask as the human and takes its card away at once. Returns the refusal text, or nil.
   public func answer(_ approval: Approval, allow: Bool, via client: FeedClient) async -> String? {
     switch await HumanSeat(client: client).answer(approval, allow: allow) {
@@ -146,7 +161,7 @@ extension FeedStore {
     for bot in template.bots(notSeated: seated) {
       let spawn = HumanSpawn(
         name: bot.name, role: bot.role, cwd: folder, instructions: bot.instructions, model: bot.model)
-      if case .refused(let reason) = await seat.spawn(spawn, room: name) { return (name, "\(bot.name): \(reason)") }
+      if let reason = await self.spawn(spawn, room: name, via: client) { return (name, "\(bot.name): \(reason)") }
     }
     return (name, nil)
   }
