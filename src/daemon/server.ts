@@ -103,9 +103,6 @@ function caught(handler: Handler) {
 
 /** Opens the store and key files, marks members from the last run away, binds 127.0.0.1 and sweeps on a timer.
  * A taken port gives `port_taken` with the pid that holds it, never a quiet move. */
-// Outcomes that repeat every sweep while nothing changes, so they stay out of the log.
-const QUIET_UNSTICK = new Set(['api_down', 'clear', 'sent_before']);
-
 export async function startDaemon({
   dataDir,
   findPortHolder = lsofPortHolder,
@@ -183,6 +180,15 @@ export async function startDaemon({
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
+  // Each seat's last unstick outcome, so a stall that holds is logged once, not every sweep.
+  const unstickSeen = new Map<string, string>();
+  const logUnstick = (seat: { name: string; outcome: string; room: string }) => {
+    const key = `${seat.room}/${seat.name}`;
+    if (unstickSeen.get(key) === seat.outcome) return;
+    unstickSeen.set(key, seat.outcome);
+    if (seat.outcome !== 'clear') logger.info('seat stopped by an API error', seat);
+  };
+
   let closed = false;
   const sweep = setInterval(() => {
     try {
@@ -207,11 +213,7 @@ export async function startDaemon({
       .catch((error: unknown) => closed || logger.error(asError(error), { message: 'healing seats failed' }));
     spawner
       .unstick()
-      .then(seats =>
-        seats
-          .filter(seat => !QUIET_UNSTICK.has(seat.outcome))
-          .forEach(seat => logger.info('seat stopped by an API error', seat)),
-      )
+      .then(seats => seats.forEach(logUnstick))
       .catch((error: unknown) => closed || logger.error(asError(error), { message: 'unsticking seats failed' }));
   }, sweepEveryMs);
 

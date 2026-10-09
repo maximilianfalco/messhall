@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { UNSTICK_TRIES } from '../../src/config.js';
 import { loadKeys } from '../../src/daemon/keys.js';
 import { agentArgv, createSpawner, sessionName, tmuxStartArgs } from '../../src/flock/spawner.js';
 import { parseStoredJson } from '../../src/lib/json.js';
@@ -666,6 +667,8 @@ describe('unsticking a seat after an API error', () => {
   const STALLED_PANE = readFileSync(new URL('fixtures/panes/api-error.txt', import.meta.url), 'utf8');
   const MOVED_PANE = readFileSync(new URL('fixtures/panes/api-error-old.txt', import.meta.url), 'utf8');
 
+  const errorPane = (n: number) => STALLED_PANE.replace('(ENOTFOUND)', `(request ${n})`);
+
   function stalledSeat({ api = true, pane = STALLED_PANE }: { api?: boolean; pane?: string } = {}) {
     let screen = pane;
     let answers = api;
@@ -674,15 +677,17 @@ describe('unsticking a seat after an API error', () => {
       if (args[0] === 'display-message') return Promise.resolve(result('✳ Claude Code\n'));
       return Promise.resolve(result());
     });
-    const unsticker = createSpawner({
-      apiAnswers: () => Promise.resolve(answers),
-      dataDir: scratch.dataDir,
-      profilesDir: profiles,
-      settleMs: 0,
-      store: store(),
-      tmux,
-      url: 'http://127.0.0.1:7791',
-    });
+    const newSpawner = () =>
+      createSpawner({
+        apiAnswers: () => Promise.resolve(answers),
+        dataDir: scratch.dataDir,
+        profilesDir: profiles,
+        settleMs: 0,
+        store: store(),
+        tmux,
+        url: 'http://127.0.0.1:7791',
+      });
+    let unsticker = newSpawner();
     const invited = store().invite({
       by: 'human',
       launch: { agent: 'claude', cwd },
@@ -698,6 +703,9 @@ describe('unsticking a seat after an API error', () => {
       },
       show: (next: string) => {
         screen = next;
+      },
+      restartDaemon: () => {
+        unsticker = newSpawner();
       },
       unstick: () => unsticker.unstick(),
       typed: () =>
@@ -770,6 +778,56 @@ describe('unsticking a seat after an API error', () => {
     await seat.unstick();
 
     expect(memberOf('api')?.status).toBe('PR open');
+  });
+
+  it(`stops typing after ${UNSTICK_TRIES} lines with no move between them and rings the human once`, async () => {
+    const seat = stalledSeat();
+
+    const errorAfterEachLine = async (n: number): Promise<void> => {
+      if (n > UNSTICK_TRIES + 2) return;
+      seat.show(errorPane(n));
+      await seat.unstick();
+      return errorAfterEachLine(n + 1);
+    };
+    await errorAfterEachLine(1);
+
+    expect(seat.typed()).toHaveLength(UNSTICK_TRIES);
+    expect(
+      store()
+        .listMessages({ limit: 50, room: 'demo' })
+        .messages?.filter(message => message.mentions.includes('human'))
+        .map(message => message.text),
+    ).toStrictEqual([
+      `@human api keeps stopping on API errors in #demo, messhall stopped typing carry on lines. look at its pane`,
+    ]);
+  });
+
+  it('starts the count again once the agent moved', async () => {
+    const seat = stalledSeat();
+
+    const stallThenMove = async (n: number): Promise<void> => {
+      if (!n) return;
+      seat.show(errorPane(n));
+      await seat.unstick();
+      seat.show(MOVED_PANE);
+      await seat.unstick();
+      return stallThenMove(n - 1);
+    };
+    await stallThenMove(UNSTICK_TRIES + 1);
+
+    expect(seat.typed()).toHaveLength(UNSTICK_TRIES + 1);
+  });
+
+  it('clears a stalled status left from before a daemon restart once the seat moves', async () => {
+    const seat = stalledSeat({ api: false });
+    await seat.unstick();
+
+    seat.restartDaemon();
+    await seat.unstick();
+    seat.show(MOVED_PANE);
+    await seat.unstick();
+
+    expect(memberOf('api')?.status).toBeNull();
   });
 
   it('leaves a seat with no API error alone', async () => {

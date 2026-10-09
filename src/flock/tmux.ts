@@ -25,7 +25,9 @@ const CODEX_SELECTED = '›';
 const RULE = /^─{20,}$/;
 // Claude Code starts an answer with ⏺ and echoes a sent prompt after > or ❯.
 const TURN_START = /^\s*(⏺|>|❯ \S)/;
-const API_ERROR = /API Error.*$/;
+// A line Claude Code draws on its own: a turn start, a tool result or a bare error.
+const MARKED = /^\s*(⏺|>|❯ \S|⎿|API Error)/;
+const ERROR_LINE = /^\s*(?:⎿\s*)?(API Error\b.*)$/;
 // A numbered pick or a dialog footer: typed keys there would choose an option, not reach the input box.
 const MENU = /^\s*❯\s*\d+\.|Enter to confirm|Esc to cancel/m;
 // oxlint-disable-next-line no-control-regex
@@ -87,21 +89,23 @@ export function inputText(screen: string) {
     .trim();
 }
 
-/** The API error that ended the agent's last turn, if the pane shows one above an input box. The tail is that whole
- * last turn, from its `⏺` or `>` line, so a new error after a carry on line reads as a new tail. */
+/** The API error that ended the agent's last turn: the last line Claude Code drew above the input box starts with it,
+ * so a message that only mentions one does not count. The tail is that whole last turn, from its `⏺` or `>` line,
+ * so a new error after a carry on line reads as a new tail. */
 export function apiError(pane: string) {
   const lines = pane.replace(STYLE, '').split('\n');
   const bottom = lines.findLastIndex(line => RULE.test(line.trim()));
   const top = lines.slice(0, bottom).findLastIndex(line => RULE.test(line.trim()));
   if (top < 0) return;
   const above = lines.slice(0, top);
+  const last = above.findLastIndex(line => MARKED.test(line));
+  const reason = ERROR_LINE.exec(above[last] ?? '')?.[1]?.trim();
+  if (!reason) return;
   const start = Math.max(
     0,
-    above.findLastIndex(line => TURN_START.test(line)),
+    above.slice(0, last).findLastIndex(line => TURN_START.test(line)),
   );
   const turn = above.slice(start);
-  const reason = turn.map(line => API_ERROR.exec(line)?.[0].trim()).findLast(Boolean);
-  if (!reason) return;
   const tail = turn
     .map(line => line.trim())
     .filter(Boolean)

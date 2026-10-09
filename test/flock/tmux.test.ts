@@ -245,6 +245,15 @@ describe('apiError', () => {
     expect(apiError("⏺ Bash(ls)\n  ⎿  API Error: Can't reach the API server (ENOTFOUND)\n")).toBeUndefined();
   });
 
+  it('ignores a last message that only mentions an API error', () => {
+    const mentioned = paneFixture('api-error').replace(
+      "  ⎿  API Error: Can't reach the API server (ENOTFOUND)",
+      '  ⎿  ok\n\n⏺ The gate prints API Error: when the mock is off, so I fixed the mock.',
+    );
+
+    expect(apiError(mentioned)).toBeUndefined();
+  });
+
   it('reads nothing on an idle pane', () => {
     expect(apiError(paneFixture('empty'))).toBeUndefined();
   });

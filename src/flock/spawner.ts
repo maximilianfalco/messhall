@@ -10,14 +10,22 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { HUMAN_NAME } from '../../contracts/room.ts';
-import { API_PROBE_MS, API_PROBE_URL, SPAWN_READY_MS } from '../config.js';
+import { API_PROBE_MS, API_PROBE_URL, SPAWN_READY_MS, UNSTICK_TRIES } from '../config.js';
 import { KEY_FILES, KEY_HEADER } from '../daemon/keys.js';
 import { logger } from '../lib/logger.js';
 import { packageRoot } from '../lib/packageRoot.js';
 import { shellLine } from '../lib/shell.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
-import { carryOnLine, healPlan, keepsDyingLine, restartLine, stalledStatus } from './heal.js';
+import {
+  carryOnLine,
+  healPlan,
+  isStalledStatus,
+  keepsDyingLine,
+  restartLine,
+  stalledStatus,
+  stopsOnErrorsLine,
+} from './heal.js';
 import { apiError, dialogKeys, typeIfClear, typePrompt, until, tmux as runTmux } from './tmux.js';
 
 export const SESSION_PREFIX = 'messhall_';
@@ -44,12 +52,13 @@ interface Seat {
 
 type Ready = 'dropped' | 'login' | 'seated' | 'timeout' | 'untrusted';
 
-/** A seat stopped by an API error: the turn that ended in it, whether the carry on line went out for that turn, and
- * the status to put back once it moves. */
+/** A seat stopped by an API error, until it moves: the status to put back, how many carry on lines went out, the
+ * turn the last one answered, and whether the human was rung. */
 interface Stall {
   before: string | null;
-  sent: boolean;
-  tail: string;
+  rang: boolean;
+  sends: number;
+  sentTail: string | null;
 }
 
 /** True when the API answers at all, so a seat stopped by a network blip can carry on. */
@@ -307,13 +316,13 @@ export function createSpawner({
     }
   };
 
-  // Puts the seat's own status back once it moves, unless it set a new one meanwhile.
+  // Puts the seat's own status back once it moves, unless it set a new one meanwhile. A stalled status with no stall
+  // here is left from before a daemon restart, so it is cleared.
   const moved = ({ name, room, session }: Seat & { session: string }, status: string | null) => {
     const stall = stalls.get(session);
-    if (!stall) return 'clear';
     stalls.delete(session);
-    if (status?.startsWith(stalledStatus(''))) store.setStatus({ as: name, room, status: stall.before ?? '' });
-    return 'moved';
+    if (isStalledStatus(status)) store.setStatus({ as: name, room, status: stall?.before ?? '' });
+    return stall ? 'moved' : 'clear';
   };
 
   const unstickOne = async (
@@ -324,14 +333,24 @@ export function createSpawner({
     const pane = await tmux(['capture-pane', '-p', '-t', target]);
     const error = pane.code === 0 ? apiError(pane.stdout) : undefined;
     if (!error) return moved({ name, room, session }, status);
-    const stall = stalls.get(session);
-    if (stall?.tail === error.tail && stall.sent) return 'sent_before';
-    if (!stall) store.setStatus({ as: name, room, status: stalledStatus(error.reason) });
-    const current = { before: stall ? stall.before : status, sent: false, tail: error.tail };
-    stalls.set(session, current);
+    const stall = stalls.get(session) ?? {
+      before: isStalledStatus(status) ? null : status,
+      rang: false,
+      sends: 0,
+      sentTail: null,
+    };
+    if (!stalls.has(session)) store.setStatus({ as: name, room, status: stalledStatus(error.reason) });
+    stalls.set(session, stall);
+    if (stall.sentTail === error.tail) return 'sent_before';
+    if (stall.sends >= UNSTICK_TRIES) {
+      if (stall.rang) return 'gave_up_before';
+      stalls.set(session, { ...stall, rang: true });
+      store.systemNote({ ringHuman: true, room, text: stopsOnErrorsLine({ name, room }) });
+      return 'gave_up';
+    }
     if (!(await apiUp())) return 'api_down';
     const typed = await typeIfClear(target, carryOnLine(room), { run: tmux, settleMs });
-    if (typed === 'sent') stalls.set(session, { ...current, sent: true });
+    if (typed === 'sent') stalls.set(session, { ...stall, sends: stall.sends + 1, sentTail: error.tail });
     return typed;
   };
 
@@ -401,7 +420,8 @@ export function createSpawner({
     },
 
     /** Finds spawned claude seats whose last turn ended in an API error, shows each as stalled, and once the API
-     * answers types one carry on line, at most once per error. Asks the API at most once per call. */
+     * answers types one carry on line, at most once per error. After `UNSTICK_TRIES` lines with no move between them
+     * it rings the human once and stops. Asks the API at most once per call. */
     async unstick() {
       const closed = new Set(store.listRooms().flatMap(room => (room.closed_at === null ? [] : [room.name])));
       let probe: Promise<boolean> | undefined;
