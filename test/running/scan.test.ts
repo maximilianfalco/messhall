@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { gitPlace, readClaudeSessions } from '../../src/running/scan.js';
+import { codexProcesses, cwdsFromLsof, gitPlace, readClaudeSessions } from '../../src/running/scan.js';
 
 const sessionsDir = (files: Record<string, string>) => {
   const dir = mkdtempSync(path.join(tmpdir(), 'messhall-sessions-'));
@@ -75,5 +75,32 @@ describe('gitPlace', () => {
     const run = async (): Promise<RunResult> => ({ code: 128, stderr: 'not a git repository', stdout: '' });
 
     expect(await gitPlace({ cwd: '/tmp', run })).toStrictEqual({ branch: null, repo: null });
+  });
+});
+
+describe('codexProcesses', () => {
+  it('keeps codex sessions and drops servers and workers', () => {
+    const ps = [
+      '  401 /opt/bin/codex codex',
+      '  402 /opt/bin/codex codex resume 019a',
+      '  403 /opt/bin/codex codex app-server',
+      '  404 /opt/bin/codex codex exec fix it',
+      '  405 /opt/bin/codex /x/bin/codex app-server daemon',
+      '  406 /usr/bin/node node /x/codex.js',
+      '  407 /opt/bin/claude claude',
+    ].join('\n');
+
+    expect(codexProcesses(ps)).toStrictEqual([401, 402]);
+  });
+});
+
+describe('cwdsFromLsof', () => {
+  it('maps each pid to its folder', () => {
+    expect(cwdsFromLsof('p401\nfcwd\nn/code/api\np402\nfcwd\nn/code/web\n')).toStrictEqual(
+      new Map([
+        [401, '/code/api'],
+        [402, '/code/web'],
+      ]),
+    );
   });
 });

@@ -59,3 +59,26 @@ export async function gitPlace({ cwd, run }: { cwd: string; run: Runner }) {
   if (out.code !== 0 || !commonDir) return { branch: null, repo: null };
   return { branch: branch && branch !== 'HEAD' ? branch : null, repo: path.basename(path.dirname(commonDir)) };
 }
+
+// Codex subcommands that are not a session a person types into.
+const CODEX_NOT_A_SESSION = new Set(['app-server', 'mcp-server', 'exec', 'e', 'login', 'logout', 'mcp', 'completion']);
+
+/** Pids of codex sessions in `ps -axo pid=,comm=,args=` output. Servers and one shot runs are left out. */
+export function codexProcesses(ps: string) {
+  return ps.split('\n').flatMap(line => {
+    const [pid, comm, , sub] = line.trim().split(/\s+/);
+    if (!pid || path.basename(comm ?? '') !== 'codex') return [];
+    return sub && CODEX_NOT_A_SESSION.has(sub) ? [] : [Number(pid)];
+  });
+}
+
+/** The folder of each pid in `lsof -a -d cwd -Fn -p <pids>` output. */
+export function cwdsFromLsof(lsof: string) {
+  const cwds = new Map<number, string>();
+  let pid: number | null = null;
+  for (const line of lsof.split('\n')) {
+    if (line.startsWith('p')) pid = Number(line.slice(1));
+    if (line.startsWith('n') && pid !== null) cwds.set(pid, line.slice(1));
+  }
+  return cwds;
+}
