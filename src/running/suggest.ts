@@ -1,4 +1,4 @@
-import type { RoomSuggestion, RunningAgent } from './types.js';
+import type { RoomSuggestion, RunningAgent } from '../../contracts/feed.ts';
 
 const TICKET_KEY = /(?:^|[^a-z0-9])([a-z]+-\d+)(?![0-9])/;
 const ROOM_NAME_MAX = 40;

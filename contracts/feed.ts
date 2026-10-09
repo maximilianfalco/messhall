@@ -140,6 +140,34 @@ export const flockSchema = z.object({
   seats: z.array(flockSeatSchema).describe('Every seat the spawner started, by room then name.'),
 });
 
+export const runningAgentSchema = z.object({
+  branch: z.string().nullable().describe('Git branch of its folder, null outside a repo or on a detached head.'),
+  cwd: z.string().describe('Folder the session runs in.'),
+  id: z
+    .string()
+    .describe('Claude session id, codex thread id, or pid-<n> for a codex that only a copied join line reaches.'),
+  kind: z.enum(['claude', 'codex']).describe('Which agent runs the session.'),
+  reach: z
+    .enum(['claude_session', 'codex_thread', 'copy_only'])
+    .describe(
+      'How an invite reaches it: claude session messaging, a line queued on its shared codex thread, or a copied line only.',
+    ),
+  repo: z.string().nullable().describe('Name of the main checkout of its repo, null outside a repo.'),
+  room: nameSchema.nullable().describe('A room it already sits in, null when none is known.'),
+  status: z.enum(['busy', 'idle', 'unknown']).describe('Whether the session is mid turn.'),
+});
+
+export const roomSuggestionSchema = z.object({
+  ids: z.array(z.string()).min(2).describe('Ids of the running agents that likely work on one thing.'),
+  key: z.string().describe('What they share: a ticket key from the branch, or repo/branch.'),
+  room: nameSchema.describe('The room name to suggest.'),
+});
+
+export const runningSchema = z.object({
+  agents: z.array(runningAgentSchema).describe('Every claude and codex session running on this Mac.'),
+  suggestions: z.array(roomSuggestionSchema).describe('Groups of them that may want a room together.'),
+});
+
 export const removeMemberResultSchema = z.object({
   member: memberSchema.describe('The member as it was when it was removed.'),
 });
@@ -203,6 +231,9 @@ export type HumanSpawn = z.infer<typeof humanSpawnSchema>;
 export type SpawnResult = z.infer<typeof spawnResultSchema>;
 export type FlockSeat = z.infer<typeof flockSeatSchema>;
 export type Flock = z.infer<typeof flockSchema>;
+export type RunningAgent = z.infer<typeof runningAgentSchema>;
+export type RoomSuggestion = z.infer<typeof roomSuggestionSchema>;
+export type Running = z.infer<typeof runningSchema>;
 export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
 export type MuteResult = z.infer<typeof muteResultSchema>;
 export type HumanApproval = z.infer<typeof humanApprovalSchema>;

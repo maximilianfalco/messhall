@@ -1,5 +1,5 @@
 import type { ClaudeSession, CodexThread } from './scan.js';
-import type { RunningAgent } from './types.js';
+import type { RunningAgent } from '../../contracts/feed.ts';
 
 interface Place {
   branch: string | null;

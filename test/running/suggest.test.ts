@@ -1,4 +1,4 @@
-import type { RunningAgent } from '../../src/running/types.js';
+import type { RunningAgent } from '../../contracts/feed.ts';
 
 import { describe, expect, it } from 'vitest';
 
