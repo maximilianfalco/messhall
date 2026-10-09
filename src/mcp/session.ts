@@ -15,6 +15,7 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
   let kind: AgentKind = 'other';
   let lastSeen = now().getTime();
   let open = 0;
+  const ports = new Map<number, number>();
   let threadId: string | undefined;
 
   return {
@@ -64,13 +65,18 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     dropThread() {
       threadId = undefined;
     },
-    /** Counts one open HTTP request until the returned function runs. */
-    hold() {
+    /** Counts one open HTTP request until the returned function runs. `port` is the client's side of its socket. */
+    hold(port?: number) {
       open += 1;
       lastSeen = now().getTime();
+      if (port !== undefined) ports.set(port, (ports.get(port) ?? 0) + 1);
       return () => {
         open -= 1;
         lastSeen = now().getTime();
+        if (port === undefined) return;
+        const left = (ports.get(port) ?? 1) - 1;
+        if (left === 0) ports.delete(port);
+        else ports.set(port, left);
       };
     },
     id,
@@ -106,6 +112,10 @@ export function createSession({ id, now, seat }: { id: string; now: () => Date; 
     rooms: rooms as ReadonlyMap<string, string>,
     /** The seat key from the client's header at initialize, so its seats come back after a reconnect. */
     seat,
+    /** The client ports of its open requests, so a scan can tell which process holds its seats. */
+    get ports() {
+      return [...ports.keys()];
+    },
     /** Stamps a tool call. */
     seen() {
       called = true;
@@ -144,11 +154,20 @@ export function createSessionRegistry<Entry extends { session: McpSession }>() {
     sessionsFor({ name, room }: { name: string; room: string }) {
       return [...entries.values()].filter(entry => entry.session.rooms.get(room) === name);
     },
-    /** Each room a codex session sits in, with its thread. */
+    /** Each seated session's open client ports, so a scan can find the process behind its seats. */
+    peers() {
+      return [...entries.values()].flatMap(({ session }) => {
+        const seats = [...session.rooms].map(([room, name]) => ({ name, room }));
+        return seats.length > 0 && session.ports.length > 0
+          ? [{ kind: session.kind, ports: session.ports, seats }]
+          : [];
+      });
+    },
+    /** Each seat a codex session holds, with its thread. */
     threadSeats() {
       return [...entries.values()].flatMap(({ session }) => {
         const { threadId } = session;
-        return threadId ? [...session.rooms.keys()].map(room => ({ room, threadId })) : [];
+        return threadId ? [...session.rooms].map(([room, name]) => ({ name, room, threadId })) : [];
       });
     },
   };

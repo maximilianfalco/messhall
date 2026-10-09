@@ -7,7 +7,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createCodexClient } from '../../src/codex/client.js';
-import { createRunningInvite, createRunningScan } from '../../src/running/live.js';
+import { createRunningInvite, createRunningScan, peerSeats } from '../../src/running/live.js';
 import { fakeCodex, fakeTimers } from '../codex/fakeCodex.js';
 
 const ok = (stdout: string): RunResult => ({ code: 0, stderr: '', stdout });
@@ -103,16 +103,54 @@ describe('createRunningScan on a scratch daemon', () => {
   });
 });
 
+describe('peerSeats', () => {
+  it('gives each seated session the pid behind its open socket', async () => {
+    const calls: string[][] = [];
+    const run = (command: string, args: string[]) => {
+      calls.push([command, ...args]);
+      return Promise.resolve(ok('p101\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n'));
+    };
+
+    const seats = await peerSeats({
+      peers: () => [
+        { kind: 'claude', ports: [51001], seats: [{ name: 'api', room: 'dev' }] },
+        { kind: 'codex', ports: [51009], seats: [{ name: 'web', room: 'dev' }] },
+      ],
+      port: 7707,
+      run,
+    });
+
+    expect(seats).toStrictEqual([
+      { cwd: null, kind: 'claude', name: 'api', pid: 101, room: 'dev', threadId: null, tmux: null },
+    ]);
+    expect(calls).toStrictEqual([['lsof', '-b', '-w', '-nP', '-iTCP:7707', '-sTCP:ESTABLISHED', '-Fpn']]);
+  });
+
+  it('skips lsof when no session is seated', async () => {
+    const calls: string[][] = [];
+    const run = (command: string, args: string[]) => {
+      calls.push([command, ...args]);
+      return Promise.resolve(ok(''));
+    };
+
+    await expect(peerSeats({ peers: () => [], port: 7707, run })).resolves.toStrictEqual([]);
+    expect(calls).toStrictEqual([]);
+  });
+});
+
 describe('createRunningInvite', () => {
   const thread = {
     branch: 'rm-7/web',
     cwd: '/code/web',
     id: 't-1',
     kind: 'codex' as const,
+    pid: null,
     reach: 'codex_thread' as const,
     repo: 'web',
     room: null,
+    seats: [],
     status: 'idle' as const,
+    tmux: null,
   };
 
   it('scans again and queues the line on the codex thread', async () => {

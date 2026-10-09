@@ -79,6 +79,9 @@
     /// `-shotRunning YES`: the app scans for running agents. Other shots skip it, so their sidebars stay as they were.
     static let running = UserDefaults.standard.bool(forKey: "shotRunning")
 
+    /// `-shotProcesses YES`: the inspector opens on the Processes tab.
+    static let processes = UserDefaults.standard.bool(forKey: "shotProcesses")
+
     /// `-shotInvite YES`: the first running agents card is clicked once it shows, so the invite results come up.
     static let invite = UserDefaults.standard.bool(forKey: "shotInvite")
 

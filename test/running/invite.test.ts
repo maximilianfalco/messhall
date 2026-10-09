@@ -9,10 +9,13 @@ const agent = (overrides: Partial<RunningAgent> = {}): RunningAgent => ({
   cwd: '/code/api',
   id: 's-1',
   kind: 'claude',
+  pid: 101,
   reach: 'claude_session',
   repo: 'api',
   room: null,
+  seats: [],
   status: 'idle',
+  tmux: null,
   ...overrides,
 });
 

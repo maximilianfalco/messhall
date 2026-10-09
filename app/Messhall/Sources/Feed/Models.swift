@@ -679,31 +679,69 @@ public enum RunningStatus: String, OpenEnum, CaseIterable, Sendable { case busy,
 /// What one invite did: queued on its codex thread, a line to copy, or the agent stopped.
 public enum InviteOutcome: String, OpenEnum, CaseIterable, Sendable { case queued, copy, gone, unknown }
 
-/// A claude or codex session running on this Mac, with the room it already sits in when the daemon knows it.
+/// A seat a running session holds.
+public struct RunningSeat: Codable, Equatable, Sendable {
+  public var name: String
+  public var room: String
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case name, room }
+
+  public init(name: String, room: String) {
+    self.name = name
+    self.room = room
+  }
+}
+
+/// A claude or codex session running on this Mac, with the seats it holds when the daemon knows them.
 public struct RunningAgent: Codable, Equatable, Sendable, Identifiable {
   public var branch: String?
   public var cwd: String
   public var id: String
   public var kind: RunningKind
+  public var pid: Int?
   public var reach: RunningReach
   public var repo: String?
   public var room: String?
+  public var seats: [RunningSeat]
   public var status: RunningStatus
+  public var tmux: String?
 
-  enum CodingKeys: String, CodingKey, CaseIterable { case branch, cwd, id, kind, reach, repo, room, status }
+  enum CodingKeys: String, CodingKey, CaseIterable {
+    case branch, cwd, id, kind, pid, reach, repo, room, seats, status, tmux
+  }
 
   public init(
     branch: String?, cwd: String, id: String, kind: RunningKind, reach: RunningReach, repo: String?, room: String?,
-    status: RunningStatus
+    status: RunningStatus, pid: Int? = nil, seats: [RunningSeat] = [], tmux: String? = nil
   ) {
     self.branch = branch
     self.cwd = cwd
     self.id = id
     self.kind = kind
+    self.pid = pid
     self.reach = reach
     self.repo = repo
     self.room = room
+    self.seats = seats
     self.status = status
+    self.tmux = tmux
+  }
+
+  // An older daemon sends no seats, so the list still decodes.
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      branch: try container.decodeIfPresent(String.self, forKey: .branch),
+      cwd: try container.decode(String.self, forKey: .cwd),
+      id: try container.decode(String.self, forKey: .id),
+      kind: try container.decode(RunningKind.self, forKey: .kind),
+      reach: try container.decode(RunningReach.self, forKey: .reach),
+      repo: try container.decodeIfPresent(String.self, forKey: .repo),
+      room: try container.decodeIfPresent(String.self, forKey: .room),
+      status: try container.decode(RunningStatus.self, forKey: .status),
+      pid: try container.decodeIfPresent(Int.self, forKey: .pid),
+      seats: try container.decodeIfPresent([RunningSeat].self, forKey: .seats) ?? [],
+      tmux: try container.decodeIfPresent(String.self, forKey: .tmux))
   }
 }
 

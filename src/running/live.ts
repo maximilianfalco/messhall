@@ -1,6 +1,7 @@
 import type { Running, RunningInvite, RunningInviteResult } from '../../contracts/feed.ts';
 import type { CodexClient } from '../codex/client.js';
 import type { Runner } from '../lib/run.js';
+import type { McpSession } from '../mcp/session.js';
 import type { KnownSeat } from './running.js';
 
 import { queueText } from '../codex/client.js';
@@ -8,7 +9,7 @@ import { codexTuis } from '../codex/tuis.js';
 
 import { inviteRunning } from './invite.js';
 import { runningAgents } from './running.js';
-import { cwdsFromLsof, gitPlace, readClaudeSessions, readCodexThreads } from './scan.js';
+import { cwdsFromLsof, gitPlace, peerPids, readClaudeSessions, readCodexThreads } from './scan.js';
 import { suggestRooms } from './suggest.js';
 
 /** True when `pid` still runs. A process of another user still counts. */
@@ -25,6 +26,30 @@ async function plainCodex(run: Runner) {
   const pids = codexTuis((await run('ps', ['-axo', 'pid,args'])).stdout).map(tui => tui.pid);
   if (pids.length === 0) return new Map<number, string>();
   return cwdsFromLsof((await run('lsof', ['-a', '-b', '-w', '-d', 'cwd', '-Fn', '-p', pids.join(',')])).stdout);
+}
+
+/** The seats each seated MCP session holds, with the pid on the other end of its open socket to the daemon.
+ * A session whose socket lsof cannot place is left out. */
+export async function peerSeats({
+  peers,
+  port,
+  run,
+}: {
+  peers: () => { kind: McpSession['kind']; ports: number[]; seats: { name: string; room: string }[] }[];
+  port: number;
+  run: Runner;
+}) {
+  const seated = peers();
+  if (seated.length === 0) return [];
+  const pids = peerPids({
+    lsof: (await run('lsof', ['-b', '-w', '-nP', `-iTCP:${port}`, '-sTCP:ESTABLISHED', '-Fpn'])).stdout,
+    port,
+  });
+  return seated.flatMap(({ kind, ports, seats }): KnownSeat[] => {
+    const pid = ports.map(found => pids.get(found)).find(found => found !== undefined);
+    if (pid === undefined) return [];
+    return seats.map(({ name, room }) => ({ cwd: null, kind, name, pid, room, threadId: null, tmux: null }));
+  });
 }
 
 /** Builds the scan behind the human's running list: every claude and codex session on this Mac, with the

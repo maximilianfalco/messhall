@@ -1605,6 +1605,19 @@
         "kind": {
           "$ref": "#/$defs/RunningKind"
         },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Pid of its own process, null for a codex thread that only runs inside the shared codex server."
+        },
         "reach": {
           "$ref": "#/$defs/RunningReach"
         },
@@ -1628,8 +1641,22 @@
           ],
           "description": "A room it already sits in, null when none is known."
         },
+        "seats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunningSeat"
+          },
+          "description": "Every seat it holds, by room then name. Empty when it is not in a room."
+        },
         "status": {
           "$ref": "#/$defs/RunningStatus"
+        },
+        "tmux": {
+          "description": "The tmux session of a spawned seat, null for one the human started.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1637,10 +1664,13 @@
         "cwd",
         "id",
         "kind",
+        "pid",
         "reach",
         "repo",
         "room",
-        "status"
+        "seats",
+        "status",
+        "tmux"
       ],
       "additionalProperties": false
     },
@@ -1740,6 +1770,26 @@
         "copy_only"
       ],
       "description": "How an invite reaches a session: claude session messaging, a line queued on its shared codex thread, or a copied line only."
+    },
+    "RunningSeat": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The seat name."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The room the seat is in."
+        }
+      },
+      "required": [
+        "name",
+        "room"
+      ],
+      "additionalProperties": false
     },
     "RunningStatus": {
       "type": "string",
