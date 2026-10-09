@@ -165,6 +165,7 @@ struct FeedClientSpawnTests {
     #expect(request.url?.path == "/api/rooms/review/spawn")
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
     #expect(body == ["name": "worker", "role": "worker", "cwd": "/tmp", "instructions": "do it", "agent": "codex"])
+    #expect(request.timeoutInterval > 120)
   }
 
   @Test("the flock asks for one room's spawned seats with the human key")

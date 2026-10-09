@@ -53,7 +53,7 @@ struct RoomDetail: View {
       )
       .id(room.name)
       // The flock lives in tmux, outside the feed, so it is fetched again whenever the seats change.
-      .task(id: room.liveMembers.map(\.name)) { attachLines = await store.attachLines(room: room.name, via: client) }
+      .task(id: room.liveMembers.attachKey) { attachLines = await store.attachLines(room: room.name, via: client) }
       if !room.agreements.isEmpty {
         AgreementsPanel(room: room.name, agreements: room.agreements)
           .id(room.name)

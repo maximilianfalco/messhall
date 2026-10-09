@@ -29,6 +29,8 @@ public struct FeedClient: Sendable {
 
   // Three missed pings and the stream counts as dead, so it reconnects.
   static let streamTimeout: TimeInterval = 45
+  // The daemon waits up to two minutes for a spawned agent to sit down.
+  static let spawnTimeout: TimeInterval = 150
 
   public let config: FeedConfig
   let session: URLSession
@@ -80,7 +82,8 @@ public struct FeedClient: Sendable {
       request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/members/\(member)/\(action)"))
       request.httpMethod = "POST"
     case .spawn(let room, let seat):
-      request = URLRequest(url: config.baseURL.appendingPathComponent("api/rooms/\(room)/spawn"))
+      request = URLRequest(
+        url: config.baseURL.appendingPathComponent("api/rooms/\(room)/spawn"), timeoutInterval: Self.spawnTimeout)
       request.httpMethod = "POST"
       request.setValue("application/json", forHTTPHeaderField: "content-type")
       request.httpBody = try JSONEncoder().encode(seat)

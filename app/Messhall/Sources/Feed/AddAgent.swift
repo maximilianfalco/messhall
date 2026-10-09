@@ -28,7 +28,7 @@ public struct AddAgentDraft: Equatable, Sendable {
   public func problem(taken: [String]) -> String? {
     if let bad = RoomName.problem(name, taken: []) { return bad }
     if taken.contains(name) { return "\(name) is already in this room." }
-    if trimmedInstructions.count > Self.instructionsMax { return "Keep the instructions to 4,000 characters or fewer." }
+    if trimmedInstructions.utf16.count > Self.instructionsMax { return "Keep the instructions to 4,000 characters or fewer." }
     return nil
   }
 
@@ -56,6 +56,12 @@ extension Member {
     guard presence == .invited else { return nil }
     return starting.contains(name) ? .starting : .invited
   }
+}
+
+extension [Member] {
+  /// Changes when a seat comes, goes or sits down. An invited seat has no tmux session yet, so sitting down must
+  /// load the attach lines again.
+  public var attachKey: [String] { map { $0.presence == .invited ? "\($0.name) invited" : $0.name } }
 }
 
 extension FlockSeat {

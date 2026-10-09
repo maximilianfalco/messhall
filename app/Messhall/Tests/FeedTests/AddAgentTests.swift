@@ -40,6 +40,14 @@ struct AddAgentDraftTests {
     #expect(draft(name: "").problem(taken: []) == nil)
   }
 
+  @Test("instructions count as the daemon counts them, in UTF-16 units")
+  func emojiInstructions() {
+    let long = draft(instructions: String(repeating: "🚀", count: 2001))
+
+    #expect(long.problem(taken: []) == "Keep the instructions to 4,000 characters or fewer.")
+    #expect(draft(instructions: String(repeating: "🚀", count: 2000)).problem(taken: []) == nil)
+  }
+
   @Test("instructions past 4,000 characters say so and give no seat")
   func longInstructions() {
     let long = draft(instructions: String(repeating: "a", count: 4001))
@@ -71,6 +79,25 @@ struct LaunchPillTests {
   func seated() {
     #expect(member("web", .active).launchPill(starting: ["web"]) == nil)
     #expect(member("web", .idle).launchPill(starting: []) == nil)
+  }
+}
+
+@Suite("Attach key")
+struct AttachKeyTests {
+  private func member(_ name: String, _ presence: Presence) -> Member {
+    Member(
+      roomId: "r1", name: name, kind: .claude, clientLabel: nil, clientName: nil, clientVersion: nil,
+      presence: presence, role: "worker", cursor: 0, done: false, joinedAt: "t0", lastSeenAt: "t0", leftAt: nil)
+  }
+
+  @Test("an invited seat that sits down changes the key, so the attach lines load again")
+  func seated() {
+    #expect([member("web", .invited)].attachKey != [member("web", .active)].attachKey)
+  }
+
+  @Test("a seat that only goes idle keeps the key")
+  func idle() {
+    #expect([member("web", .active)].attachKey == [member("web", .idle)].attachKey)
   }
 }
 
