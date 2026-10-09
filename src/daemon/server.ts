@@ -23,7 +23,7 @@ import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 import { startSummaries } from '../rooms/summaries.js';
-import { createRunningScan, pidAlive } from '../running/live.js';
+import { createRunningInvite, createRunningScan, pidAlive } from '../running/live.js';
 
 import { currentBuild } from './build.js';
 import { guarded } from './guard.js';
@@ -124,7 +124,7 @@ export async function startDaemon({
   // One spawner for the human route and the orchestrator's tool, so both stop the same sessions.
   const spawner = createSpawner({ dataDir, now, store, tmux, url });
   const mcp = createMcpEndpoint({ codex, now, spawner, store });
-  const running = createRunningScan({
+  const scan = createRunningScan({
     alive: pidAlive,
     claudeDir: claudeSessionsDir(),
     codex,
@@ -136,6 +136,7 @@ export async function startDaemon({
         .map(seat => ({ cwd: seat.cwd, kind: seat.agent, room: seat.room, threadId: null })),
     ],
   });
+  const running = { invite: createRunningInvite({ codex, scan }), list: scan };
   const ringers = createRingers([
     createChannelRinger({ sessionsFor: mcp.sessionsFor }),
     createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),

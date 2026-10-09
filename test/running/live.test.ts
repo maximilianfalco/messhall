@@ -6,7 +6,9 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { createRunningScan } from '../../src/running/live.js';
+import { createCodexClient } from '../../src/codex/client.js';
+import { createRunningInvite, createRunningScan } from '../../src/running/live.js';
+import { fakeCodex, fakeTimers } from '../codex/fakeCodex.js';
 
 const ok = (stdout: string): RunResult => ({ code: 0, stderr: '', stdout });
 
@@ -55,5 +57,34 @@ describe('createRunningScan', () => {
 
     expect(await scan()).toStrictEqual({ agents: [], suggestions: [] });
     expect(calls.map(call => call[0])).toStrictEqual(['ps']);
+  });
+});
+
+describe('createRunningInvite', () => {
+  const thread = {
+    branch: 'rm-7/web',
+    cwd: '/code/web',
+    id: 't-1',
+    kind: 'codex' as const,
+    reach: 'codex_thread' as const,
+    repo: 'web',
+    room: null,
+    status: 'idle' as const,
+  };
+
+  it('scans again and queues the line on the codex thread', async () => {
+    const codex = await fakeCodex({ 'thread/queue/add': () => ({ result: { queuedSubmission: {} } }) });
+    const client = createCodexClient({ setTimer: fakeTimers().setTimer, socketPath: codex.socketPath });
+    const invite = createRunningInvite({ codex: client, scan: async () => ({ agents: [thread], suggestions: [] }) });
+
+    const result = await invite({ ids: ['t-1'], room: 'rm-7' });
+
+    client.close();
+    await codex.cleanup();
+    expect(result.invites.map(found => found.outcome)).toStrictEqual(['queued']);
+    expect(codex.frames.find(frame => frame.method === 'thread/queue/add')?.params).toMatchObject({
+      input: [{ text: result.invites[0]?.line, type: 'text' }],
+      threadId: 't-1',
+    });
   });
 });

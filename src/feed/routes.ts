@@ -1,10 +1,10 @@
-import type { History, Running, SearchResult } from '../../contracts/feed.ts';
+import type { History, SearchResult } from '../../contracts/feed.ts';
 import type { Build } from '../../contracts/health.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
 import type { Spawner } from '../flock/spawner.js';
 import type { RoomStore } from '../rooms/store.js';
-import type { Relay } from './human.js';
+import type { HumanRunning, Relay } from './human.js';
 import type { Every } from './sse.js';
 
 import { z } from 'zod';
@@ -48,7 +48,7 @@ export function feedRoutes({
   keys: Keys;
   now: () => Date;
   relay: Relay;
-  running: () => Promise<Running>;
+  running: HumanRunning;
   spawner: Spawner;
   store: RoomStore;
 }) {

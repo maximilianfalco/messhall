@@ -1,8 +1,11 @@
-import type { Running } from '../../contracts/feed.ts';
+import type { Running, RunningInvite, RunningInviteResult } from '../../contracts/feed.ts';
 import type { CodexClient } from '../codex/client.js';
 import type { Runner } from '../lib/run.js';
 import type { KnownSeat } from './running.js';
 
+import { randomUUID } from 'node:crypto';
+
+import { inviteRunning } from './invite.js';
 import { runningAgents } from './running.js';
 import { codexProcesses, cwdsFromLsof, gitPlace, readClaudeSessions, readCodexThreads } from './scan.js';
 import { suggestRooms } from './suggest.js';
@@ -49,4 +52,26 @@ export function createRunningScan({
     });
     return { agents, suggestions: suggestRooms({ agents }) };
   };
+}
+
+/** Builds the human's invite: scans again so only agents still running get a line, and queues it on each
+ * shared codex thread the way the doorbell rings one. */
+export function createRunningInvite({
+  codex,
+  scan,
+}: {
+  codex: Pick<CodexClient, 'request'>;
+  scan: () => Promise<Running>;
+}) {
+  const queue = async (threadId: string, text: string) =>
+    (
+      await codex.request('thread/queue/add', {
+        clientUserMessageId: randomUUID(),
+        input: [{ text, text_elements: [], type: 'text' }],
+        threadId,
+      })
+    ).ok;
+  return async ({ ids, room }: RunningInvite): Promise<RunningInviteResult> => ({
+    invites: await inviteRunning({ agents: (await scan()).agents, ids, queue, room }),
+  });
 }
