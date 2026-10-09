@@ -52,6 +52,16 @@ public struct HumanSeat: Sendable {
     await send(.flock(room: room), as: Flock.self) { $0 }
   }
 
+  /// The claude and codex sessions running on this Mac, and the rooms they may want.
+  public func running() async -> Outcome<Running> {
+    await send(.running, as: Running.self) { $0 }
+  }
+
+  /// Invites running agents to a room: queued on a shared codex thread, a line to copy for the rest.
+  public func invite(_ ids: [String], room: String) async -> Outcome<[RunningInviteItem]> {
+    await send(.inviteRunning(RunningInvite(ids: ids, room: room)), as: RunningInviteResult.self) { $0.invites }
+  }
+
   public func answer(_ approval: Approval, allow: Bool) async -> Outcome<[Approval]> {
     await send(.answer(approval: approval.id, allow: allow), as: ApprovalResult.self) { $0.approvals }
   }

@@ -662,3 +662,93 @@ public struct Flock: Codable, Equatable, Sendable {
 
   enum CodingKeys: String, CodingKey, CaseIterable { case seats }
 }
+
+/// A claude or codex session running on this Mac, with the room it already sits in when the daemon knows it.
+public struct RunningAgent: Codable, Equatable, Sendable, Identifiable {
+  public var branch: String?
+  public var cwd: String
+  public var id: String
+  public var kind: String
+  public var reach: String
+  public var repo: String?
+  public var room: String?
+  public var status: String
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case branch, cwd, id, kind, reach, repo, room, status }
+
+  public init(
+    branch: String?, cwd: String, id: String, kind: String, reach: String, repo: String?, room: String?,
+    status: String
+  ) {
+    self.branch = branch
+    self.cwd = cwd
+    self.id = id
+    self.kind = kind
+    self.reach = reach
+    self.repo = repo
+    self.room = room
+    self.status = status
+  }
+}
+
+/// Running agents that likely work on one thing, and the room to suggest for them.
+public struct RoomSuggestion: Codable, Equatable, Sendable {
+  public var ids: [String]
+  public var key: String
+  public var room: String
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case ids, key, room }
+
+  public init(ids: [String], key: String, room: String) {
+    self.ids = ids
+    self.key = key
+    self.room = room
+  }
+}
+
+public struct Running: Codable, Equatable, Sendable {
+  public var agents: [RunningAgent]
+  public var suggestions: [RoomSuggestion]
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case agents, suggestions }
+
+  public init(agents: [RunningAgent], suggestions: [RoomSuggestion]) {
+    self.agents = agents
+    self.suggestions = suggestions
+  }
+}
+
+public struct RunningInvite: Codable, Equatable, Sendable {
+  public var ids: [String]
+  public var room: String
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case ids, room }
+
+  public init(ids: [String], room: String) {
+    self.ids = ids
+    self.room = room
+  }
+}
+
+/// What one invite did: queued on a codex thread, a line to copy, or gone.
+public struct RunningInviteItem: Codable, Equatable, Sendable, Identifiable {
+  public var id: String
+  public var line: String?
+  public var name: String?
+  public var outcome: String
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case id, line, name, outcome }
+
+  public init(id: String, line: String?, name: String?, outcome: String) {
+    self.id = id
+    self.line = line
+    self.name = name
+    self.outcome = outcome
+  }
+}
+
+public struct RunningInviteResult: Codable, Equatable, Sendable {
+  public var invites: [RunningInviteItem]
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case invites }
+}

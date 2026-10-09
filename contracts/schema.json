@@ -1443,6 +1443,34 @@
       ],
       "additionalProperties": false
     },
+    "RoomSuggestion": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "minItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Ids of the running agents that likely work on one thing."
+        },
+        "key": {
+          "type": "string",
+          "description": "What they share: a ticket key from the branch, or repo/branch."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The room name to suggest."
+        }
+      },
+      "required": [
+        "ids",
+        "key",
+        "room"
+      ],
+      "additionalProperties": false
+    },
     "RoomSummary": {
       "type": "object",
       "properties": {
@@ -1520,6 +1548,193 @@
         "topic",
         "first_message_id",
         "message_count"
+      ],
+      "additionalProperties": false
+    },
+    "Running": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunningAgent"
+          },
+          "description": "Every claude and codex session running on this Mac."
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RoomSuggestion"
+          },
+          "description": "Groups of them that may want a room together."
+        }
+      },
+      "required": [
+        "agents",
+        "suggestions"
+      ],
+      "additionalProperties": false
+    },
+    "RunningAgent": {
+      "type": "object",
+      "properties": {
+        "branch": {
+          "description": "Git branch of its folder, null outside a repo or on a detached head.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Folder the session runs in."
+        },
+        "id": {
+          "type": "string",
+          "description": "Claude session id, codex thread id, or pid-<n> for a codex that only a copied join line reaches."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "description": "Which agent runs the session."
+        },
+        "reach": {
+          "type": "string",
+          "enum": [
+            "claude_session",
+            "codex_thread",
+            "copy_only"
+          ],
+          "description": "How an invite reaches it: claude session messaging, a line queued on its shared codex thread, or a copied line only."
+        },
+        "repo": {
+          "description": "Name of the main checkout of its repo, null outside a repo.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "room": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,40}$",
+              "description": "Lowercase letters, digits and dashes, 1 to 40 chars."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A room it already sits in, null when none is known."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "busy",
+            "idle",
+            "unknown"
+          ],
+          "description": "Whether the session is mid turn."
+        }
+      },
+      "required": [
+        "branch",
+        "cwd",
+        "id",
+        "kind",
+        "reach",
+        "repo",
+        "room",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "RunningInvite": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Ids of the running agents to invite, from the running list."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "The room to invite them to. It must exist and be open."
+        }
+      },
+      "required": [
+        "ids",
+        "room"
+      ],
+      "additionalProperties": false
+    },
+    "RunningInviteItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The running agent id."
+        },
+        "line": {
+          "description": "The join line it got, or the one to copy to it. Null when it is gone.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,40}$",
+              "description": "Lowercase letters, digits and dashes, 1 to 40 chars."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The name the line asks it to join as. Null when it is gone."
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "copy",
+            "gone"
+          ],
+          "description": "queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped."
+        }
+      },
+      "required": [
+        "id",
+        "line",
+        "name",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "RunningInviteResult": {
+      "type": "object",
+      "properties": {
+        "invites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunningInviteItem"
+          },
+          "description": "One result per id, in the order sent."
+        }
+      },
+      "required": [
+        "invites"
       ],
       "additionalProperties": false
     },

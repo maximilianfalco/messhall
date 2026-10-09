@@ -177,19 +177,17 @@ export const runningInviteSchema = z.object({
   room: nameSchema.describe('The room to invite them to. It must exist and be open.'),
 });
 
+export const runningInviteItemSchema = z.object({
+  id: z.string().describe('The running agent id.'),
+  line: z.string().nullable().describe('The join line it got, or the one to copy to it. Null when it is gone.'),
+  name: nameSchema.nullable().describe('The name the line asks it to join as. Null when it is gone.'),
+  outcome: z
+    .enum(['queued', 'copy', 'gone'])
+    .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.'),
+});
+
 export const runningInviteResultSchema = z.object({
-  invites: z
-    .array(
-      z.object({
-        id: z.string().describe('The running agent id.'),
-        line: z.string().nullable().describe('The join line it got, or the one to copy to it. Null when it is gone.'),
-        name: nameSchema.nullable().describe('The name the line asks it to join as. Null when it is gone.'),
-        outcome: z
-          .enum(['queued', 'copy', 'gone'])
-          .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.'),
-      }),
-    )
-    .describe('One result per id, in the order sent.'),
+  invites: z.array(runningInviteItemSchema).describe('One result per id, in the order sent.'),
 });
 
 export const removeMemberResultSchema = z.object({
@@ -259,6 +257,7 @@ export type RunningAgent = z.infer<typeof runningAgentSchema>;
 export type RoomSuggestion = z.infer<typeof roomSuggestionSchema>;
 export type Running = z.infer<typeof runningSchema>;
 export type RunningInvite = z.infer<typeof runningInviteSchema>;
+export type RunningInviteItem = z.infer<typeof runningInviteItemSchema>;
 export type RunningInviteResult = z.infer<typeof runningInviteResultSchema>;
 export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
 export type MuteResult = z.infer<typeof muteResultSchema>;

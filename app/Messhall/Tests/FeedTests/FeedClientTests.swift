@@ -181,4 +181,35 @@ struct FeedClientSpawnTests {
     #expect(request.url?.absoluteString == "http://127.0.0.1:7796/api/flock?room=review")
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
   }
+
+  @Test("the running list asks with the human key")
+  func running() throws {
+    let client = try keyedClient()
+
+    let request = try client.request(.running)
+
+    #expect(request.httpMethod == "GET")
+    #expect(request.url?.absoluteString == "http://127.0.0.1:7796/api/running")
+    #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
+  }
+
+  @Test("an invite posts the picked ids and the room with the human key")
+  func inviteRunning() throws {
+    let client = try keyedClient()
+
+    let request = try client.request(.inviteRunning(RunningInvite(ids: ["s-1", "t-1"], room: "rm-7")))
+
+    #expect(request.httpMethod == "POST")
+    #expect(request.url?.absoluteString == "http://127.0.0.1:7796/api/running/invite")
+    #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
+    let body = try JSONDecoder().decode(RunningInvite.self, from: try #require(request.httpBody))
+    #expect(body == RunningInvite(ids: ["s-1", "t-1"], room: "rm-7"))
+  }
+
+  private func keyedClient() throws -> FeedClient {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try "k1\n".write(to: dir.appendingPathComponent("human-key"), atomically: true, encoding: .utf8)
+    return FeedClient(config: FeedConfig(environment: ["MESSHALL_HOME": dir.path, "MESSHALL_PORT": "7796"]))
+  }
 }

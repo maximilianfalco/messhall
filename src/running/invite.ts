@@ -1,8 +1,6 @@
-import type { RunningAgent, RunningInviteResult } from '../../contracts/feed.ts';
+import type { RunningAgent, RunningInviteItem } from '../../contracts/feed.ts';
 
 import path from 'node:path';
-
-type Invite = RunningInviteResult['invites'][number];
 
 const NAME_MAX = 40;
 const MID_TASK = 'If you are mid task, finish your step or ask your human first.';
@@ -53,7 +51,7 @@ export async function inviteRunning({
     return { agent, id, name: nextFree(slug(agent.repo ?? path.basename(agent.cwd)), taken) };
   });
   return Promise.all(
-    picked.map(async ({ agent, id, name }): Promise<Invite> => {
+    picked.map(async ({ agent, id, name }): Promise<RunningInviteItem> => {
       if (!agent || !name) return { id, line: null, name: null, outcome: 'gone' };
       const line = joinLine({ agent, name, room });
       const queued = agent.reach === 'codex_thread' && (await queue(agent.id, line));
