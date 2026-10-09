@@ -133,6 +133,23 @@ describe('seedPerfThinking', () => {
     expect(questions).toStrictEqual(['open']);
     expect(agreements.sort()).toStrictEqual(['open', 'settled']);
   });
+
+  it('asks three questions in one, the second pick any, so the form is a multi question one', () => {
+    const dataDir = seeded(10, 8);
+
+    seedPerfThinking({ dataDir, now, rooms: 0, thinking: 2, waiting: 0 });
+
+    const items = read(dataDir, store =>
+      store
+        .openQuestions(PERF_ROOM)
+        .flatMap(question => question.questions.map(item => [item.header, item.multi_select, item.options.length])),
+    );
+    expect(items).toStrictEqual([
+      ['Merge', false, 3],
+      ['Checks', true, 4],
+      ['Notes', false, 2],
+    ]);
+  });
 });
 
 describe('perfRows', () => {
@@ -158,6 +175,14 @@ describe('perfRows', () => {
       panel_worst_frame_ms: 42.4,
       sidebar_fps: 58.4,
       sidebar_worst_frame_ms: 40.4,
+      question_key_cpu_ms: 31.26,
+      question_key_row_bodies: 40.2,
+      question_key_worst_frame_ms: 80.4,
+      question_keys: 20,
+      question_pick_cpu_ms: 45.6,
+      question_pick_row_bodies: 41,
+      question_pick_worst_frame_ms: 90.2,
+      question_picks: 6,
     });
 
     expect(rows).toStrictEqual([
@@ -169,6 +194,8 @@ describe('perfRows', () => {
       ['sidebar hides and shows, 0.6 s each', '58.4 fps, worst frame 40 ms'],
       ['the same with the agents panel open', '57.2 fps, worst frame 42 ms'],
       ['50 incoming posts', 'cpu 2.5 ms per post, 20 row bodies per post, 400 ms wall'],
+      ['20 keys in a question form', 'cpu 31.3 ms per key, 40 row bodies per key, worst frame 80 ms'],
+      ['6 picks in a question form', 'cpu 45.6 ms per pick, 41 row bodies per pick, worst frame 90 ms'],
       ['pr reads during the run', '3'],
       ['resident memory at the end', '300 MB'],
     ]);

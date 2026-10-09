@@ -43,6 +43,9 @@ struct QuestionForm: View {
   }
 
   var body: some View {
+    #if DEBUG
+      let _ = PerfHooks.formBodies += 1
+    #endif
     VStack(alignment: .leading, spacing: 14) {
       ForEach(Array(question.items.enumerated()), id: \.offset) { index, item in
         itemView(item, at: index)
@@ -64,6 +67,9 @@ struct QuestionForm: View {
     .background(.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
     .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.blue.opacity(0.3), lineWidth: 0.5))
     .frame(maxWidth: 520, alignment: .leading)
+    #if DEBUG
+      .onAppear { PerfHooks.pickInForm = { draft.toggle($0, in: $1) } }
+    #endif
   }
 
   private func itemView(_ item: QuestionItem, at index: Int) -> some View {

@@ -28,6 +28,9 @@ struct RoomDetail: View {
   }
 
   var body: some View {
+    #if DEBUG
+      let _ = PerfHooks.detailBodies += 1
+    #endif
     VStack(spacing: 0) {
       if case .down = store.phase { ReconnectBanner() }
       if let side = store.stale { StaleBanner(side: side) }
@@ -616,6 +619,9 @@ struct Transcript: View {
   }
 
   var body: some View {
+    #if DEBUG
+      let _ = PerfHooks.transcriptBodies += 1
+    #endif
     if messages.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
       ContentUnavailableView.search(text: query)
         .frame(maxHeight: .infinity)

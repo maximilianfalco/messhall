@@ -46,6 +46,29 @@ export const PERF_EVENTS = 50;
 /** Smaller rooms beside the big one, so the sidebar and the agents panel look like a busy day. */
 export const PERF_ROOMS = 12;
 const SIDE_MEMBERS = 8;
+/** The big room's open ask: several questions in one, so the form the app measures is the laggy kind. */
+const PERF_QUESTIONS: NonNullable<Parameters<typeof askItems>[0]['questions']> = [
+  {
+    header: 'Merge',
+    options: [
+      { description: 'the migration is green on staging', label: 'ship it', recommended: true },
+      { label: 'wait for review' },
+      { label: 'hold until friday' },
+    ],
+    question: 'the cents migration is green on staging. merge it today?',
+  },
+  {
+    header: 'Checks',
+    multi_select: true,
+    options: [{ label: 'unit tests' }, { label: 'e2e run' }, { label: 'staging smoke' }, { label: 'load test' }],
+    question: 'which checks should run again before the merge?',
+  },
+  {
+    header: 'Notes',
+    options: [{ label: 'post in #release' }, { label: 'no note' }],
+    question: 'tell the release room?',
+  },
+];
 const SIDE_POSTS = 40;
 /** Agents woken per side room, so spinners and the working count spread across rooms. */
 const SIDE_THINKING = 2;
@@ -174,10 +197,7 @@ export function seedPerfThinking({
     if (thinking > 0) {
       store.askQuestion({
         as: perfMember(1),
-        questions: askItems({
-          options: ['ship it', 'wait for review'],
-          question: 'the cents migration is green on staging. merge it today?',
-        }),
+        questions: askItems({ questions: PERF_QUESTIONS }),
         room: PERF_ROOM,
       });
     }
@@ -214,6 +234,14 @@ const perfReportSchema = z.object({
   page_all_ms: z.number(),
   pages: z.number(),
   pull_request_reads: z.number(),
+  question_key_cpu_ms: z.number(),
+  question_key_row_bodies: z.number(),
+  question_key_worst_frame_ms: z.number(),
+  question_keys: z.number(),
+  question_pick_cpu_ms: z.number(),
+  question_pick_row_bodies: z.number(),
+  question_pick_worst_frame_ms: z.number(),
+  question_picks: z.number(),
   resident_mb: z.number(),
   rows: z.number(),
   scroll_fps: z.number(),
@@ -253,6 +281,14 @@ export function perfRows(report: PerfReport) {
     [
       `${report.events} incoming posts`,
       `cpu ${report.event_cpu_ms.toFixed(1)} ms per post, ${Math.round(report.event_row_bodies)} row bodies per post, ${ms(report.event_wall_ms)} wall`,
+    ],
+    [
+      `${report.question_keys} keys in a question form`,
+      `cpu ${report.question_key_cpu_ms.toFixed(1)} ms per key, ${Math.round(report.question_key_row_bodies)} row bodies per key, worst frame ${ms(report.question_key_worst_frame_ms)}`,
+    ],
+    [
+      `${report.question_picks} picks in a question form`,
+      `cpu ${report.question_pick_cpu_ms.toFixed(1)} ms per pick, ${Math.round(report.question_pick_row_bodies)} row bodies per pick, worst frame ${ms(report.question_pick_worst_frame_ms)}`,
     ],
     ['pr reads during the run', String(report.pull_request_reads)],
     ['resident memory at the end', `${Math.round(report.resident_mb)} MB`],

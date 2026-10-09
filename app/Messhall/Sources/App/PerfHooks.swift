@@ -22,9 +22,17 @@
     /// How long each sidebar slide gets to draw. The system slide takes about 0.4 s.
     static let sidebarSeconds = 0.6
     static let settle = Duration.milliseconds(500)
+    /// Keys typed into the open form's Other box, about a quick typist's pace apart.
+    static let formKeys = 20
+    static let keyGap = Duration.milliseconds(100)
 
     /// How many times a transcript row built its body. Counted everywhere, read only here.
     static var rowBodies = 0
+    static var formBodies = 0
+    /// Picks option `0` of question `1` in the open form, the way a click on its row does.
+    static var pickInForm: ((Int, Int) -> Void)?
+    static var transcriptBodies = 0
+    static var detailBodies = 0
     static var pullRequestReads = 0
     private static var transcriptLaidOut: CheckedContinuation<Void, Never>?
 
@@ -75,6 +83,8 @@
       let rows = store.room(named: room)?.messages.count ?? 0
 
       bringFront()
+      let form = await answerForm()
+      bringFront()
       let scroll = await scrollFromTop(points: scrollPace * scrollSeconds)
       bringFront()
       let dash = await scrollFromTop(points: .infinity)
@@ -96,7 +106,11 @@
         dashWorstFrameMs: dash.worstGap * 1000, sidebarFps: Perf.fps(frames: sidebar.frames, seconds: sidebarSeconds * 2),
         sidebarWorstFrameMs: sidebar.worstGap * 1000, panelFps: Perf.fps(frames: panel.frames, seconds: sidebarSeconds * 2),
         panelWorstFrameMs: panel.worstGap * 1000, events: events, eventCpuMs: burst.cpuMs,
-        eventRowBodies: burst.rowBodies, eventWallMs: burst.wallMs, pullRequestReads: pullRequestReads,
+        eventRowBodies: burst.rowBodies, eventWallMs: burst.wallMs, questionKeys: form.keys.count,
+        questionKeyCpuMs: form.keys.cpuMs, questionKeyRowBodies: form.keys.rowBodies,
+        questionKeyWorstFrameMs: form.keys.worstGap * 1000, questionPicks: form.picks.count,
+        questionPickCpuMs: form.picks.cpuMs, questionPickRowBodies: form.picks.rowBodies,
+        questionPickWorstFrameMs: form.picks.worstGap * 1000, pullRequestReads: pullRequestReads,
         residentMb: Double(residentBytes()) / 1_000_000)
       try? JSONEncoder().encode(report).write(to: URL(fileURLWithPath: file))
     }
@@ -168,6 +182,69 @@
       }
       note("scroll: \(run.frames) frames over \(span) pt, worst gap \(run.worstGap * 1000) ms")
       return (run.frames, run.worstGap)
+    }
+
+    /// Answers the open question at the end of the transcript the way a hand does: two picks in each question,
+    /// then keys into the last Other box. A test window never turns key, so a click would only focus it. Each step is timed with the display running.
+    private static func answerForm() async -> (keys: FormRun, picks: FormRun) {
+      guard let window = mainWindow, let content = window.contentView,
+        let scrollView = transcriptScrollView(in: content), let document = scrollView.documentView
+      else { return note("no transcript for the form", giving: (.none, .none)) }
+      let clip = scrollView.contentView
+      let end = document.isFlipped ? max(0, document.frame.height - clip.bounds.height) : 0
+      clip.scroll(to: NSPoint(x: 0, y: end))
+      scrollView.reflectScrolledClipView(clip)
+      try? await Task.sleep(for: settle)
+      let others = textFields(in: content).filter { $0.placeholderString?.hasPrefix("Other") == true }
+      guard let last = others.last else { return note("no Other box in view", giving: (.none, .none)) }
+      note("form: picking")
+      let picks = await timed(window: window, steps: others.count * 2) { step in
+        pickInForm?(step / others.count, step % others.count)
+      }
+      note("form: picks gave \(formBodies) form bodies, \(transcriptBodies) transcript, \(detailBodies) detail")
+      window.makeFirstResponder(last)
+      note("form: typing")
+      let keys = await timed(window: window, steps: formKeys) { step in
+        let char = String(Array("ship it after the e2e run")[step % 25])
+        for type in [NSEvent.EventType.keyDown, .keyUp] {
+          guard
+            let event = NSEvent.keyEvent(
+              with: type, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+              windowNumber: window.windowNumber, context: nil, characters: char, charactersIgnoringModifiers: char,
+              isARepeat: false, keyCode: 0)
+          else { continue }
+          window.sendEvent(event)
+        }
+      }
+      note("form: keys gave \(formBodies) form bodies, \(transcriptBodies) transcript, \(detailBodies) detail, typed [\(last.stringValue)]")
+      return (keys, picks)
+    }
+
+    /// Runs `steps` one `keyGap` apart with the display link ticking, and splits the cost per step.
+    private static func timed(window: NSWindow, steps: Int, step: (Int) -> Void) async -> FormRun {
+      guard let content = window.contentView else { return .none }
+      let run = ScrollRun()
+      let link = content.displayLink(target: run, selector: #selector(ScrollRun.tick))
+      run.onTick = { _ in }
+      link.add(to: .main, forMode: .common)
+      try? await Task.sleep(for: keyGap)
+      run.resetWorst()
+      let (cpu, bodies) = (cpuSeconds(), rowBodies)
+      (formBodies, transcriptBodies, detailBodies) = (0, 0, 0)
+      for index in 0..<steps {
+        step(index)
+        try? await Task.sleep(for: keyGap)
+      }
+      link.invalidate()
+      run.onTick = nil
+      let count = Double(max(1, steps))
+      return FormRun(
+        count: steps, cpuMs: (cpuSeconds() - cpu) * 1000 / count, rowBodies: Double(rowBodies - bodies) / count,
+        worstGap: run.worstGap)
+    }
+
+    private static func textFields(in view: NSView) -> [NSTextField] {
+      ((view as? NSTextField).map { [$0] } ?? []) + view.subviews.flatMap(textFields)
     }
 
     /// Hides the sidebar and shows it again, counting the display frames that land during each slide.
@@ -271,6 +348,16 @@
       }
       return result == KERN_SUCCESS ? info.resident_size : 0
     }
+  }
+
+  /// What answering a form cost: steps taken, cpu and transcript row bodies per step, the longest frame gap.
+  struct FormRun {
+    let count: Int
+    let cpuMs: Double
+    let rowBodies: Double
+    let worstGap: Double
+
+    static let none = FormRun(count: 0, cpuMs: 0, rowBodies: 0, worstGap: 0)
   }
 
   /// Counts display frames while a scripted scroll runs, and the longest gap between two of them.
