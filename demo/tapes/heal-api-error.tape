@@ -29,16 +29,19 @@ Enter
 Sleep 1s
 Show
 
-Type "tmux respawn-pane -k -t '=messhall_demo_api:' 'bash demo/tapes/heal-api-error-pane.sh'; sleep 1; tmux capture-pane -p -t '=messhall_demo_api:' | grep .; echo exit $?"
+Type "tmux respawn-pane -k -t '=messhall_demo_api:' bash $PWD/demo/tapes/heal-api-error-pane.sh; sleep 1; tmux capture-pane -p -t '=messhall_demo_api:' | grep .; echo exit $?"
 Sleep 500ms
 Enter
 Wait+Screen@30s /exit [0-9]/
 Sleep 3s
 
-Type "perl -e 'alarm 50; exec @ARGV' pnpm -s dev watch demo; echo exit $?"
+Type "pnpm -s dev watch demo; echo exit $?"
 Sleep 500ms
 Enter
-Wait+Screen@90s /exit [0-9](.|\n)*exit [0-9]/
+Sleep 50s
+Type "/quit"
+Enter
+Wait+Screen@30s /exit [0-9](.|\n)*exit [0-9]/
 Sleep 3s
 
 Type "clear; tmux capture-pane -p -t '=messhall_demo_api:' | grep .; grep -h 'API error' $MESSHALL_HOME/logs/*.log | cut -c1-120; echo exit $?"
