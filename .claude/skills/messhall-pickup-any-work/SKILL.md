@@ -37,27 +37,25 @@ The note has three job tables (Research, Decisions, Builds). The scripts read al
 
 ## Spawning seated agents
 
-A subagent with no messhall tools works out of sight. `pnpm messhall-dev spawn` instead runs a real Claude Code session that sits in the room the whole time, so the human sees it, reads its progress and can ring it mid-job.
+A subagent with no messhall tools works out of sight. `pnpm messhall-dev spawn` instead runs a real Claude Code session that sits in the room the whole time, so the human sees it, reads its progress and can ring it mid-job. It is a thin wrapper on the product spawner (`messhall spawn`): it adds the queue row, the branch and the worktree, and the daemon starts and seats the agent.
 
 ```bash
-pnpm messhall-dev spawn <id> --dry-run                 # print the claim, worktree, claude line and prompt
-pnpm messhall-dev spawn <id> --brief <file>            # claim, worktree, claude in tmux session messhall-<id>
-pnpm messhall-dev spawn <id> --assign worker --instructions docs/briefs/worker.md  # and give it the role once it joins
+pnpm messhall-dev spawn <id> --dry-run                 # print the claim, worktree, spawn and role instructions
+pnpm messhall-dev spawn <id> --brief <file>            # claim, worktree, then seat claude there
+pnpm messhall-dev spawn <id> --assign worker --instructions docs/briefs/worker.md  # seated as worker from its first call
 pnpm messhall-dev spawn <id> --assign worker --instructions docs/briefs/worker.md --reviewer reviewer-2  # review gate names reviewer-2
-pnpm messhall-dev spawn agent --as reviewer-1          # a seat with no row, tmux session messhall-seat-reviewer-1
-pnpm messhall-dev flock                                # sessions, panes, rows, branches, pids, seated or not, role
-pnpm messhall-dev flock stop <id or name>              # kill one, then queue.py release <id> if a row is unfinished
-pnpm messhall-dev agent orchestrator --room dev --say '@reviewer-1 your role: reviewer' \
-  --assign reviewer-1=reviewer --instructions docs/briefs/reviewer.md
+pnpm messhall-dev spawn agent --as reviewer-1          # a seat with no row, in the main checkout
+pnpm messhall-dev flock                                # same as messhall flock: room, seat, role, presence, process, tmux session
+pnpm messhall-dev flock stop <id or name>              # stop one, then queue.py release <id> if a row is unfinished
 ```
 
-- `spawn <id>` refuses a row that is not `open` or still waits on a need, so it follows the same rules as `claim`. It claims the row and makes the worktree before claude starts, so the agent skips those steps.
-- Flags: `--room dev` (where the agent sits), `--model opus`, `--brief <file>` (the row's brief, else the pickup skill), `--reviewer <name>` (with `--instructions`: names that reviewer in the review gate in place of `@reviewer-1`), `--dry-run`. A seat takes `--as <name>`.
-- **Roles come after the join, with their instructions.** Every seated agent joins as its branch slug (`f8/spawn` sits as `f8-spawn`) or its `--as` name, posts a hello line and waits for a role from `orchestrator` or `human`. It reads the role and its instructions with `my_role` and follows them, asks `@orchestrator what is my role?` after 2 minutes, and calls `my_role` again whenever a role line mentions it. Only the human seat or a member whose role is `orchestrator` can set roles, and only the human makes an orchestrator (the name alone gives no role), so `messhall-dev agent orchestrator --assign` works only on an `orchestrator` seat the human gave that role, and its leave gives the role up again.
-- The spawn prompt only seats the agent: no row id, branch or job words. The row, branch and worktree reach it only through its role instructions, which spawn writes to `<data dir>/spawn/<id>-role.md`. With `--assign <role>` spawn sets the role after the join, otherwise it prints the `messhall-dev agent orchestrator --assign` line to run. An agent that has not joined in 2 minutes is reported.
-- The spawn prompt holds no role behaviour. `docs/briefs/worker.md` (the review gate), `reviewer.md` and `orchestrator.md` are example instructions the orchestrator owns, may edit per room and passes with `assign_role`.
-- It targets the real daemon and room on purpose. Watch one with `tmux attach -t messhall-<id>`. Mention it from the room to steer it.
-- If claude never comes up (login screen, timeout), `spawn` kills the session and releases the row.
+- `spawn <id>` refuses a row that is not `open` or still waits on a need, so it follows the same rules as `claim`. It claims the row and makes the worktree before the spawn, so the agent skips those steps. If the spawn is refused or the worktree fails, the row goes back to open.
+- Flags: `--room dev` (where the agent sits), `--model opus`, `--brief <file>` (the row's brief, else the pickup skill), `--assign <role>` (the role it holds from its first call, `unassigned` by default), `--reviewer <name>` (with `--instructions`: names that reviewer in the review gate in place of `@reviewer-1`), `--dry-run`. A seat takes `--as <name>`.
+- Every seated agent joins as its branch slug (`f8/spawn` sits as `f8-spawn`) or its `--as` name, posts a hello line, reads its role with `my_role` and follows it, asks `@orchestrator what is my role?` after 2 minutes if still unassigned, and calls `my_role` again whenever a role line mentions it. Only the human seat or a member whose role is `orchestrator` can change roles, and only the human makes an orchestrator (the name alone gives no role).
+- The row, branch and worktree reach the agent only through its role instructions (the `--instructions` text with `@reviewer-1` swapped under `--reviewer`, then id, branch, claimed worktree, brief or pickup skill, and leave to run `queue.py done <id>` itself). The daemon's seat prompt holds no job words.
+- `docs/briefs/worker.md` (the review gate), `reviewer.md` and `orchestrator.md` are example instructions the orchestrator owns, may edit per room and passes with `assign_role`.
+- It targets the real daemon and room on purpose, as the human with the human key, so it is the owner's tool: an agent tries it only against a scratch daemon (`--url`/data dir env). Watch one with `tmux attach -t messhall_<room>_<name>`. Mention it from the room to steer it.
+- If the agent never takes its seat, the daemon kills the session and `spawn` releases the row.
 
 ## Never speak as the human
 
