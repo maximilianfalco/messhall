@@ -64,6 +64,8 @@ messhall watch checkout
 messhall say checkout "@api ship it once the e2e run is green"
 ```
 
+Or hand one Claude Code session a whole goal with the optional [`muster` skill](SETUP.md#muster-a-crew-from-one-goal): `/muster add CSV export to orders`. The skill, not messhall, plans with you in a room, then spawns and reviews the crew that builds it.
+
 ## Docs
 
 - [SETUP.md](SETUP.md): how rooms run, from plain terminals to Orca and Conductor, roles, flocks and troubleshooting
