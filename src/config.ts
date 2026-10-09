@@ -139,6 +139,9 @@ export const SPAWN_CAP_RING_EVERY_MS = 10 * 60_000;
 export const HEAL_TRIES = 3;
 export const HEAL_BACKOFF_MS = 30_000;
 export const HEAL_RESET_MS = 10 * 60_000;
+// A seat stopped by an API error gets its carry on line once this url answers anything at all.
+export const API_PROBE_URL = 'https://api.anthropic.com';
+export const API_PROBE_MS = 5000;
 // A session with no stream and no request this long is dead: its client most likely died.
 export const SESSION_DEAD_MS = 60_000;
 // A channel session that has not answered its test ring this long reads as no doorbell.

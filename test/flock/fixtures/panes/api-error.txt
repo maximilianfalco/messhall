@@ -1,0 +1,9 @@
+⏺ Running the gate before the push.
+
+⏺ Bash(pnpm messhall-dev check)
+  ⎿  API Error: Can't reach the API server (ENOTFOUND)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)

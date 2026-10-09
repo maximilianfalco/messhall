@@ -10,15 +10,15 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { HUMAN_NAME } from '../../contracts/room.ts';
-import { SPAWN_READY_MS } from '../config.js';
+import { API_PROBE_MS, API_PROBE_URL, SPAWN_READY_MS } from '../config.js';
 import { KEY_FILES, KEY_HEADER } from '../daemon/keys.js';
 import { logger } from '../lib/logger.js';
 import { packageRoot } from '../lib/packageRoot.js';
 import { shellLine } from '../lib/shell.js';
 import { SEAT_HEADER, SERVER_NAME } from '../mcp/constants.js';
 
-import { healPlan, keepsDyingLine, restartLine } from './heal.js';
-import { dialogKeys, typePrompt, until, tmux as runTmux } from './tmux.js';
+import { carryOnLine, healPlan, keepsDyingLine, restartLine, stalledStatus } from './heal.js';
+import { apiError, dialogKeys, typeIfClear, typePrompt, until, tmux as runTmux } from './tmux.js';
 
 export const SESSION_PREFIX = 'messhall_';
 export const SPAWN_DIR = 'spawn';
@@ -43,6 +43,21 @@ interface Seat {
 }
 
 type Ready = 'dropped' | 'login' | 'seated' | 'timeout' | 'untrusted';
+
+/** A seat stopped by an API error: the turn that ended in it, whether the carry on line went out for that turn, and
+ * the status to put back once it moves. */
+interface Stall {
+  before: string | null;
+  sent: boolean;
+  tail: string;
+}
+
+/** True when the API answers at all, so a seat stopped by a network blip can carry on. */
+const apiAnswersNow = () =>
+  fetch(API_PROBE_URL, { method: 'HEAD', signal: AbortSignal.timeout(API_PROBE_MS) }).then(
+    () => true,
+    () => false,
+  );
 
 /** The tmux session a spawned seat runs in. Names never hold `_`, so room and name can never run together. */
 export const sessionName = ({ name, room }: Seat) => `${SESSION_PREFIX}${room}_${name}`;
@@ -132,6 +147,7 @@ const isFolder = (dir: string) =>
 /** Starts agents for invites in detached tmux sessions, answers their known dialogs and lists or stops them.
  * A seat that leaves or is removed gets its session stopped. */
 export function createSpawner({
+  apiAnswers = apiAnswersNow,
   dataDir,
   now = () => new Date(),
   pollMs,
@@ -143,6 +159,7 @@ export function createSpawner({
   tmux = runTmux,
   url,
 }: {
+  apiAnswers?: () => Promise<boolean>;
   dataDir: string;
   now?: () => Date;
   pollMs?: number;
@@ -217,6 +234,8 @@ export function createSpawner({
   const rejoined = new Set<string>();
   let watches = new Map<string, Watch>();
   const healing = new Set<string>();
+  const stalls = new Map<string, Stall>();
+  const unsticking = new Set<string>();
 
   // A seat that left or was dropped must not keep its agent running. Only spawned seats have a session by this name.
   store.events.on(({ event }) => {
@@ -288,6 +307,34 @@ export function createSpawner({
     }
   };
 
+  // Puts the seat's own status back once it moves, unless it set a new one meanwhile.
+  const moved = ({ name, room, session }: Seat & { session: string }, status: string | null) => {
+    const stall = stalls.get(session);
+    if (!stall) return 'clear';
+    stalls.delete(session);
+    if (status?.startsWith(stalledStatus(''))) store.setStatus({ as: name, room, status: stall.before ?? '' });
+    return 'moved';
+  };
+
+  const unstickOne = async (
+    { name, room, session, status }: Seat & { session: string; status: string | null },
+    apiUp: () => Promise<boolean>,
+  ) => {
+    const target = exactTarget({ name, room });
+    const pane = await tmux(['capture-pane', '-p', '-t', target]);
+    const error = pane.code === 0 ? apiError(pane.stdout) : undefined;
+    if (!error) return moved({ name, room, session }, status);
+    const stall = stalls.get(session);
+    if (stall?.tail === error.tail && stall.sent) return 'sent_before';
+    if (!stall) store.setStatus({ as: name, room, status: stalledStatus(error.reason) });
+    const current = { before: stall ? stall.before : status, sent: false, tail: error.tail };
+    stalls.set(session, current);
+    if (!(await apiUp())) return 'api_down';
+    const typed = await typeIfClear(target, carryOnLine(room), { run: tmux, settleMs });
+    if (typed === 'sent') stalls.set(session, { ...current, sent: true });
+    return typed;
+  };
+
   return {
     /** Makes the invite, then starts its agent and waits for the agent's first call to take the seat.
      * Any failure after the invite kills the session and drops the seat, so the name is free again. */
@@ -351,6 +398,40 @@ export function createSpawner({
       const plan = healPlan({ now: now().getTime(), seats, watches });
       watches = plan.watches;
       return Promise.all(plan.steps.map(healOne));
+    },
+
+    /** Finds spawned claude seats whose last turn ended in an API error, shows each as stalled, and once the API
+     * answers types one carry on line, at most once per error. Asks the API at most once per call. */
+    async unstick() {
+      const closed = new Set(store.listRooms().flatMap(room => (room.closed_at === null ? [] : [room.name])));
+      let probe: Promise<boolean> | undefined;
+      const apiUp = () => {
+        probe ??= apiAnswers();
+        return probe;
+      };
+      const spawned = spawnedSeats();
+      const kept = new Set(spawned.map(({ session }) => session));
+      [...stalls.keys()].filter(session => !kept.has(session)).forEach(session => stalls.delete(session));
+      const seats = spawned.filter(
+        ({ launch, member, room, session }) =>
+          launch.agent === 'claude' &&
+          !closed.has(room) &&
+          !member.done &&
+          member.presence !== 'invited' &&
+          !healing.has(session) &&
+          !unsticking.has(session),
+      );
+      return Promise.all(
+        seats.map(async ({ member, room, session }) => {
+          unsticking.add(session);
+          try {
+            const seat = { name: member.name, room, session, status: member.status };
+            return { name: member.name, outcome: await unstickOne(seat, apiUp), room };
+          } finally {
+            unsticking.delete(session);
+          }
+        }),
+      );
     },
 
     /** Every seat started from an invite, in `room` or in every room, with its session and whether it runs. */

@@ -661,3 +661,141 @@ describe('healing a spawned seat', () => {
     expect(starts(seats.tmux)).toHaveLength(1);
   });
 });
+
+describe('unsticking a seat after an API error', () => {
+  const STALLED_PANE = readFileSync(new URL('fixtures/panes/api-error.txt', import.meta.url), 'utf8');
+  const MOVED_PANE = readFileSync(new URL('fixtures/panes/api-error-old.txt', import.meta.url), 'utf8');
+
+  function stalledSeat({ api = true, pane = STALLED_PANE }: { api?: boolean; pane?: string } = {}) {
+    let screen = pane;
+    let answers = api;
+    const tmux = vi.fn<Tmux>(args => {
+      if (args[0] === 'capture-pane') return Promise.resolve(result(screen));
+      if (args[0] === 'display-message') return Promise.resolve(result('✳ Claude Code\n'));
+      return Promise.resolve(result());
+    });
+    const unsticker = createSpawner({
+      apiAnswers: () => Promise.resolve(answers),
+      dataDir: scratch.dataDir,
+      profilesDir: profiles,
+      settleMs: 0,
+      store: store(),
+      tmux,
+      url: 'http://127.0.0.1:7791',
+    });
+    const invited = store().invite({
+      by: 'human',
+      launch: { agent: 'claude', cwd },
+      name: 'api',
+      role: 'worker',
+      room: 'demo',
+    });
+    if (!invited.ok) throw new Error(invited.reason);
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey: invited.seatKey });
+    return {
+      apiBack: () => {
+        answers = true;
+      },
+      show: (next: string) => {
+        screen = next;
+      },
+      unstick: () => unsticker.unstick(),
+      typed: () =>
+        calls(tmux)
+          .filter(args => args[0] === 'send-keys' && args.includes('-l'))
+          .map(args => args.at(-1)),
+    };
+  }
+
+  it('types one carry on line into a seat stopped by an API error once the API answers', async () => {
+    const seat = stalledSeat();
+
+    await seat.unstick();
+
+    expect(seat.typed()).toStrictEqual([
+      'the API dropped and is back. call read_since on #demo first, then carry on from where you stopped.',
+    ]);
+  });
+
+  it('waits while the API does not answer, then types the line', async () => {
+    const seat = stalledSeat({ api: false });
+
+    await seat.unstick();
+    expect(seat.typed()).toStrictEqual([]);
+
+    seat.apiBack();
+    await seat.unstick();
+    expect(seat.typed()).toHaveLength(1);
+  });
+
+  it('types the line at most once per error', async () => {
+    const seat = stalledSeat();
+
+    await seat.unstick();
+    await seat.unstick();
+
+    expect(seat.typed()).toHaveLength(1);
+  });
+
+  it('types again for a new error after the agent moved', async () => {
+    const seat = stalledSeat();
+    await seat.unstick();
+
+    seat.show(MOVED_PANE);
+    await seat.unstick();
+    seat.show(MOVED_PANE.replace('⏺ PR is open, waiting on review.', '> carry on\n  ⎿  API Error: Request timed out.'));
+    await seat.unstick();
+
+    expect(seat.typed()).toHaveLength(2);
+  });
+
+  it('shows the seat as stalled with the reason until it moves, then puts its own status back', async () => {
+    const seat = stalledSeat({ api: false });
+    store().setStatus({ as: 'api', room: 'demo', status: 'tests green' });
+
+    await seat.unstick();
+    expect(memberOf('api')?.status).toBe("stalled: API Error: Can't reach the API server (ENOTFOUND)");
+
+    seat.show(MOVED_PANE);
+    await seat.unstick();
+    expect(memberOf('api')?.status).toBe('tests green');
+  });
+
+  it('keeps a status the agent set itself after it moved', async () => {
+    const seat = stalledSeat();
+    await seat.unstick();
+
+    store().setStatus({ as: 'api', room: 'demo', status: 'PR open' });
+    seat.show(MOVED_PANE);
+    await seat.unstick();
+
+    expect(memberOf('api')?.status).toBe('PR open');
+  });
+
+  it('leaves a seat with no API error alone', async () => {
+    const seat = stalledSeat({ pane: MOVED_PANE });
+
+    await seat.unstick();
+
+    expect(seat.typed()).toStrictEqual([]);
+    expect(memberOf('api')?.status).toBeNull();
+  });
+
+  it('never types into a pane with a draft in its input box', async () => {
+    const seat = stalledSeat();
+    seat.show(STALLED_PANE.replace('❯ ', '❯ half a thought'));
+
+    await seat.unstick();
+
+    expect(seat.typed()).toStrictEqual([]);
+  });
+
+  it('leaves a seat in a closed room alone', async () => {
+    const seat = stalledSeat();
+    store().closeRoom('demo');
+
+    await seat.unstick();
+
+    expect(seat.typed()).toStrictEqual([]);
+  });
+});
