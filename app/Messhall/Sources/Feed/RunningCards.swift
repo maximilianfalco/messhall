@@ -3,7 +3,7 @@ import Foundation
 /// A suggestion the app shows: agents running on this Mac that may want one room, and what a click does.
 public struct RunningCard: Equatable, Sendable, Identifiable {
   public enum Action: Equatable, Sendable {
-    /// No such open room yet, so the click makes it first.
+    /// No such room yet, so the invite makes it.
     case make(String)
     case invite(String)
 
@@ -32,13 +32,14 @@ public struct RunningCard: Equatable, Sendable, Identifiable {
     return "\(counts.joined(separator: " + ")) on \(key)"
   }
 
-  /// One card per suggestion still worth showing: someone is left to invite and the human has not set it aside.
-  public static func cards(running: Running, openRooms: Set<String>, dismissed: Set<String>) -> [RunningCard] {
+  /// One card per suggestion still worth showing: someone is left to invite, its room is not closed, and the
+  /// human has not set it aside. `rooms` maps each known room to whether it is open.
+  public static func cards(running: Running, rooms: [String: Bool], dismissed: Set<String>) -> [RunningCard] {
     let byID = Dictionary(running.agents.map { ($0.id, $0) }) { first, _ in first }
     return running.suggestions.compactMap { suggestion in
       let invitees = suggestion.ids.compactMap { byID[$0] }.filter { $0.room != suggestion.room }
-      guard !invitees.isEmpty else { return nil }
-      let action: Action = openRooms.contains(suggestion.room) ? .invite(suggestion.room) : .make(suggestion.room)
+      guard !invitees.isEmpty, rooms[suggestion.room] != false else { return nil }
+      let action: Action = rooms[suggestion.room] == true ? .invite(suggestion.room) : .make(suggestion.room)
       let card = RunningCard(action: action, invitees: invitees, key: suggestion.key)
       return dismissed.contains(card.dismissKey) ? nil : card
     }

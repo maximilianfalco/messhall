@@ -291,7 +291,7 @@ export function humanRoutes({
     sendJson(res, 200, (await running.list()) satisfies Running);
   };
 
-  // It queues a line into codex threads on this Mac, so only the human's click reaches it.
+  // It queues a line into codex threads on this Mac, so only the human's click reaches it. A missing room is made first.
   const inviteRunning: Handler = async (req, res) => {
     const body = await readJson(req);
     const parsed = runningInviteSchema.safeParse(body.ok ? body.value : undefined);
@@ -300,14 +300,11 @@ export function humanRoutes({
       return;
     }
     const target = store.listRooms().find(room => room.name === parsed.data.room);
-    if (!target) {
-      sendJson(res, 404, NO_ROOM);
-      return;
-    }
-    if (target.closed_at) {
+    if (target?.closed_at) {
       sendJson(res, 409, { error: `#${target.name} is closed, reopen it first` });
       return;
     }
+    if (!target) store.createRoom({ created_by: HUMAN_NAME, name: parsed.data.room });
     sendJson(res, 200, (await running.invite(parsed.data)) satisfies RunningInviteResult);
   };
 

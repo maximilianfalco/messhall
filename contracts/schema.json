@@ -1668,7 +1668,7 @@
         "room": {
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
-          "description": "The room to invite them to. It must exist and be open."
+          "description": "The room to invite them to. Made as the human when missing, refused when closed."
         }
       },
       "required": [

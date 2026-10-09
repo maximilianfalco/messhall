@@ -624,8 +624,16 @@ describe('POST /api/running/invite', () => {
     expect(feed.running.invite).not.toHaveBeenCalled();
   });
 
-  it('refuses a room that does not exist with 404', async () => {
-    expect((await human('/api/running/invite', { ids: ['s-1'], room: 'nope' })).status).toBe(404);
+  it('makes a missing room as the human, then invites to it', async () => {
+    const res = await human('/api/running/invite', { ids: ['s-1'], room: 'rm-8' });
+
+    expect(res.status).toBe(200);
+    expect(
+      store()
+        .listRooms()
+        .find(room => room.name === 'rm-8'),
+    ).toMatchObject({ created_by: 'human', standing: true });
+    expect(feed.running.invite).toHaveBeenCalledWith({ ids: ['s-1'], room: 'rm-8' });
   });
 
   it('refuses a closed room with 409', async () => {

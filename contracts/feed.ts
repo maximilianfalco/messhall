@@ -174,7 +174,7 @@ export const runningInviteSchema = z.object({
     .min(1)
     .max(20)
     .describe('Ids of the running agents to invite, from the running list.'),
-  room: nameSchema.describe('The room to invite them to. It must exist and be open.'),
+  room: nameSchema.describe('The room to invite them to. Made as the human when missing, refused when closed.'),
 });
 
 export const runningInviteItemSchema = z.object({

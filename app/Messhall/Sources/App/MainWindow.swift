@@ -30,8 +30,11 @@ struct MainWindow: View {
   }
 
   private var runningCards: [RunningCard] {
-    RunningCard.cards(
-      running: running.running, openRooms: Set(store.rooms.filter(\.isOpen).map(\.name)), dismissed: running.dismissed)
+    RunningCard.cards(running: running.running, rooms: roomsOpen, dismissed: running.dismissed)
+  }
+
+  private var roomsOpen: [String: Bool] {
+    Dictionary(store.rooms.map { ($0.name, $0.isOpen) }) { first, _ in first }
   }
 
   private var showingNewRoom: Binding<Bool> {
@@ -88,7 +91,7 @@ struct MainWindow: View {
       .sheet(isPresented: $navigation.showsWelcome) {
         WelcomeSheet(store: store, client: client, navigation: navigation)
       }
-      .task { await running.follow(client) { Set(store.rooms.filter(\.isOpen).map(\.name)) } }
+      .task { await running.follow(client) { roomsOpen } }
       .sheet(item: $running.results) { results in
         InviteResultsSheet(results: results)
       }

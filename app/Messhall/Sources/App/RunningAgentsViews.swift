@@ -12,7 +12,7 @@ final class RunningWatch {
   var busy: String?
 
   /// Scans again every minute while the window is open. A refused scan keeps the last list.
-  func follow(_ client: FeedClient, openRooms: @escaping () -> Set<String>) async {
+  func follow(_ client: FeedClient, rooms: @escaping () -> [String: Bool]) async {
     #if DEBUG
       if ShotHooks.isShot && !ShotHooks.running { return }
     #endif
@@ -20,7 +20,7 @@ final class RunningWatch {
       await refresh(client)
       #if DEBUG
         if ShotHooks.invite, results == nil,
-          let card = RunningCard.cards(running: running, openRooms: openRooms(), dismissed: dismissed).first
+          let card = RunningCard.cards(running: running, rooms: rooms(), dismissed: dismissed).first
         {
           await act(card, client: client)
         }
@@ -33,18 +33,11 @@ final class RunningWatch {
     if case .done(let found) = await HumanSeat(client: client).running() { running = found }
   }
 
-  /// Makes the room when it is missing, then invites the card's agents and shows what each one got.
+  /// Invites the card's agents, which makes the room when it is missing, and shows what each one got.
   func act(_ card: RunningCard, client: FeedClient) async {
     busy = card.id
     defer { busy = nil }
-    let seat = HumanSeat(client: client)
-    if case .make(let room) = card.action, case .refused(let reason) = await seat.create(NewRoom(name: room, topic: nil)),
-      !reason.contains("already exists")
-    {
-      results = InviteResults(room: room, invites: [], refusal: reason)
-      return
-    }
-    switch await seat.invite(card.invitees.map(\.id), room: card.action.room) {
+    switch await HumanSeat(client: client).invite(card.invitees.map(\.id), room: card.action.room) {
     case .done(let invites): results = InviteResults(room: card.action.room, invites: invites, refusal: nil)
     case .refused(let reason): results = InviteResults(room: card.action.room, invites: [], refusal: reason)
     }
