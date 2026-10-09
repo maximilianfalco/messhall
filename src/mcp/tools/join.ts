@@ -6,27 +6,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { joinInputSchema } from '../../../contracts/mcp.ts';
-import { NAME_PATTERN, RESERVED_NAMES } from '../../../contracts/room.ts';
+import { RESERVED_NAMES } from '../../../contracts/room.ts';
 import { SEAT_TOKEN_FREE_AFTER_MS } from '../../config.js';
+import { roleFromFolder } from '../../lib/names.js';
 import { newSeatToken } from '../../rooms/store.js';
 import { clientType, DOORBELL_CHECKING, DOORBELL_OFF, ROOM_RULES, ROOTS_TIMEOUT_MS } from '../constants.js';
 import { agreementsBlock, memberLabel, roleBlock } from '../render.js';
 import { bindSeat } from '../seats.js';
 
 import { refuse, registerRoomTool, reply } from './registry.js';
-
-const NAME_MAX = 40;
-
-/** A folder name as a room name: lowercase, runs of anything else as one dash. Undefined when nothing is left. */
-export function roleFromFolder(folder: string) {
-  const name = folder
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/^-+|-+$/g, '')
-    .slice(0, NAME_MAX)
-    .replace(/-+$/, '');
-  return NAME_PATTERN.test(name) ? name : undefined;
-}
 
 // Asks the client for its roots on the call's own stream. Any failure means no default name.
 async function nameFromRoots(server: McpServer, ctx: ServerContext) {
