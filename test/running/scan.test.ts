@@ -1,4 +1,5 @@
 import type { RunResult } from '../../src/lib/run.js';
+import type { ThreadStatus } from '../../src/codex/generated/v2/ThreadStatus.js';
 
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,7 +7,9 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { codexProcesses, cwdsFromLsof, gitPlace, readClaudeSessions } from '../../src/running/scan.js';
+import { createCodexClient } from '../../src/codex/client.js';
+import { codexProcesses, cwdsFromLsof, gitPlace, readClaudeSessions, readCodexThreads } from '../../src/running/scan.js';
+import { fakeCodex, fakeTimers } from '../codex/fakeCodex.js';
 
 const sessionsDir = (files: Record<string, string>) => {
   const dir = mkdtempSync(path.join(tmpdir(), 'messhall-sessions-'));
@@ -102,5 +105,46 @@ describe('cwdsFromLsof', () => {
         [402, '/code/web'],
       ]),
     );
+  });
+});
+
+describe('readCodexThreads', () => {
+  const threads: Record<string, { cwd: string; status: ThreadStatus }> = {
+    t1: { cwd: '/code/api', status: { activeFlags: [], type: 'active' } },
+    t2: { cwd: '/code/web', status: { type: 'idle' } },
+  };
+
+  const reader = async (answers: Parameters<typeof fakeCodex>[0]) => {
+    const codex = await fakeCodex(answers);
+    const client = createCodexClient({ setTimer: fakeTimers().setTimer, socketPath: codex.socketPath });
+    const found = await readCodexThreads({ codex: client });
+    client.close();
+    await codex.cleanup();
+    return { found, frames: codex.frames };
+  };
+
+  it('lists each loaded thread with its folder and idle or busy, without its turns', async () => {
+    const { found, frames } = await reader({
+      'thread/loaded/list': () => ({ result: { data: Object.keys(threads), nextCursor: null } }),
+      'thread/read': params => {
+        const { threadId } = params as { threadId: string };
+        return { result: { thread: { id: threadId, ...threads[threadId] } } };
+      },
+    });
+
+    expect(found).toStrictEqual([
+      { cwd: '/code/api', id: 't1', status: 'busy' },
+      { cwd: '/code/web', id: 't2', status: 'idle' },
+    ]);
+    expect(frames.filter(frame => frame.method === 'thread/read').map(frame => frame.params)).toStrictEqual([
+      { includeTurns: false, threadId: 't1' },
+      { includeTurns: false, threadId: 't2' },
+    ]);
+  });
+
+  it('returns nothing when the shared server refuses the list', async () => {
+    const { found } = await reader({ 'thread/loaded/list': () => ({ error: 'no' }) });
+
+    expect(found).toStrictEqual([]);
   });
 });

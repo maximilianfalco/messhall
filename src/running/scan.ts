@@ -1,3 +1,5 @@
+import type { CodexClient, CodexResult } from '../codex/client.js';
+import type { ThreadStatus } from '../codex/generated/v2/ThreadStatus.js';
 import type { Runner } from '../lib/run.js';
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -81,4 +83,29 @@ export function cwdsFromLsof(lsof: string) {
     if (line.startsWith('n') && pid !== null) cwds.set(pid, line.slice(1));
   }
   return cwds;
+}
+
+export interface CodexThread {
+  cwd: string;
+  id: string;
+  status: 'busy' | 'idle' | 'unknown';
+}
+
+const threadStatus = ({ type }: ThreadStatus) => (type === 'active' ? 'busy' : type === 'idle' ? 'idle' : 'unknown');
+
+/** Lists the threads loaded on Codex's shared server with folder and idle or busy. Reads no turns.
+ * Empty when the server is down. */
+export async function readCodexThreads({ codex }: { codex: Pick<CodexClient, 'request'> }) {
+  const ids: string[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: CodexResult<'thread/loaded/list'> = await codex.request('thread/loaded/list', { cursor });
+    if (!page.ok) return [];
+    ids.push(...page.result.data);
+    cursor = page.result.nextCursor;
+  } while (cursor);
+  const read = await Promise.all(ids.map(threadId => codex.request('thread/read', { includeTurns: false, threadId })));
+  return read.flatMap((reply): CodexThread[] =>
+    reply.ok ? [{ cwd: reply.result.thread.cwd, id: reply.result.thread.id, status: threadStatus(reply.result.thread.status) }] : [],
+  );
 }

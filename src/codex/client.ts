@@ -19,7 +19,7 @@ import { realTimer } from '../doorbell/batch.js';
 
 // The full Thread type pulls in 70 generated files, so replies name only the fields we read.
 interface ThreadReply {
-  thread: { id: string; status: ThreadStatus };
+  thread: { cwd: string; id: string; status: ThreadStatus };
 }
 
 interface Methods {
