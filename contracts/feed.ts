@@ -168,6 +168,26 @@ export const runningSchema = z.object({
   suggestions: z.array(roomSuggestionSchema).describe('Groups of them that may want a room together.'),
 });
 
+export const runningInviteSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(20).describe('Ids of the running agents to invite, from the running list.'),
+  room: nameSchema.describe('The room to invite them to. It must exist and be open.'),
+});
+
+export const runningInviteResultSchema = z.object({
+  invites: z
+    .array(
+      z.object({
+        id: z.string().describe('The running agent id.'),
+        line: z.string().nullable().describe('The join line it got, or the one to copy to it. Null when it is gone.'),
+        name: nameSchema.nullable().describe('The name the line asks it to join as. Null when it is gone.'),
+        outcome: z
+          .enum(['queued', 'copy', 'gone'])
+          .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.'),
+      }),
+    )
+    .describe('One result per id, in the order sent.'),
+});
+
 export const removeMemberResultSchema = z.object({
   member: memberSchema.describe('The member as it was when it was removed.'),
 });
@@ -234,6 +254,8 @@ export type Flock = z.infer<typeof flockSchema>;
 export type RunningAgent = z.infer<typeof runningAgentSchema>;
 export type RoomSuggestion = z.infer<typeof roomSuggestionSchema>;
 export type Running = z.infer<typeof runningSchema>;
+export type RunningInvite = z.infer<typeof runningInviteSchema>;
+export type RunningInviteResult = z.infer<typeof runningInviteResultSchema>;
 export type RemoveMemberResult = z.infer<typeof removeMemberResultSchema>;
 export type MuteResult = z.infer<typeof muteResultSchema>;
 export type HumanApproval = z.infer<typeof humanApprovalSchema>;
