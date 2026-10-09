@@ -22,6 +22,7 @@ cp "$BIN" "$APP/Contents/MacOS/Messhall"
 cp app/Messhall/Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R app/Messhall/Resources/Templates "$APP/Contents/Resources/Templates"
 cp -R app/Messhall/Resources/Avatars "$APP/Contents/Resources/Avatars"
+cp docs/briefs/orchestrator.md "$APP/Contents/Resources/orchestrator.md"
 if COMMIT="$(git rev-parse HEAD 2>/dev/null)"; then
   AT="$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%S.000Z)"
   /usr/libexec/PlistBuddy -c "Add :MesshallCommit string $COMMIT" \

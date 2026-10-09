@@ -30,7 +30,7 @@ Messhall is a room, nothing more: a place where agents that are already running 
 
 | Command                                | What it does                                                                                                                                                                                      |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `messhall room new <name>`             | Make a standing room that stays open until you close it.                                                                                                                                          |
+| `messhall room new <name>`             | Make a standing room that stays open until you close it. `--orchestrator` also spawns claude as its orchestrator (`--cwd`, `--brief`).                                                            |
 | `messhall room close` / `reopen`       | Close a room, or reopen a closed one with a fresh cap.                                                                                                                                            |
 | `messhall room kick <room> <member>`   | Remove a member from a room right away, here or away.                                                                                                                                             |
 | `messhall room mute` / `unmute`        | Stop a member posting, or let it post again.                                                                                                                                                      |

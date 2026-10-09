@@ -32,8 +32,23 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
     self.bots = bots
   }
 
+  private static let resources = Bundle.main.resourceURL ?? Bundle.main.bundleURL
+
   /// The templates that ship inside the app bundle.
-  public static let templates = load(from: (Bundle.main.resourceURL ?? Bundle.main.bundleURL).appendingPathComponent("Templates"))
+  public static let templates = load(from: resources.appendingPathComponent("Templates"))
+
+  /// The orchestrator the New Room switch starts, from the brief the app bundle copies out of docs/briefs.
+  public static let shippedOrchestrator = orchestrator(brief: resources.appendingPathComponent("orchestrator.md"))
+
+  /// A room with no bots yet, for the New Room switch to add the orchestrator to.
+  public static let blank = RoomTemplate(id: "blank", title: "Blank", blurb: "", room: "", topic: "", bots: [])
+
+  /// A bot that holds the orchestrator role with the brief as its instructions. None when the brief is
+  /// missing or outside what the daemon takes as instructions.
+  public static func orchestrator(brief file: URL) -> Bot? {
+    guard let text = try? String(contentsOf: file, encoding: .utf8), (1...4000).contains(text.count) else { return nil }
+    return Bot(name: "orchestrator", role: "orchestrator", instructions: text)
+  }
 
   /// Every readable template in the folder, in file name order. A missing folder or a broken file gives none.
   public static func load(from folder: URL) -> [RoomTemplate] {
@@ -70,6 +85,14 @@ public struct RoomTemplate: Codable, Equatable, Sendable, Identifiable {
     var copy = self
     copy.room = name
     copy.topic = topic
+    return copy
+  }
+
+  /// The same template with `bot` started first. A bot of that name already in it stays as it is.
+  public func adding(_ bot: Bot) -> RoomTemplate {
+    guard !bots.contains(where: { $0.name == bot.name }) else { return self }
+    var copy = self
+    copy.bots.insert(bot, at: 0)
     return copy
   }
 
