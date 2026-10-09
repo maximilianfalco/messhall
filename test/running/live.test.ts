@@ -38,6 +38,7 @@ describe('createRunningScan', () => {
       alive: () => true,
       claudeDir: claudeDir(),
       codex: down,
+      plainCodex: true,
       run: runner(calls),
       seats: () => Promise.resolve([]),
     });
@@ -63,12 +64,32 @@ describe('createRunningScan', () => {
       alive: () => true,
       claudeDir: '/nowhere',
       codex: down,
+      plainCodex: true,
       run,
       seats: () => Promise.resolve([]),
     });
 
     await expect(scan()).resolves.toStrictEqual({ agents: [], suggestions: [] });
     expect(calls.map(call => call[0])).toStrictEqual(['ps']);
+  });
+});
+
+describe('createRunningScan on a scratch daemon', () => {
+  it('never runs ps when plain codex is off', async () => {
+    const calls: string[][] = [];
+    const scan = createRunningScan({
+      alive: () => true,
+      claudeDir: claudeDir(),
+      codex: down,
+      plainCodex: false,
+      run: runner(calls),
+      seats: () => Promise.resolve([]),
+    });
+
+    const running = await scan();
+
+    expect(running.agents.map(agent => agent.id)).toStrictEqual(['s-101', 's-102']);
+    expect(calls.map(call => call[0])).toStrictEqual(['git', 'git']);
   });
 });
 

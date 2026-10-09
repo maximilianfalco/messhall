@@ -9,10 +9,10 @@ import { FEED_CONTRACT_VERSION } from '../../contracts/feed.ts';
 import { createCodexClient } from '../codex/client.js';
 import {
   claudeBin,
-  claudeSessionsDir,
   CLI_VERSION,
   codexControlSocket,
   DAEMON_HOST,
+  runningSources,
   summariesOff,
   SWEEP_EVERY_MS,
 } from '../config.js';
@@ -133,8 +133,8 @@ export async function startDaemon({
   const spawner = createSpawner({ dataDir, now, store, tmux, url });
   const mcp = createMcpEndpoint({ codex, now, spawner, store });
   const scan = createRunningScan({
+    ...runningSources(),
     alive: pidAlive,
-    claudeDir: claudeSessionsDir(),
     codex,
     run: runCommand,
     seats: async () => [

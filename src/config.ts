@@ -48,9 +48,15 @@ export function codexControlSocket() {
   return process.env.MESSHALL_CODEX_SOCKET || path.join(codexHome, 'app-server-control', 'app-server-control.sock');
 }
 
-/** Where Claude Code lists its live sessions. `CLAUDE_CONFIG_DIR` wins, as it does for claude itself. */
-export function claudeSessionsDir() {
-  return path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), '.claude'), 'sessions');
+/** Where the running scan looks: Claude Code's session list (`CLAUDE_CONFIG_DIR` wins, as for claude) and
+ * plain codex in ps. `MESSHALL_CLAUDE_SESSIONS` points a scratch daemon at fake sessions and skips ps. */
+export function runningSources() {
+  const scratch = process.env.MESSHALL_CLAUDE_SESSIONS;
+  if (scratch) return { claudeDir: scratch, plainCodex: false };
+  return {
+    claudeDir: path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), '.claude'), 'sessions'),
+    plainCodex: true,
+  };
 }
 
 /** Where rooms and keys live. `MESSHALL_HOME` wins so tests and tapes never touch the real data. */

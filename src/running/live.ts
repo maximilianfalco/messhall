@@ -32,17 +32,21 @@ export function createRunningScan({
   alive,
   claudeDir,
   codex,
+  plainCodex: scanPlainCodex,
   run,
   seats,
 }: {
   alive: (pid: number) => boolean;
   claudeDir: string;
   codex: Pick<CodexClient, 'request'>;
+  plainCodex: boolean;
   run: Runner;
   seats: () => Promise<KnownSeat[]>;
 }) {
   return async (): Promise<Running> => {
-    const [codexPids, codexThreads, known] = await Promise.all([plainCodex(run), readCodexThreads({ codex }), seats()]);
+    const [codexPids, codexThreads, known] = await Promise.all([
+      scanPlainCodex ? plainCodex(run) : new Map<number, string>(),
+      readCodexThreads({ codex }), seats()]);
     const agents = await runningAgents({
       claude: readClaudeSessions({ alive, dir: claudeDir }),
       codexPids,

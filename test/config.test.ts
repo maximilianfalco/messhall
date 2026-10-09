@@ -10,6 +10,7 @@ import {
   DEFAULT_PORT,
   launchAgentPath,
   logDir,
+  runningSources,
   summariesOff,
 } from '../src/config.js';
 
@@ -47,6 +48,17 @@ describe('config', () => {
   it('keeps logs under MESSHALL_HOME when it is set', () => {
     vi.stubEnv('MESSHALL_HOME', '/tmp/messhall-test-home');
     expect(logDir()).toBe('/tmp/messhall-test-home/logs');
+  });
+
+  it('scans claude sessions in the claude config dir and plain codex by default', () => {
+    vi.stubEnv('MESSHALL_CLAUDE_SESSIONS', '');
+    vi.stubEnv('CLAUDE_CONFIG_DIR', '/Users/someone/.claude-work');
+    expect(runningSources()).toStrictEqual({ claudeDir: '/Users/someone/.claude-work/sessions', plainCodex: true });
+  });
+
+  it('scans only MESSHALL_CLAUDE_SESSIONS when it is set, so a scratch daemon never lists real sessions', () => {
+    vi.stubEnv('MESSHALL_CLAUDE_SESSIONS', '/tmp/messhall-shot/claude-sessions');
+    expect(runningSources()).toStrictEqual({ claudeDir: '/tmp/messhall-shot/claude-sessions', plainCodex: false });
   });
 
   it('uses MESSHALL_PORT when it is set', () => {
