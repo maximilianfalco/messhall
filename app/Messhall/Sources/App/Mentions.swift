@@ -1,26 +1,6 @@
 import Feed
 import SwiftUI
 
-/// The chat text with each stored mention tinted: `@human` bold in the accent, `@all` in secondary, an agent in its hue.
-@MainActor
-func mentionText(_ message: Message) -> AttributedString {
-  message.mentionRuns.reduce(into: AttributedString()) { text, run in
-    switch run {
-    case .text(let plain):
-      text += AttributedString(plain)
-    case .mention(let name):
-      var tag = AttributedString("@\(name)")
-      tag.font = .body.weight(name == humanName ? .bold : .semibold)
-      switch name {
-      case humanName: tag.foregroundColor = .accentColor
-      case allMention: tag.foregroundColor = .secondary
-      default: tag.backgroundColor = avatarColor(for: name).opacity(0.18)
-      }
-      text += tag
-    }
-  }
-}
-
 /// The list over the composer while the draft ends in `@`. A row click picks that name.
 struct MentionPicker: View {
   let names: [String]

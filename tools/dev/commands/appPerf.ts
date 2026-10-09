@@ -94,11 +94,21 @@ export const perfMember = (n: number) => `agent-${String(n).padStart(2, '0')}`;
 export const perfRoom = (n: number) => `room-${String(n).padStart(2, '0')}`;
 const kindOf = (n: number) => KINDS[n % KINDS.length] ?? 'claude';
 
-/** One post's text by index: a PR link every 11th, a mention every 7th, else plain words. */
+/** One post's text by index: a PR link every 11th, a mention every 7th, a markdown hand-over every 13th, else plain words. */
 export function perfText(i: number, members: number) {
   const task = TASKS[i % TASKS.length];
   if (i % 11 === 0) return `${task}, see ${PRS[(i / 11) % PRS.length]}`;
   if (i % 7 === 0) return `@${perfMember((i % members) + 1)} ${task}, can you check?`;
+  if (i % 13 === 0) {
+    return [
+      `## step ${i + 1}: ${task}`,
+      '- `amount_minor` is **integer** cents',
+      '- run `pnpm test` before the merge',
+      '```ts',
+      'const total = order.amount_minor / 100;',
+      '```',
+    ].join('\n');
+  }
   return `step ${i + 1}: ${task}`;
 }
 

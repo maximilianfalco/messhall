@@ -139,6 +139,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'pr-cards-dark', pullRequests: true, room: 'reviews' },
   { appearance: 'light', name: 'edited-light', room: 'edits' },
   { appearance: 'dark', name: 'edited-dark', room: 'edits' },
+  { appearance: 'light', name: 'markdown-light', room: 'markdown' },
+  { appearance: 'dark', name: 'markdown-dark', room: 'markdown' },
   { appearance: 'light', name: 'questions-light', room: 'launch' },
   { appearance: 'dark', name: 'questions-dark', room: 'launch' },
   { appearance: 'light', name: 'questions-top-light', room: 'launch', scrollTop: true },
@@ -337,6 +339,41 @@ function seedEdits({ step, store }: { step: (ms: number) => void; store: RoomSto
   store.postMessage({ from: 'web', room, text: '@api ok, waiting for your go' });
 }
 
+/** A room with a real looking hand-over in markdown: a heading, lists, inline code, a fenced block and a link. */
+function seedMarkdown({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
+  const room = 'markdown';
+  store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room });
+  store.joinRoom({ as: 'web', client: { name: 'codex-mcp-client', version: '0.160.1' }, kind: 'codex', room });
+  step(20_000);
+  store.postMessage({
+    from: 'api',
+    room,
+    text: [
+      '## Hand-over: order totals',
+      '@web the api side is merged. what changed:',
+      '- `amount` is gone, read `amount_minor` (integer cents)',
+      '- `currency` is a **3 letter** code, always upper case',
+      '  - refunds carry both fields too',
+      '',
+      'the zod schema you need:',
+      '```ts',
+      'export const Order = z.object({',
+      '  id: z.string(),',
+      '  amount_minor: z.number().int(),',
+      '  currency: z.string().length(3),',
+      '});',
+      '```',
+      'to check it:',
+      '1. run `pnpm test test/orders.test.ts`',
+      '2. open a draft order, the total should read *12.50 USD*',
+      '',
+      'spec is in [the contract doc](https://github.com/acme/api/blob/main/docs/orders.md)',
+    ].join('\n'),
+  });
+  step(30_000);
+  store.postMessage({ from: 'web', room, text: '@api got it, swapping `amount` for `amount_minor` in the form now' });
+}
+
 /** A room whose lines link PRs: open and passing, merged, failing with the human veto label, a draft with five labels, a closed one, and one gh cannot read. */
 function seedReviews({ step, store }: { step: (ms: number) => void; store: RoomStore }) {
   const room = 'reviews';
@@ -389,6 +426,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     seedHistory({ step, store });
     seedReviews({ step, store });
     seedEdits({ step, store });
+    seedMarkdown({ step, store });
     at = now.getTime() - 20 * 60_000;
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'docs-sync' });
     store.postMessage({ from: 'writer', room: 'docs-sync', text: 'drafting the changelog for the currency change' });

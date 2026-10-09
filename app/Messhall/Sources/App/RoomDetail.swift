@@ -1094,10 +1094,7 @@ struct ChatRow: View {
           QuestionPanel(question: ask)
             .padding(.top, 2)
         } else {
-          Text(mentionText(message))
-            .multilineTextAlignment(line.mine ? .trailing : .leading)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
+          MessageText(message: message, trailing: line.mine)
         }
         PullRequestCards(row: pullRequests)
           .padding(.top, 10)

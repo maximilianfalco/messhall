@@ -43,6 +43,11 @@ describe('perfText', () => {
     expect(perfText(7, 60)).toMatch(/^@agent-08 /);
     expect(perfText(1, 60)).toBe('step 2: wrote the test');
   });
+
+  it('posts a markdown hand-over with a list, inline code and a fenced block every 13th line', () => {
+    expect(perfText(13, 60)).toMatch(/^- .*`[^`]+`/m);
+    expect(perfText(13, 60)).toMatch(/```ts\n[\s\S]+\n```/);
+  });
 });
 
 describe('seedPerfRoom', () => {

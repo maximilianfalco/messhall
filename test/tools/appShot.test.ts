@@ -78,6 +78,7 @@ describe('seedShotRooms', () => {
       ['handoff', true, 'api', false],
       ['history', true, 'planner', false],
       ['kickoff', true, 'human', true],
+      ['markdown', true, 'api', false],
       ['release-notes', true, 'human', true],
       ['reviews', true, 'api', false],
     ]);
@@ -111,6 +112,20 @@ describe('seedShotRooms', () => {
       [true, true],
       [false, false],
     ]);
+  });
+
+  it('leaves a markdown room whose hand-over holds a fenced block, a list and inline code', () => {
+    const dataDir = mkdtempSync(path.join(tmpdir(), 'messhall-shot-'));
+
+    seedShotRooms({ dataDir, now: new Date('2026-01-01T12:00:00.000Z') });
+
+    const db = openDb({ dataDir });
+    const page = createRoomStore({ db, now: () => new Date() }).listMessages({ limit: 50, room: 'markdown' });
+    db.close();
+    const texts = page.ok ? page.messages.map(message => message.text) : [];
+
+    expect(texts.some(text => /```ts\n[\s\S]+\n```/.test(text) && /^- /m.test(text) && /^1\. /m.test(text))).toBe(true);
+    expect(texts.some(text => /`[a-z_]+`/.test(text) && text.includes('**'))).toBe(true);
   });
 
   it('leaves a reviews room whose lines link known PRs, one line with more than three and one PR gh cannot read', () => {
