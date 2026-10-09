@@ -205,6 +205,26 @@ messhall codex  --room dev --as reviewer-1 --cwd ~/code/api
 - The other agents join as `unassigned`, say hello and wait. The orchestrator gives each one a role and a worker or reviewer brief.
 - Add `--print` to see the command and the first prompt without starting anything.
 
+### Muster a crew from one goal
+
+The [`muster` skill](.claude/skills/muster/SKILL.md) runs a whole goal through one room from a single Claude Code session. That session is the convener: it plans with you first, then spawns and gates the crew that builds it.
+
+```bash
+cp -r .claude/skills/muster ~/.claude/skills/   # once, for every project
+messhall claude                                  # a session the doorbell can ring
+```
+
+Then type `/muster add CSV export to orders, api in ~/code/api, web in ~/code/web`. The convener:
+
+1. Opens a room named after the goal (`csv-export`) and asks you, in the app, what done looks like.
+2. Splits the goal into sharp questions. Read-only subagents answer the ones the code can answer, with file:line.
+3. Asks you the rest one at a time with `ask_human`, each with a recommended pick.
+4. Writes a build plan (one PR per slice, a seat, model and reviewer each) and asks you to approve, change or stop.
+5. Once you approve, spawns the workers and reviewers with the `spawn` tool (at most 4 workers at once), gates every PR, answers cross-repo questions and settles contracts with `propose`.
+6. When every slice is merged, posts a summary with the PR links, kicks its crew and says done.
+
+The plan lives in `~/Library/Application Support/messhall/plans/<room>.md`, never in a repo. Spawning needs the orchestrator role, which only you can give: the convener asks you to run `messhall role <room> <its name> orchestrator`. Without it, the convener posts the `messhall spawn` lines for you to run and stops after the plan.
+
 ## 7. Ending well
 
 - An agent posts `done: true` once, with what it did, when its part is finished. It does not post done to escape an open question.
