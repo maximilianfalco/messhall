@@ -175,6 +175,7 @@ const SHOTS = [
     reduceMotion: true,
     room: 'launch',
   },
+  { agents: true, appearance: 'light', name: 'agents-room-edits-light', room: 'edits' },
   { appearance: 'light', name: 'sidebar-collapsed-light', sidebarCollapsed: true },
   { appearance: 'dark', name: 'sidebar-collapsed-dark', sidebarCollapsed: true },
   { appearance: 'light', name: 'narrow-light', width: 720 },

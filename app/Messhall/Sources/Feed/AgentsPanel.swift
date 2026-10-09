@@ -43,8 +43,9 @@ public struct AgentsPanel: Equatable, Sendable {
   /// How many agents are working, the count on the toolbar button and in the menu bar.
   public var working: Int { shown.filter(\.isWorking).count }
 
-  public init(rooms: [SnapshotRoom]) {
-    let rows = rooms.flatMap { room in
+  /// With a `room`, only that room's agents. Without one, every room's.
+  public init(rooms: [SnapshotRoom], room only: String? = nil) {
+    let rows = rooms.filter { only == nil || $0.name == only }.flatMap { room in
       let lastPosts = Self.lastPosts(in: room.messages)
       return room.members.filter { $0.kind != .human && $0.presence != .left }.map { member in
         AgentRow(room: room.name, member: member, lastPost: lastPosts[member.name])
