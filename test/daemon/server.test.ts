@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -257,6 +258,24 @@ describe('startDaemon', () => {
     await vi.waitFor(() => expect(tmux).toHaveBeenCalledWith(['kill-session', '-t', '=messhall_demo_api:']));
     side.db.close();
     rmSync(cwd, { force: true, recursive: true });
+  });
+
+  it('logs nothing from a heal still waiting on tmux when close shuts the db', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const listing = Promise.withResolvers<{ code: number; stderr: string; stdout: string }>();
+    const tmux = vi.fn<NonNullable<Parameters<typeof startDaemon>[0]['tmux']>>(args =>
+      args[0] === 'list-sessions' ? listing.promise : Promise.resolve({ code: 0, stderr: '', stdout: '' }),
+    );
+    const running = await start(tmux);
+    vi.advanceTimersByTime(SWEEP_EVERY_MS);
+    await vi.waitFor(() => expect(tmux).toHaveBeenCalledWith(['list-sessions', '-F', '#{session_name}']));
+
+    await running.close();
+    daemon = undefined;
+    listing.resolve({ code: 0, stderr: '', stdout: '' });
+    await sleep(20);
+
+    expect(String(vi.mocked(process.stderr.write).mock.calls)).not.toContain('healing seats failed');
   });
 
   it('drops an invite unused for 10 minutes on the same sweep', async () => {

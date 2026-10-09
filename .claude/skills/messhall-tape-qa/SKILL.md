@@ -25,6 +25,7 @@ Tapes are code: `demo/tapes/<slice>-<case>.tape`, committed. Renders go to `demo
 - `Output` both `demo/out/<name>.gif` and `.mp4`.
 - `Env MESSHALL_HOME "/tmp/messhall-tape-home-<name>"`, named after the tape. `render.sh` reads this line, so it is required.
 - Open with `Hide` / `Type "clear"` / `Enter` / `Show`. End with `; echo exit $?` on the command and a `Sleep` long enough to read the last frame.
+- A tape with claude seats gets its own `Env TMUX_TMPDIR` and `unset TMUX` before any tmux command. A set `TMUX` beats `TMUX_TMPDIR`, so a `tmux kill-server` from inside a seat ends every real agent. By hand: `env -u TMUX TMUX_TMPDIR=... tmux ...`.
 - Gifs must stay under 10MB for GitHub. For long takes, `Set Framerate 20` or drop `Height`.
 
 Render from the directory the tape expects (the repo root or worktree unless it says otherwise):

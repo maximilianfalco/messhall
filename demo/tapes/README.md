@@ -11,6 +11,7 @@
 - End every command with `; echo exit $?` so the exit code is on screen.
 - Finish with a `Sleep` long enough to read the last frame.
 - Every tape sets a home of its own, `Env MESSHALL_HOME "/tmp/messhall-tape-home-<name>"`, and any tape that touches a daemon also sets its own `Env MESSHALL_PORT` from 7770 to 7799 (grep `demo/tapes` for a free one first), so parallel jobs never share a take. Never the real data dir or port.
+- A tape that starts claude seats sets `Env TMUX_TMPDIR "/tmp/messhall-tape-tmux-<name>"` and runs `unset TMUX` before any tmux command. A set `TMUX` beats `TMUX_TMPDIR`, so a `tmux kill-server` from inside an agent's pane ends every agent on the real server. Outside a tape, use `env -u TMUX TMUX_TMPDIR=... tmux ...`.
 - Keep gifs under 10MB, or GitHub refuses them. Lower `Height` or `Framerate` if one grows past it.
 - Look at the last frame before you upload: `ffmpeg -sseof -0.3 -i demo/out/<name>.mp4 -frames:v 1 "$(mktemp -d)/last.png"`.
 
