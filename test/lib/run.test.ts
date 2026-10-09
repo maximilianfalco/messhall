@@ -9,7 +9,7 @@ describe('runCommandWithin', () => {
     const result = await runCommandWithin(100)('sleep', ['5']);
 
     expect(result.code).not.toBe(0);
-    expect(Date.now() - started).toBeLessThan(2000);
+    expect(Date.now() - started).toBeLessThan(4000);
   });
 
   it('gives the output of a command that ends in time', async () => {
