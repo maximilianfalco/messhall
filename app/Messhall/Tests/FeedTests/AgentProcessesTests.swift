@@ -91,11 +91,18 @@ struct AgentProcessesTests {
   func probe() throws {
     let me = getpid()
     let found = try #require(ProcessProbe.table().first { $0.key.pid == me })
-    let usage = try #require(ProcessProbe.usage(me))
+    let usage = try #require(ProcessProbe.usage(found.key))
 
     #expect(found.parent == getppid())
     #expect(usage.cpu > 0)
     #expect(usage.memory > 0)
+  }
+
+  @Test("reads no usage when the pid now belongs to a process that started at another time")
+  func probeReusedPid() throws {
+    let found = try #require(ProcessProbe.table().first { $0.key.pid == getpid() })
+
+    #expect(ProcessProbe.usage(ProcessKey(pid: found.key.pid, start: found.key.start - 60)) == nil)
   }
 
   @Test("decodes a running agent from an older daemon that sends no pid, seats or tmux")

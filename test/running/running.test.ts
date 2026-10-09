@@ -133,14 +133,20 @@ describe('runningAgents', () => {
     expect(found[0]?.seats).toStrictEqual([]);
   });
 
-  it('gives a codex thread the pid of one codex tui in its folder, and each tui only once', async () => {
+  it('gives a codex thread the pid of the codex tui in its folder when they are the only pair there', async () => {
     const found = await runningAgents(
       sources({
         claude: [],
-        codexPids: new Map([[401, '/code/web']]),
+        codexPids: new Map([
+          [401, '/code/web'],
+          [402, '/code/docs'],
+          [403, '/code/docs'],
+        ]),
         codexThreads: [
           { cwd: '/code/web', id: 't-1', status: 'busy' },
-          { cwd: '/code/web', id: 't-2', status: 'idle' },
+          { cwd: '/code/api', id: 't-2', status: 'idle' },
+          { cwd: '/code/api', id: 't-3', status: 'idle' },
+          { cwd: '/code/docs', id: 't-4', status: 'idle' },
         ],
       }),
     );
@@ -148,6 +154,8 @@ describe('runningAgents', () => {
     expect(found.map(({ id, pid }) => ({ id, pid }))).toStrictEqual([
       { id: 't-1', pid: 401 },
       { id: 't-2', pid: null },
+      { id: 't-3', pid: null },
+      { id: 't-4', pid: null },
     ]);
   });
 });

@@ -11,11 +11,14 @@ final class ProcessWatch {
   private(set) var rows: [AgentProcessRow] = []
   private(set) var sampledAt = Date.now
   private(set) var loaded = false
+  private(set) var refusal: String?
   private var agents: [RunningAgent] = []
   private var scannedAt: Date?
   private var previous: ProcessSample?
 
   func follow(_ client: FeedClient) async {
+    // A sample from before the tab closed would average cpu over the whole gap.
+    previous = nil
     while !Task.isCancelled {
       await tick(client)
       try? await Task.sleep(for: Self.sampleEvery)
@@ -24,15 +27,22 @@ final class ProcessWatch {
 
   private func tick(_ client: FeedClient) async {
     if scannedAt.map({ Date.now.timeIntervalSince($0) >= Self.scanEvery }) ?? true {
-      if case .done(let found) = await HumanSeat(client: client).running() { agents = found.agents }
-      scannedAt = .now
+      switch await HumanSeat(client: client).running() {
+      case .done(let found):
+        agents = found.agents
+        scannedAt = .now
+        loaded = true
+        refusal = nil
+      case .refused(let reason):
+        refusal = reason
+      }
     }
+    guard loaded else { return }
     let roots = agents.compactMap { $0.pid.map(Int32.init) }
     let current = await Task.detached { ProcessProbe.sample(roots: roots) }.value
     rows = AgentProcesses.rows(agents: agents, previous: previous, current: current)
     sampledAt = current.at
     previous = current
-    loaded = true
   }
 }
 
@@ -76,7 +86,10 @@ struct ProcessesView: View {
   let watch: ProcessWatch
 
   var body: some View {
-    if !watch.loaded {
+    if !watch.loaded, let refusal = watch.refusal {
+      ContentUnavailableView(
+        "Can't List Agents", systemImage: "exclamationmark.triangle", description: Text(refusal))
+    } else if !watch.loaded {
       ProgressView()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     } else if watch.rows.isEmpty {

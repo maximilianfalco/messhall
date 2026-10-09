@@ -47,10 +47,11 @@ function seatsOf(seats: KnownSeat[], agent: Found) {
  * A plain codex in a folder that a shared server thread also has counts as that thread, and lends it its pid. */
 export async function runningAgents({ claude, codexPids, codexThreads, place, seats }: RunningSources) {
   const threadCwds = new Set(codexThreads.map(thread => thread.cwd));
-  const tuis = [...codexPids];
+  // A thread and a tui pair up only when each is alone in its folder, so a pid is never lent to the wrong one.
   const tuiFor = (cwd: string) => {
-    const index = tuis.findIndex(([, tuiCwd]) => tuiCwd === cwd);
-    return index === -1 ? null : tuis.splice(index, 1)[0]![0];
+    const tuis = [...codexPids].filter(([, tuiCwd]) => tuiCwd === cwd);
+    const threads = codexThreads.filter(thread => thread.cwd === cwd);
+    return tuis.length === 1 && threads.length === 1 ? tuis[0]![0] : null;
   };
   const found: Found[] = [
     ...claude.map(({ cwd, id, pid, status }): Found => ({

@@ -123,7 +123,7 @@ describe('peerSeats', () => {
     expect(seats).toStrictEqual([
       { cwd: null, kind: 'claude', name: 'api', pid: 101, room: 'dev', threadId: null, tmux: null },
     ]);
-    expect(calls).toStrictEqual([['lsof', '-nP', '-iTCP:7707', '-sTCP:ESTABLISHED', '-Fpn']]);
+    expect(calls).toStrictEqual([['lsof', '-b', '-w', '-nP', '-iTCP:7707', '-sTCP:ESTABLISHED', '-Fpn']]);
   });
 
   it('skips lsof when no session is seated', async () => {

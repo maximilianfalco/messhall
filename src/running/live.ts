@@ -42,7 +42,7 @@ export async function peerSeats({
   const seated = peers();
   if (seated.length === 0) return [];
   const pids = peerPids({
-    lsof: (await run('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:ESTABLISHED', '-Fpn'])).stdout,
+    lsof: (await run('lsof', ['-b', '-w', '-nP', `-iTCP:${port}`, '-sTCP:ESTABLISHED', '-Fpn'])).stdout,
     port,
   });
   return seated.flatMap(({ kind, ports, seats }): KnownSeat[] => {

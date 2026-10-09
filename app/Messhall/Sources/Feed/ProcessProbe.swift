@@ -14,7 +14,7 @@ public enum ProcessProbe {
   public static func sample(roots: [Int32], at date: Date = .now) -> ProcessSample {
     let table = table()
     let keys = AgentProcesses.trees(roots: roots, table: table).values.joined()
-    let read = keys.compactMap { key in usage(key.pid).map { (key, $0) } }
+    let read = keys.compactMap { key in usage(key).map { (key, $0) } }
     return ProcessSample(at: date, table: table, usage: Dictionary(read) { first, _ in first })
   }
 
@@ -36,11 +36,17 @@ public enum ProcessProbe {
     }
   }
 
-  /// Cpu seconds and memory footprint of one process. Nil when it is gone or not ours to read.
-  public static func usage(_ pid: Int32) -> ProcessUsage? {
+  /// Cpu seconds and memory footprint of one process. Nil when it is gone, not ours to read, or its pid now
+  /// belongs to a process that started at another time.
+  public static func usage(_ key: ProcessKey) -> ProcessUsage? {
+    var bsd = proc_bsdinfo()
+    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+    guard proc_pidinfo(key.pid, PROC_PIDTBSDINFO, 0, &bsd, size) == size else { return nil }
+    let started = Double(bsd.pbi_start_tvsec) + Double(bsd.pbi_start_tvusec) / 1_000_000
+    guard abs(started - key.start) < 0.001 else { return nil }
     var info = rusage_info_v2()
     let read = withUnsafeMutablePointer(to: &info) {
-      $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
+      $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(key.pid, RUSAGE_INFO_V2, $0) }
     }
     guard read == 0 else { return nil }
     let ticks = Double(info.ri_user_time + info.ri_system_time)
