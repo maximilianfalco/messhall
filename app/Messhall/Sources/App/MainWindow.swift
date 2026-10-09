@@ -24,6 +24,10 @@ struct MainWindow: View {
     )
   }
 
+  private var agentsPanel: AgentsPanel {
+    AgentsPanel(rooms: store.rooms, room: store.room(named: selection.wrappedValue)?.name)
+  }
+
   private var showingNewRoom: Binding<Bool> {
     Binding(get: { navigation.newRoomDraft != nil }, set: { if !$0 { navigation.newRoomDraft = nil } })
   }
@@ -49,7 +53,7 @@ struct MainWindow: View {
         }
       }
       .inspector(isPresented: $navigation.showsAgents) {
-        AgentsView(panel: AgentsPanel(rooms: store.rooms), navigation: navigation)
+        AgentsView(panel: agentsPanel, navigation: navigation)
           .inspectorColumnWidth(min: 260, ideal: 300, max: 460)
       }
       // In the window toolbar, not the sidebar's, so they stay when the sidebar is collapsed.
@@ -61,7 +65,7 @@ struct MainWindow: View {
             Label { Text("Open on GitHub") } icon: { Image(nsImage: GitHubMark.image) }
           }
           .help("Open on GitHub")
-          AgentsButton(working: AgentsPanel(rooms: store.rooms).working, navigation: navigation)
+          AgentsButton(working: agentsPanel.working, navigation: navigation)
           Button("Settings", systemImage: "gearshape") {
             openSettings()
             NSApp.activate()

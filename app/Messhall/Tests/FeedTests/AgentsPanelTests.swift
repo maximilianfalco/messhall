@@ -65,6 +65,21 @@ struct AgentsPanelTests {
     #expect(panel.working == 2)
   }
 
+  @Test("a room scope shows and counts only that room, no scope keeps every room")
+  func scopedToRoom() {
+    let rooms = [
+      room("api", [member("ci", .active), member("old", .away, status: "on hold")]),
+      room("dev", [member("qa", .active), member("bot", .waiting), member("done", .idle, done: true)]),
+    ]
+    let dev = AgentsPanel(rooms: rooms, room: "dev")
+    #expect(names(dev.shown) == ["dev/bot", "dev/qa"])
+    #expect(names(dev.folded) == ["dev/done"])
+    #expect(dev.working == 2)
+    #expect(AgentsPanel(rooms: rooms, room: "api").working == 1)
+    #expect(AgentsPanel(rooms: rooms, room: nil).working == 3)
+    #expect(AgentsPanel(rooms: rooms, room: "gone").shown.isEmpty)
+  }
+
   @Test("an empty feed shows nobody and counts nobody")
   func empty() {
     let panel = AgentsPanel(rooms: [])

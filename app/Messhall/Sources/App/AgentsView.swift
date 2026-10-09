@@ -18,7 +18,7 @@ struct AgentsButton: View {
   }
 }
 
-/// Every agent in every room. A click opens the agent's room at its last post.
+/// The open room's agents, or every room's with none open. A click opens the agent's room at its last post.
 struct AgentsView: View {
   let panel: AgentsPanel
   let navigation: Navigation
