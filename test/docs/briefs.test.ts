@@ -4,6 +4,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { INSTRUCTIONS_MAX_CHARS } from '../../contracts/room.ts';
+import { SPAWN_RATE_MAX, SPAWN_SEAT_CAP } from '../../src/config.js';
+import { keepsDyingLine } from '../../src/flock/heal.js';
 import { PROFILES_DIR } from '../../src/flock/spawner.js';
 import { REPO_ROOT } from '../../tools/dev/lib/paths.js';
 import { DEFAULT_REVIEWER } from '../../tools/dev/lib/spawn.js';
@@ -72,8 +74,8 @@ describe('orchestrator brief models', () => {
   const orchestrator = readFileSync(path.join(BRIEFS, 'orchestrator.md'), 'utf8');
 
   it('spawns menial jobs on sonnet and hard or CRITICAL.md jobs on opus', () => {
-    expect(orchestrator).toContain('--model sonnet');
-    expect(orchestrator).toContain('--model opus');
+    expect(orchestrator).toContain('`model: sonnet`');
+    expect(orchestrator).toContain('`model: opus`');
     expect(orchestrator).toContain('CRITICAL.md');
   });
 
@@ -84,6 +86,54 @@ describe('orchestrator brief models', () => {
 
   it('names the model and why in the spawn line it posts', () => {
     expect(orchestrator).toContain('model and why');
+  });
+});
+
+describe('orchestrator brief run', () => {
+  const orchestrator = readFileSync(path.join(BRIEFS, 'orchestrator.md'), 'utf8');
+
+  it('plans the team from the topic and the human first line', () => {
+    expect(orchestrator).toMatch(/the room's topic \(`list_rooms` shows it.*\) plus the human's first line/);
+    expect(orchestrator).toContain('one reviewer for every one or two workers');
+  });
+
+  it('spawns each seat itself with a role and instructions, reviewers first', () => {
+    expect(orchestrator).toContain(
+      '`spawn` each seat: `name`, `role`, `instructions`, `cwd`, `model`. Reviewers first',
+    );
+    expect(orchestrator).not.toContain('messhall-dev spawn');
+  });
+
+  it('asks the human to start an agent in a folder spawn calls untrusted', () => {
+    expect(orchestrator).toMatch(/untrusted folder.*`ask_human`/);
+  });
+
+  it('quotes the line messhall posts when a seat keeps dying', () => {
+    const quoted = '@human <name> keeps dying';
+
+    expect(orchestrator).toContain(`\`${quoted}\``);
+    expect(keepsDyingLine({ name: '<name>', room: 'dev' })).toMatch(new RegExp(`^${quoted}`));
+  });
+
+  it('wraps up by kicking the seats it spawned, then posting what shipped', () => {
+    expect(orchestrator).toMatch(/`kick` every seat you spawned.*then post one wrap-up line.*what shipped/s);
+  });
+
+  it('leaves after its wrap-up, since a room the human made stays open', () => {
+    expect(orchestrator).toContain(
+      'A room the human made stays open until the human closes it. `leave` after it either way.',
+    );
+    expect(orchestrator).not.toContain('Hold the seat for questions');
+  });
+
+  it('plans within the spawn seat cap and rate', () => {
+    expect(orchestrator).toContain(`At most ${SPAWN_SEAT_CAP} spawned seats, reviewers counted`);
+    expect(orchestrator).toContain(`at most ${SPAWN_RATE_MAX} spawns a minute`);
+  });
+
+  it('gives workers written from scratch the human rules from worker.md', () => {
+    expect(orchestrator).toContain('never ask the human to approve or run a command');
+    expect(orchestrator).toContain('never merge a PR on a `CRITICAL.md` tree');
   });
 });
 
