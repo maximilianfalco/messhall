@@ -13,4 +13,11 @@ describe('dmg.sh', () => {
     expect(bundle).toEqual(['Templates', 'Avatars']);
     for (const folder of bundle) expect(dmg).toContain(folder);
   });
+
+  it.each([
+    ['app/scripts/bundle.sh', 'cp ../docs/briefs/orchestrator.md "$APP/Contents/Resources/orchestrator.md"'],
+    ['app/scripts/dmg.sh', 'cp docs/briefs/orchestrator.md "$APP/Contents/Resources/orchestrator.md"'],
+  ])('%s ships the orchestrator brief the New Room switch reads', (script, line) => {
+    expect(read(script)).toContain(line);
+  });
 });

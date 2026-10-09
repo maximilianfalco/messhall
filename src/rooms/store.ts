@@ -189,8 +189,13 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
       `SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND ${IS_POST} ORDER BY id DESC LIMIT ?) ORDER BY id`,
     ),
     latestId: db.prepare('SELECT max(id) AS id FROM messages WHERE room_id = ?'),
+    // A role outlives a leave, but not the orchestrator one, or the next agent to take the free name would get it.
     leave: db.prepare(
-      "UPDATE members SET left_at = ?, presence = 'left', status = NULL, status_at = NULL WHERE room_id = ? AND name = ?",
+      `UPDATE members SET left_at = ?, presence = 'left', status = NULL, status_at = NULL,
+        role_instructions = CASE role WHEN '${ORCHESTRATOR_ROLE}' THEN NULL ELSE role_instructions END,
+        role_set_by = CASE role WHEN '${ORCHESTRATOR_ROLE}' THEN NULL ELSE role_set_by END,
+        role = CASE role WHEN '${ORCHESTRATOR_ROLE}' THEN '${UNASSIGNED_ROLE}' ELSE role END
+        WHERE room_id = ? AND name = ?`,
     ),
     liveMembers: db.prepare('SELECT * FROM members WHERE room_id = ? AND left_at IS NULL ORDER BY name'),
     member: db.prepare('SELECT * FROM members WHERE room_id = ? AND name = ?'),
@@ -666,7 +671,7 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const cursor = startCursor(room);
         const held = sql.heldNotes.all(room.id, as, noteCutoff());
         const [name, version] = [client?.name ?? null, client?.version ?? null];
-        const role = observe ? OBSERVER_ROLE : as === ORCHESTRATOR_ROLE ? ORCHESTRATOR_ROLE : UNASSIGNED_ROLE;
+        const role = observe ? OBSERVER_ROLE : UNASSIGNED_ROLE;
         const seatKeyOrNull = seatKey ?? invite ?? null;
         if (existing) sql.rejoin.run(kind, name, version, seatKeyOrNull, stamp(), reattach ? 1 : 0, room.id, as);
         if (existing && observe) sql.setRole.run(OBSERVER_ROLE, null, as, room.id, as);

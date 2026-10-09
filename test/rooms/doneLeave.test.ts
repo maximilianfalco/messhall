@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { scratchStore } from './scratch.js';
+import { scratchStore, seatOrchestrator } from './scratch.js';
 
 let scratch: ReturnType<typeof scratchStore>;
 
@@ -8,7 +8,7 @@ beforeEach(() => {
   scratch = scratchStore();
   scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
   scratch.store.joinRoom({ as: 'web', kind: 'claude', room: 'demo' });
-  scratch.store.joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+  seatOrchestrator(scratch.store);
 });
 
 afterEach(() => {

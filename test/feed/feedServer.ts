@@ -66,15 +66,15 @@ export async function feedServer() {
     url: 'http://127.0.0.1:7791',
   });
   // Plays the spawned claude: its first call carries the seat key from the mcp config the spawner wrote.
-  const seatOnStart = () =>
+  const seatOnStart = ({ name = 'api', room = 'demo' } = {}) =>
     tmux.mockImplementation(args => {
       if (args[0] === 'new-session') {
-        const file = path.join(scratch.dataDir, 'spawn', 'demo_api-mcp.json');
+        const file = path.join(scratch.dataDir, 'spawn', `${room}_${name}-mcp.json`);
         const config = parseStoredJson(readFileSync(file, 'utf8')) as {
           mcpServers: { messhall: { headers: Record<string, string> } };
         };
         const seatKey = config.mcpServers.messhall.headers['x-messhall-seat'];
-        scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo', seatKey });
+        scratch.store.joinRoom({ as: name, kind: 'claude', room, seatKey });
       }
       const stdout = args[0] === 'display-message' ? '✳ Claude Code\n' : '';
       return Promise.resolve({ code: 0, stderr: '', stdout });

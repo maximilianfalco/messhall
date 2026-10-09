@@ -1,8 +1,8 @@
 import type { LaunchDeps } from '../../src/cli/launch.js';
 import type { RunResult } from '../../src/lib/run.js';
 
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
@@ -10,7 +10,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { claudeArgv, claudePrompt, runClaude } from '../../src/cli/claude.js';
 import { codexArgv, codexPrompt, runCodex } from '../../src/cli/codex.js';
-import { packageRoot } from '../../src/lib/packageRoot.js';
+import { ORCHESTRATOR_BRIEF } from '../../src/cli/spawn.js';
+import { feedServer } from '../feed/feedServer.js';
 
 const URL_BASE = 'http://127.0.0.1:7787';
 const CLAUDE_ENTRY = [
@@ -59,6 +60,7 @@ function deps(overrides: Partial<LaunchDeps> = {}): LaunchDeps {
   return {
     codexConfig: path.join(home, '.codex', 'config.toml'),
     cwd: repo,
+    dataDir: home,
     fetch: healthy,
     log: line => logs.push(line),
     run: FOUND,
@@ -178,19 +180,88 @@ describe('runClaude', () => {
     expect(spawned[0]?.argv.at(-1)).toContain(`read the brief at ${path.join(repo, 'lead.md')} and follow it`);
   });
 
-  it('gives the orchestrator name the shipped orchestrator brief', async () => {
-    await runClaude({ as: 'orchestrator', extra: [], print: false }, deps());
+  it('starts the orchestrator through the human spawn route and attaches to its tmux session', async () => {
+    const feed = await feedServer();
+    feed.seatOnStart({ name: 'orchestrator', room: 'lobby' });
 
-    const shipped = path.join(packageRoot(), 'docs', 'briefs', 'orchestrator.md');
-    expect(spawned[0]?.argv.at(-1)).toContain(`read the brief at ${shipped} and follow it`);
+    const code = await runClaude(
+      { as: 'orchestrator', extra: [], print: false },
+      deps({ dataDir: feed.scratch.dataDir, fetch, url: feed.url }),
+    );
+    const role = feed.scratch.store.roleOf({ name: 'orchestrator', room: 'lobby' });
+    await feed.close();
+
+    expect(code).toBe(3);
+    expect(role).toStrictEqual({
+      by: 'human',
+      instructions: readFileSync(ORCHESTRATOR_BRIEF, 'utf8'),
+      role: 'orchestrator',
+    });
+    expect(spawned).toStrictEqual([{ argv: ['tmux', 'attach', '-t', '=messhall_lobby_orchestrator'], cwd: repo }]);
+    expect(output()).toContain('orchestrator is seated in #lobby as orchestrator');
   });
 
-  it('keeps an explicit --brief over the shipped one for the orchestrator name', async () => {
-    writeFileSync(path.join(repo, 'mine.md'), 'my own rules');
+  it('starts the orchestrator in a room that already exists', async () => {
+    const feed = await feedServer();
+    feed.scratch.store.createRoom({ created_by: 'human', name: 'lobby' });
+    feed.seatOnStart({ name: 'orchestrator', room: 'lobby' });
 
-    await runClaude({ as: 'orchestrator', brief: 'mine.md', extra: [], print: false }, deps());
+    const code = await runClaude(
+      { as: 'orchestrator', extra: [], print: false },
+      deps({ dataDir: feed.scratch.dataDir, fetch, url: feed.url }),
+    );
+    await feed.close();
 
-    expect(spawned[0]?.argv.at(-1)).toContain(path.join(repo, 'mine.md'));
+    expect(code).toBe(3);
+  });
+
+  it('spawns the orchestrator in --cwd and reads --brief, both from the shell cwd', async () => {
+    const feed = await feedServer();
+    feed.seatOnStart({ name: 'orchestrator', room: 'lobby' });
+    writeFileSync(path.join(repo, 'lead.md'), 'lead the lobby');
+
+    await runClaude(
+      { as: 'orchestrator', brief: 'checkout-api/lead.md', cwd: 'checkout-api', extra: [], print: false },
+      deps({ cwd: home, dataDir: feed.scratch.dataDir, fetch, url: feed.url }),
+    );
+    const launched = feed.scratch.store.launchOf({ name: 'orchestrator', room: 'lobby' });
+    const role = feed.scratch.store.roleOf({ name: 'orchestrator', room: 'lobby' });
+    await feed.close();
+
+    expect(launched).toStrictEqual({ agent: 'claude', cwd: repo });
+    expect(role?.instructions).toBe('lead the lobby');
+    expect(spawned[0]?.cwd).toBe(repo);
+  });
+
+  it('refuses to spawn the orchestrator in the home folder, even with --print', async () => {
+    const code = await runClaude({ as: 'orchestrator', cwd: homedir(), extra: [], print: true }, deps());
+
+    expect(code).toBe(1);
+    expect(output()).toContain('not your home folder');
+  });
+
+  it('refuses claude args for the orchestrator, since its spawn takes none', async () => {
+    const code = await runClaude({ as: 'orchestrator', extra: ['--model', 'opus'], print: false }, deps());
+
+    expect(code).toBe(1);
+    expect(spawned).toStrictEqual([]);
+    expect(output()).toContain('the orchestrator is spawned by messhall, so it takes no claude args');
+  });
+
+  it('only says how it would start the orchestrator with --print', async () => {
+    const code = await runClaude({ as: 'orchestrator', extra: [], print: true }, deps({ fetch: refused }));
+
+    expect(code).toBe(0);
+    expect(spawned).toStrictEqual([]);
+    expect(output()).toContain('messhall spawns claude as orchestrator in #lobby');
+  });
+
+  it('gives a codex named orchestrator no brief and no role of its own', async () => {
+    writeCodexEntry();
+
+    await runCodex({ as: 'orchestrator', print: false }, deps());
+
+    expect(spawned[0]?.argv.at(-1)).not.toContain('brief');
   });
 
   it.each([

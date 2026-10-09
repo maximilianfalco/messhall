@@ -8,6 +8,10 @@ struct RoomTemplateTests {
   private static let shipped = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     .appendingPathComponent("Resources/Templates")
+  private static let shippedBrief = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    .deletingLastPathComponent().deletingLastPathComponent()
+    .appendingPathComponent("docs/briefs/orchestrator.md")
 
   private func template(room: String = "review", bots: [RoomTemplate.Bot] = []) -> RoomTemplate {
     RoomTemplate(id: "t", title: "T", blurb: "b", room: room, topic: "x", bots: bots)
@@ -113,5 +117,44 @@ struct RoomTemplateTests {
 
     #expect(pair.newRoom(named: "mine") == NewRoom(name: "mine", topic: nil))
     #expect(pair.draft(taken: []).topic == nil)
+  }
+
+  @Test("the orchestrator switch seats an orchestrator with the shipped brief as its instructions")
+  func orchestrator() throws {
+    let bot = try #require(RoomTemplate.orchestrator(brief: Self.shippedBrief))
+
+    #expect(bot.name == "orchestrator")
+    #expect(bot.role == "orchestrator")
+    #expect(bot.instructions == (try String(contentsOf: Self.shippedBrief, encoding: .utf8)))
+    #expect((1...4000).contains(bot.instructions.count))
+  }
+
+  @Test("a missing or empty brief gives no orchestrator, so the switch hides")
+  func orchestratorMissing() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let empty = dir.appendingPathComponent("orchestrator.md")
+    try "".write(to: empty, atomically: true, encoding: .utf8)
+
+    #expect(RoomTemplate.orchestrator(brief: dir.appendingPathComponent("nope.md")) == nil)
+    #expect(RoomTemplate.orchestrator(brief: empty) == nil)
+  }
+
+  @Test("the orchestrator starts first, and only once")
+  func adding() {
+    let lead = RoomTemplate.Bot(name: "orchestrator", role: "orchestrator", instructions: "lead")
+    let pair = template(bots: [RoomTemplate.Bot(name: "worker", role: "worker", instructions: "x")])
+
+    #expect(pair.adding(lead).bots.map(\.name) == ["orchestrator", "worker"])
+    #expect(pair.adding(lead).adding(lead).bots.map(\.name) == ["orchestrator", "worker"])
+  }
+
+  @Test("a blank room with the switch on starts only the orchestrator, under the typed name and topic")
+  func blankWithOrchestrator() {
+    let lead = RoomTemplate.Bot(name: "orchestrator", role: "orchestrator", instructions: "lead")
+    let blank = RoomTemplate.blank.renamed("planning", topic: "q4").adding(lead)
+
+    #expect(blank.newRoom(named: blank.room) == NewRoom(name: "planning", topic: "q4"))
+    #expect(blank.bots == [lead])
   }
 }

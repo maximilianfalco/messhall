@@ -8,6 +8,7 @@ struct NewRoomSheet: View {
   @State private var name: String
   @State private var topic = ""
   @State private var selected: String?
+  @State private var orchestrator: Bool
   @State private var folder: URL?
   @State private var startedRoom: String?
   @State private var choosingFolder = false
@@ -22,6 +23,7 @@ struct NewRoomSheet: View {
     let shotTemplate = RoomTemplate.templates.first { $0.id == navigation.newRoomTemplate }
     let draft = shotTemplate?.draft(taken: store.rooms.map(\.name))
     _selected = State(initialValue: shotTemplate?.id)
+    _orchestrator = State(initialValue: navigation.newRoomOrchestrator && RoomTemplate.shippedOrchestrator != nil)
     _name = State(initialValue: draft?.name ?? navigation.newRoomDraft ?? "")
     _topic = State(initialValue: draft?.topic ?? "")
   }
@@ -29,9 +31,15 @@ struct NewRoomSheet: View {
   private var taken: [String] { store.rooms.map(\.name) }
   private var problem: String? { startedRoom == nil ? RoomName.problem(name, taken: taken) : nil }
   private var template: RoomTemplate? { RoomTemplate.templates.first { $0.id == selected } }
+  private var lead: RoomTemplate.Bot? { orchestrator ? RoomTemplate.shippedOrchestrator : nil }
+  private var launch: RoomTemplate? {
+    let base = template ?? (lead == nil ? nil : RoomTemplate.blank)
+    guard let base, let lead else { return base }
+    return base.adding(lead)
+  }
   private var canCreate: Bool {
     let nameOk = startedRoom != nil || RoomName.isValid(name, taken: taken)
-    return nameOk && (template == nil || folder != nil) && !creating
+    return nameOk && (launch == nil || folder != nil) && !creating
   }
 
   var body: some View {
@@ -74,7 +82,8 @@ struct NewRoomSheet: View {
         Text("Agents come and go without closing it. It closes when you close it.")
           .foregroundStyle(.secondary)
       }
-      if let template { agentsSection(template) }
+      if RoomTemplate.shippedOrchestrator != nil { orchestratorSwitch }
+      if let launch { agentsSection(launch) }
       if let refusal {
         Text(refusal).foregroundStyle(.red)
       }
@@ -92,6 +101,15 @@ struct NewRoomSheet: View {
       if let template {
         Text(template.blurb).foregroundStyle(.secondary)
       }
+    }
+  }
+
+  private var orchestratorSwitch: some View {
+    Section {
+      Toggle("Start an orchestrator", isOn: $orchestrator)
+    } footer: {
+      Text("It hands out roles and spawns agents in the room. It does not build or review.")
+        .foregroundStyle(.secondary)
     }
   }
 
@@ -130,8 +148,8 @@ struct NewRoomSheet: View {
   private func create() {
     guard canCreate else { return }
     let topic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let template, let folder {
-      start(template.renamed(name, topic: topic), in: folder)
+    if let launch, let folder {
+      start(launch.renamed(name, topic: topic), in: folder)
       return
     }
     let room = NewRoom(name: name, topic: topic.isEmpty ? nil : topic)

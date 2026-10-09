@@ -56,6 +56,13 @@ export function mcpHarness({ spawner: makeSpawner }: { spawner?: (scratch: Scrat
     return member;
   }
 
+  /** Joins as `orchestrator` and has the human give it the role, the only way an agent gets it. */
+  async function orchestrator(room: string) {
+    const member = await joined(room, 'orchestrator');
+    scratch.store.assignRole({ by: 'human', member: 'orchestrator', role: 'orchestrator', room });
+    return member;
+  }
+
   function summary(input: { coversId: number; room: string; text: string }) {
     const result = scratch.store.addSummary(input);
     if (!result.ok) throw new Error(result.reason);
@@ -76,6 +83,7 @@ export function mcpHarness({ spawner: makeSpawner }: { spawner?: (scratch: Scrat
       return scratch.db;
     },
     joined,
+    orchestrator,
     sessions,
     summary,
     get store() {

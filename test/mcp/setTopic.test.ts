@@ -71,7 +71,7 @@ describe('set_topic', () => {
 
   it('lets an orchestrator set the topic of a room it did not make', async () => {
     await harness.joined('checkout', 'api');
-    const orchestrator = await harness.joined('checkout', 'orchestrator');
+    const orchestrator = await harness.orchestrator('checkout');
 
     const result = await orchestrator.call('set_topic', { room: 'checkout', topic: 'totals in cents' });
 

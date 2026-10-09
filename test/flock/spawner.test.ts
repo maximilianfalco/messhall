@@ -10,7 +10,7 @@ import { loadKeys } from '../../src/daemon/keys.js';
 import { agentArgv, createSpawner, sessionName, tmuxStartArgs } from '../../src/flock/spawner.js';
 import { parseStoredJson } from '../../src/lib/json.js';
 import { shellLine } from '../../src/lib/shell.js';
-import { scratchStore } from '../rooms/scratch.js';
+import { scratchStore, seatOrchestrator } from '../rooms/scratch.js';
 
 const CHANNELS = `WARNING: Loading development channels
  ❯ 1. Exit
@@ -442,7 +442,7 @@ describe('a seat that goes', () => {
   it('stops the tmux session of a spawned seat that is kicked', () => {
     const { sessions, tmux } = liveSessions();
     spawner(tmux);
-    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    seatOrchestrator(store());
     spawnedSeat('api');
     sessions.add('messhall_demo_api');
 

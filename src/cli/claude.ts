@@ -3,9 +3,13 @@ import type { Command } from 'commander';
 
 import { randomUUID } from 'node:crypto';
 
+import pc from 'picocolors';
+
+import { ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { SEAT_ENV, SERVER_NAME } from '../mcp/constants.js';
 
 import { BRIEF_HELP, briefLine, DEFAULT_ROOM, launch, launchDeps, launchTarget } from './launch.js';
+import { asHuman, checkOrchestrator, seatedLines, spawnOrchestrator } from './spawn.js';
 
 interface Seat {
   brief?: string | null;
@@ -31,11 +35,39 @@ export function claudeArgv({ extra, ...seat }: Seat & { extra: string[] }) {
   ];
 }
 
+/** Only the human gives the orchestrator role, so it is spawned through the human route, in its room made
+ * when missing, and this terminal attaches to its tmux session. */
+async function runOrchestrator(
+  { brief, cwd, extra, print, room }: Seat & { cwd: string; extra: string[]; print: boolean },
+  deps: LaunchDeps,
+) {
+  const refuse = (text: string) => {
+    deps.log(pc.red(text));
+    return 1;
+  };
+  if (extra.length) return refuse('the orchestrator is spawned by messhall, so it takes no claude args');
+  const read = checkOrchestrator({ brief: brief ?? undefined, cwd });
+  if (!read.ok) return refuse(read.error);
+  if (print) {
+    deps.log(`messhall spawns claude as orchestrator in #${room}, in ${cwd}, then attaches to its tmux session`);
+    return 0;
+  }
+  const daemon = { dataDir: deps.dataDir, fetch: deps.fetch, url: deps.url };
+  const made = await asHuman(daemon, '/api/rooms', { body: { name: room }, method: 'POST' });
+  if (!made.ok && made.status !== 409) return refuse(made.error);
+  const spawned = await spawnOrchestrator({ ...daemon, brief: read.text, cwd, room });
+  if (!spawned.ok) return refuse(spawned.error);
+  seatedLines({ name: ORCHESTRATOR_ROLE, role: ORCHESTRATOR_ROLE, room, session: spawned.session }).forEach(deps.log);
+  return deps.spawn(['tmux', 'attach', '-t', `=${spawned.session}`], cwd, {});
+}
+
 /** Starts Claude Code in the room with the doorbell on, in the foreground. A fresh seat key per run lets
  * the daemon hand this session its seat back after a reconnect or a restart. */
 export function runClaude(options: LaunchOptions & { extra: string[] }, deps: LaunchDeps) {
   const { cwd, ...seat } = launchTarget(options, deps.cwd);
-  const argv = claudeArgv({ ...seat, extra: options.extra });
+  const { extra, print } = options;
+  if (seat.name === ORCHESTRATOR_ROLE) return runOrchestrator({ ...seat, cwd, extra, print }, deps);
+  const argv = claudeArgv({ ...seat, extra });
   return launch(
     {
       agent: 'claude',
@@ -43,7 +75,7 @@ export function runClaude(options: LaunchOptions & { extra: string[] }, deps: La
       brief: seat.brief,
       cwd,
       env: { [SEAT_ENV]: randomUUID() },
-      print: options.print,
+      print,
       prompt: claudePrompt(seat),
     },
     deps,

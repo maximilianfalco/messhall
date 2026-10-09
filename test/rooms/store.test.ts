@@ -3,7 +3,7 @@ import type { RoomStore } from '../../src/rooms/store.js';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { scratchStore, T0 } from './scratch.js';
+import { scratchStore, seatOrchestrator, T0 } from './scratch.js';
 
 let scratch: ReturnType<typeof scratchStore>;
 
@@ -933,21 +933,70 @@ describe('searchMessages', () => {
 describe('roles', () => {
   const roleOf = (name: string) => memberOf('demo', name)?.role;
 
-  it('starts members unassigned and a member named orchestrator as orchestrator', () => {
+  it('starts every member unassigned, one named orchestrator too', () => {
     joinBoth();
     store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
 
     expect(['api', 'web', 'orchestrator', 'human'].map(roleOf)).toStrictEqual([
       'unassigned',
       'unassigned',
-      'orchestrator',
+      'unassigned',
       'unassigned',
     ]);
   });
 
-  it('lets the orchestrator assign a role and emits a member role event', () => {
+  it('refuses roles from a member that only took the name orchestrator', () => {
     joinBoth();
     store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(store().assignRole({ by: 'orchestrator', member: 'api', role: 'reviewer', room: 'demo' })).toStrictEqual({
+      ok: false,
+      reason: 'not_allowed',
+    });
+    expect(roleOf('api')).toBe('unassigned');
+  });
+
+  it.each([
+    ['leaves', () => store().leaveRoom({ as: 'orchestrator', room: 'demo' })],
+    ['is kicked', () => store().removeMember({ member: 'orchestrator', room: 'demo' })],
+  ])('gives no role to a keyless join after the orchestrator %s', (_case, gone) => {
+    joinBoth();
+    seatOrchestrator(store());
+    gone();
+
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(roleOf('orchestrator')).toBe('unassigned');
+    expect(store().assignRole({ by: 'orchestrator', member: 'api', role: 'reviewer', room: 'demo' })).toStrictEqual({
+      ok: false,
+      reason: 'not_allowed',
+    });
+  });
+
+  it('keeps an orchestrator role the human gave a left seat for its next join', () => {
+    joinBoth();
+    seatOrchestrator(store());
+    store().leaveRoom({ as: 'orchestrator', room: 'demo' });
+    store().assignRole({ by: 'human', member: 'orchestrator', role: 'orchestrator', room: 'demo' });
+
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(roleOf('orchestrator')).toBe('orchestrator');
+  });
+
+  it('keeps the orchestrator role when its seat comes back from away', () => {
+    joinBoth();
+    seatOrchestrator(store());
+    store().markReconnecting();
+
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(roleOf('orchestrator')).toBe('orchestrator');
+  });
+
+  it('lets the orchestrator assign a role and emits a member role event', () => {
+    joinBoth();
+    seatOrchestrator(store());
     const seen: SequencedEvent[] = [];
     store().events.on(event => seen.push(event));
 
@@ -1218,7 +1267,7 @@ describe('removing a member by hand', () => {
 describe('kicking a member', () => {
   it('lets an orchestrator drop any agent seat with a line naming who kicked it', () => {
     joinBoth();
-    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    seatOrchestrator(store());
 
     const result = store().kickMember({ by: 'orchestrator', member: 'api', room: 'demo' });
 
@@ -1238,7 +1287,7 @@ describe('kicking a member', () => {
   });
 
   it('refuses the human seat and a missing member', () => {
-    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    seatOrchestrator(store());
 
     expect(store().kickMember({ by: 'orchestrator', member: 'human', room: 'demo' })).toStrictEqual({
       ok: false,
@@ -1393,7 +1442,7 @@ describe('muting', () => {
 
   it('lets an orchestrator mute and unmute a member', () => {
     joinBoth();
-    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    seatOrchestrator(store());
 
     mute({ by: 'orchestrator', member: 'web' });
     const result = mute({ by: 'orchestrator', member: 'web', muted: false });
@@ -1465,7 +1514,7 @@ describe('muting', () => {
 
   it('refuses a muted orchestrator, so it cannot lift its own mute or mute others', () => {
     joinBoth();
-    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    seatOrchestrator(store());
     mute({ by: 'human', member: 'orchestrator' });
 
     expect(mute({ by: 'orchestrator', member: 'orchestrator', muted: false })).toStrictEqual({
@@ -1605,7 +1654,7 @@ describe('topics', () => {
 
   it.each(['orchestrator', 'human'])('lets %s set it', by => {
     joinBoth();
-    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+    seatOrchestrator(store());
 
     expect(setTopic({ by })).toMatchObject({ ok: true });
     expect(topicOf('demo')).toBe('checkout totals in cents');

@@ -25,7 +25,7 @@ describe('my_role', () => {
   });
 
   it('returns the role, who set it and its instructions in a fence', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const reviewer = await harness.joined('dev', 'reviewer-1');
     await orchestrator.call('assign_role', {
       instructions: 'review PRs that mention you.\nnever merge.',
@@ -47,7 +47,7 @@ describe('my_role', () => {
   });
 
   it('says when a role came with no instructions', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const web = await harness.joined('dev', 'web');
     await orchestrator.call('assign_role', { member: 'web', role: 'reviewer', room: 'dev' });
 
@@ -68,7 +68,7 @@ describe('my_role', () => {
 
 describe('join with a role', () => {
   it('returns the role and its instructions when the member comes back', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     const api = await harness.joined('dev', 'api');
     await orchestrator.call('assign_role', {
       instructions: 'build the row',
@@ -96,7 +96,7 @@ describe('join with a role', () => {
 
 describe('assign_role instructions', () => {
   it('refuses instructions over 4,000 chars', async () => {
-    const orchestrator = await harness.joined('dev', 'orchestrator');
+    const orchestrator = await harness.orchestrator('dev');
     await harness.joined('dev', 'api');
 
     const result = await orchestrator.call('assign_role', {

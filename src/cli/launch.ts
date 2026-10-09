@@ -4,9 +4,7 @@ import path from 'node:path';
 
 import pc from 'picocolors';
 
-import { ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
-import { codexConfigPath, daemonUrl } from '../config.js';
-import { packageRoot } from '../lib/packageRoot.js';
+import { codexConfigPath, daemonUrl, dataDir } from '../config.js';
 import { runCommand } from '../lib/run.js';
 import { shellLine } from '../lib/shell.js';
 
@@ -15,11 +13,12 @@ import { probeHealth } from './status.js';
 
 export const DEFAULT_ROOM = 'lobby';
 export const BRIEF_HELP =
-  'instructions to read and follow after the join, docs/briefs/orchestrator.md for --as orchestrator';
+  'instructions to read and follow after the join, the role instructions for --as orchestrator (docs/briefs/orchestrator.md by default)';
 
 export interface LaunchDeps {
   codexConfig: string;
   cwd: string;
+  dataDir: string;
   fetch: Parameters<typeof probeHealth>[0]['fetch'];
   log: (line: string) => void;
   run: typeof runCommand;
@@ -37,18 +36,13 @@ export interface LaunchOptions {
 
 export const briefLine = (brief: string) => `Then read the brief at ${brief} and follow it in the room.`;
 
-function briefPath(brief: string | undefined, name: string, base: string) {
-  if (brief) return path.resolve(base, brief);
-  if (name === ORCHESTRATOR_ROLE) return path.join(packageRoot(), 'docs', 'briefs', 'orchestrator.md');
-  return null;
-}
-
 /** The seat an agent starts in: folder, room, name and brief. The name is the folder's name unless `as` is given.
- * The brief is a full path from `base`, and the orchestrator name gets the shipped orchestrator brief when none is given. */
+ * The brief is a full path from `base`. */
 export function launchTarget(options: LaunchOptions, base: string) {
   const cwd = path.resolve(base, options.cwd ?? '.');
   const name = options.as ?? path.basename(cwd);
-  return { brief: briefPath(options.brief, name, base), cwd, name, room: options.room ?? DEFAULT_ROOM };
+  const brief = options.brief ? path.resolve(base, options.brief) : null;
+  return { brief, cwd, name, room: options.room ?? DEFAULT_ROOM };
 }
 
 async function missingEntry(agent: 'claude' | 'codex', deps: LaunchDeps) {
@@ -128,6 +122,7 @@ function runForeground(argv: string[], cwd: string, env: Record<string, string>)
 export const launchDeps = (): LaunchDeps => ({
   codexConfig: codexConfigPath(),
   cwd: process.cwd(),
+  dataDir: dataDir(),
   fetch,
   log: line => console.log(line),
   run: runCommand,

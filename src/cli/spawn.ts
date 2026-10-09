@@ -1,20 +1,24 @@
 import type { Command } from 'commander';
 
 import { readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
 import pc from 'picocolors';
 
-import { feedErrorSchema, flockSchema, spawnResultSchema } from '../../contracts/feed.ts';
-import { LAUNCH_AGENTS } from '../../contracts/room.ts';
+import { feedErrorSchema, flockSchema, humanRoleSchema, spawnResultSchema } from '../../contracts/feed.ts';
+import { INSTRUCTIONS_MAX_CHARS, LAUNCH_AGENTS, ORCHESTRATOR_ROLE } from '../../contracts/room.ts';
 import { daemonUrl, dataDir } from '../config.js';
 import { KEY_HEADER } from '../daemon/keys.js';
+import { packageRoot } from '../lib/packageRoot.js';
 
 import { readHumanKey } from './say.js';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-interface Daemon {
+export const ORCHESTRATOR_BRIEF = path.join(packageRoot(), 'docs', 'briefs', 'orchestrator.md');
+
+export interface Daemon {
   dataDir: string;
   fetch: Fetch;
   url: string;
@@ -23,7 +27,7 @@ interface Daemon {
 const fail = (text: string) => ({ code: 1, output: pc.red(text) }) as const;
 
 // One place for the key read, the down daemon and the refusal line, so every flock command fails the same way.
-async function asHuman(
+export async function asHuman(
   { dataDir: dir, fetch, url }: Daemon,
   route: string,
   init: { body?: unknown; method: 'DELETE' | 'GET' | 'POST' },
@@ -46,20 +50,11 @@ async function asHuman(
   return {
     error: `messhall refused: ${refused.success ? refused.data.error : `http ${response.status}`}`,
     ok: false,
+    status: response.status,
   } as const;
 }
 
-/** Starts an agent in a detached tmux session, seated in `room` as `name` with `role` from its first call. */
-export async function runSpawn({
-  agent,
-  cwd,
-  instructions,
-  model,
-  name,
-  role,
-  room,
-  ...daemon
-}: Daemon & {
+interface Spawn {
   agent?: string;
   cwd: string;
   instructions?: string;
@@ -67,20 +62,70 @@ export async function runSpawn({
   name: string;
   role: string;
   room: string;
-}) {
+}
+
+/** Asks the daemon to start an agent in a detached tmux session, seated in `room` as `name` with `role`
+ * from its first call. Returns the tmux session it runs in. */
+export async function spawnSeat({ cwd, dataDir: dir, fetch, room, url, ...seat }: Daemon & Spawn) {
+  const route = `/api/rooms/${encodeURIComponent(room)}/spawn`;
+  const body = { ...seat, cwd: path.resolve(cwd) };
+  const sent = await asHuman({ dataDir: dir, fetch, url }, route, { body, method: 'POST' });
+  if (!sent.ok) return sent;
+  const spawned = spawnResultSchema.safeParse(sent.body);
+  if (!spawned.success) {
+    return { error: 'messhall answered with something that is not a spawn result', ok: false } as const;
+  }
+  return { ok: true, session: spawned.data.session } as const;
+}
+
+/** The two lines that say where a spawned seat sits and how to watch it. */
+export const seatedLines = ({
+  name,
+  role,
+  room,
+  session,
+}: {
+  name: string;
+  role: string;
+  room: string;
+  session: string;
+}) => [`${name} is seated in #${room} as ${role}`, pc.dim(`watch it: tmux attach -t ${session}`)];
+
+/** Starts an agent in a detached tmux session, seated in `room` as `name` with `role` from its first call. */
+export async function runSpawn({ instructions, ...spawn }: Daemon & Spawn) {
   const isFile = instructions && statSync(instructions, { throwIfNoEntry: false })?.isFile();
   const text = isFile ? readFileSync(instructions, 'utf8') : instructions;
-  const body = { agent, cwd: path.resolve(cwd), instructions: text, model, name, role };
-  const sent = await asHuman(daemon, `/api/rooms/${encodeURIComponent(room)}/spawn`, { body, method: 'POST' });
+  const sent = await spawnSeat({ ...spawn, instructions: text });
   if (!sent.ok) return fail(sent.error);
-  const spawned = spawnResultSchema.safeParse(sent.body);
-  if (!spawned.success) return fail('messhall answered with something that is not a spawn result');
-  const { session } = spawned.data;
-  return {
-    code: 0,
-    output: [`${name} is seated in #${room} as ${role}`, pc.dim(`watch it: tmux attach -t ${session}`)].join('\n'),
-  } as const;
+  return { code: 0, output: seatedLines({ ...spawn, session: sent.session }).join('\n') } as const;
 }
+
+function readBrief(file: string) {
+  if (!statSync(file, { throwIfNoEntry: false })?.isFile()) {
+    return { error: `no brief file at ${file}`, ok: false } as const;
+  }
+  const parsed = humanRoleSchema.shape.instructions.safeParse(readFileSync(file, 'utf8'));
+  if (!parsed.success || !parsed.data) {
+    return { error: `the brief at ${file} is empty or over ${INSTRUCTIONS_MAX_CHARS} chars`, ok: false } as const;
+  }
+  return { ok: true, text: parsed.data } as const;
+}
+
+/** Checks an orchestrator spawn before anything is made: not the home folder, since the human spawn answers
+ * claude's trust dialog for it, and a brief held to the role instructions limit. Returns the brief text. */
+export function checkOrchestrator({ brief = ORCHESTRATOR_BRIEF, cwd }: { brief?: string; cwd: string }) {
+  if (path.resolve(cwd) === homedir()) {
+    return {
+      error: 'start the orchestrator in a project folder, not your home folder, since its spawn trusts it',
+      ok: false,
+    } as const;
+  }
+  return readBrief(brief);
+}
+
+/** Starts claude as the room's orchestrator through the human spawn route, its brief text as the role instructions. */
+export const spawnOrchestrator = ({ brief, ...daemon }: Daemon & { brief: string; cwd: string; room: string }) =>
+  spawnSeat({ ...daemon, instructions: brief, name: ORCHESTRATOR_ROLE, role: ORCHESTRATOR_ROLE });
 
 async function readFlock(daemon: Daemon, room?: string) {
   const query = room ? `?room=${encodeURIComponent(room)}` : '';
