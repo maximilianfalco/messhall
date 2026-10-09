@@ -182,6 +182,10 @@ describe('role settings profiles', () => {
     );
   });
 
+  it('denies a worker a bare tmux kill-server, which inside a seat ends every agent on the real server', () => {
+    expect(permissions('worker').deny).toContain('Bash(tmux kill-server:*)');
+  });
+
   it('lets a worker ship its job branch but merge only through the veto check', () => {
     expect(allowed('worker')).toStrictEqual(
       expect.arrayContaining([

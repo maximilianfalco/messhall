@@ -148,6 +148,7 @@ export async function startDaemon({
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 
+  let closed = false;
   const sweep = setInterval(() => {
     try {
       store.sweepPresence({ ringable: mcp.ringable });
@@ -167,7 +168,8 @@ export async function startDaemon({
     spawner
       .heal({ held: seat => mcp.sessionsFor(seat).some(entry => !entry.session.dead()) })
       .then(healed => healed.forEach(seat => logger.info('healed a seat', seat)))
-      .catch((error: unknown) => logger.error(asError(error), { message: 'healing seats failed' }));
+      // A heal still waiting on tmux when close shuts the db fails there, and that is no fault to log.
+      .catch((error: unknown) => closed || logger.error(asError(error), { message: 'healing seats failed' }));
   }, sweepEveryMs);
 
   // A spawned agent idle at the restart lost its event stream, so nothing rings it until it is woken.
@@ -187,6 +189,7 @@ export async function startDaemon({
   const daemon = {
     /** Stops the sweep, the doorbell and summaries, ends every MCP session, drops open connections and closes the db. */
     async close() {
+      closed = true;
       clearInterval(sweep);
       doorbell.stop();
       stopSummaries();
