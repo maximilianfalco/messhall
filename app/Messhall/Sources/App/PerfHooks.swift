@@ -29,7 +29,7 @@
     /// How many times a transcript row built its body. Counted everywhere, read only here.
     static var rowBodies = 0
     static var formBodies = 0
-    /// Picks option `0` of question `1` in the open form, the way a click on its row does.
+    /// Toggles option `$0` of question `$1` in the open form, the way a click on its row does.
     static var pickInForm: ((Int, Int) -> Void)?
     static var transcriptBodies = 0
     static var detailBodies = 0
