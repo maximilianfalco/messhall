@@ -15,13 +15,13 @@ test: ## Run the unit tests
 	pnpm exec vitest run
 check: lint test ## Run all code standards, lint checks and tests
 
-## Build the CLI and link `messhall` onto your PATH (pnpm link --global).
+## Build the CLI and link `messhall` onto your PATH (pnpm add --global link:<dir>, which pnpm 10 and 12 both take).
 install:
 	@if [ ! -d .git ] && [ -z "$(FORCE)" ]; then \
 		echo "make install from a worktree would repoint the global messhall. Run it from the main checkout, or FORCE=1 make install." >&2; exit 1; \
 	fi
 	pnpm build
-	pnpm link --global
+	pnpm add --global "link:$(CURDIR)"
 	@echo "messhall is on your PATH. Run make install again after pulling."
 
 ## The Mac app. Needs Xcode installed (not selected), see app/scripts/bundle.sh.
