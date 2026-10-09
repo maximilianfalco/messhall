@@ -1,6 +1,31 @@
 {
   "permissions": {
     "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Skill",
+      "Agent",
+      "TodoWrite",
+      "Read(//**/personal-dev-notes.md)",
+      "Bash(pnpm:*)",
+      "Bash(make install)",
+      "Bash(messhall start)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull)",
+      "Bash(git merge origin/main)",
+      "Bash(git worktree:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run view:*)",
       "Bash(git push -u origin HEAD)",
       "Bash(git push)",
       "Bash(gh pr create:*)",
@@ -8,6 +33,11 @@
       "Bash(pnpm -s messhall-dev qa-upload:*)",
       "Bash(pnpm -s messhall-dev merge:*)",
       "Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)"
+    ],
+    "deny": [
+      "Bash(gh pr merge:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
     ]
   }
 }
