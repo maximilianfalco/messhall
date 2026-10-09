@@ -92,7 +92,7 @@ describe('orchestrator brief run', () => {
   const orchestrator = readFileSync(path.join(BRIEFS, 'orchestrator.md'), 'utf8');
 
   it('plans the team from the topic and the human first line', () => {
-    expect(orchestrator).toContain("the room's topic plus the human's first line");
+    expect(orchestrator).toMatch(/the room's topic \(`list_rooms` shows it.*\) plus the human's first line/);
     expect(orchestrator).toContain('one reviewer for every one or two workers');
   });
 
@@ -116,6 +116,11 @@ describe('orchestrator brief run', () => {
 
   it('wraps up by kicking the seats it spawned, then posting what shipped', () => {
     expect(orchestrator).toMatch(/`kick` every seat you spawned.*then post one wrap-up line.*what shipped/s);
+  });
+
+  it('leaves once its done wrap-up closes the room, not holding a closed seat', () => {
+    expect(orchestrator).toContain('That closes the room once every agent is done, so `leave` after it.');
+    expect(orchestrator).not.toContain('Hold the seat for questions');
   });
 });
 
