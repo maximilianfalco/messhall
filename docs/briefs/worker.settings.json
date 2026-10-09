@@ -18,6 +18,11 @@
       "Bash(pnpm -s messhall-dev qa-upload:*)",
       "Bash(pnpm -s messhall-dev merge:*)",
       "Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)"
+    ],
+    "deny": [
+      "Bash(gh pr merge:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
     ]
   }
 }

@@ -88,15 +88,39 @@ describe('orchestrator brief models', () => {
 });
 
 describe('role settings profiles', () => {
-  const allowed = (role: string) =>
+  const permissions = (role: string) =>
     (
       JSON.parse(readFileSync(path.join(BRIEFS, `${role}.settings.json`), 'utf8')) as {
-        permissions: { allow: string[] };
+        permissions: { allow: string[]; deny?: string[] };
       }
-    ).permissions.allow;
+    ).permissions;
+  const allowed = (role: string) => permissions(role).allow;
+
+  it('gives a worker its build tools and the plan file', () => {
+    expect(allowed('worker')).toStrictEqual(
+      expect.arrayContaining([
+        'Bash',
+        'Read',
+        'Edit',
+        'Write',
+        'Glob',
+        'Grep',
+        'Skill',
+        'Agent',
+        'TodoWrite',
+        'Read(//**/personal-dev-notes.md)',
+      ]),
+    );
+  });
+
+  it('denies a worker gh pr merge and any force push, since plain Bash is allowed', () => {
+    expect(permissions('worker').deny).toStrictEqual(
+      expect.arrayContaining(['Bash(gh pr merge:*)', 'Bash(git push --force:*)', 'Bash(git push -f:*)']),
+    );
+  });
 
   it('lets a worker ship its job branch but merge only through the veto check', () => {
-    expect(allowed('worker')).toStrictEqual([
+    expect(allowed('worker').filter(rule => rule.startsWith('Bash('))).toStrictEqual([
       'Bash(git push -u origin HEAD)',
       'Bash(git push)',
       'Bash(gh pr create:*)',
