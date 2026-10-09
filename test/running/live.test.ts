@@ -108,7 +108,9 @@ describe('peerSeats', () => {
     const calls: string[][] = [];
     const run = (command: string, args: string[]) => {
       calls.push([command, ...args]);
-      return Promise.resolve(ok('p101\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n'));
+      return Promise.resolve(
+        ok(command === 'ps' ? '  PID  PPID\n  101     1\n' : 'p101\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n'),
+      );
     };
 
     const seats = await peerSeats({
@@ -123,7 +125,25 @@ describe('peerSeats', () => {
     expect(seats).toStrictEqual([
       { cwd: null, kind: 'claude', name: 'api', pid: 101, room: 'dev', threadId: null, tmux: null },
     ]);
-    expect(calls).toStrictEqual([['lsof', '-b', '-w', '-nP', '-iTCP:7707', '-sTCP:ESTABLISHED', '-Fpn']]);
+    expect(calls).toStrictEqual([
+      ['lsof', '-b', '-w', '-nP', '-iTCP:7707', '-sTCP:ESTABLISHED', '-Fpn'],
+      ['ps', '-axo', 'pid,ppid'],
+    ]);
+  });
+
+  it('also seats the parents of the process holding the socket, since the client may be a child of the session', async () => {
+    const run = (command: string) =>
+      Promise.resolve(
+        ok(command === 'ps' ? 'PID PPID\n300 200\n200 101\n101 1\n' : 'p300\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n'),
+      );
+
+    const seats = await peerSeats({
+      peers: () => [{ kind: 'claude', ports: [51001], seats: [{ name: 'api', room: 'dev' }] }],
+      port: 7707,
+      run,
+    });
+
+    expect(seats.map(seat => seat.pid)).toStrictEqual([300, 200, 101]);
   });
 
   it('skips lsof when no session is seated', async () => {

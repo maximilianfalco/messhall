@@ -44,7 +44,7 @@ describe('suggestRooms', () => {
     const agents = [
       agent({ branch: 'next', id: 'a' }),
       agent({ branch: 'next', id: 'b' }),
-      agent({ branch: 'main', id: 'c' }),
+      agent({ branch: 'dev', id: 'c' }),
     ];
 
     expect(suggestRooms({ agents })).toStrictEqual([{ ids: ['a', 'b'], key: 'api/next', room: 'api-next' }]);
@@ -62,15 +62,30 @@ describe('suggestRooms', () => {
     expect(suggestRooms({ agents })).toStrictEqual([]);
   });
 
-  it('skips a group whose agents all sit in one room already', () => {
-    const agents = [agent({ id: 'a', room: 'rm-1234' }), agent({ id: 'b', room: 'rm-1234' })];
+  it('never groups on the default branch', () => {
+    const agents = [
+      agent({ branch: 'main', id: 'a' }),
+      agent({ branch: 'main', id: 'b' }),
+      agent({ branch: 'master', id: 'c' }),
+      agent({ branch: 'master', id: 'd' }),
+    ];
 
     expect(suggestRooms({ agents })).toStrictEqual([]);
   });
 
-  it('keeps a group when only some of it sits in a room', () => {
-    const agents = [agent({ id: 'a', room: 'rm-1234' }), agent({ id: 'b' })];
+  it('groups a ticket key even on a default-looking branch name', () => {
+    const agents = [agent({ branch: 'main-rm-1234', id: 'a' }), agent({ branch: 'rm-1234/x', id: 'b' })];
 
     expect(suggestRooms({ agents })).toStrictEqual([{ ids: ['a', 'b'], key: 'rm-1234', room: 'rm-1234' }]);
+  });
+
+  it('leaves out agents that already sit in a room', () => {
+    const agents = [
+      agent({ branch: 'next', id: 'a', room: 'dev' }),
+      agent({ branch: 'next', id: 'b' }),
+      agent({ branch: 'next', id: 'c', room: 'dev' }),
+    ];
+
+    expect(suggestRooms({ agents })).toStrictEqual([]);
   });
 });

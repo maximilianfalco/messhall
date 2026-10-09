@@ -28,6 +28,28 @@ async function plainCodex(run: Runner) {
   return cwdsFromLsof((await run('lsof', ['-a', '-b', '-w', '-d', 'cwd', '-Fn', '-p', pids.join(',')])).stdout);
 }
 
+function parentPids(ps: string) {
+  const parents = new Map<number, number>();
+  for (const line of ps.split('\n')) {
+    const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+    if (pid && ppid) parents.set(pid, ppid);
+  }
+  return parents;
+}
+
+// The socket may belong to a helper under the session, so the session is one of its parents.
+function lineage(pid: number, parents: Map<number, number>) {
+  const chain = [pid];
+  for (
+    let next = parents.get(pid);
+    next && next > 1 && chain.length < 8 && !chain.includes(next);
+    next = parents.get(next)
+  ) {
+    chain.push(next);
+  }
+  return chain;
+}
+
 /** The seats each seated MCP session holds, with the pid on the other end of its open socket to the daemon.
  * A session whose socket lsof cannot place is left out. */
 export async function peerSeats({
@@ -45,10 +67,13 @@ export async function peerSeats({
     lsof: (await run('lsof', ['-b', '-w', '-nP', `-iTCP:${port}`, '-sTCP:ESTABLISHED', '-Fpn'])).stdout,
     port,
   });
+  const parents = parentPids((await run('ps', ['-axo', 'pid,ppid'])).stdout);
   return seated.flatMap(({ kind, ports, seats }): KnownSeat[] => {
     const pid = ports.map(found => pids.get(found)).find(found => found !== undefined);
     if (pid === undefined) return [];
-    return seats.map(({ name, room }) => ({ cwd: null, kind, name, pid, room, threadId: null, tmux: null }));
+    return lineage(pid, parents).flatMap(held =>
+      seats.map(({ name, room }) => ({ cwd: null, kind, name, pid: held, room, threadId: null, tmux: null })),
+    );
   });
 }
 
