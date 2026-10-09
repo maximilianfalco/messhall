@@ -103,6 +103,9 @@ function caught(handler: Handler) {
 
 /** Opens the store and key files, marks members from the last run away, binds 127.0.0.1 and sweeps on a timer.
  * A taken port gives `port_taken` with the pid that holds it, never a quiet move. */
+// Outcomes that repeat every sweep while nothing changes, so they stay out of the log.
+const QUIET_UNSTICK = new Set(['api_down', 'clear', 'sent_before']);
+
 export async function startDaemon({
   dataDir,
   findPortHolder = lsofPortHolder,
@@ -205,7 +208,9 @@ export async function startDaemon({
     spawner
       .unstick()
       .then(seats =>
-        seats.forEach(seat => seat.outcome === 'clear' || logger.info('seat stopped by an API error', seat)),
+        seats
+          .filter(seat => !QUIET_UNSTICK.has(seat.outcome))
+          .forEach(seat => logger.info('seat stopped by an API error', seat)),
       )
       .catch((error: unknown) => closed || logger.error(asError(error), { message: 'unsticking seats failed' }));
   }, sweepEveryMs);
