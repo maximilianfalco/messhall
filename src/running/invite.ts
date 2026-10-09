@@ -2,6 +2,8 @@ import type { RunningAgent, RunningInviteItem } from '../../contracts/feed.ts';
 
 import path from 'node:path';
 
+import { roleFromFolder } from '../lib/names.js';
+
 const NAME_MAX = 40;
 const MID_TASK = 'If you are mid task, finish your step or ask your human first.';
 
@@ -16,13 +18,6 @@ export function joinLine({ agent, name, room }: { agent: RunningAgent; name: str
   }
   return `${intro} Join #${room} as ${name} with the messhall tools. ${MID_TASK}`;
 }
-
-const slug = (text: string) =>
-  text
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/^-+|-+$/g, '')
-    .slice(0, NAME_MAX) || 'agent';
 
 function nextFree(base: string, taken: Set<string>) {
   let name = base;
@@ -48,7 +43,7 @@ export async function inviteRunning({
   const picked = ids.map(id => {
     const agent = agents.find(found => found.id === id);
     if (!agent) return { agent, id, name: null };
-    return { agent, id, name: nextFree(slug(agent.repo ?? path.basename(agent.cwd)), taken) };
+    return { agent, id, name: nextFree(roleFromFolder(agent.repo ?? path.basename(agent.cwd)) ?? 'agent', taken) };
   });
   return Promise.all(
     picked.map(async ({ agent, id, name }): Promise<RunningInviteItem> => {

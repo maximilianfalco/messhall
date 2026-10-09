@@ -47,6 +47,12 @@ describe('suggestRooms', () => {
     expect(suggestRooms({ agents })).toStrictEqual([{ ids: ['a', 'b'], key: 'api/next', room: 'api-next' }]);
   });
 
+  it('drops a group whose key makes no room name', () => {
+    const agents = [agent({ branch: '日本', id: 'a', repo: '日本' }), agent({ branch: '日本', id: 'b', repo: '日本' })];
+
+    expect(suggestRooms({ agents })).toStrictEqual([]);
+  });
+
   it('skips a group of one and agents outside a repo', () => {
     const agents = [agent({ id: 'a' }), agent({ branch: null, id: 'b', repo: null })];
 

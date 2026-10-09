@@ -1,19 +1,13 @@
 import type { RoomSuggestion, RunningAgent } from '../../contracts/feed.ts';
 
+import { roleFromFolder } from '../lib/names.js';
+
 const TICKET_KEY = /(?:^|[^a-z0-9])([a-z]+-\d+)(?![0-9])/;
-const ROOM_NAME_MAX = 40;
 
 /** The first ticket key in a branch, like rm-1234, lower case. Null when it has none. */
 export function ticketKey(branch: string) {
   return TICKET_KEY.exec(branch.toLowerCase())?.[1] ?? null;
 }
-
-const roomName = (key: string) =>
-  key
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/^-+|-+$/g, '')
-    .slice(0, ROOM_NAME_MAX);
 
 function groupKey({ branch, repo }: RunningAgent) {
   if (!repo || !branch) return null;
@@ -30,7 +24,8 @@ export function suggestRooms({ agents }: { agents: RunningAgent[] }) {
   return [...groups].flatMap(([key, members]): RoomSuggestion[] => {
     if (members.length < 2) return [];
     const rooms = new Set(members.map(member => member.room));
-    if (rooms.size === 1 && !rooms.has(null)) return [];
-    return [{ ids: members.map(member => member.id), key, room: roomName(key) }];
+    const room = roleFromFolder(key);
+    if (!room || (rooms.size === 1 && !rooms.has(null))) return [];
+    return [{ ids: members.map(member => member.id), key, room }];
   });
 }

@@ -89,6 +89,17 @@ describe('inviteRunning', () => {
     expect(result.map(invite => invite.name)).toStrictEqual(['api', 'api-2']);
   });
 
+  it('names an agent agent when its folder makes no name', async () => {
+    const [result] = await inviteRunning({
+      agents: [agent({ cwd: '/Users/me/日本', repo: null })],
+      ids: ['s-1'],
+      queue: () => Promise.resolve(true),
+      room: 'rm-7',
+    });
+
+    expect(result?.name).toBe('agent');
+  });
+
   it('names an agent outside a repo by its folder', async () => {
     const [result] = await inviteRunning({
       agents: [agent({ cwd: '/Users/me/My Notes', repo: null })],
