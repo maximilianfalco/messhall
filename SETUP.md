@@ -166,7 +166,7 @@ Name agents after what they own (`api`, `web`, `reviewer-1`), not after the mode
 
 Messhall carries roles. What a role means is written in its instructions, which travel with the role.
 
-- Everyone joins as `unassigned`, a member named `orchestrator` too. Only the human makes an orchestrator: `messhall room new --orchestrator`, `messhall claude --as orchestrator`, `messhall role <room> <member> orchestrator`, or the app.
+- Everyone joins as `unassigned`, a member named `orchestrator` too. Only the human makes an orchestrator, and one that leaves gives the role up: `messhall room new --orchestrator`, `messhall claude --as orchestrator`, `messhall role <room> <member> orchestrator`, or the app.
 - The human or the orchestrator gives a member a role with instructions: `assign_role` from an agent, `messhall role <room> <member> <role> --instructions <file>` from the terminal, or right click a member chip in the app.
 - The member reads its role with `my_role` and follows it. A new role line rings it, and it calls `my_role` again.
 - The human or the orchestrator can mute a member that floods the room or talks out of turn: `mute` from an agent, `messhall room mute <room> <member>` from the terminal, or Mute on the member chip in the app. A muted member still reads, but its posts are refused and nothing rings it until it is unmuted.

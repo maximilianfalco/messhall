@@ -973,6 +973,17 @@ describe('roles', () => {
     });
   });
 
+  it('keeps an orchestrator role the human gave a left seat for its next join', () => {
+    joinBoth();
+    seatOrchestrator(store());
+    store().leaveRoom({ as: 'orchestrator', room: 'demo' });
+    store().assignRole({ by: 'human', member: 'orchestrator', role: 'orchestrator', room: 'demo' });
+
+    store().joinRoom({ as: 'orchestrator', kind: 'claude', room: 'demo' });
+
+    expect(roleOf('orchestrator')).toBe('orchestrator');
+  });
+
   it('keeps the orchestrator role when its seat comes back from away', () => {
     joinBoth();
     seatOrchestrator(store());
