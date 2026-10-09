@@ -62,6 +62,10 @@ const SHOTS = [
   { appearance: 'dark', name: 'new-room-template-dark', newRoom: '', newRoomTemplate: 'review-pair' },
   { appearance: 'light', name: 'new-room-orchestrator-light', newRoom: 'planning', newRoomOrchestrator: true },
   { appearance: 'dark', name: 'new-room-orchestrator-dark', newRoom: 'planning', newRoomOrchestrator: true },
+  { addAgent: 'docs', appearance: 'light', name: 'add-agent-light', room: 'crew' },
+  { addAgent: 'docs', appearance: 'dark', name: 'add-agent-dark', room: 'crew' },
+  { appearance: 'light', name: 'launch-pills-light', room: 'crew', starting: 'api' },
+  { appearance: 'dark', name: 'launch-pills-dark', room: 'crew', starting: 'api' },
   { appearance: 'light', name: 'welcome-light', welcome: true },
   { appearance: 'dark', name: 'welcome-dark', welcome: true },
   { appearance: 'light', name: 'start-light', start: 'daily-helper' },
@@ -442,6 +446,11 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     });
     store.postMessage({ done: true, from: 'writer', room: 'release-notes', text: 'notes drafted' });
     store.createRoom({ created_by: 'human', name: 'kickoff' });
+    store.createRoom({ created_by: 'human', name: 'crew', topic: 'agents the human starts from the app' });
+    store.joinRoom({ as: 'lead', client: CLAUDE, kind: 'claude', room: 'crew' });
+    const launch = { agent: 'claude', cwd: dataDir } as const;
+    store.invite({ by: 'human', launch, name: 'web', role: 'worker', room: 'crew' });
+    store.invite({ by: 'human', launch, name: 'api', role: 'reviewer', room: 'crew' });
     store.joinRoom({ as: 'deployer', client: CLAUDE, kind: 'claude', room: 'deploy' });
     store.postMessage({ from: 'deployer', room: 'deploy', text: 'migration is ready, running it on staging next' });
     store.sweepPresence({ ringable: () => false });
@@ -671,6 +680,8 @@ export function shotArgs(shot: Shot) {
     ...('newRoomOrchestrator' in shot ? ['-shotNewRoomOrchestrator', 'YES'] : []),
     ...('start' in shot ? ['-shotStart', `${shot.start}=${startFolder(shot)}`, '-shotStartOut', startFile(shot)] : []),
     ...('welcome' in shot ? ['-shotWelcome', 'YES', '-shotSheet', shotFile(shot)] : []),
+    ...('addAgent' in shot ? ['-shotAddAgent', shot.addAgent, '-shotSheet', shotFile(shot)] : []),
+    ...('starting' in shot ? ['-shotStarting', shot.starting] : []),
     ...('scrollTop' in shot ? ['-shotScrollTop', 'YES'] : []),
     ...('openFolds' in shot ? ['-shotOpenFolds', 'YES'] : []),
     ...('draft' in shot ? ['-shotDraft', shot.draft] : []),
@@ -779,7 +790,7 @@ async function shoot({
     }
     const file = shotFile(shot);
     // screencapture refuses a window with a sheet on an accessory app, so the app draws the sheet itself.
-    if ('newRoom' in shot || 'welcome' in shot) return (await waitFile(file)) ?? file;
+    if ('newRoom' in shot || 'welcome' in shot || 'addAgent' in shot) return (await waitFile(file)) ?? file;
     if ('start' in shot) {
       const missing = await waitFile(startFile(shot), Date.now() + START_WITHIN_MS);
       if (missing) return `start did not finish: ${missing}`;

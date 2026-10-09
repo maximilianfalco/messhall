@@ -12,13 +12,19 @@ struct RoomDetail: View {
   @State private var refusal: String?
   @State private var query = ""
   @State private var draft = Self.startDraft
+  @State private var addingAgent = Self.shotAddAgent != nil
+  @State private var attachLines: [String: String] = [:]
   @FocusState private var composing: Bool
   @Environment(Notifier.self) private var notifier
 
   #if DEBUG
     private static let startDraft = ShotHooks.draft ?? ""
+    private static let shotAddAgent = ShotHooks.addAgent
+    private static let shotStarting = ShotHooks.starting
   #else
     private static let startDraft = ""
+    private static let shotAddAgent: AddAgentDraft? = nil
+    private static let shotStarting: Set<String> = []
   #endif
 
   private var subtitle: String {
@@ -41,9 +47,13 @@ struct RoomDetail: View {
         asking: Set(room.approvals.map(\.member) + room.questions.map(\.member)),
         mention: room.isOpen ? { mention($0) } : nil,
         setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) },
-        mute: room.isOpen ? { mute($0) } : nil
+        mute: room.isOpen ? { mute($0) } : nil,
+        starting: (store.starting[room.name] ?? []).union(Self.shotStarting), attachLines: attachLines,
+        addAgent: room.isOpen ? { addingAgent = true } : nil
       )
       .id(room.name)
+      // The flock lives in tmux, outside the feed, so it is fetched again whenever the seats change.
+      .task(id: room.liveMembers.map(\.name)) { attachLines = await store.attachLines(room: room.name, via: client) }
       if !room.agreements.isEmpty {
         AgreementsPanel(room: room.name, agreements: room.agreements)
           .id(room.name)
@@ -83,6 +93,10 @@ struct RoomDetail: View {
       }
     }
     .focusedSceneValue(\.roomToggle, RoomToggle(isOpen: room.isOpen, run: toggle))
+    .sheet(isPresented: $addingAgent) {
+      AddAgentSheet(
+        room: room.name, taken: room.present.map(\.name), draft: Self.shotAddAgent ?? AddAgentDraft(), add: spawn)
+    }
     .confirmationDialog("Close #\(room.name)?", isPresented: $confirmingClose) {
       Button("Close Room") { change(.close(room.name)) }
     } message: {
@@ -129,6 +143,10 @@ struct RoomDetail: View {
 
   private func mute(_ member: Member) {
     Task { refusal = await store.mute(member.name, muted: !member.muted, room: room.name, via: client) }
+  }
+
+  private func spawn(_ seat: HumanSpawn) {
+    Task { refusal = await store.spawn(seat, room: room.name, via: client) }
   }
 
   private func answer(_ approval: Approval, allow: Bool) {
@@ -267,6 +285,9 @@ struct MemberStrip: View {
   let setRole: ((_ role: String, _ member: String) -> Void)?
   let remove: ([String]) -> Void
   let mute: ((Member) -> Void)?
+  let starting: Set<String>
+  let attachLines: [String: String]
+  let addAgent: (() -> Void)?
   @State private var showsAway = Self.startsOpen
 
   #if DEBUG
@@ -284,6 +305,12 @@ struct MemberStrip: View {
             members: away, open: showsAway, toggle: { withAnimation(.snappy) { showsAway.toggle() } },
             clear: { remove(away.map(\.name)) })
           if showsAway { ForEach(away, id: \.name, content: removable) }
+        }
+        if let addAgent {
+          Button("Add Agent", systemImage: "plus", action: addAgent)
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .help("Add an agent to this room")
         }
       }
       .padding(.horizontal, 16)
@@ -303,6 +330,12 @@ struct MemberStrip: View {
         }
         if let mute, let action = member.muteAction {
           Button(action) { mute(member) }
+        }
+        if let line = attachLines[member.name] {
+          Button("Copy Attach Line") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(line, forType: .string)
+          }
         }
       }
   }
@@ -324,12 +357,16 @@ struct MemberStrip: View {
 
   @ViewBuilder private func mentionable(_ member: Member) -> some View {
     if let mention, member.kind != .human, member.presence != .left {
-      Button { mention(member.name) } label: { MemberChip(member: member, asks: asking.contains(member.name)) }
+      Button { mention(member.name) } label: { badged(member) }
         .buttonStyle(.plain)
         .accessibilityHint("Mentions \(member.name) in your message")
     } else {
-      MemberChip(member: member, asks: asking.contains(member.name))
+      badged(member)
     }
+  }
+
+  private func badged(_ member: Member) -> MemberChip {
+    MemberChip(member: member, asks: asking.contains(member.name), launch: member.launchPill(starting: starting))
   }
 }
 
@@ -394,6 +431,7 @@ struct AwayChip: View {
 struct MemberChip: View {
   let member: Member
   var asks = false
+  var launch: LaunchPill? = nil
 
   var body: some View {
     HStack(spacing: 8) {
@@ -420,6 +458,9 @@ struct MemberChip: View {
           }
           if asks {
             AskPill()
+          }
+          if let launch {
+            LaunchPillView(pill: launch)
           }
         }
         if member.status != nil {

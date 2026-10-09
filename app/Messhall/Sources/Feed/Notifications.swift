@@ -57,7 +57,7 @@ public func parseStamp(_ stamp: String) -> Date? {
 }
 
 /// The banner a live event earns, or nil: a mention of the human or all, a question from the
-/// only agent in the room, a room that closes, a new tool ask or a new question. Never for the human's own posts.
+/// only agent in the room, a room that closes, a new tool ask, a new question or a spawn. Never for the human's own posts.
 public func notificationFor(event: BusEvent, state: NotifyState) -> NotificationContent? {
   guard state.enabled else { return nil }
   switch event {
@@ -85,7 +85,10 @@ public func notificationFor(event: BusEvent, state: NotifyState) -> Notification
     // A banner button can only answer one pick one question, the rest is answered in the room.
     if ask.items.count == 1, !first.multiSelect { note.options = first.options.map(\.label) }
     return note
-  case .messageEdit, .member, .presence, .agreement, .unknown:
+  case .member(let e):
+    guard e.change == .invited, isLive(e.member.joinedAt, since: state.liveSince) else { return nil }
+    return content(room: e.room, body: "\(e.member.name) is starting as \(e.member.role)", muted: state.mutedRooms)
+  case .messageEdit, .presence, .agreement, .unknown:
     return nil
   }
 }

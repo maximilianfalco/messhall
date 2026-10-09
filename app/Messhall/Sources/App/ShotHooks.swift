@@ -66,6 +66,16 @@
     /// `-shotDraft <text>`: the composer opens with this typed, so a draft ending in `@` shows the mention picker.
     static let draft = UserDefaults.standard.string(forKey: "shotDraft")
 
+    /// `-shotAddAgent <name>`: the room opens with the Add Agent sheet up and a full draft for that name.
+    static let addAgent = UserDefaults.standard.string(forKey: "shotAddAgent").map {
+      AddAgentDraft(
+        name: $0, role: "reviewer", instructions: "review the checkout PR, blockers only",
+        folder: "/Users/dev/code/checkout", agent: .codex)
+    }
+
+    /// `-shotStarting <name>`: that seat shows as the app's own spawn, so the starting pill shows without a real agent.
+    static let starting = Set(UserDefaults.standard.string(forKey: "shotStarting").map { [$0] } ?? [])
+
     /// `-shotOther <text>`: each open question's last question opens with this typed in its Other box.
     static let other = UserDefaults.standard.string(forKey: "shotOther")
 

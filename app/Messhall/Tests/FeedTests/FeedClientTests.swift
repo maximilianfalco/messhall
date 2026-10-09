@@ -156,7 +156,7 @@ struct FeedClientSpawnTests {
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     try "k1\n".write(to: dir.appendingPathComponent("human-key"), atomically: true, encoding: .utf8)
     let client = FeedClient(config: FeedConfig(environment: ["MESSHALL_HOME": dir.path, "MESSHALL_PORT": "7796"]))
-    let seat = HumanSpawn(name: "worker", role: "worker", cwd: "/tmp", instructions: "do it", model: nil)
+    let seat = HumanSpawn(name: "worker", role: "worker", cwd: "/tmp", instructions: "do it", model: nil, agent: .codex)
 
     let request = try client.request(.spawn(room: "review", seat: seat))
     let body = try JSONDecoder().decode([String: String].self, from: try #require(request.httpBody))
@@ -164,6 +164,20 @@ struct FeedClientSpawnTests {
     #expect(request.httpMethod == "POST")
     #expect(request.url?.path == "/api/rooms/review/spawn")
     #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
-    #expect(body == ["name": "worker", "role": "worker", "cwd": "/tmp", "instructions": "do it"])
+    #expect(body == ["name": "worker", "role": "worker", "cwd": "/tmp", "instructions": "do it", "agent": "codex"])
+  }
+
+  @Test("the flock asks for one room's spawned seats with the human key")
+  func flock() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try "k1\n".write(to: dir.appendingPathComponent("human-key"), atomically: true, encoding: .utf8)
+    let client = FeedClient(config: FeedConfig(environment: ["MESSHALL_HOME": dir.path, "MESSHALL_PORT": "7796"]))
+
+    let request = try client.request(.flock(room: "review"))
+
+    #expect(request.httpMethod == "GET")
+    #expect(request.url?.absoluteString == "http://127.0.0.1:7796/api/flock?room=review")
+    #expect(request.value(forHTTPHeaderField: "x-messhall-key") == "k1")
   }
 }

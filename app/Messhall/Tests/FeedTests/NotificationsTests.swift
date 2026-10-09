@@ -175,6 +175,31 @@ struct NotificationsTests {
     #expect(notificationFor(event: member, state: try state(room: room)) == nil)
   }
 
+  private func invited(at: String = after) throws -> BusEvent {
+    var seat = try room().members[0]
+    seat.name = "web"
+    seat.role = "reviewer"
+    seat.presence = .invited
+    seat.joinedAt = at
+    return .member(MemberEvent(room: "checkout", change: .invited, member: seat))
+  }
+
+  @Test("a spawn posts who starts and as what, whoever started it")
+  func spawn() throws {
+    #expect(
+      notificationFor(event: try invited(), state: try state(room: room()))
+        == NotificationContent(room: "checkout", title: "#checkout", body: "web is starting as reviewer"))
+  }
+
+  @Test("a replayed spawn, one in a muted room or with notifications off does not post")
+  func spawnQuiet() throws {
+    let room = try room()
+
+    #expect(notificationFor(event: try invited(at: Self.before), state: try state(room: room)) == nil)
+    #expect(notificationFor(event: try invited(), state: try state(room: room, muted: ["checkout"])) == nil)
+    #expect(notificationFor(event: try invited(), state: try state(room: room, enabled: false)) == nil)
+  }
+
   private func ask(state: ApprovalState = .pending, at: String = after) -> BusEvent {
     .approval(
       ApprovalEvent(
