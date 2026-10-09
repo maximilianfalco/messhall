@@ -1,7 +1,7 @@
 import type { ThreadStatus } from '../../src/codex/generated/v2/ThreadStatus.js';
 import type { RunResult } from '../../src/lib/run.js';
 
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -47,6 +47,13 @@ describe('readClaudeSessions', () => {
 
   it('skips files that are not session json and never opens key files', () => {
     const dir = sessionsDir({ '101.abc.key': 'secret', '103.json': '{nope', 'notes.txt': 'x', '101.json': session() });
+
+    expect(readClaudeSessions({ alive: () => true, dir }).map(found => found.id)).toStrictEqual(['s-101']);
+  });
+
+  it('skips a session file that is a folder or gone by the time it is read', () => {
+    const dir = sessionsDir({ '101.json': session() });
+    mkdirSync(path.join(dir, '102.json'));
 
     expect(readClaudeSessions({ alive: () => true, dir }).map(found => found.id)).toStrictEqual(['s-101']);
   });

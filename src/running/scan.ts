@@ -24,9 +24,10 @@ export interface ClaudeSession {
   status: 'busy' | 'idle' | 'unknown';
 }
 
-function parseSession(text: string) {
+// A session can end between the listing and the read, so a missing file is just no session.
+function readSession(file: string) {
   try {
-    return claudeSessionSchema.safeParse(JSON.parse(text)).data ?? null;
+    return claudeSessionSchema.safeParse(JSON.parse(readFileSync(file, 'utf8'))).data ?? null;
   } catch {
     return null;
   }
@@ -47,7 +48,7 @@ export function readClaudeSessions({ alive, dir }: { alive: (pid: number) => boo
     .filter(name => SESSION_FILE.test(name))
     .sort()
     .flatMap((name): ClaudeSession[] => {
-      const found = parseSession(readFileSync(path.join(dir, name), 'utf8'));
+      const found = readSession(path.join(dir, name));
       if (!found || !alive(found.pid)) return [];
       return [{ cwd: found.cwd, id: found.sessionId, pid: found.pid, status: statusOf(found.status) }];
     });
