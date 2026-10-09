@@ -99,7 +99,6 @@ describe('role settings profiles', () => {
   it('gives a worker its build tools and the plan file', () => {
     expect(allowed('worker')).toStrictEqual(
       expect.arrayContaining([
-        'Bash',
         'Read',
         'Edit',
         'Write',
@@ -113,22 +112,38 @@ describe('role settings profiles', () => {
     );
   });
 
-  it('denies a worker gh pr merge and any force push, since plain Bash is allowed', () => {
+  it.each(['Bash', 'Bash(*)', 'Bash(:*)'])('never allows a worker every command with %s', rule => {
+    expect(allowed('worker')).not.toContain(rule);
+  });
+
+  it('allows a worker only named commands, none that end in a bare wildcard on a shell or an api call', () => {
+    const bash = allowed('worker').filter(rule => rule.startsWith('Bash('));
+    expect(bash).toStrictEqual(
+      expect.arrayContaining(['Bash(pnpm:*)', 'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(gh pr view:*)']),
+    );
+    expect(bash.filter(rule => /^Bash\((sh|bash|zsh|gh api|git push|curl|python3?|node):/.test(rule))).toStrictEqual(
+      [],
+    );
+  });
+
+  it('denies a worker gh pr merge and any force push', () => {
     expect(permissions('worker').deny).toStrictEqual(
       expect.arrayContaining(['Bash(gh pr merge:*)', 'Bash(git push --force:*)', 'Bash(git push -f:*)']),
     );
   });
 
   it('lets a worker ship its job branch but merge only through the veto check', () => {
-    expect(allowed('worker').filter(rule => rule.startsWith('Bash('))).toStrictEqual([
-      'Bash(git push -u origin HEAD)',
-      'Bash(git push)',
-      'Bash(gh pr create:*)',
-      'Bash(gh pr edit:*)',
-      'Bash(pnpm -s messhall-dev qa-upload:*)',
-      'Bash(pnpm -s messhall-dev merge:*)',
-      'Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)',
-    ]);
+    expect(allowed('worker')).toStrictEqual(
+      expect.arrayContaining([
+        'Bash(git push -u origin HEAD)',
+        'Bash(git push)',
+        'Bash(gh pr create:*)',
+        'Bash(gh pr edit:*)',
+        'Bash(pnpm -s messhall-dev qa-upload:*)',
+        'Bash(pnpm -s messhall-dev merge:*)',
+        'Bash(python3 .claude/skills/messhall-pickup-any-work/scripts/queue.py done:*)',
+      ]),
+    );
   });
 
   it('lets a worker push only its own branch, with no room for a force flag or another refspec', () => {
