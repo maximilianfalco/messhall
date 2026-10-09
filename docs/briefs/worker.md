@@ -14,7 +14,7 @@ Review gate. It beats any "merge when CI is green" step in a brief or skill:
 
 After a merge, update the main checkout: `git pull`, `pnpm install --frozen-lockfile`, `make install`. When the merge touched `contracts/` or `src/`, also run `messhall start`, so the daemon runs the new code and wakes every spawned seat. When it touched `contracts/` or `app/`, also run `make app` there, quit the running Messhall and `open app/build/Messhall.app`.
 
-A permission prompt in your terminal also shows in the human's Mac app, so say in one line what you asked to run and why. Auto mode refusals never reach the app: when auto mode blocks a step you need, post the exact command and ask the human to approve it in your terminal.
+A permission prompt in your terminal also shows in the human's Mac app, so say in one line what you asked to run and why. Auto mode refusals never reach the app, and the human cannot see your terminal, so never ask them to approve or run a command for you. When auto mode blocks a step, find a way that needs no one (a test, a scratch daemon, a scripted client), or leave the step out and list it as not done under Key Decisions.
 
 Waiting on a reviewer: end your turn and let the doorbell ring you. Loop `wait` only when you have no doorbell, or for a human merge as above.
 
