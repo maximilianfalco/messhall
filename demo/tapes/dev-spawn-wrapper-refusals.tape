@@ -1,4 +1,4 @@
-# QA tape for the dev spawn wrapper refusals: a row with no branch, an unknown row, and flock with no daemon.
+# QA tape for the dev spawn wrapper refusals: an unknown row and flock with no daemon.
 
 Set Shell zsh
 Set FontSize 18
@@ -19,11 +19,6 @@ Hide
 Type "clear"
 Enter
 Show
-
-Type "pnpm -s messhall-dev spawn D19 --dry-run; echo exit $?"
-Sleep 500ms
-Enter
-Sleep 6s
 
 Type "pnpm -s messhall-dev spawn B999 --dry-run; echo exit $?"
 Sleep 500ms

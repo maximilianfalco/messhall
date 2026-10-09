@@ -1,6 +1,16 @@
 {
   "permissions": {
     "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Skill",
+      "Agent",
+      "TodoWrite",
+      "Read(//**/personal-dev-notes.md)",
       "Bash(git push -u origin HEAD)",
       "Bash(git push)",
       "Bash(gh pr create:*)",

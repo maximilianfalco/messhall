@@ -8,6 +8,7 @@ import { stripVTControlCharacters } from 'node:util';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { INSTRUCTIONS_MAX_CHARS } from '../../contracts/room.ts';
 import { openDb } from '../../src/rooms/db.js';
 import { createRoomStore } from '../../src/rooms/store.js';
 import { flockStop, nudgeRun, reviewsReport, seatRun, spawnRun } from '../../tools/dev/commands/spawn.js';
@@ -170,6 +171,17 @@ describe('spawnRun', () => {
     const outcome = await spawnRun({ ...options, ...deps, dryRun: true, id: 'B82', reviewer });
     expect(outcome.code).toBe(1);
     expect(outcome.report).toContain(reason);
+  });
+
+  it('refuses role instructions over the limit before claiming or making a worktree', async () => {
+    const deps = setup();
+    const long = path.join(mkdtempSync(path.join(tmpdir(), 'spawn-')), 'long.md');
+    writeFileSync(long, 'x'.repeat(INSTRUCTIONS_MAX_CHARS));
+    const outcome = await spawnRun({ ...options, ...deps, dryRun: false, id: 'B82', instructions: long });
+    expect(outcome.code).toBe(1);
+    expect(outcome.report).toContain('over 4000 chars');
+    expect(deps.queue.mock.calls.map(([args]) => args[0])).toStrictEqual(['show']);
+    expect(deps.worktree).not.toHaveBeenCalled();
   });
 
   it('claims the row, makes the worktree and seats the agent there through the product spawner', async () => {

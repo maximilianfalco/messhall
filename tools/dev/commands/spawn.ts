@@ -4,7 +4,7 @@ import type { Command } from 'commander';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { NAME_PATTERN, RESERVED_NAMES, UNASSIGNED_ROLE } from '../../../contracts/room.ts';
+import { INSTRUCTIONS_MAX_CHARS, NAME_PATTERN, RESERVED_NAMES, UNASSIGNED_ROLE } from '../../../contracts/room.ts';
 import { runFlock, runFlockStop, seatedLines, spawnSeat } from '../../../src/cli/spawn.js';
 import { daemonUrl, dataDir as defaultDataDir, DB_FILE } from '../../../src/config.js';
 import { typePrompt, untypedLine } from '../../../src/flock/tmux.js';
@@ -126,8 +126,13 @@ export async function spawnRun({
       worktree: cwd,
     });
 
+  const planned = path.join(await mainCheckout(), worktreeRel);
+  if (roleText(planned).length > INSTRUCTIONS_MAX_CHARS) {
+    return { code: 1, report: bad(`not spawning: the role instructions are over ${INSTRUCTIONS_MAX_CHARS} chars`) };
+  }
+
   if (dryRun) {
-    const cwd = path.join(await mainCheckout(), worktreeRel);
+    const cwd = planned;
     return {
       code: 0,
       report: [
