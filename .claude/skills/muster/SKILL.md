@@ -81,7 +81,9 @@ Nothing is spawned before the human approves the build plan.
 - `spawn` each seat: `name`, `role` (`worker` or `reviewer`), `instructions`, `cwd` (its repo), `model`. Reviewers first, so workers have someone to hand to. Start only slices whose `after` is merged.
 - Post one line per seat: `@web-export your slice: the export button, on sonnet because it is ui wiring`.
 
-**No spawn tool?** If `spawn` is missing or refused, write each brief to `<plans folder>/<room>-<seat>.md`, post the `messhall spawn <room> <seat> --role <role> --instructions <file> --cwd <repo> --model <model>` lines for the human to run, and stop there.
+**Folder not trusted?** `spawn` refuses a repo claude has never trusted, since only the human can trust a folder. Write that seat's brief to `<plans folder>/<room>-<seat>.md`, post its `messhall spawn` line (below), ask the human with `ask_human` to run it (a human spawn trusts the folder), and carry on with the other seats.
+
+**No spawn tool?** If `spawn` is missing, or refused for any other reason, write each brief to `<plans folder>/<room>-<seat>.md`, post the `messhall spawn <room> <seat> --role <role> --instructions <file> --cwd <repo> --model <model>` lines for the human to run, and stop there.
 
 ## 8. Run the build
 

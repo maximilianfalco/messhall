@@ -50,6 +50,11 @@ describe('muster skill', () => {
     expect(skill).toContain('Never put the plan in a repo.');
   });
 
+  it('hands one untrusted repo to the human and keeps spawning the rest', () => {
+    expect(skill).toContain('**Folder not trusted?**');
+    expect(skill).toContain('carry on with the other seats');
+  });
+
   it('caps the crew at 4 workers', () => {
     expect(skill).toContain('at most 4 workers at once');
   });
