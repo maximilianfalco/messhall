@@ -16,10 +16,11 @@ import {
   removeMemberResultSchema,
   reopenResultSchema,
   reviewNudgesResultSchema,
+  runningSchema,
   spawnResultSchema,
 } from '../../contracts/feed.ts';
 
-import { feedServer } from './feedServer.js';
+import { FEED_RUNNING, feedServer } from './feedServer.js';
 
 let feed: Awaited<ReturnType<typeof feedServer>>;
 
@@ -577,6 +578,20 @@ describe('GET /api/flock', () => {
   it('refuses the agent key with 403', async () => {
     expect((await fetch(`${feed.url}/api/flock`, { headers: feed.headers('agent') })).status).toBe(403);
     expect(feed.tmux).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/running', () => {
+  it('lists the running sessions and suggested rooms for the human', async () => {
+    const res = await fetch(`${feed.url}/api/running`, { headers: feed.headers('human') });
+
+    expect(res.status).toBe(200);
+    expect(runningSchema.parse(await res.json())).toStrictEqual(FEED_RUNNING);
+  });
+
+  it('refuses the agent key with 403 before it scans', async () => {
+    expect((await fetch(`${feed.url}/api/running`, { headers: feed.headers('agent') })).status).toBe(403);
+    expect(feed.running).not.toHaveBeenCalled();
   });
 });
 

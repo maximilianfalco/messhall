@@ -144,6 +144,13 @@ export function createSessionRegistry<Entry extends { session: McpSession }>() {
     sessionsFor({ name, room }: { name: string; room: string }) {
       return [...entries.values()].filter(entry => entry.session.rooms.get(room) === name);
     },
+    /** Each room a codex session sits in, with its thread. */
+    threadSeats() {
+      return [...entries.values()].flatMap(({ session }) => {
+        const { threadId } = session;
+        return threadId ? [...session.rooms.keys()].map(room => ({ room, threadId })) : [];
+      });
+    },
   };
 }
 

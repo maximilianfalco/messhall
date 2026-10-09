@@ -48,6 +48,11 @@ export function codexControlSocket() {
   return process.env.MESSHALL_CODEX_SOCKET || path.join(codexHome, 'app-server-control', 'app-server-control.sock');
 }
 
+/** Where Claude Code lists its live sessions. `CLAUDE_CONFIG_DIR` wins, as it does for claude itself. */
+export function claudeSessionsDir() {
+  return path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), '.claude'), 'sessions');
+}
+
 /** Where rooms and keys live. `MESSHALL_HOME` wins so tests and tapes never touch the real data. */
 export function dataDir() {
   return process.env.MESSHALL_HOME || path.join(homedir(), 'Library', 'Application Support', 'messhall');

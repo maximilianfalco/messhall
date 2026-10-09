@@ -1,4 +1,4 @@
-import type { History, SearchResult } from '../../contracts/feed.ts';
+import type { History, Running, SearchResult } from '../../contracts/feed.ts';
 import type { Build } from '../../contracts/health.ts';
 import type { Keys } from '../daemon/keys.js';
 import type { Handler, Route } from '../daemon/router.js';
@@ -39,6 +39,7 @@ export function feedRoutes({
   keys,
   now,
   relay,
+  running,
   spawner,
   store,
 }: {
@@ -47,6 +48,7 @@ export function feedRoutes({
   keys: Keys;
   now: () => Date;
   relay: Relay;
+  running: () => Promise<Running>;
   spawner: Spawner;
   store: RoomStore;
 }) {
@@ -93,7 +95,7 @@ export function feedRoutes({
     { handle: read(eventStream({ build, every, now, store })), method: 'GET', path: '/api/events' },
     { handle: read(history), method: 'GET', path: '/api/rooms/*' },
     { handle: read(search), method: 'GET', path: '/api/search' },
-    ...humanRoutes({ keys, relay, spawner, store }),
+    ...humanRoutes({ keys, relay, running, spawner, store }),
   ];
   return routes;
 }

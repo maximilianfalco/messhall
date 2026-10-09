@@ -284,6 +284,17 @@ describe('join', () => {
     expect(result).toStrictEqual({ isError: true, text: 'name taken, try api-2.' });
   });
 
+  it('lists the room a codex thread sits in, and no claude', async () => {
+    await (await harness.agent({ name: 'claude-code' })).call('join', { as: 'api', room: 'checkout' });
+    await (await harness.agent({ name: 'codex-mcp-client' })).call('join', {
+      as: 'web',
+      room: 'checkout',
+      thread_id: LIVE_THREAD,
+    });
+
+    expect(harness.sessions.threadSeats()).toStrictEqual([{ room: 'checkout', threadId: LIVE_THREAD }]);
+  });
+
   it('never frees a seat keyed by a seat header or a codex thread, however long it is away', async () => {
     const keyed = await harness.agent({ name: 'claude-code', seat: 'seat-a' });
     const codex = await harness.agent({ name: 'codex-mcp-client' });

@@ -10,6 +10,7 @@ import type {
   RemoveMemberResult,
   ReopenResult,
   ReviewNudgesResult,
+  Running,
   SpawnResult,
 } from '../../contracts/feed.ts';
 import type { ApprovalBehavior } from '../../contracts/room.ts';
@@ -50,11 +51,13 @@ export type Relay = (verdict: { behavior: ApprovalBehavior; requestId: string; s
 export function humanRoutes({
   keys,
   relay,
+  running,
   spawner,
   store,
 }: {
   keys: Keys;
   relay: Relay;
+  running: () => Promise<Running>;
   spawner: Spawner;
   store: RoomStore;
 }) {
@@ -274,11 +277,17 @@ export function humanRoutes({
     else sendJson(res, 409, { error: 'the human seat cannot be removed' });
   };
 
+  // It lists what runs on this Mac, which no agent needs to see.
+  const listRunning: Handler = async (_req, res) => {
+    sendJson(res, 200, (await running()) satisfies Running);
+  };
+
   const routes: Route[] = [
     { handle: keys.requireKey('human', create), method: 'POST', path: '/api/rooms' },
     { handle: keys.requireKey('human', post), method: 'POST', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', remove), method: 'DELETE', path: '/api/rooms/*' },
     { handle: keys.requireKey('human', flock), method: 'GET', path: '/api/flock' },
+    { handle: keys.requireKey('human', listRunning), method: 'GET', path: '/api/running' },
     { handle: keys.requireKey('human', approve), method: 'POST', path: '/api/approvals/*' },
     { handle: keys.requireKey('human', pick), method: 'POST', path: '/api/questions/*' },
   ];
