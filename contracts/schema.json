@@ -780,6 +780,15 @@
           "pattern": "^[a-z0-9-]{1,40}$",
           "description": "What the member does here. Starts unassigned, orchestrator for a member named orchestrator."
         },
+        "reach": {
+          "description": "How messhall reaches the member. Set on the feed only, left out for the human seat.",
+          "type": "string",
+          "enum": [
+            "spawned",
+            "doorbell",
+            "no_doorbell"
+          ]
+        },
         "room_id": {
           "type": "string",
           "description": "Room id."
@@ -1113,6 +1122,15 @@
           "type": "string",
           "pattern": "^[a-z0-9-]{1,40}$",
           "description": "Member name."
+        },
+        "reach": {
+          "description": "How messhall reaches the member now, set on the feed only.",
+          "type": "string",
+          "enum": [
+            "spawned",
+            "doorbell",
+            "no_doorbell"
+          ]
         },
         "room": {
           "type": "string",

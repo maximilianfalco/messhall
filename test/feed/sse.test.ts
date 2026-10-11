@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { snapshotSchema } from '../../contracts/feed.ts';
 import { FEED_PING_MS, FEED_STALL_MS } from '../../src/config.js';
+import { createReachOf } from '../../src/feed/reach.js';
 import { openStream, resumeFrom } from '../../src/feed/sse.js';
 
 import { fakeEvery, FEED_BUILD, feedServer, frameReader } from './feedServer.js';
@@ -212,5 +213,42 @@ describe('openStream backpressure', () => {
     clock.advance(FEED_STALL_MS);
 
     expect(destroy).not.toHaveBeenCalled();
+  });
+});
+
+describe('reach on the stream', () => {
+  const open = () => {
+    const written: string[] = [];
+    const sink: Sink = { destroy: () => {}, on: () => {}, write: chunk => !!written.push(chunk) };
+    const reachOf = createReachOf({ sessionsFor: () => [], store: store() });
+    openStream({
+      build: null,
+      every: fakeEvery().every,
+      header: '0',
+      now: () => new Date(),
+      reachOf,
+      sink,
+      store: store(),
+    });
+    return written;
+  };
+
+  it('puts reach on member events', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    const joined = open()
+      .map(chunk => JSON.parse(chunk.split('data: ')[1]!) as { member?: { name: string; reach?: string } })
+      .find(data => data.member?.name === 'api');
+
+    expect(joined?.member?.reach).toBe('no_doorbell');
+  });
+
+  it('puts reach on presence events', () => {
+    store().joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    store().touch({ as: 'api', room: 'demo', state: 'waiting' });
+    const presence = open()
+      .map(chunk => JSON.parse(chunk.split('data: ')[1]!) as { reach?: string; type: string })
+      .find(data => data.type === 'presence');
+
+    expect(presence?.reach).toBe('no_doorbell');
   });
 });
