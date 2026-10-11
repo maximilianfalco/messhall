@@ -187,7 +187,7 @@ describe('the /mcp endpoint', () => {
     await vi.waitFor(async () => {
       const members = (await outsider.call('list_members', { room: 'checkout' })).text;
       expect(members).toContain('- api (messhall-http 0.1.0, idle)');
-      expect(members).toContain('- web (messhall-http 0.1.0, away)');
+      expect(members).toContain('- web (messhall-http 0.1.0 (no doorbell), away)');
     });
   });
 
@@ -257,7 +257,7 @@ describe('the /mcp endpoint', () => {
     const back = await agent(second.url, agentKey(), 'seat-a');
     const members = await back.call('list_members', { room: 'checkout' });
 
-    expect(members.text).toMatch(/api \([^)]*done/);
+    expect(members.text).toMatch(/api \(.*done/);
   });
 
   it('seats an invited agent on its first call with its role, so it posts with no join', async () => {

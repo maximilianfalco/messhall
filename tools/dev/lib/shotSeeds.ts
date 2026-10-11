@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { KEY_FILES } from '../../../src/daemon/keys.js';
+import { connectHttp } from '../../../src/mcp/testing.js';
 import { openDb } from '../../../src/rooms/db.js';
 import { askItems } from '../../../src/rooms/questions.js';
 import { createRoomStore } from '../../../src/rooms/store.js';
@@ -145,4 +147,21 @@ export function seedShotRunning(home: string) {
     writeFileSync(path.join(sessions, `${index + 1}.json`), JSON.stringify(session));
   });
   return { MESSHALL_CLAUDE_SESSIONS: sessions, MESSHALL_CODEX_SOCKET: path.join(home, 'no-codex.sock') };
+}
+
+const RING_ID = /doorbell_ok with id (\S+)\./;
+
+/**
+ * Seats `relay` in #reach as a live claude that answers its doorbell check, so the room shows all three reaches:
+ * relay rings, the invited `worker` is spawned and the opencode `plain` has no doorbell. Returns a closer.
+ */
+export async function holdDoorbellSeat({ home, url }: { home: string; url: string }) {
+  const key = readFileSync(path.join(home, KEY_FILES.agent), 'utf8').trim();
+  const held = await connectHttp({ key, name: CLAUDE.name, url });
+  held.client.fallbackNotificationHandler = async notification => {
+    const id = RING_ID.exec(JSON.stringify(notification.params))?.[1];
+    if (id) await held.client.callTool({ arguments: { id }, name: 'doorbell_ok' });
+  };
+  await held.client.callTool({ arguments: { as: 'relay', room: 'reach' }, name: 'join' });
+  return () => held.client.close();
 }

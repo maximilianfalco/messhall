@@ -55,6 +55,29 @@ extension Member {
   }
 }
 
+extension Reach {
+  /// The small label on a chip or agent row. Empty for a value this build does not know.
+  public var label: String {
+    switch self {
+    case .spawned: "spawned"
+    case .doorbell: "doorbell"
+    case .noDoorbell: "no doorbell"
+    case .unknown: ""
+    }
+  }
+
+  /// The tooltip that says what the label means.
+  public var help: String {
+    switch self {
+    case .spawned: "Spawned: messhall started it in its own tmux session, so it can type into it."
+    case .doorbell: "Doorbell: started with messhall claude, so a mention rings it through the channel."
+    case .noDoorbell:
+      "No doorbell: a plain claude or other client. It hears the room only while it sits in wait, and an invite needs a paste."
+    case .unknown: ""
+    }
+  }
+}
+
 extension Message {
   /// The type pill on a chat line. The label stamped on the post wins, so a sender who left keeps it.
   public func typeLabel(sender: Member?) -> String? {

@@ -12,7 +12,7 @@ import { openDb } from '../../../src/rooms/db.js';
 import { createRoomStore, type RoomStore } from '../../../src/rooms/store.js';
 import { REPO_ROOT } from '../lib/paths.js';
 import { bad, formatTable, ok } from '../lib/print.js';
-import { CLAUDE, seedShotAsk, seedShotRunning } from '../lib/shotSeeds.js';
+import { CLAUDE, holdDoorbellSeat, seedShotAsk, seedShotRunning } from '../lib/shotSeeds.js';
 
 import { APP_IDS } from './appBuilds.js';
 import { spawnDaemon } from './daemon.js';
@@ -178,6 +178,10 @@ const SHOTS = [
     room: 'launch',
   },
   { agents: true, appearance: 'light', name: 'agents-room-edits-light', room: 'edits' },
+  { appearance: 'light', name: 'reach-light', room: 'reach' },
+  { appearance: 'dark', name: 'reach-dark', room: 'reach' },
+  { agents: true, appearance: 'light', name: 'reach-agents-light', room: 'reach' },
+  { agents: true, appearance: 'dark', name: 'reach-agents-dark', room: 'reach' },
   { appearance: 'light', name: 'sidebar-collapsed-light', sidebarCollapsed: true },
   { appearance: 'dark', name: 'sidebar-collapsed-dark', sidebarCollapsed: true },
   { appearance: 'light', name: 'narrow-light', width: 720 },
@@ -494,6 +498,9 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     const launch = { agent: 'claude', cwd: dataDir } as const;
     store.invite({ by: 'human', launch, name: 'web', role: 'worker', room: 'crew' });
     store.invite({ by: 'human', launch, name: 'api', role: 'reviewer', room: 'crew' });
+    store.createRoom({ created_by: 'human', name: 'reach', topic: 'how messhall reaches each agent' });
+    store.invite({ by: 'human', launch, name: 'worker', role: 'worker', room: 'reach' });
+    store.joinRoom({ as: 'plain', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'reach' });
     store.joinRoom({ as: 'deployer', client: CLAUDE, kind: 'claude', room: 'deploy' });
     store.postMessage({ from: 'deployer', room: 'deploy', text: 'migration is ready, running it on staging next' });
     store.sweepPresence({ ringable: () => false });
@@ -810,6 +817,7 @@ async function appShot({ home, only, port, sidebar }: { home: string; only?: str
   const daemon = await spawnDaemon({ detached: false, env: seedShotRunning(home), home, port });
   if (!daemon.ok) return { code: 1, report: daemon.report };
   seedShotAsk({ dataDir: home, now: new Date() });
+  const releaseSeat = await holdDoorbellSeat({ home, url: daemon.url });
 
   const env = { ...process.env, MESSHALL_HOME: home, MESSHALL_PORT: String(port) };
   const rows: string[][] = [];
@@ -830,6 +838,7 @@ async function appShot({ home, only, port, sidebar }: { home: string; only?: str
       rows.push(...(await shootAll({ app, env, launched, shots: picked.shots })));
     }
   } finally {
+    await releaseSeat();
     await daemon.stop();
   }
   if (!sidebar && only === undefined) rows.push(...(await shootAll({ app, env, launched, shots: DOWN_SHOTS })));

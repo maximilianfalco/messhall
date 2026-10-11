@@ -8,6 +8,7 @@ import {
   nameSchema,
   presenceSchema,
   questionSchema,
+  reachSchema,
   roomSchema,
   timestampSchema,
 } from './room.ts';
@@ -56,6 +57,7 @@ export const memberEventSchema = z.object({
 export const presenceEventSchema = z.object({
   from: presenceSchema.describe('Presence before.'),
   name: nameSchema.describe('Member name.'),
+  reach: reachSchema.optional().describe('How messhall reaches the member now, set on the feed only.'),
   room: nameSchema.describe('Room name.'),
   to: presenceSchema.describe('Presence after.'),
   type: z.literal('presence').describe('A member changed presence.'),

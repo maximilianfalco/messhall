@@ -76,6 +76,12 @@ export const launchSchema = z.object({
     .describe('Model the agent runs on, like opus or claude-opus-5-5, its default when left out.'),
 });
 
+export const reachSchema = z
+  .enum(['spawned', 'doorbell', 'no_doorbell'])
+  .describe(
+    'How messhall reaches an agent: spawned (it runs in its own tmux session), doorbell (rung through the channel or its codex thread) or no_doorbell (it hears the room only while it waits).',
+  );
+
 export const memberSchema = z.object({
   client_label: z
     .string()
@@ -105,6 +111,9 @@ export const memberSchema = z.object({
   role: roleSchema.describe(
     'What the member does here. Starts unassigned, orchestrator for a member named orchestrator.',
   ),
+  reach: reachSchema
+    .optional()
+    .describe('How messhall reaches the member. Set on the feed only, left out for the human seat.'),
   room_id: z.string().describe('Room id.'),
   status: z
     .string()
@@ -249,6 +258,7 @@ export const agreementSchema = z.object({
 
 export type Room = z.infer<typeof roomSchema>;
 export type Member = z.infer<typeof memberSchema>;
+export type Reach = z.infer<typeof reachSchema>;
 export type Message = z.infer<typeof messageSchema>;
 export type RoomSummary = z.infer<typeof roomSummarySchema>;
 export type Approval = z.infer<typeof approvalSchema>;

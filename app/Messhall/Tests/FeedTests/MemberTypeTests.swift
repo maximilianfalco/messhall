@@ -189,4 +189,23 @@ struct MemberTypeTests {
     #expect(room.members.map(\.name) == ["api", "human", "web"])
     #expect(room.present.map(\.name) == ["api", "human"])
   }
+
+  @Test("each reach has a short label and a help line")
+  func reachWords() {
+    #expect([Reach.spawned, .doorbell, .noDoorbell].map(\.label) == ["spawned", "doorbell", "no doorbell"])
+    #expect(Reach.noDoorbell.help.contains("wait"))
+    #expect(Reach.unknown.label == "")
+  }
+
+  @Test("a member decodes its reach, and a missing or new one stays quiet")
+  func reachDecodes() throws {
+    let json = { (reach: String) in
+      #"{"room_id":"r1","name":"a","kind":"claude","client_label":null,"client_name":null,"client_version":null,"presence":"idle","role":"worker","cursor":0,"done":false,"joined_at":"t","last_seen_at":"t","left_at":null,"muted":false"# + reach + "}"
+    }
+    let decode = { try JSONDecoder().decode(Member.self, from: Data(json($0).utf8)) }
+
+    #expect(try decode(#","reach":"no_doorbell""#).reach == .noDoorbell)
+    #expect(try decode("").reach == nil)
+    #expect(try decode(#","reach":"carrier_pigeon""#).reach == .unknown)
+  }
 }

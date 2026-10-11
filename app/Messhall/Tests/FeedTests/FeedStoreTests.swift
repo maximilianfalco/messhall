@@ -143,6 +143,27 @@ struct FeedStoreTests {
     #expect(!store.anyActive)
   }
 
+  @Test("a presence event carries the member's new reach")
+  func presenceReach() throws {
+    let store = try loaded()
+
+    store.apply(.event(seq: 8, .presence(PresenceEvent(room: "checkout", name: "api", from: .active, to: .idle, reach: .noDoorbell))))
+
+    #expect(store.rooms[0].members.first { $0.name == "api" }?.reach == .noDoorbell)
+  }
+
+  @Test("a member event with no reach keeps the one the member had")
+  func memberKeepsReach() throws {
+    let store = try loaded()
+    store.apply(.event(seq: 8, .presence(PresenceEvent(room: "checkout", name: "api", from: .active, to: .idle, reach: .spawned))))
+    var again = try #require(store.rooms[0].members.first { $0.name == "api" })
+    again.reach = nil
+
+    store.apply(.event(seq: 9, .member(MemberEvent(room: "checkout", change: .role, member: again))))
+
+    #expect(store.rooms[0].members.first { $0.name == "api" }?.reach == .spawned)
+  }
+
   @Test("a room event updates a known room and adds a new one")
   func room() throws {
     let store = try loaded()

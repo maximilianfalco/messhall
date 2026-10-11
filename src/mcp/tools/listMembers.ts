@@ -1,8 +1,8 @@
-import type { Member } from '../../../contracts/room.ts';
 import type { ToolDeps } from './registry.js';
 import type { McpServer } from '@modelcontextprotocol/server';
 
 import { listMembersInputSchema } from '../../../contracts/mcp.ts';
+import { createReachOf } from '../../feed/reach.js';
 import { memberLabel } from '../render.js';
 
 import { refuse, registerRoomTool, reply } from './registry.js';
@@ -20,17 +20,13 @@ export function registerListMembers(server: McpServer, deps: ToolDeps, descripti
       }
       const as = session.rooms.get(room);
       const members = store.listMembers(room);
-      const noDoorbell = (member: Member) => {
-        const held = sessions.sessionsFor({ name: member.name, room }).map(entry => entry.session);
-        if (member.kind === 'codex') return !held.some(one => one.threadId);
-        return held.some(one => one.doorbell === 'off') && !held.some(one => one.doorbell === 'on');
-      };
+      const reachOf = createReachOf({ sessionsFor: sessions.sessionsFor, store });
       return reply(
         [
           `#${room}, ${members.length} members:`,
           ...members.map(
             member =>
-              `- ${memberLabel({ as, member, noDoorbell: noDoorbell(member) })}, last seen ${member.last_seen_at}`,
+              `- ${memberLabel({ as, member, noDoorbell: reachOf({ name: member.name, room }) === 'no_doorbell' })}, last seen ${member.last_seen_at}`,
           ),
         ].join('\n'),
       );

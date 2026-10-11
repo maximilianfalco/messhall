@@ -169,15 +169,19 @@ public final class FeedStore {
       }
     case .member(let e):
       update(e.room) { room in
+        let known = room.members.first { $0.name == e.member.name }?.reach
         room.members.removeAll { $0.name == e.member.name }
         guard e.change != .removed else { return }
-        room.members.append(e.member)
+        var member = e.member
+        member.reach = member.reach ?? known
+        room.members.append(member)
         room.members.sort { $0.name < $1.name }
       }
     case .presence(let e):
       update(e.room) { room in
         guard let index = room.members.firstIndex(where: { $0.name == e.name }) else { return }
         room.members[index].presence = e.to
+        room.members[index].reach = e.reach ?? room.members[index].reach
       }
     case .room(let e):
       guard rooms.contains(where: { $0.name == e.room.name }) else {

@@ -22,6 +22,7 @@ import { createRingers } from '../doorbell/ringer.js';
 import { createChannelRinger } from '../doorbell/ringers/channel.js';
 import { createCodexRinger } from '../doorbell/ringers/codex.js';
 import { wakeSeats } from '../doorbell/wake.js';
+import { createReachOf } from '../feed/reach.js';
 import { feedRoutes } from '../feed/routes.js';
 import { createSpawner } from '../flock/spawner.js';
 import { tmux as runTmux, type Tmux, typeIfClear } from '../flock/tmux.js';
@@ -195,7 +196,16 @@ export async function startDaemon({
       path: '/health',
     },
     ...MCP_METHODS.map(method => ({ handle: keys.requireKey('agent', mcp.handle), method, path: MCP_PATH })),
-    ...feedRoutes({ build, keys, now, relay: mcp.relay, running, spawner, store }),
+    ...feedRoutes({
+      build,
+      keys,
+      now,
+      reachOf: createReachOf({ sessionsFor: mcp.sessionsFor, store }),
+      relay: mcp.relay,
+      running,
+      spawner,
+      store,
+    }),
   ];
   server.on('request', guarded({ port: bound.port }, caught(createRouter(routes))));
 

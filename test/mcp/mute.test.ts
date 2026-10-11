@@ -28,7 +28,7 @@ describe('mute', () => {
       isError: true,
       text: 'you are muted in #dev. you can still read and wait. post again once a messhall line says you are unmuted.',
     });
-    expect(listed.text).toContain('- web (messhall-in-memory 0.1.0, active, muted), last seen');
+    expect(listed.text).toContain('- web (messhall-in-memory 0.1.0 (no doorbell), active, muted), last seen');
   });
 
   it('unmutes with unmute: true, so the member posts again', async () => {

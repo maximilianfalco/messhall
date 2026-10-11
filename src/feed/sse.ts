@@ -2,6 +2,7 @@ import type { SequencedEvent } from '../../contracts/events.ts';
 import type { Build } from '../../contracts/health.ts';
 import type { Handler } from '../daemon/router.js';
 import type { RoomStore } from '../rooms/store.js';
+import type { ReachOf } from './reach.js';
 
 import { SNAPSHOT_EVENT } from '../../contracts/feed.ts';
 import { FEED_PING_MS, FEED_STALL_MS } from '../config.js';
@@ -25,7 +26,18 @@ export const intervalTimer: Every = (ms, tick) => {
 
 const frame = ({ data, event, id }: { data: unknown; event: string; id: number }) =>
   `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-const eventFrame = ({ event, seq }: SequencedEvent) => frame({ data: event, event: event.type, id: seq });
+
+/** Member and presence events carry how the seat is reached, read as the event goes out. */
+const withReach = (event: SequencedEvent['event'], reachOf?: ReachOf) => {
+  if (!reachOf) return event;
+  if (event.type === 'member') {
+    return { ...event, member: { ...event.member, reach: reachOf({ name: event.member.name, room: event.room }) } };
+  }
+  if (event.type === 'presence') return { ...event, reach: reachOf({ name: event.name, room: event.room }) };
+  return event;
+};
+const eventFrame = ({ event, seq }: SequencedEvent, reachOf?: ReachOf) =>
+  frame({ data: withReach(event, reachOf), event: event.type, id: seq });
 
 /** The sequence to replay after, or undefined when the client needs a snapshot first: no id,
  * a bad one, one from a newer log, or one whose next events were already dropped. */
@@ -50,6 +62,7 @@ export function openStream({
   every,
   header,
   now,
+  reachOf,
   sink,
   store,
 }: {
@@ -57,6 +70,7 @@ export function openStream({
   every: Every;
   header: string | string[] | undefined;
   now: () => Date;
+  reachOf?: ReachOf;
   sink: Sink;
   store: RoomStore;
 }) {
@@ -67,13 +81,13 @@ export function openStream({
 
   const after = resumeFrom({ bounds: store.events.bounds(), header });
   if (after === undefined) {
-    const snapshot = buildSnapshot({ build, store });
+    const snapshot = buildSnapshot({ build, reachOf, store });
     send(frame({ data: snapshot, event: SNAPSHOT_EVENT, id: snapshot.seq }));
   } else {
-    store.events.since(after).forEach(event => send(eventFrame(event)));
+    store.events.since(after).forEach(event => send(eventFrame(event, reachOf)));
   }
   // Replay and subscribe run in one tick, so no event can fall between them.
-  const off = store.events.on(event => send(eventFrame(event)));
+  const off = store.events.on(event => send(eventFrame(event, reachOf)));
   const stop = every(FEED_PING_MS, () => {
     if (stalledAt === undefined) send(': ping\n\n');
     else if (now().getTime() - stalledAt >= FEED_STALL_MS) sink.destroy();
@@ -92,16 +106,18 @@ export function eventStream({
   build,
   every,
   now,
+  reachOf,
   store,
 }: {
   build: Build | null;
   every: Every;
   now: () => Date;
+  reachOf?: ReachOf;
   store: RoomStore;
 }) {
   return ((req, res) => {
     res.writeHead(200, { 'cache-control': 'no-cache', connection: 'keep-alive', 'content-type': 'text/event-stream' });
     res.flushHeaders();
-    openStream({ build, every, header: req.headers['last-event-id'], now, sink: res, store });
+    openStream({ build, every, header: req.headers['last-event-id'], now, reachOf, sink: res, store });
   }) satisfies Handler;
 }

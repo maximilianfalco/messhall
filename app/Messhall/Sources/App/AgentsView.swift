@@ -85,6 +85,9 @@ struct AgentRowView: View {
               if let role = member.rolePill {
                 RolePill(role: role)
               }
+              if let reach = member.reach, reach != .unknown {
+                ReachPill(reach: reach)
+              }
               if member.done {
                 SignedOffTag()
               }

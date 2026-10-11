@@ -21,8 +21,21 @@ install:
 		echo "make install from a worktree would repoint the global messhall. Run it from the main checkout, or FORCE=1 make install." >&2; exit 1; \
 	fi
 	pnpm build
-	pnpm add --global "link:$(CURDIR)"
-	@echo "messhall is on your PATH. Run make install again after pulling."
+	@bin=$$(command -v messhall || true); \
+	cli="$(CURDIR)/dist/src/cli.js"; \
+	if [ -n "$$bin" ]; then \
+		rel=$$(sed -n 's|.*"$$basedir/\([^"]*cli.js\)".*|\1|p' "$$bin" 2>/dev/null | head -1); \
+		shim=$$([ -n "$$rel" ] && cd "$$(dirname "$$bin")/$$(dirname "$$rel")" 2>/dev/null && echo "$$(pwd -P)/$$(basename "$$rel")"); \
+		if [ "$$(readlink -f "$$bin")" = "$$cli" ] || [ "$$shim" = "$$cli" ]; then \
+			echo "messhall already runs this checkout. Nothing to link."; exit 0; \
+		fi; \
+	fi; \
+	out=$$(pnpm add --global "link:$(CURDIR)" 2>&1) || { \
+		case "$$out" in \
+			*GLOBAL_BIN_DIR_NOT_IN_PATH*) echo "pnpm's global bin dir is not on your PATH. Run pnpm setup, open a new shell, then make install again." >&2;; \
+			*) echo "$$out" >&2;; \
+		esac; exit 1; }; \
+	echo "messhall is on your PATH. Run make install again after pulling."
 
 ## The Mac app. Needs Xcode installed (not selected), see app/scripts/bundle.sh.
 APP_ENV := $(if $(DEVELOPER_DIR),,$(if $(wildcard /Applications/Xcode.app),DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer,))
