@@ -48,14 +48,17 @@ export function codexControlSocket() {
   return process.env.MESSHALL_CODEX_SOCKET || path.join(codexHome, 'app-server-control', 'app-server-control.sock');
 }
 
-/** Where the running scan looks: Claude Code's session list (`CLAUDE_CONFIG_DIR` wins, as for claude) and
- * plain codex in ps. `MESSHALL_CLAUDE_SESSIONS` points a scratch daemon at fake sessions and skips ps. */
+/** Where the running scan looks: Claude Code's session list (`CLAUDE_CONFIG_DIR` wins, as for claude), plain codex
+ * in ps and tmux panes. `MESSHALL_CLAUDE_SESSIONS` points a scratch daemon at fake sessions and skips ps. */
 export function runningSources() {
   const scratch = process.env.MESSHALL_CLAUDE_SESSIONS;
-  if (scratch) return { claudeDir: scratch, plainCodex: false };
+  // A set TMUX beats TMUX_TMPDIR, so a scratch daemon reads panes only when it is sure to be on its own tmux server.
+  if (scratch)
+    return { claudeDir: scratch, plainCodex: false, tmuxPanes: !process.env.TMUX && !!process.env.TMUX_TMPDIR };
   return {
     claudeDir: path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), '.claude'), 'sessions'),
     plainCodex: true,
+    tmuxPanes: true,
   };
 }
 

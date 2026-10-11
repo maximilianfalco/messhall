@@ -94,6 +94,45 @@ export function peerPids({ lsof, port }: { lsof: string; port: number }) {
   return pids;
 }
 
+/** The pane id of each pane's own process in `tmux list-panes -a -F '#{pane_pid} #{pane_id}'` output. */
+export function panesFromTmux(out: string) {
+  return new Map(
+    out.split('\n').flatMap((line): [number, string][] => {
+      const found = /^(\d+) (%\d+)$/.exec(line.trim());
+      return found ? [[Number(found[1]), found[2]!]] : [];
+    }),
+  );
+}
+
+/** The parent of each pid in `ps -axo pid=,ppid=` output. */
+export function parentsFromPs(out: string) {
+  return new Map(
+    out.split('\n').flatMap((line): [number, number][] => {
+      const found = /^(\d+)\s+(\d+)$/.exec(line.trim());
+      return found ? [[Number(found[1]), Number(found[2])]] : [];
+    }),
+  );
+}
+
+/** The tmux pane `pid` runs in: the pane whose own process is it or one of its parents. Null outside tmux. */
+export function paneOf({
+  panes,
+  parents,
+  pid,
+}: {
+  panes: Map<number, string>;
+  parents: Map<number, number>;
+  pid: number;
+}) {
+  const seen = new Set<number>();
+  for (let at: number | undefined = pid; at !== undefined && !seen.has(at); at = parents.get(at)) {
+    const pane = panes.get(at);
+    if (pane) return pane;
+    seen.add(at);
+  }
+  return null;
+}
+
 export interface CodexThread {
   cwd: string;
   id: string;

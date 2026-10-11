@@ -8,7 +8,16 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createCodexClient } from '../../src/codex/client.js';
-import { cwdsFromLsof, gitPlace, peerPids, readClaudeSessions, readCodexThreads } from '../../src/running/scan.js';
+import {
+  cwdsFromLsof,
+  gitPlace,
+  paneOf,
+  panesFromTmux,
+  parentsFromPs,
+  peerPids,
+  readClaudeSessions,
+  readCodexThreads,
+} from '../../src/running/scan.js';
 import { fakeCodex, fakeTimers } from '../codex/fakeCodex.js';
 
 const sessionsDir = (files: Record<string, string>) => {
@@ -118,6 +127,63 @@ describe('peerPids', () => {
     ].join('\n');
 
     expect(peerPids({ lsof, port: 7707 })).toStrictEqual(new Map([[51001, 101]]));
+  });
+});
+
+describe('panesFromTmux', () => {
+  it('maps the process of each pane to its pane id', () => {
+    expect(panesFromTmux('501 %3\n502 %7\n\n')).toStrictEqual(
+      new Map([
+        [501, '%3'],
+        [502, '%7'],
+      ]),
+    );
+  });
+});
+
+describe('parentsFromPs', () => {
+  it('maps each pid to its parent', () => {
+    expect(parentsFromPs('  101   501\n  501     1\n')).toStrictEqual(
+      new Map([
+        [101, 501],
+        [501, 1],
+      ]),
+    );
+  });
+});
+
+describe('paneOf', () => {
+  const panes = new Map([[501, '%3']]);
+  const parents = new Map([
+    [101, 201],
+    [201, 501],
+    [501, 1],
+    [102, 1],
+  ]);
+
+  it('finds the pane a process runs in through its parents', () => {
+    expect(paneOf({ panes, parents, pid: 101 })).toBe('%3');
+  });
+
+  it('finds a process that is the pane process itself', () => {
+    expect(paneOf({ panes, parents, pid: 501 })).toBe('%3');
+  });
+
+  it('gives null for a process outside tmux', () => {
+    expect(paneOf({ panes, parents, pid: 102 })).toBeNull();
+  });
+
+  it('stops on a parent loop', () => {
+    expect(
+      paneOf({
+        panes,
+        parents: new Map([
+          [7, 8],
+          [8, 7],
+        ]),
+        pid: 7,
+      }),
+    ).toBeNull();
   });
 });
 

@@ -142,14 +142,16 @@ export const flockSchema = z.object({
 
 export const runningKindSchema = z.enum(['claude', 'codex']).describe('Which agent runs a session.');
 export const runningReachSchema = z
-  .enum(['claude_session', 'codex_thread', 'copy_only'])
+  .enum(['claude_channel', 'tmux_pane', 'codex_thread', 'copy_only'])
   .describe(
-    'How an invite reaches a session: claude session messaging, a line queued on its shared codex thread, or a copied line only.',
+    'How an invite reaches a session: the channel of a claude messhall started, typed into the tmux pane it runs in, a line queued on its shared codex thread, or a copied line only.',
   );
 export const runningStatusSchema = z.enum(['busy', 'idle', 'unknown']).describe('Whether a session is mid turn.');
 export const inviteOutcomeSchema = z
-  .enum(['queued', 'copy', 'gone'])
-  .describe('queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.');
+  .enum(['sent', 'queued', 'copy', 'gone'])
+  .describe(
+    'sent: the line went to its channel or tmux pane. queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped.',
+  );
 
 export const runningSeatSchema = z.object({
   name: nameSchema.describe('The seat name.'),
@@ -202,6 +204,10 @@ export const runningInviteItemSchema = z.object({
   line: z.string().nullable().describe('The join line it got, or the one to copy to it. Null when it is gone.'),
   name: nameSchema.nullable().describe('The name the line asks it to join as. Null when it is gone.'),
   outcome: inviteOutcomeSchema,
+  why: z
+    .string()
+    .nullable()
+    .describe('Why the line has to be copied: how the session was started, or what its pane showed. Null otherwise.'),
 });
 
 export const runningInviteResultSchema = z.object({

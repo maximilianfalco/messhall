@@ -692,11 +692,12 @@
     "InviteOutcome": {
       "type": "string",
       "enum": [
+        "sent",
         "queued",
         "copy",
         "gone"
       ],
-      "description": "queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped."
+      "description": "sent: the line went to its channel or tmux pane. queued: the line waits on its codex thread. copy: paste the line to it. gone: it stopped."
     },
     "Member": {
       "type": "object",
@@ -1728,13 +1729,21 @@
         },
         "outcome": {
           "$ref": "#/$defs/InviteOutcome"
+        },
+        "why": {
+          "description": "Why the line has to be copied: how the session was started, or what its pane showed. Null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "id",
         "line",
         "name",
-        "outcome"
+        "outcome",
+        "why"
       ],
       "additionalProperties": false
     },
@@ -1765,11 +1774,12 @@
     "RunningReach": {
       "type": "string",
       "enum": [
-        "claude_session",
+        "claude_channel",
+        "tmux_pane",
         "codex_thread",
         "copy_only"
       ],
-      "description": "How an invite reaches a session: claude session messaging, a line queued on its shared codex thread, or a copied line only."
+      "description": "How an invite reaches a session: the channel of a claude messhall started, typed into the tmux pane it runs in, a line queued on its shared codex thread, or a copied line only."
     },
     "RunningSeat": {
       "type": "object",

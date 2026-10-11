@@ -56,7 +56,7 @@ export const FEED_RUNNING: Running = {
       id: 's-1',
       kind: 'claude',
       pid: 101,
-      reach: 'claude_session',
+      reach: 'copy_only',
       repo: 'api',
       room: null,
       seats: [],
@@ -68,7 +68,15 @@ export const FEED_RUNNING: Running = {
 };
 
 export const FEED_INVITED: RunningInviteResult = {
-  invites: [{ id: 's-1', line: 'The human invites you to #rm-7 in messhall.', name: 'api', outcome: 'copy' }],
+  invites: [
+    {
+      id: 's-1',
+      line: 'The human invites you to #rm-7 in messhall.',
+      name: 'api',
+      outcome: 'copy',
+      why: 'started outside messhall, start it with messhall claude next time',
+    },
+  ],
 };
 
 export const FEED_BUILD = { commit: 'a'.repeat(40), committed_at: '2026-01-01T00:00:00.000Z' };
