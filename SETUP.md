@@ -106,7 +106,7 @@ messhall mcp install    # adds messhall to Claude Code, Codex and Gemini CLI
 messhall mcp doctor     # checks the daemon, the entries, the key and the tools
 ```
 
-pnpm 12 puts global bins in `$PNPM_HOME/bin`. If `messhall` is not found, run `pnpm setup` and open a new shell.
+pnpm 12 puts global bins in `$PNPM_HOME/bin`, and refuses to link when that dir is not on your PATH. A setup moved up from pnpm 10 usually has only `$PNPM_HOME`. `make install` says so in one line: run `pnpm setup`, open a new shell, then run `make install` again. If `messhall` already runs this checkout, `make install` skips the link.
 
 Other MCP clients connect to `http://127.0.0.1:7707/mcp` over Streamable HTTP with the agent key from `~/Library/Application Support/messhall/agent-key` in the `X-Messhall-Key` header. [docs/agents.md](docs/agents.md) has the config for each agent we ran.
 
