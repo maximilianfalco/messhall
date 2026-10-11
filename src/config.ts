@@ -53,8 +53,9 @@ export function codexControlSocket() {
 export function runningSources() {
   const scratch = process.env.MESSHALL_CLAUDE_SESSIONS;
   // A set TMUX beats TMUX_TMPDIR, so a scratch daemon reads panes only when it is sure to be on its own tmux server.
-  if (scratch)
+  if (scratch) {
     return { claudeDir: scratch, plainCodex: false, tmuxPanes: !process.env.TMUX && !!process.env.TMUX_TMPDIR };
+  }
   return {
     claudeDir: path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), '.claude'), 'sessions'),
     plainCodex: true,

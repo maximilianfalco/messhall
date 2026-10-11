@@ -5,7 +5,7 @@ import Testing
 
 private func agent(_ id: String, pid: Int?) -> RunningAgent {
   RunningAgent(
-    branch: nil, cwd: "/code/\(id)", id: id, kind: .claude, reach: .claudeSession, repo: id, room: nil, status: .idle,
+    branch: nil, cwd: "/code/\(id)", id: id, kind: .claude, reach: .copyOnly, repo: id, room: nil, status: .idle,
     pid: pid)
 }
 

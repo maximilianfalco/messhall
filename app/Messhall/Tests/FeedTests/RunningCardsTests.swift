@@ -1,10 +1,11 @@
+import Foundation
 import Testing
 
 @testable import Feed
 
 private func agent(_ id: String, kind: RunningKind = .claude, room: String? = nil) -> RunningAgent {
   RunningAgent(
-    branch: "rm-7/x", cwd: "/code/\(id)", id: id, kind: kind, reach: kind == .claude ? .claudeSession : .codexThread,
+    branch: "rm-7/x", cwd: "/code/\(id)", id: id, kind: kind, reach: kind == .claude ? .claudeChannel : .codexThread,
     repo: id, room: room, status: .idle)
 }
 
@@ -54,5 +55,27 @@ struct RunningCardsTests {
       running: running([agent("a", room: "rm-7"), agent("b", room: "rm-7")]), rooms: ["rm-7": true], dismissed: [])
 
     #expect(cards.isEmpty)
+  }
+}
+
+@Suite("RunningInviteItem")
+struct RunningInviteItemTests {
+  @Test("reads why a line has to be copied")
+  func why() throws {
+    let json = #"{"id":"s-1","line":"join","name":"api","outcome":"copy","why":"started outside messhall"}"#
+
+    let decoded = try JSONDecoder().decode(RunningInviteItem.self, from: Data(json.utf8))
+
+    #expect(decoded.why == "started outside messhall")
+  }
+
+  @Test("reads a sent invite from a daemon that sends no why")
+  func sentWithoutWhy() throws {
+    let json = #"{"id":"s-1","line":"join","name":"api","outcome":"sent"}"#
+
+    let decoded = try JSONDecoder().decode(RunningInviteItem.self, from: Data(json.utf8))
+
+    #expect(decoded.outcome == .sent)
+    #expect(decoded.why == nil)
   }
 }

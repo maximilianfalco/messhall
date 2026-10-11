@@ -62,7 +62,7 @@ async function send(agent: ScannedAgent, line: string, deliver: Deliver): Promis
       const typed = await deliver.type(agent.target, line);
       return typed === 'sent' ? { outcome: 'sent', why: null } : copy(UNTYPED[typed]);
     }
-    case 'copy_only':
+    default:
       return copy(`started outside messhall, start it with messhall ${agent.kind} next time`);
   }
 }
