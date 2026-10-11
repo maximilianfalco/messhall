@@ -110,31 +110,46 @@ export function panesFromTmux(out: string) {
   );
 }
 
-/** The parent of each pid in `ps -axo pid=,ppid=` output. */
+/** The parent of each pid in `ps -axo pid,ppid,args` output. */
 export function parentsFromPs(out: string) {
   return new Map(
     out.split('\n').flatMap((line): [number, number][] => {
-      const found = /^(\d+)\s+(\d+)$/.exec(line.trim());
+      const found = /^(\d+)\s+(\d+)(?:\s|$)/.exec(line.trim());
       return found ? [[Number(found[1]), Number(found[2])]] : [];
     }),
   );
 }
 
-/** The tmux pane `pid` runs in: the pane whose own process is it or one of its parents. Null outside tmux. */
+/** `pid` and up to 8 of its parents, nearest first, stopping before launchd. */
+export function lineage(pid: number, parents: Map<number, number>) {
+  const chain = [pid];
+  for (
+    let next = parents.get(pid);
+    next && next > 1 && chain.length <= 8 && !chain.includes(next);
+    next = parents.get(next)
+  ) {
+    chain.push(next);
+  }
+  return chain;
+}
+
+/** The tmux pane `pid` runs in: the pane whose own process is it or one of its parents. Null outside tmux, and
+ * null when another running agent sits between, since a claude run by an agent shares that agent's pane. */
 export function paneOf({
+  agents,
   panes,
   parents,
   pid,
 }: {
+  agents: Set<number>;
   panes: Map<number, string>;
   parents: Map<number, number>;
   pid: number;
 }) {
-  const seen = new Set<number>();
-  for (let at: number | undefined = pid; at !== undefined && !seen.has(at); at = parents.get(at)) {
+  for (const at of lineage(pid, parents)) {
+    if (at !== pid && agents.has(at)) return null;
     const pane = panes.get(at);
     if (pane) return pane;
-    seen.add(at);
   }
   return null;
 }

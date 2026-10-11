@@ -27,31 +27,41 @@ const claudeDir = () => {
   return dir;
 };
 
-const runner = (calls: string[][]) => (command: string, args: string[]) => {
-  calls.push([command, ...args]);
-  if (command === 'ps') return Promise.resolve(ok('  PID ARGS\n  401 /opt/bin/codex\n  402 codex review\n'));
-  if (command === 'lsof') return Promise.resolve(ok('p401\nfcwd\nn/code/docs\n'));
-  const cwd = args[1] ?? '';
-  return Promise.resolve(ok(`${cwd}/.git\nrm-7/${path.basename(cwd)}\n`));
-};
+const SOCKET = 'p101\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n';
+
+const runner =
+  (calls: string[][], ps = '  PID  PPID ARGS\n  401     1 /opt/bin/codex\n  402     1 codex review\n') =>
+  (command: string, args: string[]) => {
+    calls.push([command, ...args]);
+    if (command === 'ps') return Promise.resolve(ok(ps));
+    if (command === 'lsof') return Promise.resolve(ok(args.includes('cwd') ? 'p401\nfcwd\nn/code/docs\n' : SOCKET));
+    const cwd = args[1] ?? '';
+    return Promise.resolve(ok(`${cwd}/.git\nrm-7/${path.basename(cwd)}\n`));
+  };
 
 const down = { request: () => Promise.resolve({ error: 'codex control socket closed', ok: false as const }) };
+
+const noPeers = { channelPeers: () => [], peers: () => [] };
+
+const scanWith = (overrides: Partial<Parameters<typeof createRunningScan>[0]> = {}) =>
+  createRunningScan({
+    alive: () => true,
+    claudeDir: claudeDir(),
+    codex: down,
+    mcp: noPeers,
+    plainCodex: false,
+    port: 7707,
+    run: runner([], '  PID  PPID ARGS\n  101   501 claude\n  102     1 claude\n  501     1 -zsh\n'),
+    seats: () => Promise.resolve([]),
+    tmux: null,
+    ...overrides,
+  })();
 
 describe('createRunningScan', () => {
   it('finds every session and suggests a room for the ones on one ticket', async () => {
     const calls: string[][] = [];
-    const scan = createRunningScan({
-      alive: () => true,
-      channels: () => Promise.resolve(new Map()),
-      claudeDir: claudeDir(),
-      codex: down,
-      plainCodex: true,
-      run: runner(calls),
-      seats: () => Promise.resolve([]),
-      tmux: null,
-    });
 
-    const running = await scan();
+    const running = await scanWith({ plainCodex: true, run: runner(calls) });
 
     expect(running.agents.map(({ id, reach, repo }) => ({ id, reach, repo }))).toStrictEqual([
       { id: 's-101', reach: 'copy_only', repo: 'api' },
@@ -59,63 +69,47 @@ describe('createRunningScan', () => {
       { id: 'pid-401', reach: 'copy_only', repo: 'docs' },
     ]);
     expect(running.suggestions).toStrictEqual([{ ids: ['s-101', 's-102', 'pid-401'], key: 'rm-7', room: 'rm-7' }]);
-    expect(calls.find(call => call[0] === 'lsof')).toStrictEqual([
-      'lsof',
-      '-a',
-      '-b',
-      '-w',
-      '-d',
-      'cwd',
-      '-Fn',
-      '-p',
-      '401',
+    expect(calls.filter(call => call[0] !== 'git')).toStrictEqual([
+      ['ps', '-axo', 'pid,ppid,args'],
+      ['lsof', '-a', '-b', '-w', '-d', 'cwd', '-Fn', '-p', '401'],
     ]);
   });
 
   it('skips lsof when no codex runs', async () => {
     const calls: string[][] = [];
-    const run = (command: string, args: string[]) => {
-      calls.push([command, ...args]);
-      return Promise.resolve(command === 'ps' ? ok('  PID ARGS\n  407 /opt/bin/claude\n') : ok(''));
-    };
-    const scan = createRunningScan({
-      alive: () => true,
-      channels: () => Promise.resolve(new Map()),
-      claudeDir: '/nowhere',
-      codex: down,
+
+    await expect(
+      scanWith({
+        claudeDir: '/nowhere',
+        plainCodex: true,
+        run: runner(calls, '  PID  PPID ARGS\n  407     1 /opt/bin/claude\n'),
+      }),
+    ).resolves.toStrictEqual({ agents: [], suggestions: [] });
+    expect(calls.map(call => call[0])).toStrictEqual(['ps']);
+  });
+
+  it('runs ps and the socket lsof once for seats, channels, panes and codex together', async () => {
+    const calls: string[][] = [];
+
+    await scanWith({
+      mcp: {
+        channelPeers: () => [{ id: 'mcp-1', ports: [51001] }],
+        peers: () => [{ kind: 'claude', ports: [51001], seats: [{ name: 'api', room: 'dev' }] }],
+      },
       plainCodex: true,
-      run,
-      seats: () => Promise.resolve([]),
-      tmux: null,
+      run: runner(calls),
+      tmux: () => Promise.resolve(ok('501 %3\n')),
     });
 
-    await expect(scan()).resolves.toStrictEqual({ agents: [], suggestions: [] });
-    expect(calls.map(call => call[0])).toStrictEqual(['ps']);
+    expect(calls.filter(call => call[0] === 'ps')).toHaveLength(1);
+    expect(calls.filter(call => call[0] === 'lsof' && call.includes('-iTCP:7707'))).toHaveLength(1);
   });
 });
 
 describe('createRunningScan reach', () => {
-  const scan = (overrides: Partial<Parameters<typeof createRunningScan>[0]> = {}) =>
-    createRunningScan({
-      alive: () => true,
-      channels: () => Promise.resolve(new Map()),
-      claudeDir: claudeDir(),
-      codex: down,
-      plainCodex: false,
-      run: (command, args) =>
-        Promise.resolve(
-          command === 'ps'
-            ? ok('  101   501\n  102     1\n')
-            : ok(`${args[1] ?? ''}/.git\nrm-7/${path.basename(args[1] ?? '')}\n`),
-        ),
-      seats: () => Promise.resolve([]),
-      tmux: null,
-      ...overrides,
-    })();
-
   it('finds the tmux pane each claude runs in', async () => {
     const asked: string[][] = [];
-    const running = await scan({
+    const running = await scanWith({
       tmux: args => {
         asked.push(args);
         return Promise.resolve(ok('501 %3\n'));
@@ -129,9 +123,21 @@ describe('createRunningScan reach', () => {
     expect(asked).toStrictEqual([['list-panes', '-a', '-F', '#{pane_pid} #{pane_id}']]);
   });
 
+  it('never gives a claude run by another agent that agent pane', async () => {
+    const running = await scanWith({
+      run: runner([], '  PID  PPID ARGS\n  101   300 claude\n  300   102 /bin/zsh -c claude\n  102   501 claude\n'),
+      tmux: () => Promise.resolve(ok('501 %3\n')),
+    });
+
+    expect(running.agents.map(({ id, reach, target }) => ({ id, reach, target }))).toStrictEqual([
+      { id: 's-101', reach: 'copy_only', target: null },
+      { id: 's-102', reach: 'tmux_pane', target: '%3' },
+    ]);
+  });
+
   it('skips ps when tmux has no panes', async () => {
     const calls: string[] = [];
-    await scan({
+    await scanWith({
       run: command => {
         calls.push(command);
         return Promise.resolve(ok(''));
@@ -143,16 +149,20 @@ describe('createRunningScan reach', () => {
   });
 
   it('rings a claude messhall started on its channel', async () => {
-    const running = await scan({ channels: () => Promise.resolve(new Map([[102, 'mcp-1']])) });
+    const running = await scanWith({
+      mcp: { channelPeers: () => [{ id: 'mcp-1', ports: [51001] }], peers: () => [] },
+    });
 
     expect(running.agents.map(({ reach, target }) => ({ reach, target }))).toStrictEqual([
-      { reach: 'copy_only', target: null },
       { reach: 'claude_channel', target: 'mcp-1' },
+      { reach: 'copy_only', target: null },
     ]);
   });
 
   it('shows the list without where each invite goes', async () => {
-    const running = shownRunning(await scan({ channels: () => Promise.resolve(new Map([[102, 'mcp-1']])) }));
+    const running = shownRunning(
+      await scanWith({ mcp: { channelPeers: () => [{ id: 'mcp-1', ports: [51001] }], peers: () => [] } }),
+    );
 
     expect(running.agents.map(agent => Object.keys(agent).includes('target'))).toStrictEqual([false, false]);
   });
@@ -161,18 +171,8 @@ describe('createRunningScan reach', () => {
 describe('createRunningScan on a scratch daemon', () => {
   it('never runs ps when plain codex is off', async () => {
     const calls: string[][] = [];
-    const scan = createRunningScan({
-      alive: () => true,
-      channels: () => Promise.resolve(new Map()),
-      claudeDir: claudeDir(),
-      codex: down,
-      plainCodex: false,
-      run: runner(calls),
-      seats: () => Promise.resolve([]),
-      tmux: null,
-    });
 
-    const running = await scan();
+    const running = await scanWith({ run: runner(calls) });
 
     expect(running.agents.map(agent => agent.id)).toStrictEqual(['s-101', 's-102']);
     expect(calls.map(call => call[0])).toStrictEqual(['git', 'git', 'git', 'git']);
@@ -180,90 +180,70 @@ describe('createRunningScan on a scratch daemon', () => {
 });
 
 describe('peerSeats', () => {
-  it('gives each seated session the pid behind its open socket', async () => {
-    const calls: string[][] = [];
-    const run = (command: string, args: string[]) => {
-      calls.push([command, ...args]);
-      return Promise.resolve(
-        ok(command === 'ps' ? '  PID  PPID\n  101     1\n' : 'p101\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n'),
-      );
-    };
+  const pids = new Map([
+    [51001, 300],
+    [51002, 101],
+  ]);
+  const parents = new Map([
+    [300, 200],
+    [200, 101],
+    [101, 1],
+  ]);
 
-    const seats = await peerSeats({
-      peers: () => [
-        { kind: 'claude', ports: [51001], seats: [{ name: 'api', room: 'dev' }] },
+  it('gives each seated session the pid behind its open socket', () => {
+    const seats = peerSeats({
+      parents,
+      peers: [
+        { kind: 'claude', ports: [51002], seats: [{ name: 'api', room: 'dev' }] },
         { kind: 'codex', ports: [51009], seats: [{ name: 'web', room: 'dev' }] },
       ],
-      port: 7707,
-      run,
+      pids,
     });
 
     expect(seats).toStrictEqual([
       { cwd: null, kind: 'claude', name: 'api', parents: [], pid: 101, room: 'dev', threadId: null, tmux: null },
     ]);
-    expect(calls).toStrictEqual([
-      ['lsof', '-b', '-w', '-nP', '-iTCP:7707', '-sTCP:ESTABLISHED', '-Fpn'],
-      ['ps', '-axo', 'pid,ppid'],
-    ]);
   });
 
-  it('lists the parents of the process holding the socket, nearest first', async () => {
-    const run = (command: string) =>
-      Promise.resolve(
-        ok(command === 'ps' ? 'PID PPID\n300 200\n200 101\n101 1\n' : 'p300\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n'),
-      );
-
-    const seats = await peerSeats({
-      peers: () => [{ kind: 'claude', ports: [51001], seats: [{ name: 'api', room: 'dev' }] }],
-      port: 7707,
-      run,
+  it('lists the parents of the process holding the socket, nearest first', () => {
+    const seats = peerSeats({
+      parents,
+      peers: [{ kind: 'claude', ports: [51001], seats: [{ name: 'api', room: 'dev' }] }],
+      pids,
     });
 
-    expect(seats.map(({ parents, pid }) => [pid, parents])).toStrictEqual([[300, [200, 101]]]);
-  });
-
-  it('skips lsof when no session is seated', async () => {
-    const calls: string[][] = [];
-    const run = (command: string, args: string[]) => {
-      calls.push([command, ...args]);
-      return Promise.resolve(ok(''));
-    };
-
-    await expect(peerSeats({ peers: () => [], port: 7707, run })).resolves.toStrictEqual([]);
-    expect(calls).toStrictEqual([]);
+    expect(seats.map(({ parents: up, pid }) => [pid, up])).toStrictEqual([[300, [200, 101]]]);
   });
 });
 
 describe('channelSessions', () => {
-  it('gives each session messhall started the pid behind its open socket', async () => {
-    const calls: string[][] = [];
-    const run = (command: string, args: string[]) => {
-      calls.push([command, ...args]);
-      return Promise.resolve(ok('p101\nf12\nn127.0.0.1:51001->127.0.0.1:7707\n'));
-    };
-
-    const found = await channelSessions({
-      peers: () => [
+  it('gives each session messhall started the agent behind its open socket', () => {
+    const found = channelSessions({
+      agents: new Set([101]),
+      parents: new Map(),
+      peers: [
         { id: 'mcp-1', ports: [51001] },
         { id: 'mcp-2', ports: [51009] },
       ],
-      port: 7707,
-      run,
+      pids: new Map([[51001, 101]]),
     });
 
     expect(found).toStrictEqual(new Map([[101, 'mcp-1']]));
-    expect(calls).toStrictEqual([['lsof', '-b', '-w', '-nP', '-iTCP:7707', '-sTCP:ESTABLISHED', '-Fpn']]);
   });
 
-  it('skips lsof when no session can take a channel ring', async () => {
-    const calls: string[] = [];
-    const run = (command: string) => {
-      calls.push(command);
-      return Promise.resolve(ok(''));
-    };
+  it('walks up from a helper holding the socket to the nearest agent', () => {
+    const found = channelSessions({
+      agents: new Set([101]),
+      parents: new Map([
+        [300, 200],
+        [200, 101],
+        [101, 1],
+      ]),
+      peers: [{ id: 'mcp-1', ports: [51001] }],
+      pids: new Map([[51001, 300]]),
+    });
 
-    await expect(channelSessions({ peers: () => [], port: 7707, run })).resolves.toStrictEqual(new Map());
-    expect(calls).toStrictEqual([]);
+    expect(found).toStrictEqual(new Map([[101, 'mcp-1']]));
   });
 });
 

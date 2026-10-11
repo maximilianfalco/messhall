@@ -144,7 +144,7 @@ describe('panesFromTmux', () => {
 
 describe('parentsFromPs', () => {
   it('maps each pid to its parent', () => {
-    expect(parentsFromPs('  101   501\n  501     1\n')).toStrictEqual(
+    expect(parentsFromPs('  PID  PPID ARGS\n  101   501 claude --model x\n  501     1\n')).toStrictEqual(
       new Map([
         [101, 501],
         [501, 1],
@@ -154,6 +154,7 @@ describe('parentsFromPs', () => {
 });
 
 describe('paneOf', () => {
+  const agents = new Set([101, 102]);
   const panes = new Map([[501, '%3']]);
   const parents = new Map([
     [101, 201],
@@ -163,20 +164,25 @@ describe('paneOf', () => {
   ]);
 
   it('finds the pane a process runs in through its parents', () => {
-    expect(paneOf({ panes, parents, pid: 101 })).toBe('%3');
+    expect(paneOf({ agents, panes, parents, pid: 101 })).toBe('%3');
   });
 
   it('finds a process that is the pane process itself', () => {
-    expect(paneOf({ panes, parents, pid: 501 })).toBe('%3');
+    expect(paneOf({ agents, panes, parents, pid: 501 })).toBe('%3');
   });
 
   it('gives null for a process outside tmux', () => {
-    expect(paneOf({ panes, parents, pid: 102 })).toBeNull();
+    expect(paneOf({ agents, panes, parents, pid: 102 })).toBeNull();
+  });
+
+  it('gives null when another agent sits between the process and the pane', () => {
+    expect(paneOf({ agents: new Set([101, 201]), panes, parents, pid: 101 })).toBeNull();
   });
 
   it('stops on a parent loop', () => {
     expect(
       paneOf({
+        agents,
         panes,
         parents: new Map([
           [7, 8],

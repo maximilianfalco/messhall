@@ -52,14 +52,14 @@ export function codexControlSocket() {
  * in ps and tmux panes. `MESSHALL_CLAUDE_SESSIONS` points a scratch daemon at fake sessions and skips ps. */
 export function runningSources() {
   const scratch = process.env.MESSHALL_CLAUDE_SESSIONS;
-  // A set TMUX beats TMUX_TMPDIR, so a scratch daemon reads panes only when it is sure to be on its own tmux server.
-  if (scratch) {
-    return { claudeDir: scratch, plainCodex: false, tmuxPanes: !process.env.TMUX && !!process.env.TMUX_TMPDIR };
-  }
+  // An invite types into the panes it finds. A set TMUX beats TMUX_TMPDIR, so a daemon with its own home or
+  // sessions reads panes only when it is sure to be on its own tmux server.
+  const tmuxPanes = scratch || process.env.MESSHALL_HOME ? !process.env.TMUX && !!process.env.TMUX_TMPDIR : true;
+  if (scratch) return { claudeDir: scratch, plainCodex: false, tmuxPanes };
   return {
     claudeDir: path.join(process.env.CLAUDE_CONFIG_DIR || path.join(homedir(), '.claude'), 'sessions'),
     plainCodex: true,
-    tmuxPanes: true,
+    tmuxPanes,
   };
 }
 

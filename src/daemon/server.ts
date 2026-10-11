@@ -33,14 +33,7 @@ import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 import { startSummaries } from '../rooms/summaries.js';
-import {
-  channelSessions,
-  createRunningInvite,
-  createRunningScan,
-  peerSeats,
-  pidAlive,
-  shownRunning,
-} from '../running/live.js';
+import { createRunningInvite, createRunningScan, pidAlive, shownRunning } from '../running/live.js';
 
 import { currentBuild } from './build.js';
 import { guarded } from './guard.js';
@@ -145,9 +138,9 @@ export async function startDaemon({
   const scan = createRunningScan({
     ...sources,
     alive: pidAlive,
-    channels: () =>
-      channelSessions({ peers: mcp.channelPeers, port: bound.port, run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS) }),
     codex,
+    mcp,
+    port: bound.port,
     run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS),
     seats: async () => [
       ...mcp.threadSeats().map(seat => ({ ...seat, cwd: null, kind: 'codex' as const, pid: null, tmux: null })),
@@ -162,7 +155,6 @@ export async function startDaemon({
           threadId: null,
           tmux: seat.session,
         })),
-      ...(await peerSeats({ peers: mcp.peers, port: bound.port, run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS) })),
     ],
     tmux: tmuxPanes ? tmux : null,
   });
