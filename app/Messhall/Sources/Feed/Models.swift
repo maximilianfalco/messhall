@@ -24,6 +24,10 @@ public enum Presence: String, OpenEnum, CaseIterable, Sendable {
   public var isAway: Bool { self == .away || self == .left }
 }
 public enum MessageKind: String, OpenEnum, CaseIterable, Sendable { case chat, system, done, summary, unknown }
+/// How messhall reaches an agent: its own tmux session, the channel doorbell, or only while it waits.
+public enum Reach: String, OpenEnum, Sendable {
+  case spawned, doorbell, noDoorbell = "no_doorbell", unknown
+}
 public enum MemberKind: String, OpenEnum, CaseIterable, Sendable { case claude, codex, other, human, unknown }
 public enum MemberChange: String, OpenEnum, Sendable {
   case invited, joined, left, muted, reconnected, removed, role, status, unmuted, unknown
@@ -192,9 +196,10 @@ public struct Member: Codable, Equatable, Sendable {
   public var muted = false
   public var status: String? = nil
   public var statusAt: String? = nil
+  public var reach: Reach? = nil
 
   enum CodingKeys: String, CodingKey, CaseIterable {
-    case name, kind, presence, role, cursor, done, muted, status
+    case name, kind, presence, role, cursor, done, muted, status, reach
     case statusAt = "status_at"
     case roomId = "room_id"
     case clientLabel = "client_label"
@@ -371,21 +376,24 @@ public struct PresenceEvent: Decodable, Equatable, Sendable {
   public var name: String
   public var from: Presence
   public var to: Presence
+  public var reach: Reach?
 
-  enum CodingKeys: String, CodingKey, CaseIterable { case type, room, name, from, to }
+  enum CodingKeys: String, CodingKey, CaseIterable { case type, room, name, from, to, reach }
 
-  public init(room: String, name: String, from: Presence, to: Presence) {
+  public init(room: String, name: String, from: Presence, to: Presence, reach: Reach? = nil) {
     self.room = room
     self.name = name
     self.from = from
     self.to = to
+    self.reach = reach
   }
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
       room: try c.decode(String.self, forKey: .room), name: try c.decode(String.self, forKey: .name),
-      from: try c.decode(Presence.self, forKey: .from), to: try c.decode(Presence.self, forKey: .to))
+      from: try c.decode(Presence.self, forKey: .from), to: try c.decode(Presence.self, forKey: .to),
+      reach: try c.decodeIfPresent(Reach.self, forKey: .reach))
   }
 }
 

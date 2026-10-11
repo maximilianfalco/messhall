@@ -450,6 +450,9 @@ struct MemberChip: View {
           if let role = member.rolePill {
             RolePill(role: role)
           }
+          if let reach = member.reach, reach != .unknown {
+            ReachPill(reach: reach)
+          }
           if member.muted {
             MutedPill()
           }
@@ -552,6 +555,20 @@ struct RolePill: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
       .overlay(Capsule().strokeBorder(.secondary.opacity(0.5), lineWidth: 0.5))
+  }
+}
+
+/// How messhall reaches the agent. The tooltip says what the label means.
+struct ReachPill: View {
+  let reach: Reach
+
+  var body: some View {
+    Text(reach.label)
+      .font(.subheadline)
+      .lineLimit(1)
+      .fixedSize()
+      .foregroundStyle(reach == .noDoorbell ? .orange : .secondary)
+      .help(reach.help)
   }
 }
 
