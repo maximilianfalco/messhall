@@ -71,6 +71,12 @@ export async function gitPlace({ cwd, run }: { cwd: string; run: Runner }) {
   return { branch: branch && branch !== 'HEAD' ? branch : null, repo: path.basename(path.dirname(commonDir)) };
 }
 
+/** The branch a repo treats as its default, from origin/HEAD. Null when the repo has no remote head. */
+export async function defaultBranch({ cwd, run }: { cwd: string; run: Runner }) {
+  const out = await run('git', ['-C', cwd, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+  return out.code === 0 ? out.stdout.trim().replace(/^origin\//, '') || null : null;
+}
+
 /** The folder of each pid in `lsof -a -d cwd -Fn -p <pids>` output. */
 export function cwdsFromLsof(lsof: string) {
   const cwds = new Map<number, string>();

@@ -127,6 +127,23 @@ describe('runningAgents', () => {
     ]);
   });
 
+  it('gives a seat held by a helper to the nearest running agent above it only', async () => {
+    const found = await runningAgents(
+      sources({
+        claude: [
+          { cwd: '/code/api', id: 's-1', pid: 101, status: 'idle' },
+          { cwd: '/code/api', id: 's-2', pid: 150, status: 'idle' },
+        ],
+        seats: [seat({ parents: [150, 101], pid: 300 })],
+      }),
+    );
+
+    expect(found.map(({ id, seats }) => ({ id, seats }))).toStrictEqual([
+      { id: 's-1', seats: [] },
+      { id: 's-2', seats: [{ name: 'api', room: 'dev' }] },
+    ]);
+  });
+
   it('never gives a seat with a pid to another session in the same folder', async () => {
     const found = await runningAgents(sources({ seats: [seat({ cwd: '/code/api', pid: 999 })] }));
 
