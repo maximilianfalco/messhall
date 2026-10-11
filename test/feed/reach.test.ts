@@ -14,13 +14,9 @@ beforeEach(() => {
   scratch.store.joinRoom({ as: 'thread', kind: 'codex', room: 'demo' });
   scratch.store.joinRoom({ as: 'pending', kind: 'claude', room: 'demo' });
   scratch.store.joinRoom({ as: 'opencode', kind: 'other', room: 'demo' });
-  scratch.store.invite({
-    by: 'human',
-    launch: { agent: 'claude', cwd: '/tmp' },
-    name: 'spawn',
-    role: 'worker',
-    room: 'demo',
-  });
+  ['spawn', 'spawnoff'].forEach(name =>
+    scratch.store.invite({ by: 'human', launch: { agent: 'claude', cwd: '/tmp' }, name, role: 'worker', room: 'demo' }),
+  );
 });
 
 afterEach(() => {
@@ -31,6 +27,8 @@ const entries = (doorbell: 'checking' | 'off' | 'on' | 'unchecked', ringable: bo
   { session: { doorbell, ringable } },
 ];
 const sessionsFor = ({ name }: { name: string }) => {
+  if (name === 'spawn') return entries('on', true);
+  if (name === 'spawnoff') return entries('off', true);
   if (name === 'plain') return entries('off', true);
   if (name === 'bell') return entries('on', true);
   if (name === 'thread') return entries('unchecked', true);
@@ -42,8 +40,9 @@ const reachOf = () => createReachOf({ sessionsFor, store: scratch.store });
 const reach = (name: string) => reachOf()({ name, room: 'demo' });
 
 describe('reachOf', () => {
-  it('says spawned for a seat messhall started', () => {
+  it('says spawned for a seat messhall started, whatever its doorbell says', () => {
     expect(reach('spawn')).toBe('spawned');
+    expect(reach('spawnoff')).toBe('spawned');
   });
 
   it('says doorbell for a session the ring reaches', () => {
@@ -84,6 +83,7 @@ describe('reachOf', () => {
       pending: 'doorbell',
       plain: 'no_doorbell',
       spawn: 'spawned',
+      spawnoff: 'spawned',
       thread: 'doorbell',
     });
   });

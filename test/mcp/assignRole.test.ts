@@ -23,8 +23,12 @@ describe('assign_role', () => {
     const listed = await reviewer.call('list_members', { room: 'dev' });
 
     expect(result).toStrictEqual({ isError: false, text: 'reviewer-1 is now reviewer in #dev.' });
-    expect(listed.text).toContain('- reviewer-1 (messhall-in-memory 0.1.0, reviewer, active, you), last seen');
-    expect(listed.text).toContain('- orchestrator (messhall-in-memory 0.1.0, orchestrator, active), last seen');
+    expect(listed.text).toContain(
+      '- reviewer-1 (messhall-in-memory 0.1.0 (no doorbell), reviewer, active, you), last seen',
+    );
+    expect(listed.text).toContain(
+      '- orchestrator (messhall-in-memory 0.1.0 (no doorbell), orchestrator, active), last seen',
+    );
   });
 
   it('takes a free slug as a role', async () => {

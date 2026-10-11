@@ -22,7 +22,7 @@ describe('list_members', () => {
     expect(result.isError).toBe(false);
     expect(result.text.split('\n')).toStrictEqual([
       '#checkout, 2 members:',
-      '- api (messhall-in-memory 0.1.0, active), last seen 2026-01-01T10:00:00.000Z',
+      '- api (messhall-in-memory 0.1.0 (no doorbell), active), last seen 2026-01-01T10:00:00.000Z',
       '- human (human, idle), last seen 2026-01-01T10:00:00.000Z',
     ]);
   });
@@ -45,7 +45,7 @@ describe('list_members', () => {
 
     const result = await web.call('list_members', { room: 'checkout' });
 
-    expect(result.text).toContain('- web (opencode 1.18.34, active, you), last seen');
+    expect(result.text).toContain('- web (opencode 1.18.34 (no doorbell), active, you), last seen');
   });
 
   it('shows the first word of an unknown client', async () => {
@@ -54,7 +54,7 @@ describe('list_members', () => {
 
     const result = await web.call('list_members', { room: 'checkout' });
 
-    expect(result.text).toContain('- web (Cursor 2.0, active, you), last seen');
+    expect(result.text).toContain('- web (Cursor 2.0 (no doorbell), active, you), last seen');
   });
 
   it('says when the room does not exist', async () => {

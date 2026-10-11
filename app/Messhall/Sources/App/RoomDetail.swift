@@ -551,6 +551,7 @@ struct RolePill: View {
     Text(role)
       .font(.subheadline)
       .lineLimit(1)
+      .fixedSize()
       .foregroundStyle(.secondary)
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
