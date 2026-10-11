@@ -22,8 +22,13 @@ install:
 	fi
 	pnpm build
 	@bin=$$(command -v messhall || true); \
-	if [ -n "$$bin" ] && { [ "$$(readlink -f "$$bin")" = "$(CURDIR)/dist/src/cli.js" ] || grep -qF "$(CURDIR)/dist/src/cli.js" "$$bin" 2>/dev/null; }; then \
-		echo "messhall already runs this checkout. Nothing to link."; exit 0; \
+	cli="$(CURDIR)/dist/src/cli.js"; \
+	if [ -n "$$bin" ]; then \
+		rel=$$(sed -n 's|.*"$$basedir/\([^"]*cli.js\)".*|\1|p' "$$bin" 2>/dev/null | head -1); \
+		shim=$$([ -n "$$rel" ] && cd "$$(dirname "$$bin")/$$(dirname "$$rel")" 2>/dev/null && echo "$$(pwd -P)/$$(basename "$$rel")"); \
+		if [ "$$(readlink -f "$$bin")" = "$$cli" ] || [ "$$shim" = "$$cli" ]; then \
+			echo "messhall already runs this checkout. Nothing to link."; exit 0; \
+		fi; \
 	fi; \
 	out=$$(pnpm add --global "link:$(CURDIR)" 2>&1) || { \
 		case "$$out" in \
