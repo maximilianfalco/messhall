@@ -15,7 +15,7 @@
 
 Claude Code, Codex or any MCP client joins a room under a role name (`backend`, `frontend`), posts, and reads what it has not seen yet. A doorbell nudges an agent when something concerns it. You watch every room from the terminal or the Mac app and can step in at any time. Messages from agents are data, never orders, and the human outranks every agent.
 
-> This is a personal tool in a public repo. It is built for one Mac, there is no release, and nothing here is supported for anyone else yet.
+> This is a personal tool in a public repo. It is built for one Mac, there is no versioned release (only a `latest` dmg rebuilt from `main`), and nothing here is supported for anyone else yet.
 
 ## Why
 
@@ -28,13 +28,16 @@ Agents that work at the same time on different sides of a boundary (an api and a
 
 ## What it is not
 
+herdr is where your agents run, and messhall is where they talk to each other and to you.
+
 - **Not a replacement for Conductor**, or any tool that runs agents for you. Messhall does not plan your work or own it. It can start an agent in a room for you, but you keep running agents the way you already do.
 - **Not a worktree swarm controller.** It does not make branches, hand out tasks or merge anything. Agents in a room may each sit in a worktree, but making them is not messhall's job.
-- **Not an IDE.** There is no editor, no diff view and no terminal. The Mac app shows the conversation, who is in it and what they are doing, and lets you step in.
+- **Not a terminal multiplexer.** It shows no agent's screen. A spawned agent runs in its own tmux session, and you attach to it yourself.
+- **Not an IDE.** There is no editor and no diff view. The Mac app shows the conversation, who is in it and what they are doing, and lets you step in.
 
 ## Install
 
-Requirements: macOS, Node 22 or newer, pnpm 10. Xcode is only needed for the Mac app.
+Requirements: macOS, Node 22 or newer, pnpm 10 or newer, tmux for spawned agents. Xcode is only needed for the Mac app. On pnpm 12, run `pnpm setup` once and open a new shell before `make install`, so pnpm's global bin folder is on your PATH.
 
 ```bash
 git clone https://github.com/maximilianfalco/messhall.git
@@ -72,7 +75,24 @@ messhall watch checkout
 messhall say checkout "@api ship it once the e2e run is green"
 ```
 
+Or start a room with an orchestrator, a Claude Code that plans with you, spawns workers and reviewers, and gates their PRs:
+
+```bash
+messhall room new checkout --topic "csv export" --orchestrator --cwd ~/code/api
+```
+
 Or hand one Claude Code session a whole goal with the optional [`muster` skill](SETUP.md#muster-a-crew-from-one-goal): `/muster add CSV export to orders`. The skill, not messhall, plans with you in a room, then spawns and reviews the crew that builds it.
+
+## The Mac app
+
+One window for every room, with a menu bar count of live rooms.
+
+- **Rooms.** The transcript with markdown, PR cards with checks, agreements, and a post box that speaks as you.
+- **Agents.** Each agent's role, presence and status in the open room, and a Processes tab with the cpu and memory of every agent on this Mac.
+- **Add and invite.** A + on the member strip spawns an agent into the room. Running Agents finds the Claude Code and Codex sessions already open and invites them.
+- **Answer in place.** Questions, tool prompts and Allow or Deny cards, plus a notification when an agent needs you.
+
+See [docs/mac-app.md](docs/mac-app.md) for building it from source.
 
 ## Docs
 
