@@ -13,6 +13,7 @@ import { inviteRunning } from './invite.js';
 import { runningAgents } from './running.js';
 import {
   cwdsFromLsof,
+  defaultBranch,
   gitPlace,
   paneOf,
   panesFromTmux,
@@ -77,8 +78,22 @@ export async function channelSessions({
   );
 }
 
-/** The seats each seated MCP session holds, with the pid on the other end of its open socket to the daemon.
- * A session whose socket lsof cannot place is left out. */
+// The socket may belong to a helper under the session, so the session is one of its parents.
+function ancestors(pid: number, parents: Map<number, number>) {
+  const chain: number[] = [];
+  for (
+    let next = parents.get(pid);
+    next && next > 1 && chain.length < 8 && next !== pid && !chain.includes(next);
+    next = parents.get(next)
+  ) {
+    chain.push(next);
+  }
+  return chain;
+}
+
+/** The seats each seated MCP session holds, with the pid on the other end of its open socket to the daemon and
+ * that pid's parents, since the socket may sit in a helper under the session. A session whose socket lsof cannot
+ * place is left out. */
 export async function peerSeats({
   peers,
   port,
@@ -90,11 +105,22 @@ export async function peerSeats({
 }) {
   const seated = peers();
   if (seated.length === 0) return [];
-  const pids = peerPids({ lsof: (await lsofPeers(port, run)).stdout, port });
+  const [lsof, ps] = await Promise.all([lsofPeers(port, run), run('ps', ['-axo', 'pid,ppid'])]);
+  const pids = peerPids({ lsof: lsof.stdout, port });
+  const parents = parentsFromPs(ps.stdout);
   return seated.flatMap(({ kind, ports, seats }): KnownSeat[] => {
     const pid = ports.map(found => pids.get(found)).find(found => found !== undefined);
     if (pid === undefined) return [];
-    return seats.map(({ name, room }) => ({ cwd: null, kind, name, pid, room, threadId: null, tmux: null }));
+    return seats.map(({ name, room }) => ({
+      cwd: null,
+      kind,
+      name,
+      parents: ancestors(pid, parents),
+      pid,
+      room,
+      threadId: null,
+      tmux: null,
+    }));
   });
 }
 
@@ -135,16 +161,21 @@ export function createRunningScan({
       channels(),
       tmux ? tmuxPanes({ pids, run, tmux }) : new Map<number, string>(),
     ]);
+    const onDefault = new Set<string>();
     const agents = await runningAgents({
       channels: open,
       claude,
       codexPids,
       codexThreads,
       panes,
-      place: cwd => gitPlace({ cwd, run }),
+      place: async cwd => {
+        const place = await gitPlace({ cwd, run });
+        if (place.branch && place.branch === (await defaultBranch({ cwd, run }))) onDefault.add(cwd);
+        return place;
+      },
       seats: known,
     });
-    return { agents, suggestions: suggestRooms({ agents }) };
+    return { agents, suggestions: suggestRooms({ agents, isDefault: agent => onDefault.has(agent.cwd) }) };
   };
 }
 

@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { createCodexClient } from '../../src/codex/client.js';
 import {
   cwdsFromLsof,
+  defaultBranch,
   gitPlace,
   paneOf,
   panesFromTmux,
@@ -225,5 +226,19 @@ describe('readCodexThreads', () => {
     const { found } = await reader({ 'thread/loaded/list': () => ({ error: 'no' }) });
 
     expect(found).toStrictEqual([]);
+  });
+});
+
+describe('defaultBranch', () => {
+  it('reads origin/HEAD without the remote name', async () => {
+    const run = () => Promise.resolve<RunResult>({ code: 0, stderr: '', stdout: 'origin/next\n' });
+
+    await expect(defaultBranch({ cwd: '/code/api', run })).resolves.toBe('next');
+  });
+
+  it('gives null when the repo has no remote head', async () => {
+    const run = () => Promise.resolve<RunResult>({ code: 128, stderr: 'not a symbolic ref', stdout: '' });
+
+    await expect(defaultBranch({ cwd: '/code/api', run })).resolves.toBeNull();
   });
 });

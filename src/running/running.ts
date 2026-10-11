@@ -11,6 +11,7 @@ export interface KnownSeat {
   cwd: string | null;
   kind: 'claude' | 'codex' | 'other';
   name: string;
+  parents?: number[];
   pid: number | null;
   room: string;
   threadId: string | null;
@@ -43,15 +44,16 @@ function claudeReach({ channels, panes }: Pick<RunningSources, 'channels' | 'pan
   return { reach: 'copy_only', target: null } as const;
 }
 
-// A pid is the surest match, so a seat that has one never falls back to the folder.
-function holds(seat: KnownSeat, agent: Found) {
-  if (seat.pid !== null) return seat.pid === agent.pid;
+// A pid is the surest match, so a seat that has one never falls back to the folder. A seat's socket may sit in
+// a helper under its session, so the nearest running agent among its parents holds it.
+function holds(seat: KnownSeat, agent: Found, pids: Set<number>) {
+  if (seat.pid !== null) return [seat.pid, ...(seat.parents ?? [])].find(pid => pids.has(pid)) === agent.pid;
   if (seat.threadId) return agent.reach === 'codex_thread' && seat.threadId === agent.id;
   return seat.kind === agent.kind && seat.cwd === agent.cwd;
 }
 
-function seatsOf(seats: KnownSeat[], agent: Found) {
-  const held = seats.filter(seat => holds(seat, agent));
+function seatsOf(seats: KnownSeat[], agent: Found, pids: Set<number>) {
+  const held = seats.filter(seat => holds(seat, agent, pids));
   const unique = new Map(held.map(({ name, room }): [string, RunningSeat] => [`${room} ${name}`, { name, room }]));
   return {
     seats: [...unique.values()].sort((a, b) => a.room.localeCompare(b.room) || a.name.localeCompare(b.name)),
@@ -107,10 +109,11 @@ export async function runningAgents({
         target: null,
       })),
   ];
+  const pids = new Set(found.flatMap(agent => (agent.pid === null ? [] : [agent.pid])));
   const cwds = [...new Set(found.map(agent => agent.cwd))];
   const places = new Map(await Promise.all(cwds.map(async cwd => [cwd, await place(cwd)] as const)));
   return found.map((agent): ScannedAgent => {
-    const held = seatsOf(seats, agent);
+    const held = seatsOf(seats, agent, pids);
     return { ...agent, ...places.get(agent.cwd)!, room: held.seats[0]?.room ?? null, ...held };
   });
 }
