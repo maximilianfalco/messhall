@@ -1,5 +1,6 @@
 import type { Launch, Presence } from '../../contracts/room.ts';
 
+import { STATUS_MAX_CHARS } from '../../contracts/room.ts';
 import { HEAL_BACKOFF_MS, HEAL_RESET_MS, HEAL_TRIES } from '../config.js';
 
 /** A spawned seat as the sweep sees it: whether its tmux session runs and whether an mcp session still holds it. */
@@ -80,3 +81,19 @@ export const restartLine = ({ name, try: n }: { name: string; try: number }) =>
 /** The room line once restarts run out. It names the human, since only the human can look at why. */
 export const keepsDyingLine = ({ name, room }: { name: string; room: string }) =>
   `@human ${name} keeps dying in #${room}, messhall stopped restarting it. start it again or kick it`;
+
+const STALLED = 'stalled: ';
+
+/** The status a seat stopped by an API error shows until it moves. */
+export const stalledStatus = (reason: string) => `${STALLED}${reason}`.slice(0, STATUS_MAX_CHARS);
+
+/** True for a status messhall set for an API error, not one the agent set itself. */
+export const isStalledStatus = (status: string | null) => Boolean(status?.startsWith(STALLED));
+
+/** The line typed into a seat stopped by an API error, once the API answers again. */
+export const carryOnLine = (room: string) =>
+  `the API dropped and is back. call read_since on #${room} first, then carry on from where you stopped.`;
+
+/** The room line once carry on lines run out. It names the human, since the API or the agent needs a look. */
+export const stopsOnErrorsLine = ({ name, room }: { name: string; room: string }) =>
+  `@human ${name} keeps stopping on API errors in #${room}, messhall stopped typing carry on lines. look at its pane`;

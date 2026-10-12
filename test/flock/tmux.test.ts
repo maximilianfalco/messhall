@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { findBin } from '../../src/config.js';
-import { dialogKeys, inputText, menuOpen, tmux, typeIfClear, typePrompt } from '../../src/flock/tmux.js';
+import { apiError, dialogKeys, inputText, menuOpen, tmux, typeIfClear, typePrompt } from '../../src/flock/tmux.js';
 
 const paneFixture = (name: string) => readFileSync(new URL(`fixtures/panes/${name}.txt`, import.meta.url), 'utf8');
 
@@ -226,5 +226,35 @@ describe.skipIf(!existsSync(findBin('tmux')))('tmux', () => {
 
     const read = await tmux(['-L', socket, 'display-message', '-p', '-t', '=idle:', '#{pane_title}']);
     expect(read.stdout).toBe(`${title}\n`);
+  });
+});
+
+describe('apiError', () => {
+  it('reads the API error that ended the last turn, with the turn as its tail', () => {
+    expect(apiError(paneFixture('api-error'))).toStrictEqual({
+      reason: "API Error: Can't reach the API server (ENOTFOUND)",
+      tail: "⏺ Bash(pnpm messhall-dev check) ⎿ API Error: Can't reach the API server (ENOTFOUND)",
+    });
+  });
+
+  it('ignores an error from an earlier turn', () => {
+    expect(apiError(paneFixture('api-error-old'))).toBeUndefined();
+  });
+
+  it('ignores an error with no input box under it, since the agent is not at its prompt', () => {
+    expect(apiError("⏺ Bash(ls)\n  ⎿  API Error: Can't reach the API server (ENOTFOUND)\n")).toBeUndefined();
+  });
+
+  it('ignores a last message that only mentions an API error', () => {
+    const mentioned = paneFixture('api-error').replace(
+      "  ⎿  API Error: Can't reach the API server (ENOTFOUND)",
+      '  ⎿  ok\n\n⏺ The gate prints API Error: when the mock is off, so I fixed the mock.',
+    );
+
+    expect(apiError(mentioned)).toBeUndefined();
+  });
+
+  it('reads nothing on an idle pane', () => {
+    expect(apiError(paneFixture('empty'))).toBeUndefined();
   });
 });
