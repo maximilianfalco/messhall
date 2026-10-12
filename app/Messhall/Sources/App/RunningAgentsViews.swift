@@ -154,6 +154,7 @@ struct InviteResultRow: View {
   private var summary: String {
     let name = invite.name ?? invite.id
     switch invite.outcome {
+    case .sent: return "\(name): the invite went straight to its session"
     case .queued: return "\(name): the invite waits in its codex thread"
     case .gone: return "\(invite.id) stopped running"
     case .copy: return "\(name): paste this line into its session"
@@ -165,6 +166,11 @@ struct InviteResultRow: View {
     VStack(alignment: .leading, spacing: 4) {
       Text(summary)
         .font(.callout)
+      if invite.outcome == .copy, let why = invite.why {
+        Text(why)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
       if invite.outcome == .copy, let line = invite.line {
         HStack(alignment: .top) {
           Text(line)

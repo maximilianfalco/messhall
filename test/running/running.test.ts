@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest';
 import { runningAgents } from '../../src/running/running.js';
 
 const sources = (overrides: Partial<RunningSources> = {}): RunningSources => ({
+  channels: new Map(),
   claude: [{ cwd: '/code/api', id: 's-1', pid: 101, status: 'idle' }],
   codexPids: new Map(),
   codexThreads: [],
+  panes: new Map(),
   place: cwd => Promise.resolve({ branch: 'rm-1/x', repo: cwd.split('/').at(-1) ?? null }),
   seats: [],
   ...overrides,
@@ -25,7 +27,7 @@ const seat = (overrides: Partial<KnownSeat> = {}): KnownSeat => ({
 });
 
 describe('runningAgents', () => {
-  it('lists claude sessions as reachable by session messaging', async () => {
+  it('lists a claude started outside messhall and outside tmux as copy only', async () => {
     await expect(runningAgents(sources())).resolves.toStrictEqual([
       {
         branch: 'rm-1/x',
@@ -33,13 +35,28 @@ describe('runningAgents', () => {
         id: 's-1',
         kind: 'claude',
         pid: 101,
-        reach: 'claude_session',
+        reach: 'copy_only',
         repo: 'api',
         room: null,
         seats: [],
         status: 'idle',
+        target: null,
         tmux: null,
       },
+    ]);
+  });
+
+  it('reaches a claude in a tmux pane by that pane', async () => {
+    const found = await runningAgents(sources({ panes: new Map([[101, '%3']]) }));
+
+    expect(found.map(({ reach, target }) => ({ reach, target }))).toStrictEqual([{ reach: 'tmux_pane', target: '%3' }]);
+  });
+
+  it('rings a claude messhall started on its channel before it types into its pane', async () => {
+    const found = await runningAgents(sources({ channels: new Map([[101, 'mcp-1']]), panes: new Map([[101, '%3']]) }));
+
+    expect(found.map(({ reach, target }) => ({ reach, target }))).toStrictEqual([
+      { reach: 'claude_channel', target: 'mcp-1' },
     ]);
   });
 

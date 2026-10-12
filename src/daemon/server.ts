@@ -25,7 +25,7 @@ import { wakeSeats } from '../doorbell/wake.js';
 import { createReachOf } from '../feed/reach.js';
 import { feedRoutes } from '../feed/routes.js';
 import { createSpawner } from '../flock/spawner.js';
-import { tmux as runTmux, type Tmux } from '../flock/tmux.js';
+import { tmux as runTmux, type Tmux, typeIfClear } from '../flock/tmux.js';
 import { askClaude } from '../lib/claude.js';
 import { logger } from '../lib/logger.js';
 import { runCommand, runCommandWithin } from '../lib/run.js';
@@ -33,7 +33,7 @@ import { createMcpEndpoint, MCP_METHODS, MCP_PATH } from '../mcp/transport.js';
 import { openDb } from '../rooms/db.js';
 import { createRoomStore } from '../rooms/store.js';
 import { startSummaries } from '../rooms/summaries.js';
-import { createRunningInvite, createRunningScan, peerSeats, pidAlive } from '../running/live.js';
+import { createRunningInvite, createRunningScan, pidAlive, shownRunning } from '../running/live.js';
 
 import { currentBuild } from './build.js';
 import { guarded } from './guard.js';
@@ -134,10 +134,13 @@ export async function startDaemon({
   // One spawner for the human route and the orchestrator's tool, so both stop the same sessions.
   const spawner = createSpawner({ dataDir, now, store, tmux, url });
   const mcp = createMcpEndpoint({ codex, now, spawner, store });
+  const { tmuxPanes, ...sources } = runningSources();
   const scan = createRunningScan({
-    ...runningSources(),
+    ...sources,
     alive: pidAlive,
     codex,
+    mcp,
+    port: bound.port,
     run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS),
     seats: async () => [
       ...mcp.threadSeats().map(seat => ({ ...seat, cwd: null, kind: 'codex' as const, pid: null, tmux: null })),
@@ -152,10 +155,18 @@ export async function startDaemon({
           threadId: null,
           tmux: seat.session,
         })),
-      ...(await peerSeats({ peers: mcp.peers, port: bound.port, run: runCommandWithin(RUNNING_SCAN_TIMEOUT_MS) })),
     ],
+    tmux: tmuxPanes ? tmux : null,
   });
-  const running = { invite: createRunningInvite({ codex, scan }), list: scan };
+  const running = {
+    invite: createRunningInvite({
+      codex,
+      ring: mcp.ringChannel,
+      scan,
+      type: (pane, text) => typeIfClear(pane, text, { run: tmux }),
+    }),
+    list: async () => shownRunning(await scan()),
+  };
   const ringers = createRingers([
     createChannelRinger({ sessionsFor: mcp.sessionsFor }),
     createCodexRinger({ codex, sessionsFor: mcp.sessionsFor }),

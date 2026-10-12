@@ -675,7 +675,8 @@ public enum RunningKind: String, OpenEnum, CaseIterable, Sendable { case claude,
 
 /// How an invite reaches a running session.
 public enum RunningReach: String, OpenEnum, CaseIterable, Sendable {
-  case claudeSession = "claude_session"
+  case claudeChannel = "claude_channel"
+  case tmuxPane = "tmux_pane"
   case codexThread = "codex_thread"
   case copyOnly = "copy_only"
   case unknown
@@ -684,8 +685,8 @@ public enum RunningReach: String, OpenEnum, CaseIterable, Sendable {
 /// `unknown` is a real value here: the daemon could not tell idle from busy.
 public enum RunningStatus: String, OpenEnum, CaseIterable, Sendable { case busy, idle, unknown }
 
-/// What one invite did: queued on its codex thread, a line to copy, or the agent stopped.
-public enum InviteOutcome: String, OpenEnum, CaseIterable, Sendable { case queued, copy, gone, unknown }
+/// What one invite did: sent to its channel or pane, queued on its codex thread, a line to copy, or the agent stopped.
+public enum InviteOutcome: String, OpenEnum, CaseIterable, Sendable { case sent, queued, copy, gone, unknown }
 
 /// A seat a running session holds.
 public struct RunningSeat: Codable, Equatable, Sendable {
@@ -798,14 +799,16 @@ public struct RunningInviteItem: Codable, Equatable, Sendable, Identifiable {
   public var line: String?
   public var name: String?
   public var outcome: InviteOutcome
+  public var why: String?
 
-  enum CodingKeys: String, CodingKey, CaseIterable { case id, line, name, outcome }
+  enum CodingKeys: String, CodingKey, CaseIterable { case id, line, name, outcome, why }
 
-  public init(id: String, line: String?, name: String?, outcome: InviteOutcome) {
+  public init(id: String, line: String?, name: String?, outcome: InviteOutcome, why: String? = nil) {
     self.id = id
     self.line = line
     self.name = name
     self.outcome = outcome
+    self.why = why
   }
 }
 

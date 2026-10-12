@@ -1,4 +1,6 @@
 import type { RunningAgent, RunningInviteItem } from '../../contracts/feed.ts';
+import type { typeIfClear } from '../flock/tmux.js';
+import type { ScannedAgent } from './running.js';
 
 import path from 'node:path';
 
@@ -26,17 +28,57 @@ function nextFree(base: string, taken: Set<string>) {
   return name;
 }
 
-/** Invites running agents to `room`: queues the join line on a shared codex thread, and hands back a line to
- * copy for any other agent or a thread that refused it. Names come from the repo, made unique in the batch. */
+/** The ways a join line goes out on its own: a codex thread queue, a claude channel ring, keys typed in a tmux pane. */
+export interface Deliver {
+  queue: (threadId: string, text: string) => Promise<boolean>;
+  ring: (session: string, text: string) => Promise<boolean>;
+  type: (pane: string, text: string) => ReturnType<typeof typeIfClear>;
+}
+
+type Delivered = Pick<RunningInviteItem, 'outcome' | 'why'>;
+
+const copy = (why: string): Delivered => ({ outcome: 'copy', why });
+
+const UNTYPED = {
+  draft: 'its tmux pane had a draft in the input box, so nothing was typed',
+  menu: 'its tmux pane had a menu open, so nothing was typed',
+  not_ready: 'its tmux pane did not show claude at its prompt, so nothing was typed',
+  stuck: 'the line sits in the input box of its tmux pane, press enter there',
+} as const;
+
+// Keys typed into a working claude would land in the middle of its turn, so only an idle one gets them.
+async function send(agent: ScannedAgent, line: string, deliver: Deliver): Promise<Delivered> {
+  switch (agent.reach) {
+    case 'codex_thread':
+      return (await deliver.queue(agent.id, line))
+        ? { outcome: 'queued', why: null }
+        : copy('its codex thread refused the line');
+    case 'claude_channel':
+      return agent.target && (await deliver.ring(agent.target, line))
+        ? { outcome: 'sent', why: null }
+        : copy('its messhall channel closed, so nothing was sent');
+    case 'tmux_pane': {
+      if (agent.status !== 'idle' || !agent.target) return copy('it was busy in its tmux pane, so nothing was typed');
+      const typed = await deliver.type(agent.target, line);
+      return typed === 'sent' ? { outcome: 'sent', why: null } : copy(UNTYPED[typed]);
+    }
+    default:
+      return copy(`started outside messhall, start it with messhall ${agent.kind} next time`);
+  }
+}
+
+/** Invites running agents to `room`: rings a claude messhall started, types into the tmux pane of an idle claude,
+ * queues on a shared codex thread, and hands back a line to copy, with the reason, for the rest.
+ * Names come from the repo, made unique in the batch. */
 export async function inviteRunning({
   agents,
+  deliver,
   ids,
-  queue,
   room,
 }: {
-  agents: RunningAgent[];
+  agents: ScannedAgent[];
+  deliver: Deliver;
   ids: string[];
-  queue: (threadId: string, text: string) => Promise<boolean>;
   room: string;
 }) {
   const taken = new Set<string>();
@@ -47,10 +89,9 @@ export async function inviteRunning({
   });
   return Promise.all(
     picked.map(async ({ agent, id, name }): Promise<RunningInviteItem> => {
-      if (!agent || !name) return { id, line: null, name: null, outcome: 'gone' };
+      if (!agent || !name) return { id, line: null, name: null, outcome: 'gone', why: null };
       const line = joinLine({ agent, name, room });
-      const queued = agent.reach === 'codex_thread' && (await queue(agent.id, line));
-      return { id, line, name, outcome: queued ? 'queued' : 'copy' };
+      return { id, line, name, ...(await send(agent, line, deliver)) };
     }),
   );
 }

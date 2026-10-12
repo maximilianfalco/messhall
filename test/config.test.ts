@@ -51,14 +51,46 @@ describe('config', () => {
   });
 
   it('scans claude sessions in the claude config dir and plain codex by default', () => {
+    vi.stubEnv('MESSHALL_HOME', '');
     vi.stubEnv('MESSHALL_CLAUDE_SESSIONS', '');
     vi.stubEnv('CLAUDE_CONFIG_DIR', '/Users/someone/.claude-work');
-    expect(runningSources()).toStrictEqual({ claudeDir: '/Users/someone/.claude-work/sessions', plainCodex: true });
+    expect(runningSources()).toStrictEqual({
+      claudeDir: '/Users/someone/.claude-work/sessions',
+      plainCodex: true,
+      tmuxPanes: true,
+    });
   });
 
   it('scans only MESSHALL_CLAUDE_SESSIONS when it is set, so a scratch daemon never lists real sessions', () => {
     vi.stubEnv('MESSHALL_CLAUDE_SESSIONS', '/tmp/messhall-shot/claude-sessions');
-    expect(runningSources()).toStrictEqual({ claudeDir: '/tmp/messhall-shot/claude-sessions', plainCodex: false });
+    vi.stubEnv('TMUX_TMPDIR', '');
+    expect(runningSources()).toStrictEqual({
+      claudeDir: '/tmp/messhall-shot/claude-sessions',
+      plainCodex: false,
+      tmuxPanes: false,
+    });
+  });
+
+  it('lets a scratch daemon find panes only on its own tmux server', () => {
+    vi.stubEnv('MESSHALL_CLAUDE_SESSIONS', '/tmp/messhall-shot/claude-sessions');
+    vi.stubEnv('TMUX_TMPDIR', '/tmp/messhall-tape-tmux');
+    vi.stubEnv('TMUX', '');
+    expect(runningSources().tmuxPanes).toBe(true);
+    vi.stubEnv('TMUX', '/private/tmp/tmux-501/default,1,0');
+    expect(runningSources().tmuxPanes).toBe(false);
+  });
+
+  it('keeps a daemon with its own MESSHALL_HOME off the real tmux server, even when it scans real sessions', () => {
+    vi.stubEnv('MESSHALL_HOME', '/tmp/messhall-scratch');
+    vi.stubEnv('MESSHALL_CLAUDE_SESSIONS', '');
+    vi.stubEnv('TMUX', '/private/tmp/tmux-501/default,1,0');
+    vi.stubEnv('TMUX_TMPDIR', '/tmp/messhall-tape-tmux');
+    expect(runningSources().tmuxPanes).toBe(false);
+    vi.stubEnv('TMUX', '');
+    vi.stubEnv('TMUX_TMPDIR', '');
+    expect(runningSources().tmuxPanes).toBe(false);
+    vi.stubEnv('TMUX_TMPDIR', '/tmp/messhall-tape-tmux');
+    expect(runningSources().tmuxPanes).toBe(true);
   });
 
   it('uses MESSHALL_PORT when it is set', () => {

@@ -453,6 +453,40 @@ describe('createMcpEndpoint sweep', () => {
     expect(endpoint.ringable({ name: 'api', room: 'checkout' })).toBe(false);
   });
 
+  async function claudeCode(seat?: string, name = 'claude-code') {
+    const connected = await connectHttp({ key: 'no-key-check-here', name, seat, url: endpointUrl() });
+    clients.push(connected.client);
+    return connected;
+  }
+
+  it('offers an invite only the claude sessions messhall started, with their open ports', async () => {
+    const started = await claudeCode('seat-a');
+    await claudeCode();
+    await claudeCode('seat-b', 'messhall-http');
+
+    await vi.waitFor(() => expect(endpoint.channelPeers()).toHaveLength(1));
+    expect(endpoint.channelPeers()[0]?.id).toBe(started.transport.sessionId);
+    expect(endpoint.channelPeers()[0]?.ports.length).toBeGreaterThan(0);
+  });
+
+  it('rings a channel peer with the text and nothing else', async () => {
+    const started = await claudeCode('seat-a');
+    const rings = ringsOf(started.client);
+    await vi.waitFor(() => expect(endpoint.channelPeers()).toHaveLength(1));
+
+    const sent = await endpoint.ringChannel(started.transport.sessionId!, 'come to #checkout');
+
+    expect(sent).toBe(true);
+    await vi.waitFor(() => expect(rings).toStrictEqual([{ content: 'come to #checkout', meta: {} }]));
+  });
+
+  it('rings no session that messhall did not start', async () => {
+    const plain = await claudeCode();
+
+    await expect(endpoint.ringChannel(plain.transport.sessionId!, 'come to #checkout')).resolves.toBe(false);
+    await expect(endpoint.ringChannel('gone', 'come to #checkout')).resolves.toBe(false);
+  });
+
   it('keeps a session whose stream is open however long it is quiet', async () => {
     const api = await agent(endpointUrl(), 'no-key-check-here');
     await api.call('join', { as: 'api', room: 'checkout' });

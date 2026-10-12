@@ -15,9 +15,10 @@ import {
 import { DEFAULT_MAX_REQUEST_BODY_SIZE, isInitializeRequest } from '@modelcontextprotocol/server';
 
 import { sendJson } from '../daemon/router.js';
+import { CHANNEL_METHOD } from '../doorbell/ringers/channel.js';
 import { logger } from '../lib/logger.js';
 
-import { SEAT_HEADER } from './constants.js';
+import { clientType, SEAT_HEADER } from './constants.js';
 import { createRelay } from './permission.js';
 import { reattachSeats } from './seats.js';
 import { createMesshallServer } from './server.js';
@@ -75,6 +76,9 @@ export function createMcpEndpoint({
   store: RoomStore;
 }) {
   const sessions = createSessionRegistry<McpEntry>();
+  // Only messhall sends a seat key, and a plain claude drops a channel ring in silence, so both have to hold.
+  const takesRing = ({ server, session }: McpEntry) =>
+    Boolean(session.seat) && clientType(server.server.getClientVersion()?.name ?? '').channel;
   const hostOk = localhostHostValidation();
   const originOk = localhostOriginValidation();
 
@@ -152,6 +156,24 @@ export function createMcpEndpoint({
       sessions.sessionsFor(seat).some(entry => entry.session.ringable),
     /** Each seated session's open client ports, so a scan can find the process behind its seats. */
     peers: sessions.peers,
+    /** Each live claude session messhall started, with its open client ports, so a scan can find its process. */
+    channelPeers: () =>
+      sessions
+        .all()
+        .filter(entry => takesRing(entry) && entry.session.ports.length > 0)
+        .map(({ session }) => ({ id: session.id, ports: session.ports })),
+    /** Sends `text` on the channel of session `id`. False when it is gone or messhall did not start it. */
+    ringChannel: async (id: string, text: string) => {
+      const entry = sessions.get(id);
+      if (!entry || !takesRing(entry)) return false;
+      return entry.server.server.notification({ method: CHANNEL_METHOD, params: { content: text, meta: {} } }).then(
+        () => true,
+        (error: unknown) => {
+          logger.info('invite ring not sent', { error: String(error), session: id });
+          return false;
+        },
+      );
+    },
     /** The codex thread each live session sits in a room with, so a scan knows which threads are seated. */
     threadSeats: sessions.threadSeats,
     /** The live sessions holding `name` in `room`, so the doorbell can ring through each one's server. */
