@@ -18,6 +18,11 @@ struct RoomCopyTests {
     )
   }
 
+  @Test("the copied room name is a hash plus the name")
+  func roomName() {
+    #expect(JoinPrompt.roomName("rm-1234") == "#rm-1234")
+  }
+
   @Test("the launch command starts claude in the room")
   func launch() {
     #expect(JoinPrompt.launchCommand(room: "checkout") == "messhall claude --room checkout")

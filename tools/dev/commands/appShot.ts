@@ -130,6 +130,8 @@ const SHOTS = [
   { appearance: 'dark', name: 'settings-shortcut-dark', settings: 'shortcut' },
   { appearance: 'light', menuOpen: true, name: 'menu-open-light' },
   { appearance: 'dark', menuOpen: true, name: 'menu-open-dark' },
+  { appearance: 'light', name: 'room-menu-light', room: 'checkout', roomMenu: true },
+  { appearance: 'dark', name: 'room-menu-dark', room: 'checkout', roomMenu: true },
   { appearance: 'light', hotkey: true, name: 'hotkey-light' },
   { appearance: 'light', name: 'notify-blocked-light', notify: 'denied' },
   { appearance: 'dark', name: 'notify-blocked-dark', notify: 'denied' },
@@ -627,6 +629,7 @@ export function shotArgs(shot: Shot) {
     ...('pageTop' in shot ? ['-shotPageTop', anchorFile(shot)] : []),
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
     ...('menuOpen' in shot ? ['-shotMenu', 'YES'] : []),
+    ...('roomMenu' in shot ? ['-shotRoomMenu', 'YES'] : []),
     ...('hotkey' in shot ? ['-shotHotkey', hotkeyFile(shot)] : []),
     ...('contract' in shot ? ['-shotContract', String(shot.contract)] : []),
     ...('notify' in shot ? ['-shotNotify', shot.notify] : []),
@@ -677,7 +680,7 @@ export async function waitWindow(
 /** The window number screencapture takes: Settings, the open menu, the window opened again by the hotkey, or the main one. */
 async function shotTarget({ id, pid, shot }: { id: number; pid: number; shot: Shot }) {
   if ('settings' in shot) return settingsWindow(shot);
-  if ('menuOpen' in shot) return String((await waitWindow(pid, MENU_LAYERS)) ?? 'no menu opened');
+  if ('menuOpen' in shot || 'roomMenu' in shot) return String((await waitWindow(pid, MENU_LAYERS)) ?? 'no menu opened');
   if ('hotkey' in shot) return String((await waitWindow(pid)) ?? 'no window after the hotkey');
   return String(id);
 }

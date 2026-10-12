@@ -146,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         Task { await PerfHooks.run(store: store, client: client, navigation: navigation, file: file) }
       }
       if UserDefaults.standard.bool(forKey: "shotMenu") { Task { await ShotHooks.openMenu() } }
+      if UserDefaults.standard.bool(forKey: "shotRoomMenu") { Task { await ShotHooks.openRoomMenu() } }
       let width = UserDefaults.standard.double(forKey: "shotWidth")
       if width > 0 { Task { await ShotHooks.resize(width: width) } }
       if let file = UserDefaults.standard.string(forKey: "shotHotkey") {
