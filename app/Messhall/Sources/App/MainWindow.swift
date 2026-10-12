@@ -184,6 +184,7 @@ struct RoomRow: View {
       Image(systemName: room.isOpen ? "number" : "lock")
     }
     .padding(.vertical, 2)
+    .copyRoomNameMenu(room.name)
     .accessibilityLabel(
       "\(room.name), \(room.isOpen ? "open" : "closed"), \(room.agentSummary)\(questionsLabel)\(unreadLabel)")
   }

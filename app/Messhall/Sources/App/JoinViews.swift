@@ -10,6 +10,12 @@ func copyToPasteboard(_ text: String) {
   NSPasteboard.general.setString(text, forType: .string)
 }
 
+extension View {
+  func copyRoomNameMenu(_ room: String) -> some View {
+    contextMenu { Button("Copy Room Name") { copyToPasteboard(JoinPrompt.roomName(room)) } }
+  }
+}
+
 /// Copies the join prompt in one click. Its menu also copies the launch command.
 struct CopyJoinButton: View {
   let room: String

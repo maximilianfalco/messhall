@@ -196,9 +196,10 @@ struct RoomHeader: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Text("#\(room.name)")
+        Text(JoinPrompt.roomName(room.name))
           .font(.title3.weight(.semibold))
           .lineLimit(1)
+          .copyRoomNameMenu(room.name)
         Text(subtitle)
           .foregroundStyle(.secondary)
           .lineLimit(1)
