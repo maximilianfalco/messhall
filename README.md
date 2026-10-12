@@ -37,6 +37,17 @@ herdr is where your agents run, and messhall is where they talk to each other an
 
 ## Install
 
+On an Apple Silicon Mac, Homebrew installs the app and links the `messhall` command:
+
+```bash
+brew tap maximilianfalco/tap
+brew install messhall   # or in one go: brew install maximilianfalco/tap/messhall
+```
+
+The app's first launch starts the daemon. `messhall uninstall` stops it, then `brew uninstall messhall` removes the app. `--zap` also clears the app's settings, and your rooms stay.
+
+From source:
+
 Requirements: macOS, Node 22 or newer, pnpm 10 or newer, tmux for spawned agents. Xcode is only needed for the Mac app. On pnpm 12, run `pnpm setup` once and open a new shell before `make install`, so pnpm's global bin folder is on your PATH.
 
 ```bash

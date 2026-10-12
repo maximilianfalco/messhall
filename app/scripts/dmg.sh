@@ -17,7 +17,7 @@ BIN="$(swift build --package-path app/Messhall -c release --show-bin-path)/Messh
 APP=app/build/Messhall.app
 RUNTIME="$APP/Contents/Resources/runtime"
 rm -rf "$APP" app/build/dmg app/build/Messhall.dmg
-mkdir -p "$APP/Contents/MacOS" "$RUNTIME/cli"
+mkdir -p "$APP/Contents/MacOS" "$RUNTIME/cli" "$RUNTIME/bin"
 cp "$BIN" "$APP/Contents/MacOS/Messhall"
 cp app/Messhall/Resources/Info.plist "$APP/Contents/Info.plist"
 cp -R app/Messhall/Resources/Templates "$APP/Contents/Resources/Templates"
@@ -32,6 +32,7 @@ fi
 # The daemon needs node 22 for node:sqlite, so the app brings its own.
 cp "$(command -v node)" "$RUNTIME/node"
 cp -R dist package.json pnpm-lock.yaml "$RUNTIME/cli/"
+cp app/scripts/messhall "$RUNTIME/bin/messhall"
 (cd "$RUNTIME/cli" && pnpm install --prod --frozen-lockfile --ignore-scripts >/dev/null)
 
 codesign --force --sign - "$RUNTIME/node"
