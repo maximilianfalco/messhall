@@ -15,7 +15,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+
+      - name: Check the tag names the version in the code
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PACKAGE" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json $PACKAGE. Bump the version in a PR first."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - run: make dmg
-      - run: gh release create "$GITHUB_REF_NAME" app/build/Messhall.dmg --generate-notes
+
+      - name: Publish release
+        id: publish
+        run: |
+          gh release create "$GITHUB_REF_NAME" app/build/Messhall.dmg --title "Messhall $GITHUB_REF_NAME" --generate-notes
+          echo "sha256=$(shasum -a 256 app/build/Messhall.dmg | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Update the Homebrew cask
+        env:
+          # A token with contents:write on the tap. GITHUB_TOKEN cannot reach another repo.
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+          TAP: maximilianfalco/homebrew-tap
+          CASK: Casks/messhall.rb
+        run: |
+          gh api "repos/$TAP/contents/$CASK" --jq '.content' | base64 --decode > cask.rb
+          SHA=$(gh api "repos/$TAP/contents/$CASK" --jq '.sha')
+          /usr/bin/sed -i '' \
+            -e "s/version \".*\"/version \"$VERSION\"/" \
+            -e "s/sha256 \".*\"/sha256 \"${{ steps.publish.outputs.sha256 }}\"/" cask.rb
+          gh api -X PUT "repos/$TAP/contents/$CASK" \
+            -f message="cask: messhall $VERSION" \
+            -f content="$(base64 -i cask.rb)" -f sha="$SHA" --jq '.commit.html_url'

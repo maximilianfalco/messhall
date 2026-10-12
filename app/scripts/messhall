@@ -1,0 +1,5 @@
+#!/bin/sh
+# The messhall command inside the app, which brew links onto the PATH.
+# readlink -f follows that link, so node and the cli are found next to the real file.
+RUNTIME="$(dirname "$(dirname "$(readlink -f "$0")")")"
+exec "$RUNTIME/node" --disable-warning=ExperimentalWarning "$RUNTIME/cli/dist/src/cli.js" "$@"
