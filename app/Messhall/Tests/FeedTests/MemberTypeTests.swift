@@ -128,6 +128,21 @@ struct MemberTypeTests {
     #expect(Self.withStatus("tests green").statusLine(now: at) == line)
   }
 
+  @Test(
+    "a status is stale after an hour",
+    arguments: [
+      ("2026-01-01T10:59:00.000Z", false),
+      ("2026-01-01T11:00:00.000Z", true),
+      ("2026-01-02T10:00:00.000Z", true),
+    ])
+  func statusStale(now: String, stale: Bool) throws {
+    let at = try Date(now, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+
+    #expect(Self.withStatus("tests green").isStatusStale(now: at) == stale)
+    #expect(Self.withStatus(nil).isStatusStale(now: at) == false)
+    #expect(Self.withStatus("tests green", at: nil).isStatusStale(now: at) == false)
+  }
+
   @Test("no status, no status line")
   func noStatusLine() {
     #expect(Self.withStatus(nil, at: nil).statusLine(now: Date()) == nil)

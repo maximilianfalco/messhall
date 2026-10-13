@@ -482,7 +482,7 @@ struct MemberChip: View {
   }
 }
 
-/// The member's own status and its age, after a glyph that spins while the member is active.
+/// The member's own status and its age (dimmed once an hour old), after a glyph that spins while the member is active.
 /// The age ticks each minute without a feed event. Reduce Motion keeps the glyph and the text still.
 struct StatusLine: View {
   let member: Member
@@ -524,6 +524,7 @@ struct StatusLine: View {
       }
     }
     .frame(maxWidth: maxWidth, alignment: .leading)
+    .opacity(member.isStatusStale(now: ThinkingClock.shared.minute) ? 0.5 : 1)
   }
 }
 

@@ -38,10 +38,20 @@ extension Member {
       + (status.map { ": \($0)" } ?? "")
   }
 
+  /// True when the status was set an hour ago or more, so the chip can dim it.
+  public func isStatusStale(now: Date) -> Bool {
+    guard status != nil, let at = statusAt.flatMap(Self.parseStatusTime) else { return false }
+    return now.timeIntervalSince(at) >= 3600
+  }
+
+  private static func parseStatusTime(_ text: String) -> Date? {
+    try? Date(text, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+  }
+
   /// `tests green · 3m ago`, the status under the presence on the chip. Nil when the member set none.
   public func statusLine(now: Date) -> String? {
     guard let status else { return nil }
-    let at = statusAt.flatMap { try? Date($0, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)) }
+    let at = statusAt.flatMap(Self.parseStatusTime)
     guard let at else { return status }
     let minutes = Int(now.timeIntervalSince(at) / 60)
     let age =
