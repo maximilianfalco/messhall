@@ -71,6 +71,7 @@ const SHOTS = [
   { appearance: 'light', name: 'start-light', start: 'daily-helper' },
   { appearance: 'light', name: 'standing-light', room: 'release-notes' },
   { appearance: 'dark', name: 'standing-dark', room: 'release-notes' },
+  { appearance: 'light', name: 'stale-status-light', room: 'deploy' },
   { appearance: 'light', name: 'closed-light', room: 'billing' },
   { appearance: 'dark', name: 'closed-dark', room: 'billing' },
   { agentPost: true, appearance: 'light', name: 'pill-light', room: 'docs-sync', scrollTop: true },
@@ -508,6 +509,7 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     store.createRoom({ created_by: 'human', name: 'reach', topic: 'how messhall reaches each agent' });
     store.invite({ by: 'human', launch, name: 'worker', role: 'worker', room: 'reach' });
     store.joinRoom({ as: 'plain', client: { name: 'opencode', version: '1.18.34' }, kind: 'other', room: 'reach' });
+    store.postMessage({ from: 'human', room: 'reach', text: '@plain can you take the migration?' });
     store.joinRoom({ as: 'deployer', client: CLAUDE, kind: 'claude', room: 'deploy' });
     store.postMessage({ from: 'deployer', room: 'deploy', text: 'migration is ready, running it on staging next' });
     store.sweepPresence({ ringable: () => false });

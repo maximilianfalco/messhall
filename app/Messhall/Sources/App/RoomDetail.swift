@@ -45,6 +45,7 @@ struct RoomDetail: View {
       MemberStrip(
         live: room.liveMembers, away: room.awayMembers,
         asking: Set(room.approvals.map(\.member) + room.questions.map(\.member)),
+        lastPosts: AgentsPanel.lastPosts(in: room.messages).mapValues(\.createdAt),
         mention: room.isOpen ? { mention($0) } : nil,
         claimsOrchestrator: orchestratorClaimers,
         setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) },
@@ -289,6 +290,7 @@ struct MemberStrip: View {
   let live: [Member]
   let away: [Member]
   let asking: Set<String>
+  let lastPosts: [String: String]
   let mention: ((String) -> Void)?
   let claimsOrchestrator: Set<String>
   let setRole: ((_ role: String, _ member: String) -> Void)?
@@ -378,7 +380,9 @@ struct MemberStrip: View {
   }
 
   private func badged(_ member: Member) -> MemberChip {
-    MemberChip(member: member, asks: asking.contains(member.name), launch: member.launchPill(starting: starting))
+    MemberChip(
+      member: member, asks: asking.contains(member.name), launch: member.launchPill(starting: starting),
+      lastPostAt: lastPosts[member.name])
   }
 }
 
@@ -444,6 +448,7 @@ struct MemberChip: View {
   let member: Member
   var asks = false
   var launch: LaunchPill? = nil
+  var lastPostAt: String? = nil
 
   var body: some View {
     HStack(spacing: 8) {
@@ -479,7 +484,7 @@ struct MemberChip: View {
           }
         }
         if member.status != nil {
-          StatusLine(member: member)
+          StatusLine(member: member, lastPostAt: lastPostAt)
         }
       }
     }
@@ -493,10 +498,11 @@ struct MemberChip: View {
   }
 }
 
-/// The member's own status and its age, after a glyph that spins while the member is active.
+/// The member's own status and its age (dimmed once an hour old or the member posted since), after a glyph that spins while the member is active.
 /// The age ticks each minute without a feed event. Reduce Motion keeps the glyph and the text still.
 struct StatusLine: View {
   let member: Member
+  var lastPostAt: String? = nil
   var maxWidth: CGFloat? = 240
   @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
@@ -535,6 +541,7 @@ struct StatusLine: View {
       }
     }
     .frame(maxWidth: maxWidth, alignment: .leading)
+    .opacity(member.isStatusStale(now: ThinkingClock.shared.minute, lastPostAt: lastPostAt) ? 0.5 : 1)
   }
 }
 
@@ -685,6 +692,10 @@ struct Transcript: View {
   private static let settle = 0.8
 
   // A filter shows the matching lines as they are, so a search for a name is not hidden in a fold.
+  private func unheard(by message: Message) -> [String] {
+    members.filter { $0.cantHear(message) }.map(\.name)
+  }
+
   private var items: [TranscriptItem] {
     query.trimmingCharacters(in: .whitespaces).isEmpty ? messages.folded() : messages.map { .message($0) }
   }
@@ -720,7 +731,9 @@ struct Transcript: View {
                   Group {
                     switch item {
                     case .message(let message):
-                      MessageRow(message: message, sender: senders[message.from], ask: asks[message.id])
+                      MessageRow(
+                        message: message, sender: senders[message.from], unheard: unheard(by: message),
+                        ask: asks[message.id])
                     case .fold(let fold):
                       let open = isOpen(fold)
                       FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }
@@ -1047,6 +1060,7 @@ struct FoldRow: View {
 struct MessageRow: View {
   let message: Message
   let sender: Member?
+  var unheard: [String] = []
   var ask: Question?
 
   var body: some View {
@@ -1076,7 +1090,7 @@ struct MessageRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     case .chat, .done:
-      ChatRow(message: message, sender: sender, ask: ask)
+      ChatRow(message: message, sender: sender, unheard: unheard, ask: ask)
     }
   }
 }
@@ -1084,6 +1098,7 @@ struct MessageRow: View {
 struct ChatRow: View {
   let message: Message
   let sender: Member?
+  var unheard: [String] = []
   var ask: Question?
 
   // Off in Settings, a line has no links to read, so nothing goes to GitHub.
@@ -1128,6 +1143,11 @@ struct ChatRow: View {
         }
         PullRequestCards(row: pullRequests)
           .padding(.top, 10)
+        ForEach(unheard, id: \.self) { name in
+          Label("\(name): \(unheardMentionHint)", systemImage: "bell.slash")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
       }
       if line.mine { AvatarView(name: message.from) }
     }

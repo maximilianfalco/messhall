@@ -46,10 +46,21 @@ extension Member {
       + (status.map { ": \($0)" } ?? "")
   }
 
+  /// True when the status is an hour old or the member posted after setting it, so the chip can dim it.
+  public func isStatusStale(now: Date, lastPostAt: String? = nil) -> Bool {
+    guard status != nil, let at = statusAt.flatMap(Self.parseStatusTime) else { return false }
+    let posted = lastPostAt.flatMap(Self.parseStatusTime)
+    return now.timeIntervalSince(at) >= 3600 || posted.map { $0 > at } == true
+  }
+
+  private static func parseStatusTime(_ text: String) -> Date? {
+    try? Date(text, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+  }
+
   /// `tests green · 3m ago`, the status under the presence on the chip. Nil when the member set none.
   public func statusLine(now: Date) -> String? {
     guard let status else { return nil }
-    let at = statusAt.flatMap { try? Date($0, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)) }
+    let at = statusAt.flatMap(Self.parseStatusTime)
     guard let at else { return status }
     let minutes = Int(now.timeIntervalSince(at) / 60)
     let age =
@@ -92,3 +103,6 @@ extension Message {
     fromClientLabel ?? sender?.clientLabel
   }
 }
+
+/// The line under a mention the agent cannot hear.
+public let unheardMentionHint = "cant hear you, no doorbell, it reads the room on its next call"

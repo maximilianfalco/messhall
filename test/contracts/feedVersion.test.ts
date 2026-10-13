@@ -92,12 +92,13 @@ describe('FEED_CONTRACT_VERSION', () => {
           "message_edit",
           "member",
           "presence",
+          "read",
           "room",
           "approval",
           "question",
           "agreement",
         ],
-        "version": 8,
+        "version": 9,
       }
     `);
   });

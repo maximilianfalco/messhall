@@ -9,6 +9,10 @@ public struct AgentRow: Equatable, Identifiable, Sendable {
 
   public var id: String { "\(room)/\(member.name)" }
 
+  /// True when a loaded line mentions this agent and it cannot hear it, so the panel flags the row.
+  public var hasUnheardMention: Bool { unheard != nil }
+  let unheard: Message?
+
   /// The PR the status links, else the one its last post links.
   public var pullRequest: PullRequestLink? {
     pullRequestLinks(in: member.status ?? "").first ?? pullRequestLinks(in: lastPost?.text ?? "").first
@@ -48,7 +52,8 @@ public struct AgentsPanel: Equatable, Sendable {
     let rows = rooms.filter { only == nil || $0.name == only }.flatMap { room in
       let lastPosts = Self.lastPosts(in: room.messages)
       return room.members.filter { $0.kind != .human && $0.presence != .left }.map { member in
-        AgentRow(room: room.name, member: member, lastPost: lastPosts[member.name])
+        AgentRow(room: room.name, member: member, lastPost: lastPosts[member.name],
+          unheard: room.messages.last { member.cantHear($0) })
       }
     }
     .sorted { ($0.room, $0.member.name) < ($1.room, $1.member.name) }

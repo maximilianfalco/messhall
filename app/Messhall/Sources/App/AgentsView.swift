@@ -94,7 +94,12 @@ struct AgentRowView: View {
             }
             .lineLimit(1)
             if member.status != nil {
-              StatusLine(member: member, maxWidth: .infinity)
+              StatusLine(member: member, lastPostAt: agent.lastPost?.createdAt, maxWidth: .infinity)
+            }
+            if agent.hasUnheardMention {
+              Label("unread mention, \(unheardMentionHint)", systemImage: "bell.slash")
+                .font(.caption)
+                .foregroundStyle(.orange)
             }
           }
           Spacer(minLength: 0)
