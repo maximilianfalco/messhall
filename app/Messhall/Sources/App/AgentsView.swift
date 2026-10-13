@@ -96,6 +96,11 @@ struct AgentRowView: View {
             if member.status != nil {
               StatusLine(member: member, maxWidth: .infinity)
             }
+            if agent.hasUnheardMention {
+              Label("unread mention, \(unheardMentionHint)", systemImage: "bell.slash")
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
           }
           Spacer(minLength: 0)
         }

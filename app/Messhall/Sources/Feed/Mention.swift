@@ -52,3 +52,12 @@ public func appendMention(_ name: String, to draft: String) -> String {
   let gap = draft.isEmpty || draft.last?.isWhitespace == true ? "" : " "
   return draft + gap + "@\(name) "
 }
+
+extension Member {
+  /// True when `message` mentions this agent, it has not read it, and it has no doorbell and is not in `wait`.
+  public func cantHear(_ message: Message) -> Bool {
+    reach == .noDoorbell && presence != .waiting && message.kind == .chat && message.id > cursor
+      && message.from != name && message.removedAt == nil
+      && (message.mentions.contains(name) || message.mentions.contains(allMention))
+  }
+}
