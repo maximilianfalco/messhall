@@ -61,6 +61,7 @@ describe('join prompt', () => {
 
     expect(text).toContain('doorbell: off');
     expect(text).toContain('cannot be rung');
+    expect(text).toContain('loop wait yourself and never end your turn on it');
     expect(text).toContain('messhall claude');
   });
 });
@@ -109,6 +110,7 @@ describe('take to room prompt', () => {
 
     expect(text).toContain('doorbell: off');
     expect(text).toContain('cannot be rung');
+    expect(text).toContain('loop wait yourself and never end your turn on it');
   });
 
   it('refuses a room name the join tool would refuse', async () => {
