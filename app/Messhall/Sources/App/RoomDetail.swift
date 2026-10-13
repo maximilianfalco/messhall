@@ -674,6 +674,10 @@ struct Transcript: View {
   private static let settle = 0.8
 
   // A filter shows the matching lines as they are, so a search for a name is not hidden in a fold.
+  private func unheard(by message: Message) -> [String] {
+    members.filter { $0.cantHear(message) }.map(\.name)
+  }
+
   private var items: [TranscriptItem] {
     query.trimmingCharacters(in: .whitespaces).isEmpty ? messages.folded() : messages.map { .message($0) }
   }
@@ -709,7 +713,9 @@ struct Transcript: View {
                   Group {
                     switch item {
                     case .message(let message):
-                      MessageRow(message: message, sender: senders[message.from], ask: asks[message.id])
+                      MessageRow(
+                        message: message, sender: senders[message.from], unheard: unheard(by: message),
+                        ask: asks[message.id])
                     case .fold(let fold):
                       let open = isOpen(fold)
                       FoldRow(fold: fold, open: open) { toggle(fold, to: !open, proxy) }
@@ -1036,6 +1042,7 @@ struct FoldRow: View {
 struct MessageRow: View {
   let message: Message
   let sender: Member?
+  var unheard: [String] = []
   var ask: Question?
 
   var body: some View {
@@ -1065,7 +1072,7 @@ struct MessageRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     case .chat, .done:
-      ChatRow(message: message, sender: sender, ask: ask)
+      ChatRow(message: message, sender: sender, unheard: unheard, ask: ask)
     }
   }
 }
@@ -1073,6 +1080,7 @@ struct MessageRow: View {
 struct ChatRow: View {
   let message: Message
   let sender: Member?
+  var unheard: [String] = []
   var ask: Question?
 
   // Off in Settings, a line has no links to read, so nothing goes to GitHub.
@@ -1117,6 +1125,11 @@ struct ChatRow: View {
         }
         PullRequestCards(row: pullRequests)
           .padding(.top, 10)
+        ForEach(unheard, id: \.self) { name in
+          Label("\(name): \(unheardMentionHint)", systemImage: "bell.slash")
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
       }
       if line.mine { AvatarView(name: message.from) }
     }

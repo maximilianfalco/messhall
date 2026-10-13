@@ -183,6 +183,11 @@ public final class FeedStore {
         room.members[index].presence = e.to
         room.members[index].reach = e.reach ?? room.members[index].reach
       }
+    case .read(let e):
+      update(e.room) { room in
+        guard let index = room.members.firstIndex(where: { $0.name == e.name }) else { return }
+        room.members[index].cursor = max(room.members[index].cursor, e.cursor)
+      }
     case .room(let e):
       guard rooms.contains(where: { $0.name == e.room.name }) else {
         rooms.append(SnapshotRoom(room: e.room))

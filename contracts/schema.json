@@ -316,6 +316,9 @@
           "$ref": "#/$defs/PresenceEvent"
         },
         {
+          "$ref": "#/$defs/ReadEvent"
+        },
+        {
           "$ref": "#/$defs/RoomEvent"
         },
         {
@@ -1153,6 +1156,39 @@
         "name",
         "room",
         "to",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "ReadEvent": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The id of the newest line the member has read."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Member name."
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,40}$",
+          "description": "Room name."
+        },
+        "type": {
+          "type": "string",
+          "const": "read",
+          "description": "A member read the room, so its cursor moved."
+        }
+      },
+      "required": [
+        "cursor",
+        "name",
+        "room",
         "type"
       ],
       "additionalProperties": false
@@ -1996,7 +2032,7 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991,
-          "x-current": 8,
+          "x-current": 9,
           "description": "The feed contract the daemon speaks. An app built for a lower number is older than the daemon."
         },
         "rooms": {

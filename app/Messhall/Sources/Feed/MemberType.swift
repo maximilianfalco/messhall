@@ -84,3 +84,6 @@ extension Message {
     fromClientLabel ?? sender?.clientLabel
   }
 }
+
+/// The line under a mention the agent cannot hear.
+public let unheardMentionHint = "cant hear you, no doorbell, it reads the room on its next call"

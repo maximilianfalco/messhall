@@ -4,7 +4,7 @@ import Foundation
 
 /// The feed contract this app was built against. A newer daemon sends a higher one.
 public enum FeedContract {
-  public static let version = 8
+  public static let version = 9
 }
 
 /// A feed enum that grows over time. A value this build does not know decodes as `unknown`, so the stream stays up.
@@ -397,6 +397,27 @@ public struct PresenceEvent: Decodable, Equatable, Sendable {
   }
 }
 
+public struct ReadEvent: Decodable, Equatable, Sendable {
+  public var room: String
+  public var name: String
+  public var cursor: Int
+
+  enum CodingKeys: String, CodingKey, CaseIterable { case type, room, name, cursor }
+
+  public init(room: String, name: String, cursor: Int) {
+    self.room = room
+    self.name = name
+    self.cursor = cursor
+  }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      room: try c.decode(String.self, forKey: .room), name: try c.decode(String.self, forKey: .name),
+      cursor: try c.decode(Int.self, forKey: .cursor))
+  }
+}
+
 public struct RoomEvent: Decodable, Equatable, Sendable {
   public var change: RoomChange
   public var room: Room
@@ -473,6 +494,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
   case messageEdit(MessageEvent)
   case member(MemberEvent)
   case presence(PresenceEvent)
+  case read(ReadEvent)
   case room(RoomEvent)
   case approval(ApprovalEvent)
   case question(QuestionEvent)
@@ -489,6 +511,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .messageEdit(let e): e.room
     case .member(let e): e.room
     case .presence(let e): e.room
+    case .read(let e): e.room
     case .room(let e): e.room.name
     case .approval(let e): e.room
     case .question(let e): e.room
@@ -503,6 +526,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case .messageEdit: "message_edit"
     case .member: "member"
     case .presence: "presence"
+    case .read: "read"
     case .room: "room"
     case .approval: "approval"
     case .question: "question"
@@ -518,6 +542,7 @@ public enum BusEvent: Decodable, Equatable, Sendable {
     case "message_edit": self = .messageEdit(try MessageEvent(from: decoder))
     case "member": self = .member(try MemberEvent(from: decoder))
     case "presence": self = .presence(try PresenceEvent(from: decoder))
+    case "read": self = .read(try ReadEvent(from: decoder))
     case "room": self = .room(try RoomEvent(from: decoder))
     case "approval": self = .approval(try ApprovalEvent(from: decoder))
     case "question": self = .question(try QuestionEvent(from: decoder))

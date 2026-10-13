@@ -132,6 +132,7 @@ export function renderEvent({ event, room }: { event: BusEvent; room?: string })
   }
   if (event.type === 'member') return [pc.dim(`${GUTTER}${tag}${memberLine(event.member, event.change)}`)];
   if (event.type === 'presence') return [pc.dim(`${GUTTER}${tag}· ${event.name} ${event.from} → ${event.to}`)];
+  if (event.type === 'read') return [];
   if (event.type === 'approval') return [approvalLine(event.approval, tag)];
   if (event.type === 'question') return [questionLine(event.question, tag)];
   if (event.type === 'agreement') return [agreementLine(event.agreement, tag)];
