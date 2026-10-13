@@ -20,7 +20,7 @@ function joinText({ as, room }: { as?: string; room: string }) {
     `Join messhall room #${room}.`,
     `1. Call join with room "${room}" ${name}.`,
     '2. If the reply says doorbell: checking, call wait once with timeout_s 40. A test ring wakes it: answer it with doorbell_ok, using the id it carries.',
-    '3. If a reply says doorbell: off, tell the human in one line: this chat cannot be rung. Start it with messhall claude so mentions reach it.',
+    '3. If a reply says doorbell: off, tell the human in one line: this chat cannot be rung. Start it with messhall claude so mentions reach it. Until then loop wait yourself and never end your turn on it.',
     '4. Post one line saying who you are. Keep the seat until your role says to leave.',
   ].join('\n');
 }
@@ -43,7 +43,7 @@ function takeToRoomText({ as, room }: { as?: string; room?: string }) {
     'Take this work to a messhall room.',
     pick,
     '2. If the reply says doorbell: checking, call wait once with timeout_s 40. A test ring wakes it: answer it with doorbell_ok, using the id it carries.',
-    '3. If a reply says doorbell: off, tell the human in one line: this chat cannot be rung. Start it with messhall claude so mentions reach it.',
+    '3. If a reply says doorbell: off, tell the human in one line: this chat cannot be rung. Start it with messhall claude so mentions reach it. Until then loop wait yourself and never end your turn on it.',
     '4. Post one hand-over: what you were doing, where (repo path and branch), and what you need from the room. Keep the seat until your role says to leave.',
   ].join('\n');
 }

@@ -8,7 +8,7 @@ import { createSession } from '../../src/mcp/session.js';
 import { mcpHarness, type McpHarness } from './harness.js';
 
 const NO_DOORBELL =
-  'doorbell: off. no answer came to the test ring, so nothing rings this session. start it with `messhall claude`, or call wait in a loop while you wait on others.';
+  'doorbell: off. no answer came to the test ring, so nothing rings this session. keep listening yourself: loop `wait` and never end your turn on it. never set a status like "waiting on doorbell". if you ask someone to ping you while you code, say you have no doorbell and `read_since` at each commit-sized step. or start it with `messhall claude` to be rung.';
 
 function clock() {
   let at = Date.parse('2026-01-01T10:00:00.000Z');
