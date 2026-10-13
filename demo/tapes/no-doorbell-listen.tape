@@ -19,7 +19,7 @@ Type "clear"
 Enter
 Show
 
-Type "pnpm -s tsx -e \"import {DOORBELL_OFF} from './src/mcp/constants.ts'; console.log(DOORBELL_OFF)\" | fold -s -w 110; echo exit $?"
+Type `pnpm -s tsx -e "import {DOORBELL_OFF} from './src/mcp/constants.ts'; console.log(DOORBELL_OFF)" | fold -s -w 110; echo exit $?`
 Sleep 500ms
 Enter
 Wait+Screen@60s /exit [0-9]/
@@ -28,5 +28,4 @@ Sleep 3s
 Type "pnpm -s vitest run test/mcp/doorbellCheck.test.ts 2>&1 | tail -6; echo exit $?"
 Sleep 500ms
 Enter
-Wait+Screen@120s /exit [0-9]+\n.*\n.*exit [0-9]/
-Sleep 8s
+Sleep 20s
