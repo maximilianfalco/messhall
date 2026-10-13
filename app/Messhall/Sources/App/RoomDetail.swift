@@ -45,6 +45,7 @@ struct RoomDetail: View {
       MemberStrip(
         live: room.liveMembers, away: room.awayMembers,
         asking: Set(room.approvals.map(\.member) + room.questions.map(\.member)),
+        lastPosts: AgentsPanel.lastPosts(in: room.messages).mapValues(\.createdAt),
         mention: room.isOpen ? { mention($0) } : nil,
         setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) },
         mute: room.isOpen ? { mute($0) } : nil,
@@ -282,6 +283,7 @@ struct MemberStrip: View {
   let live: [Member]
   let away: [Member]
   let asking: Set<String>
+  let lastPosts: [String: String]
   let mention: ((String) -> Void)?
   let setRole: ((_ role: String, _ member: String) -> Void)?
   let remove: ([String]) -> Void
@@ -367,7 +369,9 @@ struct MemberStrip: View {
   }
 
   private func badged(_ member: Member) -> MemberChip {
-    MemberChip(member: member, asks: asking.contains(member.name), launch: member.launchPill(starting: starting))
+    MemberChip(
+      member: member, asks: asking.contains(member.name), launch: member.launchPill(starting: starting),
+      lastPostAt: lastPosts[member.name])
   }
 }
 
@@ -433,6 +437,7 @@ struct MemberChip: View {
   let member: Member
   var asks = false
   var launch: LaunchPill? = nil
+  var lastPostAt: String? = nil
 
   var body: some View {
     HStack(spacing: 8) {
@@ -468,7 +473,7 @@ struct MemberChip: View {
           }
         }
         if member.status != nil {
-          StatusLine(member: member)
+          StatusLine(member: member, lastPostAt: lastPostAt)
         }
       }
     }
@@ -482,10 +487,11 @@ struct MemberChip: View {
   }
 }
 
-/// The member's own status and its age, after a glyph that spins while the member is active.
+/// The member's own status and its age (dimmed once an hour old or the member posted since), after a glyph that spins while the member is active.
 /// The age ticks each minute without a feed event. Reduce Motion keeps the glyph and the text still.
 struct StatusLine: View {
   let member: Member
+  var lastPostAt: String? = nil
   var maxWidth: CGFloat? = 240
   @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
@@ -524,6 +530,7 @@ struct StatusLine: View {
       }
     }
     .frame(maxWidth: maxWidth, alignment: .leading)
+    .opacity(member.isStatusStale(now: ThinkingClock.shared.minute, lastPostAt: lastPostAt) ? 0.5 : 1)
   }
 }
 

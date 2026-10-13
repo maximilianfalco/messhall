@@ -49,7 +49,8 @@ export function seedShotAsk({ dataDir, now }: { dataDir: string; now: Date }) {
     store.joinRoom({ as: 'api', client: CLAUDE, kind: 'claude', room: 'launch' });
     store.joinRoom({ as: 'web', client: CLAUDE, kind: 'claude', room: 'launch' });
     store.setStatus({ as: 'api', room: 'launch', status: 'staging green on https://github.com/acme/shop/pull/41' });
-    store.setStatus({ as: 'deployer', room: 'deploy', status: 'waiting for the go to migrate staging' });
+    const threeHoursAgo = createRoomStore({ db, now: () => new Date(now.getTime() - 3 * 3600_000) });
+    threeHoursAgo.setStatus({ as: 'deployer', room: 'deploy', status: 'waiting for the go to migrate staging' });
     store.touch({ as: 'reviewer', room: 'reviews', state: 'active' });
     store.setStatus({ as: 'reviewer', room: 'reviews', status: 'reading the rounding diff' });
     store.joinRoom({ as: 'mobile', client: CLAUDE, kind: 'claude', room: 'launch' });
