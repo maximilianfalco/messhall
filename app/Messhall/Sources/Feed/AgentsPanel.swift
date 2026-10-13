@@ -58,7 +58,7 @@ public struct AgentsPanel: Equatable, Sendable {
   }
 
   /// Each sender's newest chat or done line, in one pass over the loaded messages.
-  private static func lastPosts(in messages: [Message]) -> [String: Message] {
+  public static func lastPosts(in messages: [Message]) -> [String: Message] {
     var last: [String: Message] = [:]
     for message in messages where message.kind == .chat || message.kind == .done {
       last[message.from] = message
