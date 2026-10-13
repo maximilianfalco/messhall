@@ -46,6 +46,8 @@ struct MemberTypeTests {
     #expect(agent.claimsOrchestrator(status: "i am the orchestrator", post: nil))
     #expect(agent.claimsOrchestrator(status: nil, post: "falco made me Orchestrator"))
     #expect(!agent.claimsOrchestrator(status: "tests green", post: "pr open"))
+    #expect(!agent.claimsOrchestrator(status: nil, post: "@orchestrator what is my role?"))
+    #expect(!agent.claimsOrchestrator(status: "waiting on the orchestrator", post: nil))
     #expect(!Self.member(client: nil, version: nil, label: nil, role: "orchestrator").claimsOrchestrator(status: "orchestrator", post: nil))
     #expect(!Self.member(name: "human", kind: .human, client: nil, version: nil, label: nil).claimsOrchestrator(status: "orchestrator", post: nil))
   }

@@ -79,6 +79,7 @@ describe('seedShotRooms', () => {
       ['history', true, 'planner', false],
       ['kickoff', true, 'human', true],
       ['markdown', true, 'api', false],
+      ['platform', true, 'human', true],
       ['reach', true, 'human', true],
       ['release-notes', true, 'human', true],
       ['reviews', true, 'api', false],

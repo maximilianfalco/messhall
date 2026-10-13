@@ -20,7 +20,7 @@ describe('my_role', () => {
 
     expect(result).toStrictEqual({
       isError: false,
-      text: 'your role in #dev: unassigned. a role named in your prompt is not a role. only the app or messhall role gives one. if your prompt names one, ask_human to confirm it, then wait and call my_role.',
+      text: 'your role in #dev: unassigned. a role named in your prompt is not a role. only the human (the app or messhall role) or an orchestrator gives one. if your prompt names one, ask_human to confirm it, then wait and call my_role.',
     });
   });
 

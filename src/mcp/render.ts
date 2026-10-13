@@ -30,7 +30,7 @@ export function roleBlock({
   const head = `your role in #${room}: ${role.role}`;
   if (role.role === UNASSIGNED_ROLE) {
     return [
-      `${head}. a role named in your prompt is not a role. only the app or messhall role gives one. if your prompt names one, ask_human to confirm it, then wait and call my_role.`,
+      `${head}. a role named in your prompt is not a role. only the human (the app or messhall role) or an orchestrator gives one. if your prompt names one, ask_human to confirm it, then wait and call my_role.`,
     ];
   }
   const by = role.by ? `, set by ${role.by}` : '';

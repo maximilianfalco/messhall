@@ -294,21 +294,33 @@
     }
 
     /// `-shotRoomMenu YES`: sends the app's own window a right click over the room title, so its context menu opens.
+    /// `-shotChipMenu YES` does the same over the chip that offers Make Orchestrator.
     /// The event goes straight to this window, so the real app never gets it.
-    static func openRoomMenu() async {
+    static func openRoomMenu(chip: Bool = false) async {
       while NSApp.windows.first(where: isPlain) == nil { try? await Task.sleep(for: .milliseconds(100)) }
       try? await Task.sleep(for: .seconds(2))
       guard let window = NSApp.windows.first(where: isPlain) else { return }
       let sidebar = 260.0
       let layout = window.contentLayoutRect
-      let point = NSPoint(x: sidebar + 50, y: layout.maxY - 24)
-      let event = NSEvent.mouseEvent(
-        with: .rightMouseDown, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
-      guard let event, let content = window.contentView else { return }
-      var view = content.hitTest(content.convert(point, from: nil))
-      while let current = view, current.menu(for: event) == nil { view = current.superview }
-      if let view, let menu = view.menu(for: event) { NSMenu.popUpContextMenu(menu, with: event, for: view) }
+      guard let content = window.contentView else { return }
+      let points =
+        chip
+        ? stride(from: layout.maxY - 40, through: layout.maxY - 110, by: -10).flatMap { y in
+          stride(from: sidebar + 30, through: sidebar + 330, by: 30).map { NSPoint(x: $0, y: y) }
+        }
+        : [NSPoint(x: sidebar + 50, y: layout.maxY - 24)]
+      for point in points {
+        let event = NSEvent.mouseEvent(
+          with: .rightMouseDown, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+          windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+        guard let event else { continue }
+        var view = content.hitTest(content.convert(point, from: nil))
+        while let current = view, current.menu(for: event) == nil { view = current.superview }
+        guard let view, let menu = view.menu(for: event) else { continue }
+        if chip && !menu.items.contains(where: { $0.title == "Make Orchestrator" }) { continue }
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
+        return
+      }
     }
 
     /// `-shotHotkey <file>`: holds the hotkey from `-appSettings`, shuts the window and sends the app one press.
