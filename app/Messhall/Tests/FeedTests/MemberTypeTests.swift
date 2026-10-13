@@ -143,6 +143,19 @@ struct MemberTypeTests {
     #expect(Self.withStatus("tests green", at: nil).isStatusStale(now: at) == false)
   }
 
+  @Test(
+    "a status is stale once the member posted after setting it",
+    arguments: [
+      ("2026-01-01T10:00:01.000Z", true),
+      ("2026-01-01T09:59:59.000Z", false),
+      (nil, false),
+    ])
+  func statusStaleAfterPost(post: String?, stale: Bool) throws {
+    let now = try Date("2026-01-01T10:05:00.000Z", strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+
+    #expect(Self.withStatus("tests green").isStatusStale(now: now, lastPostAt: post) == stale)
+  }
+
   @Test("no status, no status line")
   func noStatusLine() {
     #expect(Self.withStatus(nil, at: nil).statusLine(now: Date()) == nil)

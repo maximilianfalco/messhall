@@ -94,7 +94,7 @@ struct AgentRowView: View {
             }
             .lineLimit(1)
             if member.status != nil {
-              StatusLine(member: member, maxWidth: .infinity)
+              StatusLine(member: member, lastPostAt: agent.lastPost?.createdAt, maxWidth: .infinity)
             }
           }
           Spacer(minLength: 0)

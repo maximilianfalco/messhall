@@ -38,10 +38,11 @@ extension Member {
       + (status.map { ": \($0)" } ?? "")
   }
 
-  /// True when the status was set an hour ago or more, so the chip can dim it.
-  public func isStatusStale(now: Date) -> Bool {
+  /// True when the status is an hour old or the member posted after setting it, so the chip can dim it.
+  public func isStatusStale(now: Date, lastPostAt: String? = nil) -> Bool {
     guard status != nil, let at = statusAt.flatMap(Self.parseStatusTime) else { return false }
-    return now.timeIntervalSince(at) >= 3600
+    let posted = lastPostAt.flatMap(Self.parseStatusTime)
+    return now.timeIntervalSince(at) >= 3600 || posted.map { $0 > at } == true
   }
 
   private static func parseStatusTime(_ text: String) -> Date? {
