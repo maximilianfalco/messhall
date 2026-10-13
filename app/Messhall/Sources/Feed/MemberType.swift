@@ -21,6 +21,14 @@ extension Member {
     kind == .human ? [] : Self.usualRoles.filter { $0 != role }
   }
 
+  private static let orchestratorClaim = #"\b(i am|i'm|im|made me|me as|am now)( now)?( the| an?)? orchestrator\b"#
+
+  /// True when the status or last post claims the orchestrator role for itself but the seat holds no such role, so the menu can offer it.
+  public func claimsOrchestrator(status: String?, post: String?) -> Bool {
+    guard kind != .human, role != "orchestrator" else { return false }
+    return [status, post].contains { $0?.range(of: Self.orchestratorClaim, options: [.regularExpression, .caseInsensitive]) != nil }
+  }
+
   /// The chip menu item that flips the mute. None for the human seat, which cannot be muted.
   public var muteAction: String? {
     kind == .human ? nil : muted ? "Unmute" : "Mute"

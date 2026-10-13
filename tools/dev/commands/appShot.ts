@@ -133,6 +133,8 @@ const SHOTS = [
   { appearance: 'dark', menuOpen: true, name: 'menu-open-dark' },
   { appearance: 'light', name: 'room-menu-light', room: 'checkout', roomMenu: true },
   { appearance: 'dark', name: 'room-menu-dark', room: 'checkout', roomMenu: true },
+  { appearance: 'light', chipMenu: true, name: 'chip-menu-light', room: 'platform' },
+  { appearance: 'dark', chipMenu: true, name: 'chip-menu-dark', room: 'platform' },
   { appearance: 'light', hotkey: true, name: 'hotkey-light' },
   { appearance: 'light', name: 'notify-blocked-light', notify: 'denied' },
   { appearance: 'dark', name: 'notify-blocked-dark', notify: 'denied' },
@@ -487,6 +489,9 @@ export function seedShotRooms({ dataDir, now }: { dataDir: string; now: Date }) 
     store.touch({ as: 'web', room: 'checkout', state: 'waiting' });
     at = now.getTime();
     store.postMessage({ from: 'api', room: 'checkout', text: '@qa both sides are merged, over to you' });
+    store.createRoom({ created_by: 'human', name: 'platform', topic: 'who leads the platform work' });
+    store.joinRoom({ as: 'lead', client: CLAUDE, kind: 'claude', room: 'platform' });
+    store.setStatus({ as: 'lead', room: 'platform', status: 'i am the orchestrator, per the human' });
     store.createRoom({ created_by: 'human', name: 'release-notes', topic: 'notes for the v2 launch' });
     store.joinRoom({ as: 'writer', kind: 'codex', room: 'release-notes' });
     store.postMessage({
@@ -632,6 +637,7 @@ export function shotArgs(shot: Shot) {
     ...('toggleSidebar' in shot ? ['-shotToggleSidebar', String(TOGGLE_PAUSE_S)] : []),
     ...('menuOpen' in shot ? ['-shotMenu', 'YES'] : []),
     ...('roomMenu' in shot ? ['-shotRoomMenu', 'YES'] : []),
+    ...('chipMenu' in shot ? ['-shotChipMenu', 'YES'] : []),
     ...('hotkey' in shot ? ['-shotHotkey', hotkeyFile(shot)] : []),
     ...('contract' in shot ? ['-shotContract', String(shot.contract)] : []),
     ...('notify' in shot ? ['-shotNotify', shot.notify] : []),
@@ -682,7 +688,9 @@ export async function waitWindow(
 /** The window number screencapture takes: Settings, the open menu, the window opened again by the hotkey, or the main one. */
 async function shotTarget({ id, pid, shot }: { id: number; pid: number; shot: Shot }) {
   if ('settings' in shot) return settingsWindow(shot);
-  if ('menuOpen' in shot || 'roomMenu' in shot) return String((await waitWindow(pid, MENU_LAYERS)) ?? 'no menu opened');
+  if ('menuOpen' in shot || 'roomMenu' in shot || 'chipMenu' in shot) {
+    return String((await waitWindow(pid, MENU_LAYERS)) ?? 'no menu opened');
+  }
   if ('hotkey' in shot) return String((await waitWindow(pid)) ?? 'no window after the hotkey');
   return String(id);
 }

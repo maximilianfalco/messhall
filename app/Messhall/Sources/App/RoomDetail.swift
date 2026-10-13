@@ -47,6 +47,7 @@ struct RoomDetail: View {
         asking: Set(room.approvals.map(\.member) + room.questions.map(\.member)),
         lastPosts: AgentsPanel.lastPosts(in: room.messages).mapValues(\.createdAt),
         mention: room.isOpen ? { mention($0) } : nil,
+        claimsOrchestrator: orchestratorClaimers,
         setRole: room.isOpen ? { setRole($0, member: $1) } : nil, remove: { remove($0) },
         mute: room.isOpen ? { mute($0) } : nil,
         starting: (store.starting[room.name] ?? []).union(Self.shotStarting), attachLines: attachLines,
@@ -132,6 +133,12 @@ struct RoomDetail: View {
 
   private func change(_ action: RoomAction) {
     Task { refusal = await store.change(action, via: client) }
+  }
+
+  private var orchestratorClaimers: Set<String> {
+    let posts = AgentsPanel.lastPosts(in: room.messages)
+    return Set(
+      room.liveMembers.filter { $0.claimsOrchestrator(status: $0.status, post: posts[$0.name]?.text) }.map(\.name))
   }
 
   private func setRole(_ role: String, member: String) {
@@ -285,6 +292,7 @@ struct MemberStrip: View {
   let asking: Set<String>
   let lastPosts: [String: String]
   let mention: ((String) -> Void)?
+  let claimsOrchestrator: Set<String>
   let setRole: ((_ role: String, _ member: String) -> Void)?
   let remove: ([String]) -> Void
   let mute: ((Member) -> Void)?
@@ -324,6 +332,9 @@ struct MemberStrip: View {
   private func chip(_ member: Member) -> some View {
     mentionable(member)
       .contextMenu {
+        if let setRole, claimsOrchestrator.contains(member.name) {
+          Button("Make Orchestrator") { setRole("orchestrator", member.name) }
+        }
         if let setRole, !member.roleChoices.isEmpty {
           Menu("Role") {
             ForEach(member.roleChoices, id: \.self) { role in
