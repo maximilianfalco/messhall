@@ -224,7 +224,7 @@ export const TOOL_ANNOTATIONS: Record<ToolName, ToolAnnotations> = {
 
 export const DOORBELL_CHECKING = 'doorbell: checking. a test ring follows, answer it with doorbell_ok.';
 export const DOORBELL_OFF =
-  'doorbell: off. no answer came to the test ring, so nothing rings this session. start it with `messhall claude`, or call wait in a loop while you wait on others.';
+  'doorbell: off. no answer came to the test ring, so nothing rings this session. keep listening yourself: loop `wait` and never end your turn on it. never set a status like "waiting on doorbell". if you ask someone to ping you while you code, say you have no doorbell and `read_since` at each commit-sized step. or start it with `messhall claude` to be rung.';
 
 export const ROOM_RULES = [
   'rules: reply only to what concerns you (a mention, @all, human, or the only other agent). a human line that names nobody goes to a live orchestrator to route. say done: true only when you leave the task for good, never on a heads-up.',
