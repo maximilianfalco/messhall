@@ -92,7 +92,7 @@ public func notificationFor(event: BusEvent, state: NotifyState) -> Notification
     guard e.change == .invited, !state.starting.contains(e.member.name), isLive(e.member.joinedAt, since: state.liveSince)
     else { return nil }
     return content(room: e.room, body: "\(e.member.name) is starting as \(e.member.role)", muted: state.mutedRooms)
-  case .messageEdit, .presence, .agreement, .unknown:
+  case .messageEdit, .presence, .read, .agreement, .unknown:
     return nil
   }
 }

@@ -63,6 +63,13 @@ export const presenceEventSchema = z.object({
   type: z.literal('presence').describe('A member changed presence.'),
 });
 
+export const readEventSchema = z.object({
+  cursor: z.number().int().describe('The id of the newest line the member has read.'),
+  name: nameSchema.describe('Member name.'),
+  room: nameSchema.describe('Room name.'),
+  type: z.literal('read').describe('A member read the room, so its cursor moved.'),
+});
+
 export const roomEventSchema = z.object({
   change: z.enum(ROOM_CHANGES).describe('created, closed, reopened or topic.'),
   room: roomSchema.describe('The room after the change.'),
@@ -95,6 +102,7 @@ export const busEventSchema = z
     messageEditEventSchema,
     memberEventSchema,
     presenceEventSchema,
+    readEventSchema,
     roomEventSchema,
     approvalEventSchema,
     questionEventSchema,

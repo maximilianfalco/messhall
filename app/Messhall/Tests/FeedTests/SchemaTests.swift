@@ -26,6 +26,7 @@ private let schema: SchemaFile = {
 
 private let models: [String: [String]] = [
   "Approval": Approval.CodingKeys.allCases.map(\.rawValue),
+  "ReadEvent": ReadEvent.CodingKeys.allCases.map(\.rawValue),
   "ApprovalEvent": ApprovalEvent.CodingKeys.allCases.map(\.rawValue),
   "ApprovalResult": ApprovalResult.CodingKeys.allCases.map(\.rawValue),
   "HumanApproval": HumanApproval.CodingKeys.allCases.map(\.rawValue),

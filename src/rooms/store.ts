@@ -1067,7 +1067,10 @@ export function createRoomStore({ db, now }: { db: DatabaseSync; now: () => Date
         const more = rows.length > take;
         if (afterId === undefined) {
           const last = more ? page.at(-1)!.id : Number(sql.latestId.get(room.id)?.id ?? member.cursor);
-          if (last > member.cursor) sql.moveCursor.run(last, room.id, as);
+          if (last > member.cursor) {
+            sql.moveCursor.run(last, room.id, as);
+            emit({ cursor: last, name: as, room: room.name, type: 'read' });
+          }
         }
         setPresence(room, member, 'active', emit, true);
         return { messages, more, ok: true } as const;

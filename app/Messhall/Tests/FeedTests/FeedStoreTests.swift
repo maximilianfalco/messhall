@@ -152,6 +152,20 @@ struct FeedStoreTests {
     #expect(store.rooms[0].members.first { $0.name == "api" }?.reach == .noDoorbell)
   }
 
+  @Test("a read event moves the cursor, so an unheard mention clears")
+  func readClearsUnheard() throws {
+    let store = try loaded()
+    store.apply(.event(seq: 8, .presence(PresenceEvent(room: "checkout", name: "api", from: .active, to: .idle, reach: .noDoorbell))))
+    let mention = Message(
+      id: 40, roomId: "r1", from: "web", kind: .chat, text: "@api ping", mentions: ["api"], createdAt: "t0")
+    store.apply(.event(seq: 9, .message(MessageEvent(room: "checkout", message: mention))))
+    let api = { store.rooms[0].members.first { $0.name == "api" }! }
+
+    #expect(api().cantHear(mention))
+    store.apply(.event(seq: 10, .read(ReadEvent(room: "checkout", name: "api", cursor: 40))))
+    #expect(!api().cantHear(mention))
+  }
+
   @Test("a member event with no reach keeps the one the member had")
   func memberKeepsReach() throws {
     let store = try loaded()

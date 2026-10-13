@@ -38,6 +38,22 @@ describe('the event bus', () => {
     expect(summary(scratch.store.events.since(3))).toStrictEqual(['message api joined', 'message hi']);
   });
 
+  it('emits a read event when read_since moves a seat cursor, and none when it does not', () => {
+    scratch.store.joinRoom({ as: 'api', kind: 'claude', room: 'demo' });
+    scratch.store.joinRoom({ as: 'web', kind: 'claude', room: 'demo' });
+    const posted = scratch.store.postMessage({ from: 'web', room: 'demo', text: 'hi @api' });
+    const id = posted.ok ? posted.message.id : -1;
+    const seen: SequencedEvent[] = [];
+    scratch.store.events.on(event => seen.push(event));
+
+    scratch.store.readUnseen({ as: 'api', room: 'demo' });
+    scratch.store.readUnseen({ as: 'api', room: 'demo' });
+
+    expect(seen.map(({ event }) => event).filter(event => event.type === 'read')).toStrictEqual([
+      { cursor: id, name: 'api', room: 'demo', type: 'read' },
+    ]);
+  });
+
   it('stops calling a listener once it is removed', () => {
     const seen: SequencedEvent[] = [];
     const off = scratch.store.events.on(event => seen.push(event));
